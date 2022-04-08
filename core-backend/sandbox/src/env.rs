@@ -26,7 +26,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, Memory, PageBuf, PageNumber},
+    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -60,12 +60,12 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
 fn set_pages(
     memory: &mut dyn Memory,
     pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-) -> Result<(), Error> {
+) -> Result<(), String> {
     for (num, buf) in pages {
         if let Some(buf) = buf {
             memory
                 .write(num.offset(), &buf[..])
-                .map_err(|_| Error::MemoryAccessError)?;
+                .map_err(|e| format!("Cannot write mem to {:?}: {:?}", num, e))?;
         }
     }
     Ok(())
@@ -76,13 +76,13 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        mem_size: u32,
+        mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
 
         let mem: DefaultExecutorMemory =
-            SandboxMemory::new(mem_size, None).map_err(|e| BackendError {
+            SandboxMemory::new(mem_size.0, None).map_err(|e| BackendError {
                 reason: "Create env memory fail",
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: later_ext.unset().into_gas_amount(),
@@ -157,10 +157,18 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         })
     }
 
-    fn get_stack_mem_end(&mut self) -> Option<i32> {
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
         // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
         let global = self.instance.get_global_val("__gear_stack_end")?;
-        global.as_i32()
+        global.as_i32().and_then(|addr| {
+            if addr < 0 {
+                None
+            } else {
+                Some(WasmPageNumber(
+                    (addr as usize / WasmPageNumber::size()) as u32,
+                ))
+            }
+        })
     }
 
     fn get_wasm_memory_begin_addr(&mut self) -> u64 {

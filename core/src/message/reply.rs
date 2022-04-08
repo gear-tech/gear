@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ids::{MessageId, ProgramId};
-use crate::message::{
-    Dispatch, DispatchKind, ExitCode, GasLimit, Message, Payload, StoredDispatch, StoredMessage,
-    Value,
+use crate::{
+    ids::{MessageId, ProgramId},
+    message::{
+        Dispatch, DispatchKind, ExitCode, GasLimit, Message, Payload, StoredDispatch,
+        StoredMessage, Value,
+    },
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -77,7 +79,7 @@ impl ReplyMessage {
         origin_msg_id: MessageId,
     ) -> StoredMessage {
         self.into_message(program_id, destination, origin_msg_id)
-            .into_stored()
+            .into()
     }
 
     /// Convert ReplyMessage into Dispatch.
@@ -101,7 +103,7 @@ impl ReplyMessage {
         origin_msg_id: MessageId,
     ) -> StoredDispatch {
         self.into_dispatch(source, destination, origin_msg_id)
-            .into_stored()
+            .into()
     }
 
     /// Message id.

@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, Memory, PageNumber};
+use gear_core::memory::{Error, Memory, PageNumber, WasmPageNumber};
 use sp_sandbox::SandboxMemory;
 
 /// Wrapper for sp_sandbox::Memory.
@@ -33,14 +33,14 @@ impl MemoryWrap {
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
-    fn grow(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
         self.0
-            .grow(pages.raw())
+            .grow(pages.0)
             .map(|prev| prev.into())
             .map_err(|_| Error::OutOfMemory)
     }
 
-    fn size(&self) -> PageNumber {
+    fn size(&self) -> WasmPageNumber {
         self.0.size().into()
     }
 
@@ -57,7 +57,7 @@ impl Memory for MemoryWrap {
     }
 
     fn data_size(&self) -> usize {
-        (self.0.size() * 65536) as usize
+        self.0.size() as usize * WasmPageNumber::size()
     }
 
     fn get_wasm_memory_begin_addr(&self) -> u64 {
@@ -109,9 +109,8 @@ mod tests {
         // and now can allocate page that was freed
         assert_eq!(
             mem.alloc(1.into(), &mut mem_wrap)
-                .expect("allocation failed")
-                .raw(),
-            137
+                .expect("allocation failed"),
+            137.into()
         );
 
         // if we have 2 in a row we can allocate even 2
@@ -120,9 +119,8 @@ mod tests {
 
         assert_eq!(
             mem.alloc(2.into(), &mut mem_wrap)
-                .expect("allocation failed")
-                .raw(),
-            117
+                .expect("allocation failed"),
+            117.into()
         );
 
         // but if 2 are not in a row, bad luck

@@ -30,14 +30,15 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
+use gear_core::memory::{pages_to_wasm_pages_set, PageNumber};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    memory::PAGE_SIZE,
     message::*,
     program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
+use std::collections::{BTreeMap, BTreeSet};
 use std::{
     collections::HashMap,
     fmt, fs,
@@ -342,11 +343,19 @@ pub fn check_allocations(
                 .get_pages()
                 .iter()
                 .filter(|(page, _buf)| match exp.filter {
-                    Some(AllocationFilter::Static) => page.raw() < program.static_pages(),
-                    Some(AllocationFilter::Dynamic) => page.raw() >= program.static_pages(),
+                    Some(AllocationFilter::Static) => {
+                        **page < program.static_pages().to_gear_pages()
+                    }
+                    Some(AllocationFilter::Dynamic) => {
+                        **page >= program.static_pages().to_gear_pages()
+                    }
                     None => true,
                 })
-                .collect::<Vec<_>>();
+                .map(|(page, _buf)| *page)
+                .collect::<BTreeSet<_>>();
+
+            let actual_pages =
+                pages_to_wasm_pages_set(actual_pages.iter()).expect("unexpected pages");
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
@@ -360,10 +369,8 @@ pub fn check_allocations(
                     }
                 }
                 AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                    let mut actual_pages = actual_pages
-                        .iter()
-                        .map(|(page, _buf)| page.raw())
-                        .collect::<Vec<_>>();
+                    let mut actual_pages =
+                        actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
                     let mut expected_pages = expected_pages.clone();
 
                     actual_pages.sort_unstable();
@@ -382,7 +389,7 @@ pub fn check_allocations(
                     for &expected_page in expected_pages {
                         if !actual_pages
                             .iter()
-                            .map(|(page, _buf)| page.raw())
+                            .map(|page| page.0)
                             .any(|actual_page| actual_page == expected_page)
                         {
                             errors.push(format!(
@@ -417,12 +424,11 @@ pub fn check_memory(
     for case in expected_memory {
         for p in &mut *program_storage {
             if p.id() == case.id.to_program_id() {
-                let page = case.address / PAGE_SIZE;
+                let page = case.address / PageNumber::size();
                 if let Some(page_buf) = p.get_page_data((page as u32).into()) {
-                    if page_buf[case.address - page * PAGE_SIZE
-                        ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
-                        != case.bytes
-                    {
+                    let begin_byte = case.address - page * PageNumber::size();
+                    let end_byte = begin_byte + case.bytes.len();
+                    if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
                     }
                 } else {
@@ -438,26 +444,42 @@ pub fn check_memory(
     }
 }
 
-fn check_active_programs(
-    expected_ids: Vec<ProgramId>,
-    actual_ids: Vec<ProgramId>,
+pub fn check_programs_state(
+    expected_programs: &BTreeMap<ProgramId, bool>,
+    actual_programs: &BTreeMap<ProgramId, bool>,
+    only: bool,
 ) -> Result<(), Vec<String>> {
-    let mut errors = Vec::with_capacity(expected_ids.len());
-    if expected_ids.len() != actual_ids.len() {
-        errors.push(format!(
-            "invalid amount of active programs: expected - {:?}, actual - {:?}",
-            expected_ids.len(),
-            actual_ids.len()
-        ));
-    } else {
-        let check_data = expected_ids.iter().zip(actual_ids.iter());
-        for (idx, (expected_id, actual_id)) in check_data.enumerate() {
-            if expected_id != actual_id {
+    let mut errors = Vec::new();
+
+    if only {
+        if actual_programs.len() != expected_programs.len() {
+            errors.push(format!(
+                "Different lens of actual and expected programs: actual length={}, expected length={}",
+                actual_programs.len(), expected_programs.len(),
+            ));
+        }
+
+        for id in actual_programs.keys() {
+            if !expected_programs.contains_key(id) {
                 errors.push(format!(
-                    "invalid program id at position {:?}. Expected - {:?}, actual - {:?}",
-                    idx, expected_id, actual_id
+                    "Actual program {:?} wasn't found in expectations",
+                    id,
                 ));
             }
+        }
+    }
+
+    for (id, terminated) in expected_programs {
+        let actual_termination = actual_programs.get(id);
+        if let Some(actual_termination) = actual_termination {
+            if actual_termination != terminated {
+                errors.push(format!(
+                    "Wrong state of program: {:?} expected to be active={:?}, but it is active={:?}",
+                    id, terminated, actual_termination,
+                ));
+            }
+        } else {
+            errors.push(format!("Invalid program id {:?}.", id));
         }
     }
 
@@ -513,8 +535,9 @@ where
                         let msgs: Vec<_> = final_state
                             .dispatch_queue
                             .into_iter()
-                            .map(|(d, gas_limit)| (d.message().clone(), gas_limit))
+                            .map(|(d, gas_limit)| (d.into_parts().1, gas_limit))
                             .collect();
+
                         if let Err(msg_errors) =
                             check_messages(progs_n_paths, &msgs, messages, false)
                         {
@@ -549,16 +572,29 @@ where
                         );
                     }
                 }
-                if let Some(programs) = &exp.active_programs {
+                if let Some(programs) = &exp.programs {
                     let expected_prog_ids = programs
+                        .ids
                         .iter()
-                        .map(|address| address.to_program_id())
+                        .map(|program| {
+                            (
+                                program.address.to_program_id(),
+                                program.terminated.unwrap_or_default(),
+                            )
+                        })
                         .collect();
-                    // Final state returns only active programs
-                    let actual_prog_ids = final_state.actors.iter().map(|(id, _)| *id).collect();
-                    if let Err(prog_id_errors) =
-                        check_active_programs(expected_prog_ids, actual_prog_ids)
-                    {
+
+                    let actual_prog_ids = final_state
+                        .actors
+                        .iter()
+                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .collect();
+
+                    if let Err(prog_id_errors) = check_programs_state(
+                        &expected_prog_ids,
+                        &actual_prog_ids,
+                        programs.only.unwrap_or_default(),
+                    ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             prog_id_errors
@@ -573,7 +609,7 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .map(|(_, v)| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
@@ -586,7 +622,7 @@ where
                         let mut progs: Vec<Program> = final_state
                             .actors
                             .into_iter()
-                            .map(|(_, v)| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));

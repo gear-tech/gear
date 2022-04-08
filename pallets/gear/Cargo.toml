@@ -57,6 +57,7 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
+page_size = "0.4.2"
 
 [features]
 default = ['std']
