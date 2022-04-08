@@ -492,7 +492,10 @@ fn block_gas_limit_works() {
                 (i32.const 0)
             )
             (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
-            drop
+            (if
+                (then unreachable)
+                (else)
+            )
         )
         (func $handle_reply)
         (func $init)
@@ -968,7 +971,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
             panic!("Program is terminated!");
         };
 
-        populate_mailbox_from_program(prog_id, USER_1, 2, 10_000, 0);
+        populate_mailbox_from_program(prog_id, USER_1, 2, 20_000_000, 0);
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
@@ -2773,7 +2776,10 @@ mod utils {
                                 (i32.const 1000)
                             )
                             (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
-                            drop
+                            (if
+                                (then unreachable)
+                                (else)
+                            )
                         )
                         (func $handle_reply)
                         (func $init)
