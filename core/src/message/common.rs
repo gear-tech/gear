@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ids::{MessageId, ProgramId};
-use crate::message::{
-    DispatchKind, ExitCode, GasLimit, Payload, StoredDispatch, StoredMessage, Value,
+use crate::{
+    ids::{MessageId, ProgramId},
+    message::{DispatchKind, ExitCode, GasLimit, Payload, StoredDispatch, StoredMessage, Value},
 };
 use codec::{Decode, Encode};
 use core::ops::Deref;
@@ -41,6 +41,19 @@ pub struct Message {
     value: Value,
     /// Message id replied on with exit code.
     reply: Option<(MessageId, ExitCode)>,
+}
+
+impl From<Message> for StoredMessage {
+    fn from(message: Message) -> StoredMessage {
+        StoredMessage::new(
+            message.id,
+            message.source,
+            message.destination,
+            message.payload,
+            message.value,
+            message.reply,
+        )
+    }
 }
 
 impl Message {
@@ -67,14 +80,7 @@ impl Message {
 
     /// Convert Message into gasless StoredMessage.
     pub fn into_stored(self) -> StoredMessage {
-        StoredMessage::new(
-            self.id,
-            self.source,
-            self.destination,
-            self.payload,
-            self.value,
-            self.reply,
-        )
+        self.into()
     }
 
     /// Message id.
@@ -137,6 +143,18 @@ pub struct Dispatch {
     message: Message,
 }
 
+impl From<Dispatch> for StoredDispatch {
+    fn from(dispatch: Dispatch) -> StoredDispatch {
+        StoredDispatch::new(dispatch.kind, dispatch.message.into(), None)
+    }
+}
+
+impl From<Dispatch> for (DispatchKind, Message) {
+    fn from(dispatch: Dispatch) -> (DispatchKind, Message) {
+        (dispatch.kind, dispatch.message)
+    }
+}
+
 impl Dispatch {
     /// Create new Dispatch.
     pub fn new(kind: DispatchKind, message: Message) -> Self {
@@ -145,7 +163,12 @@ impl Dispatch {
 
     /// Convert Dispatch into gasless StoredDispatch with empty previous context.
     pub fn into_stored(self) -> StoredDispatch {
-        StoredDispatch::new(self.kind, self.message.into_stored(), None)
+        self.into()
+    }
+
+    /// Decompose Dispatch for it's components: DispatchKind and Message.
+    pub fn into_parts(self) -> (DispatchKind, Message) {
+        self.into()
     }
 
     /// Entry point for the message.

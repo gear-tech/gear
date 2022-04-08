@@ -123,6 +123,7 @@ mod tests {
     #[test]
     fn test_simple() {
         let sys = System::new();
+        sys.init_logger();
         let factory = prepare_factory(&sys);
 
         let child_id_expected = calculate_program_id(CHILD_CODE_HASH.into(), &0i32.to_le_bytes());

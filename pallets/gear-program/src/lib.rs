@@ -50,6 +50,7 @@ pub mod pallet {
         },
     };
     use frame_system::pallet_prelude::*;
+    use gear_core::memory::PageNumber;
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};
     use weights::WeightInfo;
 
@@ -118,7 +119,7 @@ pub mod pallet {
         pub fn resume_program(
             origin: OriginFor<T>,
             program_id: H256,
-            memory_pages: BTreeMap<u32, Vec<u8>>,
+            memory_pages: BTreeMap<PageNumber, Vec<u8>>,
             wait_list: BTreeMap<H256, gear_core::message::StoredDispatch>,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {

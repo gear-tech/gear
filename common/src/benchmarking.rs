@@ -18,6 +18,7 @@
 
 use super::*;
 
+use gear_core::memory::{wasm_pages_to_pages_set, WasmPageNumber};
 use parity_wasm::elements::*;
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
@@ -34,7 +35,7 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (import "env" "memory" (memory $num_pages))
 //     (func (type 0))
 //     (export "init" (func 0)))
-pub fn create_module(num_pages: u32) -> parity_wasm::elements::Module {
+pub fn create_module(num_pages: WasmPageNumber) -> parity_wasm::elements::Module {
     parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![Type::Function(
             FunctionType::new(vec![], vec![]),
@@ -42,7 +43,7 @@ pub fn create_module(num_pages: u32) -> parity_wasm::elements::Module {
         Section::Import(ImportSection::with_entries(vec![ImportEntry::new(
             "env".into(),
             "memory".into(),
-            External::Memory(MemoryType::new(num_pages, None)),
+            External::Memory(MemoryType::new(num_pages.0, None)),
         )])),
         Section::Function(FunctionSection::with_entries(vec![Func::new(0)])),
         Section::Export(ExportSection::with_entries(vec![ExportEntry::new(
@@ -56,7 +57,7 @@ pub fn create_module(num_pages: u32) -> parity_wasm::elements::Module {
     ])
 }
 
-pub fn generate_wasm(num_pages: u32) -> Result<Vec<u8>, &'static str> {
+pub fn generate_wasm(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str> {
     let module = create_module(num_pages);
     let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
 
@@ -75,7 +76,7 @@ pub fn generate_wasm(num_pages: u32) -> Result<Vec<u8>, &'static str> {
 //         (local.set $result (call $alloc (i32.const $num_pages)))
 //     )
 // )
-pub fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
+pub fn generate_wasm2(num_pages: WasmPageNumber) -> Result<Vec<u8>, &'static str> {
     let module = parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![
             Type::Function(FunctionType::new(
@@ -105,7 +106,7 @@ pub fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
             FuncBody::new(
                 vec![Local::new(1, ValueType::I32)],
                 Instructions::new(vec![
-                    Instruction::I32Const(num_pages),
+                    Instruction::I32Const(num_pages.0 as i32),
                     Instruction::Call(0),
                     Instruction::SetLocal(0),
                     Instruction::End,
@@ -119,7 +120,7 @@ pub fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
 }
 
 pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
-    let mut module = create_module(1);
+    let mut module = create_module(WasmPageNumber(1));
     module
         .insert_section(Section::Custom(CustomSection::new(
             "zeroed_section".to_owned(),
@@ -131,16 +132,24 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32) {
+pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber) {
     let code_id = CodeId::generate(&code).into_origin();
+    let wasm_pages = (0..static_pages.0)
+        .map(WasmPageNumber)
+        .collect::<Vec<WasmPageNumber>>();
+    let persistent_pages = wasm_pages_to_pages_set(wasm_pages.iter());
+    let persistent_pages_data = persistent_pages
+        .iter()
+        .map(|p| (*p, vec![0u8; PageNumber::size()]))
+        .collect();
     super::set_program(
         program_id,
         ActiveProgram {
             static_pages,
-            persistent_pages: (0..static_pages).collect(),
+            persistent_pages,
             code_hash: code_id,
             state: ProgramState::Initialized,
         },
-        (0..static_pages).map(|i| (i, vec![0u8; 65536])).collect(),
+        persistent_pages_data,
     );
 }

@@ -76,6 +76,19 @@ pub struct Code {
     pub path: String,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct ChainProgram {
+    #[serde(flatten)]
+    pub address: ChainAddress,
+    pub terminated: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Programs {
+    pub only: Option<bool>,
+    pub ids: Vec<ChainProgram>,
+}
+
 /// Expected data after running messages, defined in the fixture.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
@@ -96,8 +109,7 @@ pub struct Expectation {
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
     /// Expected active programs (not failed in the init) ids
-    #[serde(rename = "programs")]
-    pub active_programs: Option<Vec<ChainAddress>>,
+    pub programs: Option<Programs>,
 }
 
 /// Data describing program being tested.

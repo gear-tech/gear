@@ -16,9 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ids::{MessageId, ProgramId};
-use crate::message::{
-    Dispatch, DispatchKind, GasLimit, Message, Payload, StoredDispatch, StoredMessage, Value,
+use crate::{
+    ids::{MessageId, ProgramId},
+    message::{
+        Dispatch, DispatchKind, GasLimit, Message, Payload, StoredDispatch, StoredMessage, Value,
+    },
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -65,7 +67,7 @@ impl HandleMessage {
 
     /// Convert HandleMessage into StoredMessage.
     pub fn into_stored(self, source: ProgramId) -> StoredMessage {
-        self.into_message(source).into_stored()
+        self.into_message(source).into()
     }
 
     /// Convert HandleMessage into Dispatch.
@@ -75,7 +77,7 @@ impl HandleMessage {
 
     /// Convert HandleMessage into StoredDispatch.
     pub fn into_stored_dispatch(self, source: ProgramId) -> StoredDispatch {
-        self.into_dispatch(source).into_stored()
+        self.into_dispatch(source).into()
     }
 
     /// Message id.
