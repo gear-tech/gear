@@ -34,7 +34,7 @@ use crate::{
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     Pallet as Gear, *,
 };
-use codec::{HasCompact, Encode};
+use codec::{Encode, HasCompact};
 use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_support::traits::Get;
 use frame_system::{pallet_prelude::OriginFor, RawOrigin};
@@ -115,14 +115,10 @@ where
             250_000_000,
             value.into(),
         )?;
-        
+
         Gear::<T>::process_queue();
 
-        let result = Program {
-            caller,
-            addr,
-        };
-
+        let result = Program { caller, addr };
 
         Ok(result)
     }
@@ -302,7 +298,7 @@ benchmarks! {
     }
 
     // We cannot call `gr_wake` multiple times. Therefore our weight determination is not
-	// as precise as with other APIs.
+    // as precise as with other APIs.
     gr_wake {
         let r in 0 .. 1;
         let message_id = gear_core::ids::MessageId::from(2);
@@ -317,16 +313,16 @@ benchmarks! {
                 params: vec![ValueType::I32],
                 return_type: None,
             }],
-			data_segments: vec![
-				DataSegment {
-					offset: 0 as u32,
-					value: message_id_bytes,
-				},
-			],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0 as u32,
+                    value: message_id_bytes,
+                },
+            ],
             handle_body: Some(body::repeated(r, &[
-				Instruction::I32Const(0), // message_id_ptr
-				Instruction::Call(0),
-			])),
+                Instruction::I32Const(0), // message_id_ptr
+                Instruction::Call(0),
+            ])),
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;

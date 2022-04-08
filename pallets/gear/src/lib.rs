@@ -343,15 +343,11 @@ pub mod pallet {
 
             // let original_code = code.clone();
 
-            let code = Code::new_raw(
-                code,
-                schedule.instruction_weights.version,
-                Some(module),
-            )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
+            let code = Code::new_raw(code, schedule.instruction_weights.version, Some(module))
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {:?}", e);
+                    Error::<T>::FailedToConstructProgram
+                })?;
 
             let packet = InitPacket::new_with_gas(
                 code.code_hash(),
