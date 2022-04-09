@@ -295,6 +295,24 @@ benchmarks! {
         let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
+    gr_msg_id {
+		let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::getter(
+			"env", "gr_msg_id", r * API_BENCHMARK_BATCH_SIZE
+		), vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    gr_origin {
+		let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::getter(
+			"env", "gr_origin", r * API_BENCHMARK_BATCH_SIZE
+		), vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
     gr_program_id {
 		let r in 0 .. API_BENCHMARK_BATCHES;
         let instance = Program::<T>::new(WasmModule::getter(
@@ -304,10 +322,61 @@ benchmarks! {
         let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
+    gr_source {
+		let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::getter(
+			"env", "gr_source", r * API_BENCHMARK_BATCH_SIZE
+		), vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    gr_value {
+		let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::getter(
+			"env", "gr_value", r * API_BENCHMARK_BATCH_SIZE
+		), vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    gr_value_available {
+		let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::getter(
+			"env", "gr_value_available", r * API_BENCHMARK_BATCH_SIZE
+		), vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
+	// as precise as with other APIs.
+    gr_leave {
+        let r in 0 .. 1;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_leave",
+                params: vec![],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
+	// as precise as with other APIs.
     gr_wait {
         let r in 0 .. 1;
         let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory { min_pages: 256 }),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_wait",

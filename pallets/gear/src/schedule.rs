@@ -257,6 +257,27 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: Weight,
 
+    /// Weight of calling `gr_msg_id`.
+    pub gr_msg_id: Weight,
+
+    /// Weight of calling `gr_origin`.
+    pub gr_origin: Weight,
+
+    /// Weight of calling `gr_program_id`.
+    pub gr_program_id: Weight,
+
+    /// Weight of calling `gr_source`.
+    pub gr_source: Weight,
+
+    /// Weight of calling `gr_value`.
+    pub gr_value: Weight,
+
+    /// Weight of calling `gr_value_available`.
+    pub gr_value_available: Weight,
+
+    /// Weight of calling `gr_leave`.
+    pub gr_leave: Weight,
+
     /// Weight of calling `gr_wait`.
     pub gr_wait: Weight,
 
@@ -435,7 +456,14 @@ impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
             gr_gas_available: cost_batched!(gr_gas_available),
-            gr_wait: cost_batched!(gr_wait),
+            gr_msg_id: cost_batched!(gr_msg_id),
+            gr_origin: cost_batched!(gr_origin),
+            gr_program_id: cost_batched!(gr_program_id),
+            gr_source: cost_batched!(gr_source),
+            gr_value: cost_batched!(gr_value),
+            gr_value_available: cost_batched!(gr_value_available),
+            gr_leave: cost!(gr_leave),
+            gr_wait: cost!(gr_wait),
             gr_wake: cost_batched!(gr_wake),
             gas: cost_batched!(gas),
             _phantom: PhantomData,
