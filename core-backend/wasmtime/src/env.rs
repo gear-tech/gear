@@ -27,7 +27,7 @@ use alloc::{
 };
 use gear_backend_common::{
     funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
-    ExtInfoSource, TerminationReason,
+    ExtInfo, ExtInfoSource, TerminationReason, WasmBeginAddr,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -68,6 +68,32 @@ fn set_pages<T: Ext>(
         }
     }
     Ok(())
+}
+
+impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
+    fn prepare_report_data(self) -> Result<(ExtInfo, WasmBeginAddr), BackendError<'static>> {
+        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
+        let WasmtimeEnvironment {
+            mut store,
+            ext,
+            memory,
+            ..
+        } = self;
+        let info = ext
+            .unset()
+            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
+                memory
+                    .read(&mut store, offset, buffer)
+                    .map_err(|_| "Cannot read wasmtime memory")
+            })
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason,
+                description: None,
+                gas_amount,
+            })?;
+
+        Ok((info, wasm_memory_addr))
+    }
 }
 
 impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
@@ -223,65 +249,40 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         self.memory.data_ptr(&self.store) as u64
     }
 
-    fn execute<F: FnOnce(u64) -> Result<(), &'static str>>(
+    fn execute<F>(
         mut self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError> {
+    ) -> Result<BackendReport, BackendError>
+    where
+        F: FnOnce(WasmBeginAddr) -> Result<(), &'static str>,
+    {
         let func = self.instance.get_func(&mut self.store, entry_point);
 
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
         } else {
-            let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-            let WasmtimeEnvironment {
-                mut store,
-                ext,
-                memory,
-                ..
-            } = self;
+            let (info, wasm_memory_addr) = self.prepare_report_data()?;
+            let gas_amount = info.gas_amount;
+
             // Entry function not found, so we mean this as empty function
-            return Ok(BackendReport {
-                termination: TerminationReason::Success,
-                wasm_memory_addr,
-                info: ext
-                    .unset()
-                    .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                        memory
-                            .read(&mut store, offset, buffer)
-                            .map_err(|_| "Cannot read wasmtime memory")
-                    })
-                    .map_err(|(reason, gas_amount)| BackendError {
-                        reason,
-                        description: None,
-                        gas_amount,
-                    })?,
-            });
+            return post_execution_handler(wasm_memory_addr)
+                .map(|_| BackendReport {
+                    termination: TerminationReason::Success,
+                    info,
+                })
+                .map_err(|e| BackendError {
+                    reason: e,
+                    description: None,
+                    gas_amount,
+                });
         };
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-        let WasmtimeEnvironment {
-            mut store,
-            ext,
-            memory,
-            ..
-        } = self;
-
-        let info = ext
-            .unset()
-            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                memory
-                    .read(&mut store, offset, buffer)
-                    .map_err(|_| "Cannot read wasmtime memory")
-            })
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason,
-                description: None,
-                gas_amount,
-            })?;
+        let (info, wasm_memory_addr) = self.prepare_report_data()?;
+        let gas_amount = info.gas_amount;
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
@@ -310,13 +311,8 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        let gas_amount = info.gas_amount;
         post_execution_handler(wasm_memory_addr)
-            .map(|_| BackendReport {
-                termination,
-                wasm_memory_addr, // todo [sab] можно убрать
-                info,
-            })
+            .map(|_| BackendReport { termination, info })
             .map_err(|e| BackendError {
                 reason: e,
                 description: None,

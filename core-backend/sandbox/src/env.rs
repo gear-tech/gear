@@ -22,7 +22,7 @@ use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
     funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
-    ExtInfoSource, TerminationReason,
+    ExtInfoSource, TerminationReason, WasmBeginAddr,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -175,11 +175,14 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
-    fn execute<F: FnOnce(u64) -> Result<(), &'static str>>(
+    fn execute<F>(
         mut self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError> {
+    ) -> Result<BackendReport, BackendError>
+    where
+        F: FnOnce(WasmBeginAddr) -> Result<(), &'static str>,
+    {
         let res = if self.entries.contains(&String::from(entry_point)) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)
         } else {
@@ -232,11 +235,7 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
 
         let gas_amount = info.gas_amount;
         post_execution_handler(wasm_memory_addr)
-            .map(|_| BackendReport {
-                termination,
-                wasm_memory_addr, // todo [sab] можно убрать
-                info,
-            })
+            .map(|_| BackendReport { termination, info })
             .map_err(|e| BackendError {
                 reason: e,
                 description: None,

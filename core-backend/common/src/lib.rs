@@ -44,6 +44,8 @@ pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
+pub type WasmBeginAddr = u64;
+
 #[derive(Debug)]
 pub enum TerminationReason<'a> {
     Exit(ProgramId),
@@ -83,7 +85,6 @@ pub fn get_actual_gas_amount<E: Ext + ExtInfoSource>(later_ext: &mut LaterExt<E>
 
 pub struct BackendReport<'a> {
     pub termination: TerminationReason<'a>,
-    pub wasm_memory_addr: u64,
     pub info: ExtInfo,
 }
 
@@ -114,12 +115,13 @@ pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// - IMPORTANT: env is in inconsistent state after execution.
-    fn execute<F: FnOnce(u64) -> Result<(), &'static str>>(
-        // todo [sab] maybe domain types in input instead of u64
+    fn execute<F>(
         self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError>;
+    ) -> Result<BackendReport, BackendError>
+    where
+        F: FnOnce(WasmBeginAddr) -> Result<(), &'static str>;
 
     /// Unset env ext and returns gas amount.
     fn drop_env(self) -> GasAmount;
