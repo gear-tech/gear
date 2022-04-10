@@ -114,7 +114,12 @@ pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// - IMPORTANT: env is in inconsistent state after execution.
-    fn execute(self, entry_point: &str) -> Result<BackendReport, BackendError>;
+    fn execute<F: FnOnce(u64) -> Result<(), &'static str>>(
+        // todo [sab] maybe domain types in input instead of u64
+        self,
+        entry_point: &str,
+        post_execution_handler: F,
+    ) -> Result<BackendReport, BackendError>;
 
     /// Unset env ext and returns gas amount.
     fn drop_env(self) -> GasAmount;

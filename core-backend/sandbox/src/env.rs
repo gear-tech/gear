@@ -175,7 +175,11 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
-    fn execute(mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+    fn execute<F: FnOnce(u64) -> Result<(), &'static str>>(
+        mut self,
+        entry_point: &str,
+        post_execution_handler: F,
+    ) -> Result<BackendReport, BackendError> {
         let res = if self.entries.contains(&String::from(entry_point)) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)
         } else {
@@ -226,11 +230,18 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
             TerminationReason::Success
         };
 
-        Ok(BackendReport {
-            termination,
-            wasm_memory_addr,
-            info,
-        })
+        let gas_amount = info.gas_amount;
+        post_execution_handler(wasm_memory_addr)
+            .map(|_| BackendReport {
+                termination,
+                wasm_memory_addr, // todo [sab] можно убрать
+                info,
+            })
+            .map_err(|e| BackendError {
+                reason: e,
+                description: None,
+                gas_amount,
+            })
     }
 
     fn drop_env(self) -> GasAmount {

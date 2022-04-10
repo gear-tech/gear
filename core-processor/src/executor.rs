@@ -262,10 +262,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Envir
 
     // Running backend.
     let BackendReport {
-        termination,
-        wasm_memory_addr,
-        info,
-    } = match env.execute(kind.into_entry()) {
+        termination, info, ..
+    } = match env.execute(kind.into_entry(), |wasm_memory_addr| {
+        if lazy_pages_enabled {
+            A::post_execution_actions(initial_pages, wasm_memory_addr)
+        } else {
+            Ok(())
+        }
+    }) {
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
@@ -276,21 +280,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Envir
             })
         }
     };
-
-    log::trace!("term reason = {:?}", termination);
-
-    if lazy_pages_enabled {
-        // accessed lazy pages old data will be added to `initial_pages`
-        // TODO: if post execution actions err is connected, with removing pages protections,
-        // then we should panic here, because protected pages may cause UB later, during err handling,
-        // if somebody will try to access this pages.
-        A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
-            program_id,
-            gas_amount: info.gas_amount,
-            reason: e,
-            allowance_exceed: false,
-        })?;
-    }
 
     // Parsing outcome.
     let kind = match termination {

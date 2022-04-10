@@ -223,7 +223,11 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         self.memory.data_ptr(&self.store) as u64
     }
 
-    fn execute(mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+    fn execute<F: FnOnce(u64) -> Result<(), &'static str>>(
+        mut self,
+        entry_point: &str,
+        post_execution_handler: F,
+    ) -> Result<BackendReport, BackendError> {
         let func = self.instance.get_func(&mut self.store, entry_point);
 
         let entry_func = if let Some(f) = func {
@@ -306,11 +310,18 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        Ok(BackendReport {
-            termination,
-            wasm_memory_addr,
-            info,
-        })
+        let gas_amount = info.gas_amount;
+        post_execution_handler(wasm_memory_addr)
+            .map(|_| BackendReport {
+                termination,
+                wasm_memory_addr, // todo [sab] можно убрать
+                info,
+            })
+            .map_err(|e| BackendError {
+                reason: e,
+                description: None,
+                gas_amount,
+            })
     }
 
     fn drop_env(self) -> GasAmount {
