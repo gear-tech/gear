@@ -114,7 +114,7 @@ pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
     fn get_wasm_memory_begin_addr(&self) -> u64;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
-    /// - IMPORTANT: env is in inconsistent state after execution.
+    /// Also runs `post_execution_handler` after running instance at provided entry point.
     fn execute<F>(
         self,
         entry_point: &str,
