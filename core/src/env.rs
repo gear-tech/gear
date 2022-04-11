@@ -186,7 +186,7 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Unset inner ext
-    pub fn unset(self) -> E {
+    pub fn take(self) -> E {
         self.inner
             .borrow_mut()
             .take()
@@ -303,7 +303,7 @@ mod tests {
             Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
         );
 
-        let inner = ext.unset();
+        let inner = ext.take();
 
         assert_eq!(inner, ExtImplementedStruct(0));
     }
@@ -316,7 +316,7 @@ mod tests {
 
         // ext_clone refers the same inner as ext_source,
         // so setting on one causes setting on other
-        let inner = ext_clone.unset();
+        let inner = ext_clone.take();
 
         assert_eq!(inner, ExtImplementedStruct(0));
     }

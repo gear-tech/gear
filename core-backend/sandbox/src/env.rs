@@ -196,7 +196,7 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
         log::debug!("execution res = {:?}", res);
 
         let info = ext
-            .unset()
+            .take()
             .into_ext_info(|ptr, buff| {
                 memory
                     .read(ptr, buff)
@@ -244,6 +244,6 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
     }
 
     fn drop_env(self) -> GasAmount {
-        self.runtime.ext.unset().gas_amount()
+        self.runtime.ext.take().gas_amount()
     }
 }

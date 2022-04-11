@@ -82,7 +82,7 @@ impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
             ..
         } = self;
         let info = ext
-            .unset()
+            .take()
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                 memory
                     .read(&mut store, offset, buffer)
@@ -323,6 +323,6 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
     }
 
     fn drop_env(self) -> GasAmount {
-        self.ext.unset().gas_amount()
+        self.ext.take().gas_amount()
     }
 }
