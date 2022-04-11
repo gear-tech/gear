@@ -52,6 +52,8 @@ pub trait WeightInfo {
 	fn gr_send_init(r: u32, ) -> Weight;
 	fn gr_send_push(r: u32, ) -> Weight;
 	fn gr_send_push_per_kb(n: u32, ) -> Weight;
+	fn gr_send_commit(r: u32, ) -> Weight;
+	fn gr_send_commit_per_kb(n: u32, ) -> Weight;
 	fn gr_leave(r: u32, ) -> Weight;
 	fn gr_wait(r: u32, ) -> Weight;
 	fn gr_wake(r: u32, ) -> Weight;
@@ -4199,7 +4201,15 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 
 	fn gr_send_push_per_kb(n: u32, ) -> Weight {
 		(41_793_000 as Weight)
-		}
+	}
+
+	fn gr_send_commit(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_commit_per_kb(n: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
 }
 
 // For backwards compatibility and tests
@@ -8292,6 +8302,14 @@ impl WeightInfo for () {
 	}
 
 	fn gr_send_push_per_kb(n: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_commit(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_commit_per_kb(n: u32, ) -> Weight {
 		(41_793_000 as Weight)
 	}
 }

@@ -428,8 +428,9 @@ benchmarks! {
         let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
-    // Benchmark the `gr_send` call.
-    gr_send {
+    // Benchmark the `gr_send_commit` call.
+    // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
+    gr_send_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
         let pid_bytes = instance.addr.encode();
@@ -469,20 +470,15 @@ benchmarks! {
         let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into());
     }
 
-    // Benchmark the `gr_send` call.
+    // Benchmark the `gr_send_commit` call.
     // `n`: Size of message payload in kb
-    gr_send_per_kb {
+    gr_send_commit_per_kb {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
         let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
         let pid_bytes = instance.addr.encode();
         let pid_len = pid_bytes.len();
         let value_bytes = 0_u128.encode();
         let value_len = value_bytes.len();
-        // let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
-        //     .map(|i| gear_core::ids::MessageId::from(i as u64))
-        //     .collect::<Vec<_>>();
-        // let message_id_len = message_ids.get(0).map(|i| i.encode().len()).unwrap_or(0);
-        // let message_id_bytes = message_ids.iter().flat_map(|x| x.encode()).collect();
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {

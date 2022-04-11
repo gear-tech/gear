@@ -283,12 +283,12 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight per payload byte by `gr_send_push`.
     pub gr_send_push_per_byte: Weight,
-    
-    // /// Weight of calling `gr_send`.
-    // pub gr_send: Weight,
 
-    // /// Weight per payload byte by `gr_send`.
-    // pub gr_send_per_byte: Weight,
+    /// Weight of calling `gr_send_commit`.
+    pub gr_send_commit: Weight,
+
+    /// Weight per payload byte by `gr_send_commit`.
+    pub gr_send_commit_per_byte: Weight,
 
     /// Weight of calling `gr_leave`.
     pub gr_leave: Weight,
@@ -480,7 +480,8 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_init: cost_batched!(gr_send_init),
             gr_send_push: cost_batched!(gr_send_push),
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
-            // gr_send_per_byte: cost_byte_batched!(gr_send_per_kb),
+            gr_send_commit: cost_batched!(gr_send_commit),
+            gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
             gr_wake: cost_batched!(gr_wake),
