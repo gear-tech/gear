@@ -50,19 +50,22 @@ async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if message == "START" {
         let reply1 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_0 }, b"PING", 0)
+            .expect("Error in sending message")
             .await
             .expect("Error in async message processing");
         let reply2 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_1 }, b"PING", 0)
+            .expect("Error in sending message")
             .await
             .expect("Error in async message processing");
         let reply3 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_2 }, b"PING", 0)
+            .expect("Error in sending message")
             .await
             .expect("Error in async message processing");
 
         if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
-            msg::reply(b"SUCCESS", 0);
+            msg::reply(b"SUCCESS", 0).unwrap();
         } else {
-            msg::reply(b"FAIL", 0);
+            msg::reply(b"FAIL", 0).unwrap();
         }
     }
 }

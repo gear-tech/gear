@@ -528,7 +528,7 @@ fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
     (module
-        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
         (import "env" "gr_source" (func $gr_source (param i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
@@ -546,6 +546,10 @@ fn block_gas_limit_works() {
                 (i32.const 0)
             )
             (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (if
+                (then unreachable)
+                (else)
+            )
         )
         (func $handle_reply)
         (func $init)
@@ -2808,7 +2812,7 @@ mod utils {
                     // [warning] - program payload data is inaccurate, don't make assumptions about it!
                     r#"
                     (module
-                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
+                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
                         (import "env" "gr_source" (func $gr_source (param i32)))
                         (import "env" "memory" (memory 1))
                         (export "handle" (func $handle))
@@ -2826,6 +2830,10 @@ mod utils {
                                 (i32.const 1000)
                             )
                             (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+                            (if
+                                (then unreachable)
+                                (else)
+                            )
                         )
                         (func $handle_reply)
                         (func $init)

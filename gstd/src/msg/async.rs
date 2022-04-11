@@ -121,14 +121,14 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
     value: u128,
-) -> CodecMessageFuture<D> {
-    let waiting_reply_to = crate::msg::send(program, payload, value);
+) -> Result<CodecMessageFuture<D>> {
+    let waiting_reply_to = crate::msg::send(program, payload, value)?;
     signals().register_signal(waiting_reply_to);
 
-    CodecMessageFuture::<D> {
+    Ok(CodecMessageFuture::<D> {
         waiting_reply_to,
         phantom: PhantomData,
-    }
+    })
 }
 
 /// Send a message and wait for reply.
@@ -141,9 +141,9 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
     value: u128,
-) -> MessageFuture {
-    let waiting_reply_to = crate::msg::send_bytes(program, payload, value);
+) -> Result<MessageFuture> {
+    let waiting_reply_to = crate::msg::send_bytes(program, payload, value)?;
     signals().register_signal(waiting_reply_to);
 
-    MessageFuture { waiting_reply_to }
+    Ok(MessageFuture { waiting_reply_to })
 }

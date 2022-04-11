@@ -164,7 +164,7 @@ pub unsafe extern "C" fn handle() {
         .get_mut(&msg::load_bytes())
         .and_then(|i| i.next());
     if let Some(r) = reply {
-        msg::reply_bytes(r, 0);
+        msg::reply_bytes(r, 0).unwrap();
     }
 }
 
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn init() {
     let maybe_handlers: Result<Vec<Handler>, _> = msg::load();
 
     maybe_handlers
-        .map_err(|_| msg::reply(b"bot; failed to decode `Vec<Handler>`", 0))
+        .map_err(|_| msg::reply(b"bot; failed to decode `Vec<Handler>`", 0).unwrap())
         .map(|v| {
             HANDLERS.reserve(v.len());
             v

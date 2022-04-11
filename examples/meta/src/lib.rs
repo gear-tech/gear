@@ -120,7 +120,7 @@ pub unsafe extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
     let message_out: MessageOut = message_in.into();
 
-    msg::reply(message_out, 0);
+    msg::reply(message_out, 0).unwrap();
 }
 
 #[no_mangle]
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn init() {
     let message_init_in: MessageInitIn = msg::load().unwrap();
     let message_init_out: MessageInitOut = message_init_in.into();
 
-    msg::reply(message_init_out, 0);
+    msg::reply(message_init_out, 0).unwrap();
 }
 
 #[no_mangle]
