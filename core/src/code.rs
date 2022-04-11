@@ -131,7 +131,7 @@ impl Code {
         );
 
         // get initial memory size from memory import.
-        let static_pages: u32 = {
+        let static_pages = WasmPageNumber(
             module
                 .import_section()
                 .ok_or(CodeError::CheckError)?
@@ -143,9 +143,9 @@ impl Code {
                     }
                     _ => None,
                 })
-                .ok_or(CodeError::CheckError)?
-        };
-
+                .ok_or(CodeError::CheckError)?,
+        );
+        
         let code_hash = CodeId::generate(&original_code);
 
         Ok(Self {
