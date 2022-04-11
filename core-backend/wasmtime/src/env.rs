@@ -71,7 +71,9 @@ fn set_pages<T: Ext>(
 }
 
 impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
-    fn prepare_report_data(self) -> Result<(ExtInfo, WasmBeginAddr), BackendError<'static>> {
+    fn prepare_post_execution_data(
+        self,
+    ) -> Result<(ExtInfo, WasmBeginAddr), BackendError<'static>> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
         let WasmtimeEnvironment {
             mut store,
@@ -263,7 +265,7 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
             // Entry function found
             f
         } else {
-            let (info, wasm_memory_addr) = self.prepare_report_data()?;
+            let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
             let gas_amount = info.gas_amount;
 
             // Entry function not found, so we mean this as empty function
@@ -281,7 +283,7 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let (info, wasm_memory_addr) = self.prepare_report_data()?;
+        let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
         let gas_amount = info.gas_amount;
 
         let termination = if let Err(e) = &res {
