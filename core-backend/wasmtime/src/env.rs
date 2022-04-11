@@ -27,7 +27,7 @@ use alloc::{
 };
 use gear_backend_common::{
     funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
-    ExtInfo, ExtInfoSource, TerminationReason, WasmBeginAddr,
+    ExtInfo, ExtInfoSource, TerminationReason, WasmBeginAddress,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -73,7 +73,7 @@ fn set_pages<T: Ext>(
 impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
     fn prepare_post_execution_data(
         self,
-    ) -> Result<(ExtInfo, WasmBeginAddr), BackendError<'static>> {
+    ) -> Result<(ExtInfo, WasmBeginAddress), BackendError<'static>> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
         let WasmtimeEnvironment {
             mut store,
@@ -247,8 +247,8 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> u64 {
-        self.memory.data_ptr(&self.store) as u64
+    fn get_wasm_memory_begin_addr(&self) -> WasmBeginAddress {
+        self.memory.data_ptr(&self.store) as WasmBeginAddress
     }
 
     fn execute<F>(
@@ -257,7 +257,7 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(WasmBeginAddr) -> Result<(), &'static str>,
+        F: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
     {
         let func = self.instance.get_func(&mut self.store, entry_point);
 

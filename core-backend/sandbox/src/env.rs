@@ -22,7 +22,7 @@ use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
     funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
-    ExtInfoSource, TerminationReason, WasmBeginAddr,
+    ExtInfoSource, TerminationReason, WasmBeginAddress,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -171,7 +171,7 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
         })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> u64 {
+    fn get_wasm_memory_begin_addr(&self) -> WasmBeginAddress {
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
@@ -181,7 +181,7 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(WasmBeginAddr) -> Result<(), &'static str>,
+        F: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)

@@ -44,7 +44,7 @@ pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
-pub type WasmBeginAddr = u64;
+pub type WasmBeginAddress = u64;
 
 #[derive(Debug)]
 pub enum TerminationReason<'a> {
@@ -111,7 +111,7 @@ pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
-    fn get_wasm_memory_begin_addr(&self) -> u64;
+    fn get_wasm_memory_begin_addr(&self) -> WasmBeginAddress;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
@@ -121,7 +121,7 @@ pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(WasmBeginAddr) -> Result<(), &'static str>;
+        F: FnOnce(WasmBeginAddress) -> Result<(), &'static str>;
 
     /// Unset env ext and returns gas amount.
     fn drop_env(self) -> GasAmount;
