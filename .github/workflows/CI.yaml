@@ -312,7 +312,7 @@ jobs:
       - name: "Install: grcov"
         run: |
           curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.gz" | 
+          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
           xargs curl -L | 
           tar xz
           
