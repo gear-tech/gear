@@ -56,8 +56,8 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
 
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
-  const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
-  const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 1);
+  const setCode = api.tx.system.setCodeWithoutChecks(api.createType('Bytes', Array.from(code)));
+  const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
   const message = api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0);
 
