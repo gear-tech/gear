@@ -41,6 +41,7 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     maybe_actor: Option<ExecutableActor>,

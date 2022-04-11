@@ -421,6 +421,7 @@ impl ExtManager {
             self.origin,
             dest,
             u64::MAX,
+            1024,
         );
 
         core_processor::handle_journal(journal, self);

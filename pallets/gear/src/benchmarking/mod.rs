@@ -26,7 +26,7 @@ mod sandbox;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        DataSegment, ImportedFunction, ImportedMemory, Location, ModuleDefinition, WasmModule,
+        DataSegment, ImportedFunction, ImportedMemory, ModuleDefinition, WasmModule,
     },
     sandbox::Sandbox,
 };
@@ -34,25 +34,21 @@ use crate::{
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     Pallet as Gear, *,
 };
-use codec::{Encode, HasCompact};
-use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+use codec::Encode;
+use frame_benchmarking::benchmarks;
 use frame_support::traits::Get;
-use frame_system::{pallet_prelude::OriginFor, RawOrigin};
+use frame_system::RawOrigin;
 
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
-use frame_support::weights::Weight;
-use sp_runtime::{
-    traits::{Bounded, Hash},
-    Perbill,
-};
+use sp_runtime::traits::{Bounded, Hash};
 
 use common::{benchmarking, Origin};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
-use sp_runtime::{app_crypto::UncheckedFrom, traits::UniqueSaturatedInto};
+use sp_runtime::traits::UniqueSaturatedInto;
 
 use frame_support::traits::Currency;
 

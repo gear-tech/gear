@@ -466,7 +466,7 @@ pub mod pallet {
                 ),
                 HandleKind::Reply(msg_id, exit_code) => {
                     let msg = Self::remove_from_mailbox(source, msg_id)
-                        .ok_or_else(|| "Internal error: unable to find message in mailbox")?;
+                        .ok_or("Internal error: unable to find message in mailbox")?;
                     Dispatch::new(
                         DispatchKind::Reply,
                         Message::new(
@@ -503,7 +503,7 @@ pub mod pallet {
                 let actor_id = queued_dispatch.destination();
                 let actor = ext_manager
                     .get_executable_actor(actor_id.into_origin())
-                    .ok_or_else(|| "Program not found in the storage")?;
+                    .ok_or("Program not found in the storage")?;
 
                 let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -522,11 +522,11 @@ pub mod pallet {
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
                 for note in journal {
-                    match note {
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
-                            return Err("Program terminated with a trap");
-                        }
-                        _ => (),
+                    if let JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                        ..
+                    }) = note
+                    {
+                        return Err("Program terminated with a trap");
                     }
                 }
             }
