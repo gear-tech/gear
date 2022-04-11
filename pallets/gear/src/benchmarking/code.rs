@@ -40,8 +40,8 @@ use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
-        self, BlockType, CustomSection, External, FuncBody, Instruction, Instructions, Module, Section,
-        ValueType,
+        self, BlockType, CustomSection, External, FuncBody, Instruction, Instructions, Module,
+        Section, ValueType,
     },
 };
 
@@ -314,7 +314,11 @@ where
 
     /// Creates a wasm module with an empty `handle` and `init` function and nothing else.
     pub fn dummy() -> Self {
-        ModuleDefinition::default().into()
+        ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        }
+        .into()
     }
 
     /// Same as `dummy` but with maximum sized linear memory and a dummy section of specified size.
@@ -358,37 +362,37 @@ where
     }
 
     /// Creates a wasm module that calls the imported function named `getter_name` `repeat`
-	/// times. The imported function is expected to have the "getter signature" of
-	/// (out_ptr: u32) -> ().
-	pub fn getter(module_name: &'static str, getter_name: &'static str, repeat: u32) -> Self {
-		let pages = max_pages::<T>();
-		ModuleDefinition {
-			memory: Some(ImportedMemory::max::<T>()),
-			imported_functions: vec![ImportedFunction {
-				module: module_name,
-				name: getter_name,
-				params: vec![ValueType::I32],
-				return_type: None,
-			}],
-			// Write the output buffer size. The output size will be overwritten by the
-			// supervisor with the real size when calling the getter. Since this size does not
-			// change between calls it suffices to start with an initial value and then just
-			// leave as whatever value was written there.
-			data_segments: vec![DataSegment {
-				offset: 0,
-				value: (pages * 64 * 1024 - 4).to_le_bytes().to_vec(),
-			}],
-			handle_body: Some(body::repeated(
-				repeat,
-				&[
-					Instruction::I32Const(4), // ptr where to store output
-					Instruction::Call(0),     // call the imported function
-				],
-			)),
-			..Default::default()
-		}
-		.into()
-	}
+    /// times. The imported function is expected to have the "getter signature" of
+    /// (out_ptr: u32) -> ().
+    pub fn getter(module_name: &'static str, getter_name: &'static str, repeat: u32) -> Self {
+        let pages = max_pages::<T>();
+        ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: module_name,
+                name: getter_name,
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            // Write the output buffer size. The output size will be overwritten by the
+            // supervisor with the real size when calling the getter. Since this size does not
+            // change between calls it suffices to start with an initial value and then just
+            // leave as whatever value was written there.
+            data_segments: vec![DataSegment {
+                offset: 0,
+                value: (pages * 64 * 1024 - 4).to_le_bytes().to_vec(),
+            }],
+            handle_body: Some(body::repeated(
+                repeat,
+                &[
+                    Instruction::I32Const(4), // ptr where to store output
+                    Instruction::Call(0),     // call the imported function
+                ],
+            )),
+            ..Default::default()
+        }
+        .into()
+    }
 
     /// Creates a memory instance for use in a sandbox with dimensions declared in this module
     /// and adds it to `env`. A reference to that memory is returned so that it can be used to

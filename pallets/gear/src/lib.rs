@@ -409,7 +409,7 @@ pub mod pallet {
         ) -> Result<(), Vec<u8>> {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let bn: u64 = 1;
             let root_message_id = MessageId::from(bn).into_origin();
 
             let dispatch = match kind {
@@ -489,8 +489,8 @@ pub mod pallet {
             common::queue_dispatch(dispatch);
 
             let block_info = BlockInfo {
-                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+                height: 1,
+                timestamp: 1,
             };
 
             let existential_deposit =

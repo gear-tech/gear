@@ -141,7 +141,7 @@ pub struct Limits {
     /// The maximum nesting level of the call stack.
     pub call_depth: u32,
 
-    /// The maximum size of a storage value and event payload in bytes.
+    /// The maximum size of a message payload in bytes.
     pub payload_len: u32,
 
     /// The maximum length of a program code in bytes. This limit applies to the instrumented
@@ -275,6 +275,21 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_value_available`.
     pub gr_value_available: Weight,
 
+    /// Weight of calling `gr_value_available`.
+    pub gr_send_init: Weight,
+
+    /// Weight of calling `gr_send_push`.
+    pub gr_send_push: Weight,
+
+    /// Weight per payload byte by `gr_send_push`.
+    pub gr_send_push_per_byte: Weight,
+    
+    // /// Weight of calling `gr_send`.
+    // pub gr_send: Weight,
+
+    // /// Weight per payload byte by `gr_send`.
+    // pub gr_send_per_byte: Weight,
+
     /// Weight of calling `gr_leave`.
     pub gr_leave: Weight,
 
@@ -387,7 +402,7 @@ impl Default for Limits {
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
-            payload_len: 16 * 1024,
+            payload_len: 64 * 1024,
             code_len: 128 * 1024,
         }
     }
@@ -462,6 +477,10 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_source: cost_batched!(gr_source),
             gr_value: cost_batched!(gr_value),
             gr_value_available: cost_batched!(gr_value_available),
+            gr_send_init: cost_batched!(gr_send_init),
+            gr_send_push: cost_batched!(gr_send_push),
+            gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
+            // gr_send_per_byte: cost_byte_batched!(gr_send_per_kb),
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
             gr_wake: cost_batched!(gr_wake),

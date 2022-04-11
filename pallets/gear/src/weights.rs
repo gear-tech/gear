@@ -49,6 +49,9 @@ pub trait WeightInfo {
 	fn gr_source(r: u32, ) -> Weight;
 	fn gr_value(r: u32, ) -> Weight;
 	fn gr_value_available(r: u32, ) -> Weight;
+	fn gr_send_init(r: u32, ) -> Weight;
+	fn gr_send_push(r: u32, ) -> Weight;
+	fn gr_send_push_per_kb(n: u32, ) -> Weight;
 	fn gr_leave(r: u32, ) -> Weight;
 	fn gr_wait(r: u32, ) -> Weight;
 	fn gr_wake(r: u32, ) -> Weight;
@@ -4185,6 +4188,18 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			// Standard Error: 142_000
 			.saturating_add((1_011_000 as Weight).saturating_mul(r as Weight))
 	}
+
+	fn gr_send_init(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_push(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_push_per_kb(n: u32, ) -> Weight {
+		(41_793_000 as Weight)
+		}
 }
 
 // For backwards compatibility and tests
@@ -8266,5 +8281,17 @@ impl WeightInfo for () {
 		(41_793_000 as Weight)
 			// Standard Error: 142_000
 			.saturating_add((1_011_000 as Weight).saturating_mul(r as Weight))
+	}
+
+	fn gr_send_init(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_push(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+	}
+
+	fn gr_send_push_per_kb(n: u32, ) -> Weight {
+		(41_793_000 as Weight)
 	}
 }
