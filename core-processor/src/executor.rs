@@ -41,6 +41,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     dispatch: IncomingDispatch,
     context: ExecutionContext,
     settings: ExecutionSettings,
+    msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     let ExecutableActor {
         mut program,
@@ -186,10 +187,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         AllocationsContext::new(allocations, program.static_pages(), settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new(
+    let message_context = MessageContext::new_with_settings(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),
+        msg_ctx_settings,
     );
 
     let initial_pages = program.get_pages_mut();

@@ -123,6 +123,7 @@ impl pallet_gear_program::Config for Test {
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000_000;
+    pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;
     pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
@@ -135,6 +136,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type Schedule = MySchedule;
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
 }
@@ -250,6 +252,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         ProgramId::from_origin(source),
         ProgramId::from_origin(dest),
         u64::MAX,
+        <Test as pallet_gear::Config>::OutgoingLimit::get(),
     );
 
     let mut gas_burned: u64 = 0;

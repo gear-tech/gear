@@ -127,6 +127,10 @@ pub mod pallet {
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
 
+        /// The maximum amount of messages that can be produced in single run.
+        #[pallet::constant]
+        type OutgoingLimit: Get<u32>;
+
         /// The cost for a message to spend one block in the wait list
         #[pallet::constant]
         type WaitListFeePerBlock: Get<u64>;
@@ -513,6 +517,7 @@ pub mod pallet {
                     ProgramId::from_origin(source),
                     actor_id,
                     u64::MAX,
+                    2048,
                 );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
@@ -692,6 +697,7 @@ pub mod pallet {
                     ProgramId::from_origin(source),
                     actor_id,
                     u64::MAX,
+                    T::OutgoingLimit::get(),
                 );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
@@ -903,6 +909,7 @@ pub mod pallet {
                         ProgramId::from_origin(origin),
                         program_id,
                         Self::gas_allowance(),
+                        T::OutgoingLimit::get(),
                     );
 
                     core_processor::handle_journal(journal, &mut ext_manager);

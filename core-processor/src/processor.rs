@@ -51,6 +51,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
     program_id: ProgramId,
     gas_allowance: u64,
+    outgoing_limit: u32,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -61,6 +62,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             existential_deposit,
             origin,
             gas_allowance,
+            outgoing_limit,
         ),
     }
 }
@@ -245,6 +247,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     existential_deposit: u128,
     origin: ProgramId,
     gas_allowance: u64,
+    outgoing_limit: u32,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
@@ -253,6 +256,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         origin,
         gas_allowance,
     };
+    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
 
     let program_id = actor.program.id();
 
@@ -261,6 +265,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         dispatch.clone(),
         execution_context,
         execution_settings,
+        msg_ctx_settings,
     ) {
         Ok(res) => match res.kind {
             DispatchResultKind::Trap(reason) => {
