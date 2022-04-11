@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{pages_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
-    message::{IncomingDispatch, MessageContext},
+    message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
 /// Execute wasm with dispatch and return dispatch result.

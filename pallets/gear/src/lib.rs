@@ -410,7 +410,7 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<(), Vec<u8>> {
+        ) -> Result<(), &'static str> {
             let mut ext_manager = ExtManager::<T>::default();
 
             let bn: u64 = 1;
@@ -433,7 +433,7 @@ pub mod pallet {
                         Some(module),
                         gas_rules,
                     )
-                    .map_err(|_| b"Code failed to load: {}".to_vec())?;
+                    .map_err(|_| "Code failed to load: {}")?;
 
                     let _ = Self::set_code_with_metadata(&code, source);
 
@@ -465,9 +465,8 @@ pub mod pallet {
                     ),
                 ),
                 HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = Self::remove_from_mailbox(source, msg_id).ok_or_else(|| {
-                        b"Internal error: unable to find message in mailbox".to_vec()
-                    })?;
+                    let msg = Self::remove_from_mailbox(source, msg_id)
+                        .ok_or_else(|| "Internal error: unable to find message in mailbox")?;
                     Dispatch::new(
                         DispatchKind::Reply,
                         Message::new(
@@ -485,7 +484,7 @@ pub mod pallet {
 
             let initial_gas = T::BlockGasLimit::get();
             T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
-                .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
+                .map_err(|_| "Internal error: unable to create gas handler")?;
 
             let dispatch = dispatch.into_stored();
 
@@ -504,7 +503,7 @@ pub mod pallet {
                 let actor_id = queued_dispatch.destination();
                 let actor = ext_manager
                     .get_executable_actor(actor_id.into_origin())
-                    .ok_or_else(|| b"Program not found in the storage".to_vec())?;
+                    .ok_or_else(|| "Program not found in the storage")?;
 
                 let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -524,15 +523,8 @@ pub mod pallet {
 
                 for note in journal {
                     match note {
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            trap,
-                            ..
-                        }) => {
-                            return Err(format!(
-                                "Program terminated with a trap: {}",
-                                trap.unwrap_or("No reason")
-                            )
-                            .into_bytes());
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
+                            return Err("Program terminated with a trap");
                         }
                         _ => (),
                     }

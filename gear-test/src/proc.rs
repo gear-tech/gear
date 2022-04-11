@@ -297,7 +297,7 @@ where
                     Default::default(),
                     program_id,
                     u64::MAX,
-                    OUTGOING_LIMIT
+                    OUTGOING_LIMIT,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -333,7 +333,7 @@ where
                 Default::default(),
                 program_id,
                 u64::MAX,
-                OUTGOING_LIMIT
+                OUTGOING_LIMIT,
             );
             counter += 1;
 

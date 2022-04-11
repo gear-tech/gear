@@ -145,7 +145,7 @@ impl Code {
                 })
                 .ok_or(CodeError::CheckError)?,
         );
-        
+
         let code_hash = CodeId::generate(&original_code);
 
         Ok(Self {

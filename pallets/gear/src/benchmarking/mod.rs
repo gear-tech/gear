@@ -271,7 +271,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
 
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_gas_available {
@@ -292,7 +292,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_msg_id {
@@ -301,7 +301,7 @@ benchmarks! {
             "env", "gr_msg_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_origin {
@@ -310,7 +310,7 @@ benchmarks! {
             "env", "gr_origin", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_program_id {
@@ -319,7 +319,7 @@ benchmarks! {
             "env", "gr_program_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_source {
@@ -328,7 +328,7 @@ benchmarks! {
             "env", "gr_source", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_value {
@@ -337,7 +337,7 @@ benchmarks! {
             "env", "gr_value", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_value_available {
@@ -346,7 +346,7 @@ benchmarks! {
             "env", "gr_value_available", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_send_init {
@@ -367,7 +367,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_send_push {
@@ -377,26 +377,30 @@ benchmarks! {
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_send_init",
-                params: vec![],
+                params: vec![ValueType::I32],
                 return_type: Some(ValueType::I32),
             },
             ImportedFunction {
                 module: "env",
                 name: "gr_send_push",
-                params: vec![ValueType::I32],
-                return_type: None,
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
             }],
             handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0), // get handle ptr
+                Instruction::I32Const(0), // handle ptr
+                Instruction::Call(0), // get handle
+                Instruction::Drop,
+                Instruction::I32Const(0), // handle ptr
                 Instruction::I32Const(0), // payload ptr
                 Instruction::I32Const(0), // payload len
                 Instruction::Call(1), // send_push
+                Instruction::Drop,
             ])),
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_send_push_per_kb {
@@ -406,26 +410,30 @@ benchmarks! {
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_send_init",
-                params: vec![],
+                params: vec![ValueType::I32],
                 return_type: Some(ValueType::I32),
             },
             ImportedFunction {
                 module: "env",
                 name: "gr_send_push",
-                params: vec![ValueType::I32],
-                return_type: None,
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
             }],
             handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(0), // get handle ptr
+                Instruction::I32Const(0), // handle ptr
+                Instruction::Call(0), // get handle
+                Instruction::Drop,
+                Instruction::I32Const(0), // handle ptr
                 Instruction::I32Const(0), // payload ptr
                 Instruction::I32Const((n * 1024) as i32), // payload_len
                 Instruction::Call(1), // send_push
+                Instruction::Drop,
             ])),
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -443,7 +451,7 @@ benchmarks! {
                 module: "env",
                 name: "gr_send",
                 params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: None,
+                return_type: Some(ValueType::I32),
             }],
             data_segments: vec![
                 DataSegment {
@@ -462,12 +470,13 @@ benchmarks! {
                 Instruction::I32Const(pid_len as i32), // value_ptr
                 Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
                 Instruction::Call(0),
+                Instruction::Drop,
                 ])),
                 .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -485,7 +494,7 @@ benchmarks! {
                 module: "env",
                 name: "gr_send",
                 params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32],
-                return_type: None,
+                return_type: Some(ValueType::I32),
             }],
             data_segments: vec![
                 DataSegment {
@@ -504,12 +513,14 @@ benchmarks! {
                 Instruction::I32Const(pid_len as i32), // value_ptr
                 Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
                 Instruction::Call(0),
+                Instruction::Drop,
             ])),
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+    }
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
@@ -531,7 +542,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
@@ -553,7 +564,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     gr_wake {
@@ -595,7 +606,7 @@ benchmarks! {
             );
         }
     }: {
-        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly

@@ -133,7 +133,7 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
-    type OutgoingLimit= OutgoingLimit;
+    type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
     type WaitListFeePerBlock = ();
     type Schedule = ();
