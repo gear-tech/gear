@@ -18,9 +18,24 @@
 
 //! Module with basic messaging functions wrapped from `gcore` to `gstd`.
 
+use crate::errors::{ContractError, Result};
 use crate::prelude::{convert::AsRef, vec, Vec};
 use crate::{ActorId, MessageId};
 use codec::Output;
+
+trait IntoContractResult<T> {
+    fn into_contract_result(self) -> Result<T>;
+}
+
+impl<T, E, V> IntoContractResult<V> for core::result::Result<T, E>
+where
+    T: Into<V>,
+    E: Into<ContractError>,
+{
+    fn into_contract_result(self) -> Result<V> {
+        self.map(Into::into).map_err(Into::into)
+    }
+}
 
 /// Message handle.
 ///
@@ -63,26 +78,31 @@ use codec::Output;
 pub struct MessageHandle(gcore::MessageHandle);
 
 impl MessageHandle {
-    pub fn init() -> Self {
+    pub fn init() -> Result<Self> {
         send_init()
     }
 
-    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
-        send_push(self, payload);
+    pub fn push<T: AsRef<[u8]>>(&self, payload: T) -> Result<()> {
+        send_push(self, payload)
     }
 
-    pub fn commit(self, program: ActorId, value: u128) -> MessageId {
+    pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
         send_commit(self, program, value)
     }
 
-    pub fn commit_with_gas(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
+    pub fn commit_with_gas(
+        self,
+        program: ActorId,
+        gas_limit: u64,
+        value: u128,
+    ) -> Result<MessageId> {
         send_commit_with_gas(self, program, gas_limit, value)
     }
 }
 
 impl Output for MessageHandle {
     fn write(&mut self, bytes: &[u8]) {
-        self.push(bytes);
+        self.push(bytes).unwrap();
     }
 }
 
@@ -185,15 +205,15 @@ pub fn load_bytes() -> Vec<u8> {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_bytes(b"PONG", 0);
+///     msg::reply_bytes(b"PONG", 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> MessageId {
-    gcore::msg::reply(payload.as_ref(), value).into()
+pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId> {
+    gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
 /// Finalize and send a current reply message.
@@ -215,19 +235,19 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 ///     // ...
-///     msg::reply_commit(42);
+///     msg::reply_commit(42).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(value: u128) -> MessageId {
-    gcore::msg::reply_commit(value).into()
+pub fn reply_commit(value: u128) -> Result<MessageId> {
+    gcore::msg::reply_commit(value).into_contract_result()
 }
 
 /// Push a payload part to the current reply message.
@@ -247,13 +267,13 @@ pub fn reply_commit(value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 /// }
 /// ```
-pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
-    gcore::msg::reply_push(payload.as_ref());
+pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
+    gcore::msg::reply_push(payload.as_ref()).into_contract_result()
 }
 
 /// Get an identifier of the initial message which the current handle_reply
@@ -311,8 +331,8 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> MessageId {
-    gcore::msg::send(program.into(), payload.as_ref(), value).into()
+pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
+    gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
 
 /// Send a new message to the program or user.
@@ -352,8 +372,9 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     payload: T,
     gas_limit: u64,
     value: u128,
-) -> MessageId {
-    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value).into()
+) -> Result<MessageId> {
+    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value)
+        .into_contract_result()
 }
 
 /// Finalize and send message formed in parts.
@@ -388,8 +409,8 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> MessageId {
-    gcore::msg::send_commit(handle.into(), program.into(), value).into()
+pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Result<MessageId> {
+    gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
 }
 
 /// Finalize and send message formed in parts, with gas_limit.
@@ -431,8 +452,9 @@ pub fn send_commit_with_gas(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-) -> MessageId {
-    gcore::msg::send_commit_with_gas(handle.into(), program.into(), gas_limit, value).into()
+) -> Result<MessageId> {
+    gcore::msg::send_commit_with_gas(handle.into(), program.into(), gas_limit, value)
+        .into_contract_result()
 }
 
 /// Initialize a message to send, formed in parts.
@@ -459,8 +481,8 @@ pub fn send_commit_with_gas(
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
-pub fn send_init() -> MessageHandle {
-    gcore::msg::send_init().into()
+pub fn send_init() -> Result<MessageHandle> {
+    gcore::msg::send_init().into_contract_result()
 }
 
 /// Push a payload part of the message to be sent in parts.
@@ -488,8 +510,8 @@ pub fn send_init() -> MessageHandle {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
-    gcore::msg::send_push(handle.as_ref(), payload.as_ref())
+pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) -> Result<()> {
+    gcore::msg::send_push(handle.as_ref(), payload.as_ref()).into_contract_result()
 }
 
 /// Get the payload size of the message being processed.

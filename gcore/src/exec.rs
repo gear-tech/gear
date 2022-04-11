@@ -52,7 +52,7 @@ mod sys {
 /// // Send a reply after the block height reaches the number 1000
 /// pub unsafe extern "C" fn handle() {
 ///     if exec::block_height() >= 1000 {
-///         msg::reply(b"Block #1000 reached", 0);
+///         msg::reply(b"Block #1000 reached", 0).unwrap();
 ///     }
 /// }
 /// ```
@@ -72,7 +72,7 @@ pub fn block_height() -> u32 {
 /// // Send a reply after the block timestamp reaches the February 22, 2022
 /// pub unsafe extern "C" fn handle() {
 ///     if exec::block_timestamp() >= 1645488000000 {
-///         msg::reply(b"The current block is generated after February 22, 2022", 0);
+///         msg::reply(b"The current block is generated after February 22, 2022", 0).unwrap();
 ///     }
 /// }
 /// ```

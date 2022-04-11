@@ -30,13 +30,14 @@ async fn main() {
         let _val = MUTEX.lock().await;
 
         let reply = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
+            .unwrap()
             .await
             .expect("Error in async message processing");
 
         if reply == b"PONG" {
-            msg::reply(b"SUCCESS", 0);
+            msg::reply(b"SUCCESS", 0).unwrap();
         } else {
-            msg::reply(b"FAIL", 0);
+            msg::reply(b"FAIL", 0).unwrap();
         }
     }
 }

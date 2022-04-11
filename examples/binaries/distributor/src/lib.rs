@@ -93,6 +93,7 @@ mod wasm {
             async move {
                 let reply_bytes =
                     msg::send_bytes_and_wait_for_reply(program_handle, &encoded_request[..], 0)
+                        .expect("Error in message sending")
                         .await
                         .expect("Error in async message processing");
 
@@ -136,7 +137,7 @@ mod wasm {
             };
 
             debug!("Handle request finished");
-            msg::reply(reply, 0);
+            msg::reply(reply, 0).unwrap();
         }
 
         async fn handle_receive(amount: u64) -> Reply {
@@ -216,7 +217,7 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         STATE = Some(ProgramState::default());
-        msg::reply((), 0);
+        msg::reply((), 0).unwrap();
         debug!("Program initialized");
     }
 }

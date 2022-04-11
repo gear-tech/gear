@@ -27,8 +27,11 @@
 
 use crate::MessageHandle;
 use crate::{ActorId, MessageId};
+use core::mem::MaybeUninit;
 
 mod sys {
+    use crate::msg::ErrorCode;
+
     extern "C" {
         pub fn gr_exit_code() -> i32;
         pub fn gr_msg_id(val: *mut u8);
@@ -38,9 +41,9 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        );
-        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8);
-        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32);
+        ) -> ErrorCode;
+        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8) -> ErrorCode;
+        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
             program: *const u8,
@@ -48,7 +51,7 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        );
+        ) -> ErrorCode;
         pub fn gr_send_wgas(
             program: *const u8,
             data_ptr: *const u8,
@@ -56,27 +59,58 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        );
+        ) -> ErrorCode;
         pub fn gr_send_commit(
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
             value_ptr: *const u8,
-        );
+        ) -> ErrorCode;
         pub fn gr_send_commit_wgas(
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
             gas_limit: u64,
             value_ptr: *const u8,
-        );
-        pub fn gr_send_init() -> u32;
-        pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32);
+        ) -> ErrorCode;
+        pub fn gr_send_init(handle: *mut u32) -> ErrorCode;
+        pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_size() -> u32;
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
     }
 }
+
+#[must_use]
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ErrorCode(i32);
+
+impl ErrorCode {
+    fn into_send_error(self) -> Result<(), SendError> {
+        if self.0 == 0 {
+            Ok(())
+        } else {
+            Err(SendError(()))
+        }
+    }
+
+    fn into_reply_error(self) -> Result<(), ReplyError> {
+        if self.0 == 0 {
+            Ok(())
+        } else {
+            Err(ReplyError(()))
+        }
+    }
+}
+
+/// An error occurred during sending a message
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SendError(());
+
+/// An error occurred during replying to a message
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct ReplyError(());
 
 /// Get the exit code of the message being processed.
 ///
@@ -166,14 +200,14 @@ pub fn load(buffer: &mut [u8]) {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply(b"PING", 0);
+///     msg::reply(b"PING", 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply(payload: &[u8], value: u128) -> MessageId {
+pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply(
@@ -181,8 +215,9 @@ pub fn reply(payload: &[u8], value: u128) -> MessageId {
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
-        );
-        message_id
+        )
+        .into_reply_error()?;
+        Ok(message_id)
     }
 }
 
@@ -205,25 +240,26 @@ pub fn reply(payload: &[u8], value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 ///     // ...
-///     msg::reply_commit(42);
+///     msg::reply_commit(42).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(value: u128) -> MessageId {
+pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
             message_id.as_mut_slice().as_mut_ptr(),
             value.to_le_bytes().as_ptr(),
-        );
-        message_id
+        )
+        .into_reply_error()?;
+        Ok(message_id)
     }
 }
 
@@ -244,13 +280,13 @@ pub fn reply_commit(value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 /// }
 /// ```
-pub fn reply_push(payload: &[u8]) {
-    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _) }
+pub fn reply_push(payload: &[u8]) -> Result<(), ReplyError> {
+    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _).into_reply_error() }
 }
 
 /// Get an identifier of the initial message which the current handle_reply
@@ -312,7 +348,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send(program: ActorId, payload: &[u8], value: u128) -> MessageId {
+pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId, SendError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send(
@@ -321,8 +357,9 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> MessageId {
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
-        );
-        message_id
+        )
+        .into_send_error()?;
+        Ok(message_id)
     }
 }
 
@@ -358,7 +395,12 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+pub fn send_with_gas(
+    program: ActorId,
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageId, SendError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_wgas(
@@ -368,8 +410,9 @@ pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u1
             gas_limit,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
-        );
-        message_id
+        )
+        .into_send_error()?;
+        Ok(message_id)
     }
 }
 
@@ -395,7 +438,7 @@ pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u1
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
@@ -407,7 +450,11 @@ pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u1
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> MessageId {
+pub fn send_commit(
+    handle: MessageHandle,
+    program: ActorId,
+    value: u128,
+) -> Result<MessageId, SendError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit(
@@ -415,8 +462,9 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Mess
             message_id.as_mut_slice().as_mut_ptr(),
             program.as_slice().as_ptr(),
             value.to_le_bytes().as_ptr(),
-        );
-        message_id
+        )
+        .into_send_error()?;
+        Ok(message_id)
     }
 }
 
@@ -440,7 +488,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Mess
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
@@ -457,7 +505,7 @@ pub fn send_commit_with_gas(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-) -> MessageId {
+) -> Result<MessageId, SendError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit_wgas(
@@ -466,8 +514,9 @@ pub fn send_commit_with_gas(
             program.as_slice().as_ptr(),
             gas_limit,
             value.to_le_bytes().as_ptr(),
-        );
-        message_id
+        )
+        .into_send_error()?;
+        Ok(message_id)
     }
 }
 
@@ -484,7 +533,7 @@ pub fn send_commit_with_gas(
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
@@ -495,8 +544,12 @@ pub fn send_commit_with_gas(
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
-pub fn send_init() -> MessageHandle {
-    unsafe { MessageHandle(sys::gr_send_init()) }
+pub fn send_init() -> Result<MessageHandle, SendError> {
+    unsafe {
+        let mut handle = MaybeUninit::uninit();
+        sys::gr_send_init(handle.as_mut_ptr()).into_send_error()?;
+        Ok(MessageHandle(handle.assume_init()))
+    }
 }
 
 /// Push a payload part of the message to be sent in parts.
@@ -512,7 +565,7 @@ pub fn send_init() -> MessageHandle {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let msg_handle = msg::send_init();
+///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
 ///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
@@ -524,8 +577,8 @@ pub fn send_init() -> MessageHandle {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-pub fn send_push(handle: &MessageHandle, payload: &[u8]) {
-    unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
+pub fn send_push(handle: &MessageHandle, payload: &[u8]) -> Result<(), SendError> {
+    unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _).into_send_error() }
 }
 
 /// Get the payload size of the message being processed.

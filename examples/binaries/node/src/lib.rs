@@ -94,7 +94,7 @@ pub unsafe extern "C" fn handle() {
         }
     };
 
-    msg::reply(reply, 0);
+    msg::reply(reply, 0).unwrap();
 }
 
 fn state() -> &'static mut NodeState {
@@ -141,7 +141,7 @@ fn process(request: Request) -> Reply {
                 .get(transition.query_index)
                 .expect("Checked above that it has that number of elements; qed");
 
-            transition.last_sent_message_id = msg::send(*next_sub_node, request, 0);
+            transition.last_sent_message_id = msg::send(*next_sub_node, request, 0).unwrap();
 
             state().transition = Some(transition);
 
@@ -184,7 +184,8 @@ fn process(request: Request) -> Reply {
                         .query_list
                         .get(0)
                         .expect("Checked above that sub_nodes is not empty; qed");
-                    transition.last_sent_message_id = msg::send(first_sub_node, request, 0);
+                    transition.last_sent_message_id =
+                        msg::send(first_sub_node, request, 0).unwrap();
                     state().transition = Some(transition);
                     exec::wait()
                 } else {
@@ -221,7 +222,8 @@ fn process(request: Request) -> Reply {
 
                     transition.message_id = msg::id();
 
-                    transition.last_sent_message_id = msg::send(first_sub_node, request, 0);
+                    transition.last_sent_message_id =
+                        msg::send(first_sub_node, request, 0).unwrap();
 
                     state().transition = Some(transition);
 
@@ -279,7 +281,7 @@ pub unsafe extern "C" fn init() {
         transition: None,
     });
 
-    msg::reply((), 0);
+    msg::reply((), 0).unwrap();
 }
 
 #[cfg(test)]

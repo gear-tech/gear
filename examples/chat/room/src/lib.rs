@@ -64,7 +64,8 @@ unsafe fn room(room_msg: RoomMessage) {
                             .into_bytes(),
                         ),
                         0,
-                    );
+                    )
+                    .unwrap();
                 }
             }
         }

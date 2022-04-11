@@ -56,7 +56,7 @@ pub unsafe extern "C" fn init() {
         }
     };
 
-    msg::reply(outgoing, 555);
+    msg::reply(outgoing, 555).unwrap();
 }
 
 type HandleIncoming = (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>);
@@ -80,5 +80,5 @@ pub unsafe extern "C" fn handle() {
         }
     };
 
-    msg::reply(outgoing, 555);
+    msg::reply(outgoing, 555).unwrap();
 }
