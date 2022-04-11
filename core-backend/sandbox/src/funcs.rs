@@ -24,6 +24,7 @@ use core::{
     slice::Iter,
 };
 use gear_backend_common::{funcs, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_core::message::GasLimit;
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
@@ -376,6 +377,34 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 ext.reply(ReplyPacket::new(payload, value))
+            })
+            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(|_| {
+                ctx.trap = Some("Trapping: unable to send reply message");
+                HostError
+            });
+        result
+    }
+
+    pub fn reply_with_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let payload_ptr = pop_i32(&mut args)?;
+        let payload_len = pop_i32(&mut args)?;
+        let value_ptr = pop_i32(&mut args)?;
+        let gas_limit_ptr = pop_i32(&mut args)?;
+
+        let result = ctx
+            .ext
+            .with(|ext| {
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
+                let gas_limit = funcs::get_u128(&ctx.memory, gas_limit_ptr)?;
+                ext.reply(ReplyPacket::new_with_gas(
+                    payload,
+                    gas_limit as GasLimit,
+                    value,
+                ))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
