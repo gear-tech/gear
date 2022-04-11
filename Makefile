@@ -204,7 +204,7 @@ purge-dev-chain-release:
 test: test-gear test-pallet test-js gtest
 
 .PHONY: test-release
-test-release: test-gear-release test-pallet-release test-js gtest rtest
+test-release: test-gear-release test-pallet-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
 test-gear: init-js examples
@@ -234,3 +234,7 @@ test-pallet:
 .PHONY: test-pallet-release
 test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
+
+.PHONE: test-runtime-upgrade
+test-runtime-upgrade: init-js examples node-release
+	@ ./scripts/gear.sh test runtime-upgrade

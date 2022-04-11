@@ -19,6 +19,7 @@ test_usage() {
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     rtest          run node runtime testing tool
     pallet         run pallet-gear tests
+    runtime-upgrade run runtime-upgrade test for queue processing
 
 EOF
 }
@@ -70,4 +71,24 @@ rtest() {
 
 pallet_test() {
   cargo test -p pallet-gear "$@"
+}
+
+# $1 - ROOT DIR
+runtime_upgrade_test() {
+  TEST_SCRIPT_PATH="$1/scripts/test-utils"
+
+  NODE_PATH="$1/target/release/gear-node"
+  RUNTIME_PATH="$1/target/release/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm"
+  DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
+
+  # Run node
+  "$NODE_PATH" --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+
+  # Change dir to the js script dir
+  cd "$TEST_SCRIPT_PATH"
+
+  # Run test
+  npm test "$RUNTIME_PATH" "$DEMO_PING_PATH"
+
+  # Killing node process added in js script
 }

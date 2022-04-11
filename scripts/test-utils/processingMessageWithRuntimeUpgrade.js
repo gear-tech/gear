@@ -2,6 +2,7 @@ const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert/strict');
+const { exec } = require('child_process');
 
 const upload_program = (api, account, pathToDemoPing) => {
   const code = readFileSync(pathToDemoPing);
@@ -56,8 +57,8 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
 
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
-  const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
-  const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 1);
+  const setCode = api.tx.system.setCodeWithoutChecks(api.createType('Bytes', Array.from(code)));
+  const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
   const message = api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0);
 
@@ -91,16 +92,28 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
     processingBlocks.DispatchMessageEnqueued,
     'setCode and sendMessage were proccessed in the same block',
   );
-  console.log('Passed');
+  console.log('\nPassed');
 };
 
 const args = process.argv.slice(2);
 const pathToRuntimeCode = args[0];
 const pathToDemoPing = args[1];
+let exitCode = 0;
 
 main(pathToRuntimeCode, pathToDemoPing)
-  .then(() => process.exit(0))
+  .then(() => {
+    exitCode = 0;
+  })
   .catch((error) => {
     console.error(error);
-    process.exit(1);
-  });
+    exitCode = 1;
+  })
+  .finally(() => {
+    exec("kill -9 $(pgrep -a gear-node)", (err, stdout, __) => {
+      if (err) {
+        console.log(`Unable to execute kill command`);
+        process.exit(2);
+      }
+      process.exit(exitCode);
+    });
+  })
