@@ -196,6 +196,44 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> MessageId {
     gcore::msg::reply(payload.as_ref(), value).into()
 }
 
+
+/// Send a new message with gas limit as a reply to the message currently being processed.
+///
+/// Some programs can reply to other programs, i.e. check another program's
+/// state and use it as a parameter for its own business logic [`MessageId`].
+///
+/// This function allows sending such replies, which are similar to standard
+/// messages in terms of payload and different only in the way the message
+/// processing is handled by a separate program function called
+/// `handle_reply`.
+///
+/// First argument is the reply message payload in bytes.
+/// Second argument `value` is the value to be transferred from the current
+/// program account to the reply message target account.
+/// Third argument is `gas_limit`. It means the maximum count of gas that you want to spend on this message sending.
+///
+/// Reply message transactions will be posted only after processing is finished,
+/// similar to the standard message [`send`](crate::msg::send).
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_with_gas(b"PING", 0, 0);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+pub fn reply_with_gas(payload: &[u8], value: u128, gas_limit: u128) -> MessageId {
+    gcore::msg::reply_with_gas(payload,value,gas_limit).into()
+}
+
+
 /// Finalize and send a current reply message.
 ///
 /// Some programs can reply on their messages to other programs, i.e. check

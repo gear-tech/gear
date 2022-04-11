@@ -114,6 +114,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         funcs.insert("gr_program_id", funcs::program_id(&mut store, memory));
         funcs.insert("gr_read", funcs::read(&mut store, memory));
         funcs.insert("gr_reply", funcs::reply(&mut store, memory));
+        funcs.insert("gr_reply_wgas", funcs::reply_with_gas(&mut store, memory));
         funcs.insert("gr_reply_commit", funcs::reply_commit(&mut store, memory));
         funcs.insert("gr_reply_push", funcs::reply_push(&mut store, memory));
         funcs.insert("gr_reply_to", funcs::reply_to(&mut store, memory));
