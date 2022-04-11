@@ -309,6 +309,11 @@ jobs:
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+
       - name: "Install: grcov"
         run: |
           curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
