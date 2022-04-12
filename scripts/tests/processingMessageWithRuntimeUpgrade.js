@@ -21,6 +21,16 @@ const upload_program = (api, account, pathToDemoPing) => {
   });
 };
 
+const getDispatchMessageEnqueuedBlock = (api, { events, status }) => {
+  let blockHash = undefined;
+  events.forEach(({ event }) => {
+    if (api.events.gear.DispatchMessageEnqueued.is(event)) {
+      blockHash = status.asInBlock.toHex();
+    }
+  });
+  return blockHash;
+};
+
 const getNextBlock = async (api, hash) => {
   const block = await api.rpc.chain.getBlock(hash);
   const blockNumber = block.block.header.number.toNumber();
@@ -78,36 +88,36 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
   const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
-  const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
+  // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
+  const message = api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0);
 
   let codeUpdatedBlock = undefined;
-  let proccessedMessagesCount = undefined;
-  await new Promise((resolve, reject) => {
-    api.tx.utility.batchAll([setCodeUnchekedWeight, ...messages]).signAndSend(account, ({ events, status }) => {
-      if (status.isFinalized) {
-        proccessedMessagesCount = events.filter(({ event }) =>
-          api.events.gear.DispatchMessageEnqueued.is(event),
-        ).length;
-        events.forEach(({ event }) => {
+  let messages = [undefined, undefined];
+  await new Promise((resolve) => {
+    api.tx.utility.batchAll([setCodeUnchekedWeight, message]).signAndSend(account, (events) => {
+      if (events.status.isInBlock) {
+        messages[0] = getDispatchMessageEnqueuedBlock(api, events);
+        events.events.forEach(({ event }) => {
           if (api.events.system.CodeUpdated.is(event)) {
-            codeUpdatedBlock = status.asFinalized.toHex();
-          } else if (api.events.system.ExtrinsicSuccess.is(event)) {
-            resolve('ExtrinsicSuccess');
-          } else if (api.events.system.ExtrinsicFailed.is(event)) {
-            reject('ExtrinsicFailed');
+            codeUpdatedBlock = events.status.asInBlock.toHex();
+          }
+        });
+        message.signAndSend(account, (secondTxEvents) => {
+          if (secondTxEvents.status.isInBlock) {
+            messages[1] = getDispatchMessageEnqueuedBlock(api, secondTxEvents);
+            resolve();
           }
         });
       }
     });
   });
 
-  assert.notStrictEqual(proccessedMessagesCount, undefined, 'sendMessage txs were not proccessed successfully');
-  assert.equal(proccessedMessagesCount, 54, 'not all sendMessage txs were proccessed successfully');
-  assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not proccessed successfully');
+  assert.notEqual(messages[0], messages[1], 'both sendMessage txs were processed in the same block');
+  assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not processed successfully');
   assert.notEqual(
     await messageDequeuedIsOccured(api, await getNextBlock(api, codeUpdatedBlock)),
     true,
-    'setCode and sendMessage were proccessed in the same block',
+    'A message was processed in the next block after CodeUpdated event',
   );
 
   console.log('Passed');
