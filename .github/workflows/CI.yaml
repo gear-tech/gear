@@ -322,11 +322,7 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Install: grcov"
-        run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
-          xargs curl -L | 
-          tar xj
+        run: cargo install grcov
           
       - name: "Install: rust-covfix"
         run: |
