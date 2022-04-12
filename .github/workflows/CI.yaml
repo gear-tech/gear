@@ -366,12 +366,12 @@ jobs:
           RUSTFLAGS: -Cinstrument-coverage
         
       - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh test rtest
+        run: ./scripts/gear.sh coverage rtest
         env:
           RUSTFLAGS: -Cinstrument-coverage
           
       - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
+        run: ./scripts/gear.sh coverage gtest
         env:
           RUSTFLAGS: -Cinstrument-coverage
             

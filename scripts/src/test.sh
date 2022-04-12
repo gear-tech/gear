@@ -32,7 +32,7 @@ js_test() {
   node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
-gtest() {
+gtest_debug() {
   ROOT_DIR="$1"
   shift
 
@@ -60,12 +60,22 @@ gtest() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
   fi
 
-  cargo run --package gear-test --release -- $YAMLS "$@"
+  cargo run --package gear-test $CARGO_FLAGS -- $YAMLS "$@"
+}
+
+gtest() {
+  CARGO_FLAGS="--release"
+  gtest_debug "$1"
 }
 
 # $1 - ROOT DIR
+rtest_debug() {
+  cargo run --package gear-node $CARGO_FLAGS -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+}
+
 rtest() {
-  cargo run --package gear-node --release -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+  CARGO_FLAGS="--release"
+  rtest_debug $1
 }
 
 pallet_test() {

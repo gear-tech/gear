@@ -17,6 +17,7 @@ CARGO_NEXTEST="nextest"
 . "$SCRIPTS"/init.sh
 . "$SCRIPTS"/run.sh
 . "$SCRIPTS"/test.sh
+. "$SCRIPTS"/coverage.sh
 
 bold() {
   tput bold
@@ -69,6 +70,7 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     run            run gear-node processing
     test           test tool
+    coverage       coverage utilities
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
@@ -315,6 +317,26 @@ case "$COMMAND" in
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
+        exit 1; ;;
+    esac;;
+  
+  coverage)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        coverage_usage
+        exit; ;;
+
+      gtest)
+        header "Running gear-test (spec testing)"
+        gtest_debug "$ROOT_DIR" "$@"; ;;
+
+      rtest)
+        header "Running node runtime testsuite"
+        rtest_debug "$ROOT_DIR"; ;;
+
+      *)
+        header  "Unknown option: '$SUBCOMMAND'"
+        coverage_usage
         exit 1; ;;
     esac;;
 
