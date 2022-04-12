@@ -21,8 +21,8 @@
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
-    ExtInfoSource, TerminationReason, WasmBeginAddress,
+    funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo,
+    TerminationReason, WasmBeginAddress,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -35,7 +35,7 @@ use sp_sandbox::{
 };
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E: Ext + ExtInfoSource> {
+pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
     runtime: Runtime<E>,
     instance: Instance<Runtime<E>>,
     entries: Vec<String>,
@@ -72,21 +72,28 @@ fn set_pages(
     Ok(())
 }
 
-impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> {
+impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     fn new(
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let mut later_ext = LaterExt::new(ext);
+        let later_ext = LaterExt::new(ext);
 
-        let mem: DefaultExecutorMemory =
-            SandboxMemory::new(mem_size.0, None).map_err(|e| BackendError {
-                reason: "Create env memory fail",
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: get_actual_gas_amount(&mut later_ext),
-            })?;
+        let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
+            Ok(mem) => mem,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: "Create env memory fail",
+                    description: Some(format!("{:?}", e).into()),
+                    gas_amount: later_ext
+                        .take()
+                        .expect("consume with no clones, some method called only once; qed")
+                        .into_gas_amount(),
+                })
+            }
+        };
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();
 
@@ -130,25 +137,48 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
             trap: None,
         };
 
-        let instance =
-            Instance::new(binary, &env_builder, &mut runtime).map_err(|e| BackendError {
-                reason: "Unable to instanciate module",
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: get_actual_gas_amount(&mut runtime.ext),
-            })?;
+        let instance = match Instance::new(binary, &env_builder, &mut runtime) {
+            Ok(inst) => inst,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: "Unable to instantiate module",
+                    description: Some(format!("{:?}", e).into()),
+                    gas_amount: runtime
+                        .ext
+                        .take()
+                        .expect("consume with no clones, some method called only once; qed")
+                        .into_gas_amount(),
+                })
+            }
+        };
 
-        let entries = get_module_exports(binary).map_err(|e| BackendError {
-            reason: "Unable to get wasm module exports",
-            description: Some(format!("{:?}", e).into()),
-            gas_amount: get_actual_gas_amount(&mut runtime.ext),
-        })?;
+        let entries = match get_module_exports(binary) {
+            Ok(entries) => entries,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: "Unable to get wasm module exports",
+                    description: Some(format!("{:?}", e).into()),
+                    gas_amount: runtime
+                        .ext
+                        .take()
+                        .expect("consume with no clones, some method called only once; qed")
+                        .into_gas_amount(),
+                })
+            }
+        };
 
         // Set module memory.
-        set_pages(&mut runtime.memory, memory_pages).map_err(|e| BackendError {
-            reason: "Unable to set module memory data",
-            description: Some(format!("{:?}", e).into()),
-            gas_amount: get_actual_gas_amount(&mut runtime.ext),
-        })?;
+        if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
+            return Err(BackendError {
+                reason: "Unable to set module memory data",
+                description: Some(format!("{:?}", e).into()),
+                gas_amount: runtime
+                    .ext
+                    .take()
+                    .expect("consume with no clones, some method called only once; qed")
+                    .into_gas_amount(),
+            });
+        }
 
         Ok(SandboxEnvironment {
             runtime,
@@ -197,6 +227,7 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
 
         let info = ext
             .take()
+            .expect("consume with no clones, some method called only once; qed")
             .into_ext_info(|ptr, buff| {
                 memory
                     .read(ptr, buff)
@@ -233,7 +264,7 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
             TerminationReason::Success
         };
 
-        let gas_amount = info.gas_amount;
+        let gas_amount = info.gas_amount.clone();
         post_execution_handler(wasm_memory_addr)
             .map(|_| BackendReport { termination, info })
             .map_err(|e| BackendError {
@@ -244,6 +275,10 @@ impl<E: Ext + ExtInfoSource + 'static> Environment<E> for SandboxEnvironment<E> 
     }
 
     fn drop_env(self) -> GasAmount {
-        self.runtime.ext.take().gas_amount()
+        self.runtime
+            .ext
+            .take()
+            .expect("consume with no clones, some method called only once; qed")
+            .into_gas_amount()
     }
 }

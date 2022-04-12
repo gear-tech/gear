@@ -26,8 +26,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
-    ExtInfo, ExtInfoSource, TerminationReason, WasmBeginAddress,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
+    TerminationReason, WasmBeginAddress,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -70,7 +70,7 @@ fn set_pages<T: Ext>(
     Ok(())
 }
 
-impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
+impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
     fn prepare_post_execution_data(
         self,
     ) -> Result<(ExtInfo, WasmBeginAddress), BackendError<'static>> {
@@ -83,6 +83,7 @@ impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
         } = self;
         let info = ext
             .take()
+            .expect("consume with no clones, some method called only once; qed")
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                 memory
                     .read(&mut store, offset, buffer)
@@ -98,14 +99,14 @@ impl<E: Ext + ExtInfoSource> WasmtimeEnvironment<E> {
     }
 }
 
-impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
+impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
     fn new(
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let mut later_ext = LaterExt::new(ext);
+        let later_ext = LaterExt::new(ext);
 
         let engine = Engine::default();
         let store_data = StoreData {
@@ -114,12 +115,19 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
         // Creates new wasm memory
-        let mut memory = WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None))
-            .map_err(|e| BackendError {
-                reason: "Create env memory failed",
-                description: Some(e.to_string().into()),
-                gas_amount: later_ext.unset().into_gas_amount(),
-            })?;
+        let mut memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
+            Ok(mem) => mem,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: "Create env memory failed",
+                    description: Some(e.to_string().into()),
+                    gas_amount: later_ext
+                        .take()
+                        .expect("existing clone is not taken")
+                        .into_gas_amount(),
+                })
+            }
+        };
 
         /// Make import funcs
         use crate::funcs::FuncsHandler as funcs;
@@ -165,28 +173,36 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         funcs.insert("gr_wait", funcs::wait(&mut store));
         funcs.insert("gr_wake", funcs::wake(&mut store, memory));
 
-        let module = Module::new(&engine, binary).map_err(|e| BackendError {
-            reason: "Unable to create module",
-            description: Some(e.to_string().into()),
-            gas_amount: get_actual_gas_amount(&mut later_ext),
-        })?;
+        let module = match Module::new(&engine, binary) {
+            Ok(module) => module,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: "Unable to create module",
+                    description: Some(e.to_string().into()),
+                    gas_amount: later_ext
+                        .take()
+                        .expect("existing clone is not taken")
+                        .into_gas_amount(),
+                })
+            }
+        };
 
-        let mut imports = module
-            .imports()
-            .map(|import| {
-                if import.module() != "env" {
-                    Err(BackendError {
-                        reason: "Non-env imports are not supported",
-                        description: import
-                            .name()
-                            .map(|v| format!("Function {:?} is not env", v).into()),
-                        gas_amount: get_actual_gas_amount(&mut later_ext),
-                    })
-                } else {
-                    Ok((import.name(), Option::<Extern>::None))
-                }
-            })
-            .collect::<Result<Vec<_>, BackendError>>()?;
+        let mut imports = Vec::with_capacity(module.imports().len());
+        for import in module.imports() {
+            if import.module() != "env" {
+                return Err(BackendError {
+                    reason: "Non-env imports are not supported",
+                    description: import
+                        .name()
+                        .map(|v| format!("Function {:?} is not env", v).into()),
+                    gas_amount: later_ext
+                        .take()
+                        .expect("existing clone is not taken")
+                        .into_gas_amount(),
+                });
+            }
+            imports.push((import.name(), Option::<Extern>::None));
+        }
 
         for (import_name, ref mut ext) in imports.iter_mut() {
             if let Some(name) = import_name {
@@ -198,30 +214,48 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
             }
         }
 
-        let externs = imports
-            .into_iter()
-            .map(|(name, host_function)| {
-                host_function.ok_or_else(|| BackendError {
+        let mut externs = Vec::with_capacity(imports.len());
+        for (name, host_function) in imports {
+            if let Some(host_function) = host_function {
+                externs.push(host_function);
+            } else {
+                return Err(BackendError {
                     reason: "Missing import",
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: get_actual_gas_amount(&mut later_ext),
-                })
-            })
-            .collect::<Result<Vec<_>, BackendError>>()?;
+                    gas_amount: later_ext
+                        .take()
+                        .expect("existing clone is not taken")
+                        .into_gas_amount(),
+                });
+            }
+        }
 
-        let instance = Instance::new(&mut store, &module, &externs).map_err(|e| BackendError {
-            reason: "Unable to create instance",
-            description: Some(e.to_string().into()),
-            gas_amount: get_actual_gas_amount(&mut later_ext),
-        })?;
+        let instance = match Instance::new(&mut store, &module, &externs) {
+            Ok(instance) => instance,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: "Unable to create instance",
+                    description: Some(e.to_string().into()),
+                    gas_amount: later_ext
+                        .take()
+                        .expect("existing clone is not taken")
+                        .into_gas_amount(),
+                })
+            }
+        };
 
         // Set module memory data
-        set_pages(&mut store, &mut memory, memory_pages).map_err(|e| BackendError {
-            reason: "Unable to set module memory data",
-            description: Some(format!("{:?}", e).into()),
-            gas_amount: get_actual_gas_amount(&mut later_ext),
-        })?;
+        if let Err(e) = set_pages(&mut store, &mut memory, memory_pages) {
+            return Err(BackendError {
+                reason: "Unable to set module memory data",
+                description: Some(format!("{:?}", e).into()),
+                gas_amount: later_ext
+                    .take()
+                    .expect("existing clone is not taken")
+                    .into_gas_amount(),
+            });
+        }
 
         Ok(WasmtimeEnvironment {
             store,
@@ -266,7 +300,7 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
             f
         } else {
             let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
-            let gas_amount = info.gas_amount;
+            let gas_amount = info.gas_amount.clone();
 
             // Entry function not found, so we mean this as empty function
             return post_execution_handler(wasm_memory_addr)
@@ -284,7 +318,7 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
         let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
-        let gas_amount = info.gas_amount;
+        let gas_amount = info.gas_amount.clone();
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
@@ -323,6 +357,9 @@ impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
     }
 
     fn drop_env(self) -> GasAmount {
-        self.ext.take().gas_amount()
+        self.ext
+            .take()
+            .expect("consume with no clones, some method called only once; qed")
+            .into_gas_amount()
     }
 }

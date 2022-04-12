@@ -32,7 +32,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
@@ -71,16 +71,12 @@ pub struct ExtInfo {
     pub exit_argument: Option<ProgramId>,
 }
 
-pub trait ExtInfoSource {
+pub trait IntoExtInfo {
     fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
         self,
         get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)>;
-    fn gas_amount(&self) -> GasAmount;
-}
-
-pub fn get_actual_gas_amount<E: Ext + ExtInfoSource>(later_ext: &mut LaterExt<E>) -> GasAmount {
-    later_ext.with(|e| e.gas_amount()).expect("infallible call")
+    fn into_gas_amount(self) -> GasAmount;
 }
 
 pub struct BackendReport<'a> {
@@ -95,7 +91,7 @@ pub struct BackendError<'a> {
     pub description: Option<Cow<'a, str>>,
 }
 
-pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
+pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Creates new external environment to execute wasm binary:
     /// 1) instatiates wasm binary.
     /// 2) creates wasm memory with filled data (execption if lazy pages enabled).

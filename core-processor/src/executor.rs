@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, ExtInfoSource, TerminationReason};
+use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -36,7 +36,7 @@ use gear_core::{
 };
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Environment<A>>(
+pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
     context: ExecutionContext,
@@ -216,7 +216,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Envir
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: ext.gas_amount(),
+                gas_amount: ext.into_gas_amount(),
                 reason: e,
                 allowance_exceed: false,
             })
@@ -317,7 +317,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Envir
         if let Some(initial_data) = initial_pages.get(&page) {
             let old_data = initial_data.as_ref().ok_or(ExecutionError {
                 program_id,
-                gas_amount: info.gas_amount,
+                gas_amount: info.gas_amount.clone(),
                 reason: "RUNTIME ERROR: changed page has no data in initial pages",
                 allowance_exceed: false,
             })?;

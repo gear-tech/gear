@@ -18,7 +18,7 @@
 
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use gear_backend_common::{ExtInfo, ExtInfoSource};
+use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
@@ -180,7 +180,7 @@ impl ProcessorExt for Ext {
     }
 }
 
-impl ExtInfoSource for Ext {
+impl IntoExtInfo for Ext {
     fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
         self,
         mut get_page_data: F,
@@ -211,7 +211,7 @@ impl ExtInfoSource for Ext {
         })
     }
 
-    fn gas_amount(&self) -> GasAmount {
+    fn into_gas_amount(self) -> GasAmount {
         self.gas_counter.into()
     }
 }

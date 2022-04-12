@@ -186,11 +186,8 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Unset inner ext
-    pub fn take(self) -> E {
-        self.inner
-            .borrow_mut()
-            .take()
-            .expect("method consumes value, so called only once; qed")
+    pub fn take(self) -> Option<E> {
+        self.inner.borrow_mut().take()
     }
 }
 
@@ -305,7 +302,7 @@ mod tests {
 
         let inner = ext.take();
 
-        assert_eq!(inner, ExtImplementedStruct(0));
+        assert_eq!(inner, Some(ExtImplementedStruct(0)));
     }
 
     #[test]
@@ -318,7 +315,7 @@ mod tests {
         // so setting on one causes setting on other
         let inner = ext_clone.take();
 
-        assert_eq!(inner, ExtImplementedStruct(0));
+        assert_eq!(inner, Some(ExtImplementedStruct(0)));
     }
 
     /// Test function of format `Fn(&mut E: Ext) -> R`

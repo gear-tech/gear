@@ -49,7 +49,10 @@ pub enum InstrumentError {
 }
 
 /// Gas counter with some predefined maximum gas.
-#[derive(Debug, Clone, Copy)]
+///
+/// `Clone` and `Copy` traits aren't implemented for the type (however could be)
+/// in order to make the data only moveable, preventing implicit/explicit copying.
+#[derive(Debug)]
 pub struct GasCounter {
     left: u64,
     burned: u64,
@@ -114,7 +117,10 @@ impl GasCounter {
 }
 
 /// Read-only representation of consumed `GasCounter`.
-#[derive(Debug, Clone, Copy)]
+///
+/// `Copy` trait isn't implemented for the type (however could be)
+/// in order to make the data only moveable, preventing implicit/explicit copying.
+#[derive(Debug, Clone)]
 pub struct GasAmount {
     left: u64,
     burned: u64,
