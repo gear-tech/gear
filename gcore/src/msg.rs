@@ -42,8 +42,6 @@ mod sys {
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
         ) -> ErrorCode;
-        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8) -> ErrorCode;
-        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_reply_wgas(
             data_ptr: *const u8,
             data_len: u32,
@@ -51,11 +49,13 @@ mod sys {
             gas_limit_ptr: *const u8,
             message_id_ptr: *mut u8,
         ) -> ErrorCode;
+        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8) -> ErrorCode;
         pub fn gr_reply_commit_wgas(
             message_id_ptr: *mut u8,
             value_ptr: *const u8,
             gas_limit_ptr: *const u8,
         ) -> ErrorCode;
+        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
             program: *const u8,
@@ -260,14 +260,18 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_with_gas(b"PING", 0, 0);
+///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_with_gas(payload: &[u8], value: u128, gas_limit: u128) -> MessageId {
+pub fn reply_with_gas(
+    payload: &[u8],
+    value: u128,
+    gas_limit: u128,
+) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_wgas(
@@ -276,8 +280,9 @@ pub fn reply_with_gas(payload: &[u8], value: u128, gas_limit: u128) -> MessageId
             value.to_le_bytes().as_ptr(),
             gas_limit.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
-        );
-        message_id
+        )
+        .into_reply_error()?;
+        Ok(message_id)
     }
 }
 
@@ -342,26 +347,27 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 ///     // ...
-///     msg::reply_commit_with_gas(42, 0);
+///     msg::reply_commit_with_gas(42, 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message with in parts.
-pub fn reply_commit_with_gas(value: u128, gas_limit: u128) -> MessageId {
+pub fn reply_commit_with_gas(value: u128, gas_limit: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit_wgas(
             message_id.as_mut_slice().as_mut_ptr(),
             value.to_le_bytes().as_ptr(),
             gas_limit.to_le_bytes().as_ptr(),
-        );
-        message_id
+        )
+        .into_reply_error()?;
+        Ok(message_id)
     }
 }
 

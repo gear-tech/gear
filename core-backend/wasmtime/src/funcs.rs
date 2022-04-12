@@ -269,22 +269,24 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          gas_limit_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with(|ext: &mut E| -> Result<i32, String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let gas_limit = get_u128(&mem_wrap, gas_limit_ptr as usize)?;
-                let message_id = ext.reply(ReplyPacket::new_with_gas(
+                ext.reply(ReplyPacket::new_with_gas(
                     payload,
                     gas_limit as GasLimit,
                     value,
-                ))?;
-                write_to_caller_memory(
-                    &mut caller,
-                    &mem,
-                    message_id_ptr as isize as _,
-                    message_id.as_ref(),
-                )
+                ))
+                .on_success_code(|message_id| {
+                    write_to_caller_memory(
+                        &mut caller,
+                        &mem,
+                        message_id_ptr as isize as _,
+                        message_id.as_ref(),
+                    )
+                })
             })
             .map_err(Trap::new)?
             .map_err(|_| "Trapping: unable to send reply message")
@@ -323,21 +325,23 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          gas_limit_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with(|ext: &mut E| -> Result<i32, String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let gas_limit = get_u128(&mem_wrap, gas_limit_ptr as usize)?;
-                let message_id = ext.reply_commit(ReplyPacket::new_with_gas(
+                ext.reply_commit(ReplyPacket::new_with_gas(
                     Default::default(),
                     gas_limit as GasLimit,
                     value,
-                ))?;
-                write_to_caller_memory(
-                    &mut caller,
-                    &mem,
-                    message_id_ptr as isize as _,
-                    message_id.as_ref(),
-                )
+                ))
+                .on_success_code(|message_id| {
+                    write_to_caller_memory(
+                        &mut caller,
+                        &mem,
+                        message_id_ptr as isize as _,
+                        message_id.as_ref(),
+                    )
+                })
             })
             .map_err(Trap::new)?
             .map_err(|_| "Trapping: unable to send message")

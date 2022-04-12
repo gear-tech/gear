@@ -243,15 +243,15 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_with_gas(b"PING", 0, 0);
+///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_with_gas(payload: &[u8], value: u128, gas_limit: u128) -> MessageId {
-    gcore::msg::reply_with_gas(payload, value, gas_limit).into()
+pub fn reply_with_gas(payload: &[u8], value: u128, gas_limit: u128) -> Result<MessageId> {
+    gcore::msg::reply_with_gas(payload, value, gas_limit).into_contract_result()
 }
 
 /// Finalize and send a current reply message.
@@ -307,19 +307,19 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 ///     // ...
-///     msg::reply_commit_with_gas(42, 0);
+///     msg::reply_commit_with_gas(42, 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit_with_gas(value: u128, gas_limit: u128) -> MessageId {
-    gcore::msg::reply_commit_with_gas(value, gas_limit).into()
+pub fn reply_commit_with_gas(value: u128, gas_limit: u128) -> Result<MessageId> {
+    gcore::msg::reply_commit_with_gas(value, gas_limit).into_contract_result()
 }
 
 /// Push a payload part to the current reply message.

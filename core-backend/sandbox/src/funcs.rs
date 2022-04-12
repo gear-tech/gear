@@ -23,12 +23,14 @@ use core::{
     marker::PhantomData,
     slice::Iter,
 };
-use gear_backend_common::{funcs, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR, IntoErrorCode, OnSuccessCode};
+use gear_backend_common::{
+    funcs, IntoErrorCode, OnSuccessCode, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR,
+};
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
     memory::Memory,
-    message::{HandlePacket, InitPacket, ReplyPacket, GasLimit},
+    message::{GasLimit, HandlePacket, InitPacket, ReplyPacket},
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -415,8 +417,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     gas_limit as GasLimit,
                     value,
                 ))
+                .map(|_| ())
+                .into_error_code()
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
@@ -456,14 +460,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let gas_limit = funcs::get_u128(&ctx.memory, gas_limit_ptr)?;
-                let message_id = ext.reply_commit(ReplyPacket::new_with_gas(
-                    Default::default(),
-                    gas_limit as GasLimit,
-                    value,
-                ))?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit as GasLimit, value))
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(Into::into)
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
