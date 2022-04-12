@@ -21,12 +21,28 @@ const upload_program = (api, account, pathToDemoPing) => {
   });
 };
 
-const checkInit = (api) => {
+const getDispatchMessageEnqueuedBlock = (api, { events, status }) => {
+  let blockHash = undefined;
+  events.forEach(({ event }) => {
+    if (api.events.gear.DispatchMessageEnqueued.is(event)) {
+      blockHash = status.asInBlock.toHex();
+    }
+  });
+  return blockHash;
+};
+
+const getNextBlock = async (api, hash) => {
+  const block = await api.rpc.chain.getBlock(hash);
+  const blockNumber = block.block.header.number.toNumber();
+  return api.rpc.chain.getBlockHash(blockNumber + 1);
+};
+
+const listenToInit = (api) => {
   const success = [];
   api.query.system.events((events) => {
     events
       .filter(({ event }) => api.events.gear.InitSuccess.is(event))
-      .forEach(({ event: { method, data } }) => {
+      .forEach(({ event: { data } }) => {
         success.push(data[0].programId.toHex());
       });
   });
@@ -39,6 +55,18 @@ const checkInit = (api) => {
   };
 };
 
+const messageDequeuedIsOccured = async (api, hash) => {
+  const apiAt = await api.at(hash);
+  const events = await apiAt.query.system.events();
+  return new Promise((resolve) => {
+    if (events.filter(({ event }) => api.events.gear.MessagesDequeued.is(event)).length > 0) {
+      resolve(true);
+    } else {
+      resolve(false);
+    }
+  });
+};
+
 const main = async (pathToRuntimeCode, pathToDemoPing) => {
   // Create connection
   const provider = new WsProvider('ws://127.0.0.1:9944');
@@ -49,7 +77,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   // Check that it is root
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
-  const isInitialized = checkInit(api);
+  const isInitialized = listenToInit(api);
   // Upload demo_ping
   const programId = await upload_program(api, account, pathToDemoPing);
   // Check that demo_ping was initialized
@@ -57,48 +85,48 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
 
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
-  const setCode = api.tx.system.setCodeWithoutChecks(api.createType('Bytes', Array.from(code)));
+  const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
   const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
+  // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
   const message = api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0);
 
-  const processingBlocks = { CodeUpdated: undefined, DispatchMessageEnqueued: undefined };
-
-  await new Promise((resolve, reject) => {
-    api.tx.utility.batchAll([setCodeUnchekedWeight, message]).signAndSend(account, ({ events, status }) => {
-      if (status.isInBlock) {
-        events.forEach(({ event }) => {
+  let codeUpdatedBlock = undefined;
+  let messages = [undefined, undefined];
+  await new Promise((resolve) => {
+    api.tx.utility.batchAll([setCodeUnchekedWeight, message]).signAndSend(account, (events) => {
+      if (events.status.isInBlock) {
+        messages[0] = getDispatchMessageEnqueuedBlock(api, events);
+        events.events.forEach(({ event }) => {
           if (api.events.system.CodeUpdated.is(event)) {
-            processingBlocks.CodeUpdated = status.asInBlock.toHex();
-          } else if (api.events.gear.DispatchMessageEnqueued.is(event)) {
-            processingBlocks.DispatchMessageEnqueued = status.asInBlock.toHex();
-          } else if (api.events.system.ExtrinsicSuccess.is(event)) {
-            resolve('ExtrinsicSuccess');
-          } else if (api.events.system.ExtrinsicFailed.is(event)) {
-            reject('ExtrinsicFailed');
+            codeUpdatedBlock = events.status.asInBlock.toHex();
+          }
+        });
+        message.signAndSend(account, (secondTxEvents) => {
+          if (secondTxEvents.status.isInBlock) {
+            messages[1] = getDispatchMessageEnqueuedBlock(api, secondTxEvents);
+            resolve();
           }
         });
       }
     });
   });
-  assert.notStrictEqual(processingBlocks.CodeUpdated, undefined, 'setCode was not proccessed successfully');
-  assert.notStrictEqual(
-    processingBlocks.DispatchMessageEnqueued,
-    undefined,
-    'sendMessage was not proccessed successfully',
-  );
+
+  assert.notEqual(messages[0], messages[1], 'both sendMessage txs were processed in the same block');
+  assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not processed successfully');
   assert.notEqual(
-    processingBlocks.CodeUpdated,
-    processingBlocks.DispatchMessageEnqueued,
-    'setCode and sendMessage were proccessed in the same block',
+    await messageDequeuedIsOccured(api, await getNextBlock(api, codeUpdatedBlock)),
+    true,
+    'A message was processed in the next block after CodeUpdated event',
   );
-  console.log('\nPassed');
+
+  console.log('Passed');
 };
 
 const args = process.argv.slice(2);
 const pathToRuntimeCode = args[0];
 const pathToDemoPing = args[1];
-let exitCode = 0;
+let exitCode = undefined;
 
 main(pathToRuntimeCode, pathToDemoPing)
   .then(() => {
@@ -116,4 +144,4 @@ main(pathToRuntimeCode, pathToDemoPing)
       }
       process.exit(exitCode);
     });
-  })
+  });
