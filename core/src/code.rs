@@ -48,6 +48,8 @@ pub enum CodeError {
     Encode,
 }
 
+use crate::memory::WasmPageNumber;
+
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct Code {
@@ -66,8 +68,7 @@ pub struct Code {
     /// when loading the code from storage.
     #[codec(skip)]
     code_hash: CodeId,
-    #[codec(compact)]
-    static_pages: u32,
+    static_pages: WasmPageNumber,
     #[codec(compact)]
     instruction_weights_version: u32,
 }
@@ -86,7 +87,7 @@ impl Code {
         );
 
         // get initial memory size from memory import.
-        let static_pages: u32 = {
+        let static_pages = WasmPageNumber(
             module
                 .import_section()
                 .ok_or(CodeError::CheckError)?
@@ -98,8 +99,8 @@ impl Code {
                     }
                     _ => None,
                 })
-                .ok_or(CodeError::CheckError)?
-        };
+                .ok_or(CodeError::CheckError)?,
+        );
 
         let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
             .map_err(|_| CodeError::GasInjection)?;
@@ -144,7 +145,7 @@ impl Code {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> u32 {
+    pub fn static_pages(&self) -> WasmPageNumber {
         self.static_pages
     }
 }

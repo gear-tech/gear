@@ -31,14 +31,16 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    let handle = msg::send_init();
+    let handle = msg::send_init().unwrap();
 
     for vertex in &code {
         leaves.sort();
         leaves.reverse();
         let leaf = leaves.pop().expect("An error occured during calculating");
 
-        handle.push(format!("[{}, {}];", leaf + 1, vertex + 1));
+        handle
+            .push(format!("[{}, {}];", leaf + 1, vertex + 1))
+            .unwrap();
 
         degrees[*vertex] -= 1;
 
@@ -47,7 +49,9 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    handle.push(format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1));
+    handle
+        .push(format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1))
+        .unwrap();
 
-    handle.commit(msg::source(), 0);
+    handle.commit(msg::source(), 0).unwrap();
 }

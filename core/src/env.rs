@@ -18,10 +18,9 @@
 
 //! Environment for running a module.
 
-use crate::memory::Memory;
+use crate::memory::{Memory, WasmPageNumber};
 use crate::{
     ids::{MessageId, ProgramId},
-    memory::PageNumber,
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::rc::Rc;
@@ -47,9 +46,9 @@ pub trait Ext {
     /// The resulting page number should point to `pages` consecutives memory pages.
     fn alloc(
         &mut self,
-        pages: PageNumber,
+        pages: WasmPageNumber,
         mem: &mut dyn Memory,
-    ) -> Result<PageNumber, &'static str>;
+    ) -> Result<WasmPageNumber, &'static str>;
 
     /// Get the current block height.
     fn block_height(&self) -> u32;
@@ -106,7 +105,7 @@ pub trait Ext {
     ///
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
     /// should be `free`-d separately.
-    fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str>;
+    fn free(&mut self, page: WasmPageNumber) -> Result<(), &'static str>;
 
     /// Send debug message.
     ///
@@ -214,9 +213,9 @@ mod tests {
     impl Ext for ExtImplementedStruct {
         fn alloc(
             &mut self,
-            _pages: PageNumber,
+            _pages: WasmPageNumber,
             _mem: &mut dyn Memory,
-        ) -> Result<PageNumber, &'static str> {
+        ) -> Result<WasmPageNumber, &'static str> {
             Err("")
         }
         fn block_height(&self) -> u32 {
@@ -262,7 +261,7 @@ mod tests {
         fn program_id(&self) -> ProgramId {
             0.into()
         }
-        fn free(&mut self, _ptr: PageNumber) -> Result<(), &'static str> {
+        fn free(&mut self, _page: WasmPageNumber) -> Result<(), &'static str> {
             Ok(())
         }
         fn debug(&mut self, _data: &str) -> Result<(), &'static str> {

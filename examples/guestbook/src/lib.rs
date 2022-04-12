@@ -34,7 +34,7 @@ pub unsafe extern "C" fn handle() {
             MESSAGES.push(message);
         }
         Action::ViewMessages => {
-            msg::reply(&MESSAGES, 0);
+            msg::reply(&MESSAGES, 0).unwrap();
         }
     }
 }

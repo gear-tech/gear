@@ -19,13 +19,13 @@
 //! Configurations.
 
 use codec::{Decode, Encode};
-use gear_core::memory::PageNumber;
+use gear_core::memory::WasmPageNumber;
 
-const MAX_PAGES: u32 = 512;
+const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
-const LOAD_PAGE_COST: u64 = 3000;
+const LOAD_PAGE_COST: u64 = 200;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -40,7 +40,7 @@ pub struct BlockInfo {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct AllocationsConfig {
     /// Max amount of pages.
-    pub max_pages: PageNumber,
+    pub max_pages: WasmPageNumber,
     /// Cost of initial memory.
     pub init_cost: u64,
     /// Cost of allocating memory.
@@ -54,7 +54,7 @@ pub struct AllocationsConfig {
 impl Default for AllocationsConfig {
     fn default() -> Self {
         Self {
-            max_pages: MAX_PAGES.into(),
+            max_pages: WasmPageNumber(MAX_WASM_PAGES),
             init_cost: INIT_COST,
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
@@ -84,7 +84,7 @@ impl ExecutionSettings {
     }
 
     /// Max amount of pages.
-    pub fn max_pages(&self) -> PageNumber {
+    pub fn max_pages(&self) -> WasmPageNumber {
         self.config.max_pages
     }
 
@@ -103,7 +103,7 @@ impl ExecutionSettings {
         self.config.mem_grow_cost
     }
 
-    /// Load page cost.
+    /// Load gear page cost.
     pub fn load_page_cost(&self) -> u64 {
         self.config.load_page_cost
     }

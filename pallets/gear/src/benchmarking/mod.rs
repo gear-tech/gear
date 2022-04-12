@@ -66,7 +66,7 @@ benchmarks! {
         let c in 0 .. MAX_CODE_LEN;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let code = benchmarking::generate_wasm3(vec![0u8; c as usize]).unwrap();
-        let code_hash: H256 =     CodeId::generate(&code).into_origin();
+        let code_hash: H256 = CodeId::generate(&code).into_origin();
     }: _(RawOrigin::Signed(caller), code)
     verify {
         assert!(common::code_exists(code_hash));
@@ -92,8 +92,8 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
-        let code = benchmarking::generate_wasm2(16_i32).unwrap();
-        benchmarking::set_program(program_id, code, 1_u32);
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
@@ -105,8 +105,8 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
-        let code = benchmarking::generate_wasm2(16_i32).unwrap();
-        benchmarking::set_program(program_id, code, 1_u32);
+        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        benchmarking::set_program(program_id, code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).into_origin();
         Gear::<T>::insert_to_mailbox(
             caller.clone().into_origin(),
@@ -129,7 +129,7 @@ benchmarks! {
         let q in 1 .. MAX_PAGES;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm(q).unwrap();
+        let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
         let _ = crate::Pallet::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
@@ -143,7 +143,7 @@ benchmarks! {
         let q in 0 .. MAX_PAGES;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm2(q as i32).unwrap();
+        let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
         let _ = crate::Pallet::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());

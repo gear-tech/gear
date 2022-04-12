@@ -21,6 +21,7 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
+    memory::{PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use hex_literal::hex;
@@ -47,13 +48,22 @@ fn pause_program_works() {
 
         common::set_code(code_hash, &code);
 
-        let static_pages: u32 = 16;
+        let wasm_static_pages = WasmPageNumber(16);
+        let static_pages = wasm_static_pages.to_gear_pages();
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            pages.insert(static_pages, vec![static_pages as u8]);
-            pages.insert(static_pages + 2, vec![static_pages as u8 + 2]);
-            for i in 0..static_pages {
-                pages.insert(i, vec![i as u8]);
+            for i in 0..PageNumber::num_in_one_wasm_page() {
+                pages.insert(
+                    static_pages + PageNumber(i),
+                    vec![wasm_static_pages.0 as u8],
+                );
+                pages.insert(
+                    static_pages + PageNumber(i + 2 * PageNumber::num_in_one_wasm_page()),
+                    vec![wasm_static_pages.0 as u8 + 2],
+                );
+            }
+            for i in 0..static_pages.0 {
+                pages.insert(i.into(), vec![i as u8]);
             }
 
             pages
@@ -64,7 +74,7 @@ fn pause_program_works() {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.to_wasm_page(),
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
                 state: ProgramState::Initialized,
@@ -149,7 +159,7 @@ fn pause_program_twice_fails() {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.into(),
                 persistent_pages: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
@@ -188,7 +198,7 @@ fn pause_terminated_program_fails() {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.into(),
                 persistent_pages: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
@@ -210,7 +220,7 @@ fn pause_terminated_program_fails() {
 #[test]
 fn pause_uninitialized_program_works() {
     new_test_ext().execute_with(|| {
-        let static_pages = 16;
+        let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
             program_id,
             code_hash,
@@ -246,7 +256,7 @@ fn pause_uninitialized_program_works() {
 #[test]
 fn resume_uninitialized_program_works() {
     new_test_ext().execute_with(|| {
-        let static_pages = 16;
+        let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
             program_id,
             init_msg,
@@ -307,7 +317,7 @@ fn resume_uninitialized_program_works() {
 #[test]
 fn resume_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let static_pages = 16;
+        let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
             program_id,
             memory_pages,
@@ -342,7 +352,7 @@ fn resume_program_twice_fails() {
 #[test]
 fn resume_program_wrong_memory_fails() {
     new_test_ext().execute_with(|| {
-        let static_pages = 16;
+        let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
             program_id,
             mut memory_pages,
@@ -357,7 +367,7 @@ fn resume_program_wrong_memory_fails() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let block_number = 100;
-        memory_pages.remove(&0);
+        memory_pages.remove(&0.into());
         assert_noop!(
             GearProgram::resume_program_impl(
                 program_id,
@@ -375,7 +385,7 @@ fn resume_program_wrong_memory_fails() {
 #[test]
 fn resume_program_wrong_list_fails() {
     new_test_ext().execute_with(|| {
-        let static_pages = 16;
+        let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
             program_id,
             memory_pages,
@@ -429,10 +439,12 @@ mod utils {
         pub init_msg: StoredDispatch,
         pub msg_1: StoredDispatch,
         pub msg_2: StoredDispatch,
-        pub memory_pages: BTreeMap<u32, Vec<u8>>,
+        pub memory_pages: BTreeMap<PageNumber, Vec<u8>>,
     }
 
-    pub fn create_uninitialized_program_messages(static_pages: u32) -> CreateProgramResult {
+    pub fn create_uninitialized_program_messages(
+        wasm_static_pages: WasmPageNumber,
+    ) -> CreateProgramResult {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeId::generate(&code).into_origin();
 
@@ -446,12 +458,21 @@ mod utils {
 
         common::set_code(code_hash, &code);
 
+        let static_pages = wasm_static_pages.to_gear_pages();
         let memory_pages = {
-            let mut pages = BTreeMap::<u32, Vec<u8>>::new();
-            pages.insert(static_pages, vec![static_pages as u8]);
-            pages.insert(static_pages + 2, vec![static_pages as u8 + 2]);
-            for i in 0..static_pages {
-                pages.insert(i, vec![i as u8]);
+            let mut pages = BTreeMap::new();
+            for i in 0..PageNumber::num_in_one_wasm_page() {
+                pages.insert(
+                    static_pages + PageNumber(i),
+                    vec![wasm_static_pages.0 as u8],
+                );
+                pages.insert(
+                    static_pages + PageNumber(i + 2 * PageNumber::num_in_one_wasm_page()),
+                    vec![wasm_static_pages.0 as u8 + 2],
+                );
+            }
+            for i in 0..static_pages.0 {
+                pages.insert(i.into(), vec![i as u8]);
             }
 
             pages
@@ -462,7 +483,7 @@ mod utils {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: wasm_static_pages,
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
                 state: ProgramState::Uninitialized {

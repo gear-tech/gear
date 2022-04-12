@@ -78,7 +78,8 @@ pub unsafe extern "C" fn init() {
                     under_name: name.to_string().into_bytes(),
                 },
                 0,
-            );
+            )
+            .unwrap();
         }
         _ => {
             debug!("INITIALIZATION FAILED");

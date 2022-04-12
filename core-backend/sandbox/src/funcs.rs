@@ -24,6 +24,7 @@ use core::{
     slice::Iter,
 };
 use gear_backend_common::{funcs, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_backend_common::{IntoErrorCode, OnSuccessCode};
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
@@ -92,10 +93,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.send(HandlePacket::new(dest, payload, value))?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                ext.send(HandlePacket::new(dest, payload, value))
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(Into::into)
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_err| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
@@ -120,11 +122,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id =
-                    ext.send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                ext.send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(Into::into)
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
@@ -145,13 +147,14 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with(|ext| {
                 let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.send_commit(
+                ext.send_commit(
                     handle_ptr,
                     HandlePacket::new(dest, Default::default(), value),
-                )?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                )
+                .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(Into::into)
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_err| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
@@ -172,12 +175,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with(|ext| {
                 let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.send_commit(
+                ext.send_commit(
                     handle_ptr,
                     HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
-                )?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                )
+                .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
+            .map_err(Into::into)
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message");
@@ -185,10 +189,19 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             })
     }
 
-    pub fn send_init(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let handle_ptr = pop_i32(&mut args)?;
+
         ctx.ext
-            .with(|ext| ext.send_init())
-            .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle as i32))))
+            .clone()
+            .with(|ext| {
+                ext.send_init()
+                    .on_success_code(|handle| wto(ctx, handle_ptr, &handle.to_le_bytes()))
+            })
+            .map_err(Into::into)
+            .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle))))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to initiate message sending");
                 HostError
@@ -205,9 +218,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                ext.send_push(handle_ptr, &payload)
+                ext.send_push(handle_ptr, &payload).into_error_code()
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to push message payload");
                 HostError
@@ -300,10 +313,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .clone()
             .with_fallible(|ext| ext.alloc(pages.into(), &mut ctx.memory))
-            .map(|v| {
-                let ptr = v.raw();
-                log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                ReturnValue::Value(Value::I32(ptr as i32))
+            .map(|page| {
+                log::debug!("ALLOC: {} pages at {:?}", pages, page);
+                ReturnValue::Value(Value::I32(page.0 as i32))
             })
             .map_err(|e| {
                 ctx.trap = Some(e);
@@ -377,8 +389,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 ext.reply(ReplyPacket::new(payload, value))
+                    .map(|_| ())
+                    .into_error_code()
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
@@ -396,10 +410,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.reply_commit(ReplyPacket::new(Default::default(), value))?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                ext.reply_commit(ReplyPacket::new(Default::default(), value))
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(Into::into)
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
@@ -439,9 +454,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                ext.reply_push(&payload)
+                ext.reply_push(&payload).into_error_code()
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to push payload into reply");
                 HostError

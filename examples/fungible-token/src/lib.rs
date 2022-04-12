@@ -74,7 +74,7 @@ impl FungibleToken {
             to: H256::from_slice(account.as_ref()),
             amount,
         };
-        msg::reply(Event::Transfer(transfer_data), 0);
+        msg::reply(Event::Transfer(transfer_data), 0).unwrap();
     }
     fn burn(&mut self, account: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -91,7 +91,7 @@ impl FungibleToken {
             to: H256::zero(),
             amount,
         };
-        msg::reply(Event::Transfer(transfer_data), 0);
+        msg::reply(Event::Transfer(transfer_data), 0).unwrap();
     }
     fn transfer(&mut self, sender: &ActorId, recipient: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -113,7 +113,7 @@ impl FungibleToken {
             to: H256::from_slice(recipient.as_ref()),
             amount,
         };
-        msg::reply(Event::Transfer(transfer_data), 0);
+        msg::reply(Event::Transfer(transfer_data), 0).unwrap();
     }
     fn approve(&mut self, owner: &ActorId, spender: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -133,7 +133,7 @@ impl FungibleToken {
             spender: H256::from_slice(spender.as_ref()),
             amount,
         };
-        msg::reply(Event::Approval(approve_data), 0);
+        msg::reply(Event::Approval(approve_data), 0).unwrap();
     }
     fn get_allowance(&self, owner: &ActorId, spender: &ActorId) -> u128 {
         *self

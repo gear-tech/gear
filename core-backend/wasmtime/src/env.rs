@@ -18,14 +18,20 @@
 
 //! Wasmtime environment for running a module.
 
-use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
+use alloc::{
+    boxed::Box,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
@@ -48,15 +54,16 @@ fn set_pages<T: Ext>(
     mut store: &mut Store<StoreData<T>>,
     memory: &mut WasmtimeMemory,
     pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-) -> Result<(), Error> {
+) -> Result<(), String> {
+    let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
     for (num, buf) in pages {
-        if memory.size(&mut store) <= num.raw() as u64 {
-            return Err(Error::MemoryAccessError);
+        if memory_size <= num.to_wasm_page() {
+            return Err(format!("Memory size {:?} less then {:?}", memory_size, num));
         }
         if let Some(buf) = buf {
             memory
                 .write(&mut store, num.offset(), &buf[..])
-                .map_err(|_| Error::MemoryAccessError)?;
+                .map_err(|e| format!("Cannot write to {:?}: {:?}", num, e))?;
         }
     }
     Ok(())
@@ -67,7 +74,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        mem_size: u32,
+        mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
@@ -79,13 +86,11 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
         // Creates new wasm memory
-        let mut memory =
-            WasmtimeMemory::new(&mut store, MemoryType::new(mem_size, None)).map_err(|e| {
-                BackendError {
-                    reason: "Create env memory failed",
-                    description: Some(e.to_string().into()),
-                    gas_amount: later_ext.unset().into_gas_amount(),
-                }
+        let mut memory = WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None))
+            .map_err(|e| BackendError {
+                reason: "Create env memory failed",
+                description: Some(e.to_string().into()),
+                gas_amount: later_ext.unset().into_gas_amount(),
             })?;
 
         /// Make import funcs
@@ -119,7 +124,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             funcs::send_commit_wgas(&mut store, memory),
         );
         funcs.insert("gr_send_commit", funcs::send_commit(&mut store, memory));
-        funcs.insert("gr_send_init", funcs::send_init(&mut store));
+        funcs.insert("gr_send_init", funcs::send_init(&mut store, memory));
         funcs.insert("gr_send_push", funcs::send_push(&mut store, memory));
         funcs.insert("gr_size", funcs::size(&mut store));
         funcs.insert("gr_source", funcs::source(&mut store, memory));
@@ -198,12 +203,20 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         })
     }
 
-    fn get_stack_mem_end(&mut self) -> Option<i32> {
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
         // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
         let global = self
             .instance
             .get_global(&mut self.store, "__gear_stack_end")?;
-        global.get(&mut self.store).i32()
+        global.get(&mut self.store).i32().and_then(|addr| {
+            if addr < 0 {
+                None
+            } else {
+                Some(WasmPageNumber(
+                    (addr as usize / WasmPageNumber::size()) as u32,
+                ))
+            }
+        })
     }
 
     fn get_wasm_memory_begin_addr(&mut self) -> u64 {

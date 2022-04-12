@@ -25,6 +25,10 @@ use gear_core::memory::{PageBuf, PageNumber};
 use gear_runtime_interface::gear_ri;
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 
+fn mprotect_lazy_pages(addr: u64, protect: bool) -> Result<(), &'static str> {
+    gear_ri::mprotect_lazy_pages(addr, protect).map_err(|_| "Cannot mprotect some pages")
+}
+
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages(
     program_id: ProgramId,
@@ -38,10 +42,10 @@ pub fn try_to_enable_lazy_pages(
         // TODO: lazy-pages must be disabled in validators in relay-chain,
         // but it can be fixed in future only.
 
-        // In case we cannot enable lazy-pages, then we loads data for all pages, which has no data, now.
+        // In case we cannot enable lazy-pages, then we loads now data for all pages, which has no data.
         let prog_id_hash = program_id.into_origin();
         for (page, buff) in memory_pages.iter_mut().filter(|(_x, y)| y.is_none()) {
-            let data = crate::get_program_page_data(prog_id_hash, page.raw())
+            let data = crate::get_program_page_data(prog_id_hash, *page)
                 .ok_or("Cannot find page data in storage")?;
             let page_data =
                 PageBuf::try_from(data).map_err(|_| "Cannot convert vec to page data")?;
@@ -64,8 +68,8 @@ pub fn protect_pages_and_init_info(
     let lazy_pages = memory_pages
         .iter()
         .filter(|(_num, buf)| buf.is_none())
-        .map(|(num, _buf)| num.raw())
-        .collect::<Vec<u32>>();
+        .map(|(num, _buf)| *num)
+        .collect::<Vec<_>>();
     let prog_id_hash = prog_id.into_origin();
 
     gear_ri::reset_lazy_pages_info();
@@ -76,8 +80,7 @@ pub fn protect_pages_and_init_info(
         crate::save_page_lazy_info(prog_id_hash, *p);
     });
 
-    gear_ri::mprotect_wasm_pages(wasm_mem_begin_addr, &lazy_pages, false, false, false)
-        .map_err(|_| "Cannot set protection for some pages")
+    mprotect_lazy_pages(wasm_mem_begin_addr, true)
 }
 
 /// Lazy pages contract post execution actions
@@ -96,16 +99,12 @@ pub fn post_execution_actions(
     }
 
     // Removes protections from lazy pages
-    let lazy_pages = gear_ri::get_wasm_lazy_pages_numbers();
-    gear_ri::mprotect_wasm_pages(wasm_mem_begin_addr, &lazy_pages, true, true, false)
-        .map_err(|_| "Cannot set protection for some pages")
+    mprotect_lazy_pages(wasm_mem_begin_addr, false)
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
 pub fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), &'static str> {
-    let lazy_pages = gear_ri::get_wasm_lazy_pages_numbers();
-    gear_ri::mprotect_wasm_pages(mem_addr, &lazy_pages, true, true, false)
-        .map_err(|_| "Cannot set protection for some pages")
+    mprotect_lazy_pages(mem_addr, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
@@ -121,12 +120,13 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
         );
         gear_ri::set_wasm_mem_begin_addr(new_mem_addr);
     }
-    let lazy_pages = gear_ri::get_wasm_lazy_pages_numbers();
-    gear_ri::mprotect_wasm_pages(new_mem_addr, &lazy_pages, false, false, false)
-        .map_err(|_| "Cannot set protection for some pages")
+    mprotect_lazy_pages(new_mem_addr, true)
 }
 
 /// Returns list of current lazy pages numbers
-pub fn get_lazy_pages_numbers() -> Vec<u32> {
+pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
     gear_ri::get_wasm_lazy_pages_numbers()
+        .iter()
+        .map(|p| PageNumber(*p))
+        .collect()
 }

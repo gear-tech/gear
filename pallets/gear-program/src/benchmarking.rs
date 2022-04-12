@@ -18,6 +18,7 @@
 
 use super::*;
 use common::{benchmarking, Origin};
+use gear_core::memory::{wasm_pages_to_pages_set, WasmPageNumber};
 use sp_runtime::traits::UniqueSaturatedInto;
 
 #[allow(unused)]
@@ -35,12 +36,14 @@ benchmarks! {
         let q in 1 .. 256;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm(q).unwrap();
+        let code = benchmarking::generate_wasm(q.into()).unwrap();
 
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
-        benchmarking::set_program(program_id, code, q);
+        benchmarking::set_program(program_id, code, q.into());
 
-        let memory_pages = common::get_program_pages(program_id, (0..q).collect()).unwrap();
+        let wasm_pages = (0..q).map(WasmPageNumber).collect::<Vec<WasmPageNumber>>();
+        let pages = wasm_pages_to_pages_set(wasm_pages.iter());
+        let memory_pages = common::get_program_pages(program_id, pages).unwrap();
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();
     }: _(RawOrigin::Signed(caller), program_id, memory_pages, Default::default(), 10_000u32.into())

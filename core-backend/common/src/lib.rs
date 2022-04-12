@@ -28,13 +28,14 @@ use alloc::{
     borrow::Cow,
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
 
@@ -43,6 +44,7 @@ pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
+#[derive(Debug)]
 pub enum TerminationReason<'a> {
     Exit(ProgramId),
     Leave,
@@ -58,7 +60,7 @@ pub enum TerminationReason<'a> {
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub pages: BTreeSet<PageNumber>,
-    pub accessed_pages: BTreeMap<PageNumber, Vec<u8>>,
+    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
     pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -97,11 +99,11 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        mem_size: u32,
+        mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>>;
 
     /// Returns addr to the stack end if it can be identified
-    fn get_stack_mem_end(&mut self) -> Option<i32>;
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
     fn get_wasm_memory_begin_addr(&mut self) -> u64;
@@ -112,4 +114,41 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Unset env ext and returns gas amount.
     fn drop_env(&mut self) -> GasAmount;
+}
+
+pub trait OnSuccessCode<T, E> {
+    fn on_success_code<F>(self, f: F) -> Result<i32, String>
+    where
+        F: FnMut(T) -> Result<(), E>;
+}
+
+impl<T, E, E2> OnSuccessCode<T, E2> for Result<T, E>
+where
+    E2: Into<String>,
+{
+    fn on_success_code<F>(self, mut f: F) -> Result<i32, String>
+    where
+        F: FnMut(T) -> Result<(), E2>,
+    {
+        match self {
+            Ok(t) => {
+                f(t).map_err(Into::into)?;
+                Ok(0)
+            }
+            Err(_) => Ok(1),
+        }
+    }
+}
+
+pub trait IntoErrorCode {
+    fn into_error_code(self) -> Result<i32, &'static str>;
+}
+
+impl IntoErrorCode for Result<(), &str> {
+    fn into_error_code(self) -> Result<i32, &'static str> {
+        match self {
+            Ok(()) => Ok(0),
+            Err(_) => Ok(1),
+        }
+    }
 }

@@ -17,7 +17,7 @@ mod wasm {
     pub unsafe extern "C" fn handle() {
         exec::exit(msg::source());
         // should not be executed
-        msg::reply(b"reply", 0);
+        msg::reply(b"reply", 0).unwrap();
     }
 
     #[no_mangle]

@@ -91,7 +91,7 @@ where
     )
     .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
-    if code.static_pages() > AllocationsConfig::default().max_pages.raw() {
+    if code.static_pages() > AllocationsConfig::default().max_pages {
         return Err(anyhow::anyhow!(
             "Error initialisation: memory limit exceeded"
         ));

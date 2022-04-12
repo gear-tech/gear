@@ -30,15 +30,15 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
+use gear_core::memory::{pages_to_wasm_pages_set, PageNumber};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    memory::PAGE_SIZE,
     message::*,
     program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::{
     collections::HashMap,
     fmt, fs,
@@ -343,11 +343,19 @@ pub fn check_allocations(
                 .get_pages()
                 .iter()
                 .filter(|(page, _buf)| match exp.filter {
-                    Some(AllocationFilter::Static) => page.raw() < program.static_pages(),
-                    Some(AllocationFilter::Dynamic) => page.raw() >= program.static_pages(),
+                    Some(AllocationFilter::Static) => {
+                        **page < program.static_pages().to_gear_pages()
+                    }
+                    Some(AllocationFilter::Dynamic) => {
+                        **page >= program.static_pages().to_gear_pages()
+                    }
                     None => true,
                 })
-                .collect::<Vec<_>>();
+                .map(|(page, _buf)| *page)
+                .collect::<BTreeSet<_>>();
+
+            let actual_pages =
+                pages_to_wasm_pages_set(actual_pages.iter()).expect("unexpected pages");
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
@@ -361,10 +369,8 @@ pub fn check_allocations(
                     }
                 }
                 AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                    let mut actual_pages = actual_pages
-                        .iter()
-                        .map(|(page, _buf)| page.raw())
-                        .collect::<Vec<_>>();
+                    let mut actual_pages =
+                        actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
                     let mut expected_pages = expected_pages.clone();
 
                     actual_pages.sort_unstable();
@@ -383,7 +389,7 @@ pub fn check_allocations(
                     for &expected_page in expected_pages {
                         if !actual_pages
                             .iter()
-                            .map(|(page, _buf)| page.raw())
+                            .map(|page| page.0)
                             .any(|actual_page| actual_page == expected_page)
                         {
                             errors.push(format!(
@@ -418,12 +424,11 @@ pub fn check_memory(
     for case in expected_memory {
         for p in &mut *program_storage {
             if p.id() == case.id.to_program_id() {
-                let page = case.address / PAGE_SIZE;
+                let page = case.address / PageNumber::size();
                 if let Some(page_buf) = p.get_page_data((page as u32).into()) {
-                    if page_buf[case.address - page * PAGE_SIZE
-                        ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
-                        != case.bytes
-                    {
+                    let begin_byte = case.address - page * PageNumber::size();
+                    let end_byte = begin_byte + case.bytes.len();
+                    if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
                     }
                 } else {
