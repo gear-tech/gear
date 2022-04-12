@@ -5,7 +5,7 @@ use gstd::{debug, msg};
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
     debug!("handle()");
-    msg::reply_bytes("Hello world!", 0);
+    msg::reply_bytes("Hello world!", 0).unwrap();
 }
 
 #[no_mangle]
@@ -15,23 +15,28 @@ pub unsafe extern "C" fn init() {
 
 #[cfg(test)]
 mod gtest_tests {
-   extern crate std;
+    extern crate std;
 
-   use gtest::{Program, System, Log};
+    use gtest::{Log, Program, System};
 
-   #[test]
-   fn init_self() {
-       let system = System::new();
-       system.init_logger();
+    #[test]
+    fn init_self() {
+        let system = System::new();
+        system.init_logger();
 
-       let this_program = Program::current(&system);
+        let this_program = Program::current(&system);
 
-       let res = this_program.send_bytes(123, "INIT");
-       assert!(res.log().is_empty());
+        let res = this_program.send_bytes(123, "INIT");
+        assert!(res.log().is_empty());
 
-       let res = this_program.send_bytes(123, "Hi");
-       assert!(res.contains(&Log::builder().source(1).dest(123).payload_bytes("Hello world!")));
-   }
+        let res = this_program.send_bytes(123, "Hi");
+        assert!(res.contains(
+            &Log::builder()
+                .source(1)
+                .dest(123)
+                .payload_bytes("Hello world!")
+        ));
+    }
 }
 
 #[cfg(test)]
