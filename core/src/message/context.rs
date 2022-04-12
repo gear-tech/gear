@@ -293,3 +293,86 @@ impl MessageContext {
         (outcome, store)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::message::context::{ContextSettings, Error};
+    use super::MessageContext;
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn duplicated_init() {
+        let mut message_context = MessageContext::new(Default::default(), Default::default(), Default::default());
+
+        assert_eq!(message_context.settings.outgoing_limit, 1024);
+
+        let result = message_context.init_program(Default::default());
+
+        assert!(matches!(result, Ok(_)));
+
+        let duplicated_init = message_context.init_program(Default::default());
+
+        assert_eq!(duplicated_init, Err(Error::DuplicateInit));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn outgoing_limit_exceeded() {
+        let settings = ContextSettings::new(0, 0);
+
+        let mut message_context = MessageContext::new_with_settings(Default::default(), Default::default(), Default::default(), settings);
+
+        let limit_exceeded = message_context.init_program(Default::default());
+
+        assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn commit_out_of_bounds() {
+        let mut message_context = MessageContext::new(Default::default(), Default::default(), Default::default());
+
+        let out_of_bounds = message_context.send_commit(0, Default::default());
+
+        assert_eq!(out_of_bounds, Err(Error::OutOfBounds));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn successful_commit() {
+        let mut message_context = MessageContext::new(Default::default(), Default::default(), Default::default());
+
+        let result = message_context.init_program(Default::default());
+        assert!(matches!(result, Ok(_)));
+
+        let result = message_context.send_init();
+        assert!(matches!(result, Ok(_)));
+
+        let handle = result.unwrap();
+
+        let result = message_context.send_commit(handle, Default::default());
+        assert!(matches!(result, Ok(_)));
+    }
+
+    #[test]
+    fn double_reply() {
+        let mut message_context = MessageContext::new(Default::default(), Default::default(), Default::default());
+
+        let result = message_context.init_program(Default::default());
+        assert!(matches!(result, Ok(_)));
+
+        let result = message_context.send_init();
+        assert!(matches!(result, Ok(_)));
+
+        let handle = result.unwrap();
+
+        let result = message_context.send_commit(handle, Default::default());
+        assert!(matches!(result, Ok(_)));
+
+        let result = message_context.reply_commit(Default::default());
+        assert!(matches!(result, Ok(_)));
+
+        let result = message_context.reply_commit(Default::default());
+        assert!(matches!(result, Err(Error::DuplicateReply)));
+    }
+}
