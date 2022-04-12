@@ -288,7 +288,6 @@ jobs:
     needs: spec_version
     runs-on: [self-hosted, cachepot]
     env:
-      RUSTFLAGS: -Cinstrument-coverage
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
     steps:
       - name: Cancel Previous Runs
@@ -334,34 +333,51 @@ jobs:
           tar -xf /tmp/gear-test_cache.tar -C /
           tar -xf /tmp/gear-test_cargo_registry.tar -C /
           tar -xf /tmp/gear-test_target.tar
-          
-      - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build wasm-proc
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
-
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release
-
-      - name: "Test: Gear pallet" # Temporary feature to test sandbox backend
-        run: ./scripts/gear.sh test pallet --release
-
-      - name: "Test: JS metadata"
-        run: ./scripts/gear.sh test js
-
+        
+      - name: "Test: Specified packages"
+        run: >-
+          cargo nextest run 
+          -p gear-core 
+          -p gear-core-processor 
+          -p gear-backend-sandbox 
+          -p gear-backend-wasmtime 
+          -p gear-runtime 
+          -p gear-runtime-interface 
+          -p gear-lazy-pages 
+          -p pallet-gear-debug 
+          -p pallet-gas 
+          -p pallet-gear-program 
+          -p pallet-usage 
+          --target-dir target-coverage --no-fail-fast --tests
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+        
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
           
+      - name: "Test: Process gear-test"
+        run: ./scripts/gear.sh test gtest
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+            
       - name: Aggregate
         run: >-
           ./grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
           --ignore "examples/*"
           --ignore "utils/*"
+          --ignore "target/*"
           -o ./lcov.info
         
       - name: Fix coverage info
