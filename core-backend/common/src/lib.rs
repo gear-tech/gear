@@ -111,13 +111,14 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
-    fn execute<F>(
+    fn execute<Pre, Post>(
         self,
         entry_point: &str,
-        post_execution_handler: F,
+        pre_execution_handler: Option<Pre>,
+        post_execution_handler: Post,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(WasmBeginAddress) -> Result<(), &'static str>;
+        Post: FnOnce(WasmBeginAddress) -> Result<(), &'static str>;
 
     /// Unset env ext and returns gas amount.
     fn drop_env(self) -> GasAmount;

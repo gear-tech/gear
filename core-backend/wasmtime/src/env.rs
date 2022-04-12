@@ -285,13 +285,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         self.memory.data_ptr(&self.store) as WasmBeginAddress
     }
 
-    fn execute<F>(
+    fn execute<Pre, Post>(
         mut self,
         entry_point: &str,
-        post_execution_handler: F,
+        _pre_execution_handler: Option<Pre>,
+        post_execution_handler: Post,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
+        Post: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
     {
         let func = self.instance.get_func(&mut self.store, entry_point);
 

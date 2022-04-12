@@ -205,13 +205,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
-    fn execute<F>(
+    fn execute<Pre, Post>(
         mut self,
         entry_point: &str,
-        post_execution_handler: F,
+        _pre_execution_handler: Option<Pre>,
+        post_execution_handler: Post,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
+        Post: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)

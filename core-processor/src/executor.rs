@@ -261,25 +261,30 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport {
-        termination, info, ..
-    } = match env.execute(kind.into_entry(), |wasm_memory_addr| {
-        if lazy_pages_enabled {
-            A::post_execution_actions(initial_pages, wasm_memory_addr)
-        } else {
-            Ok(())
-        }
-    }) {
-        Ok(report) => report,
-        Err(e) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: e.gas_amount,
-                reason: e.reason,
-                allowance_exceed: false,
-            })
-        }
-    };
+    let BackendReport { termination, info } =
+        match env.execute(kind.into_entry(), Option::<()>::None, |wasm_memory_addr| {
+            // accessed lazy pages old data will be added to `initial_pages`
+            // TODO: if post execution actions err is connected, with removing pages protections,
+            // then we should panic here, because protected pages may cause UB later, during err handling,
+            // if somebody will try to access this pages.
+            if lazy_pages_enabled {
+                A::post_execution_actions(initial_pages, wasm_memory_addr)
+            } else {
+                Ok(())
+            }
+        }) {
+            Ok(report) => report,
+            Err(e) => {
+                return Err(ExecutionError {
+                    program_id,
+                    gas_amount: e.gas_amount,
+                    reason: e.reason,
+                    allowance_exceed: false,
+                })
+            }
+        };
+
+    log::trace!("term reason = {:?}", termination);
 
     // Parsing outcome.
     let kind = match termination {
