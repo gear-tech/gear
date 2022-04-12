@@ -375,7 +375,7 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
             
-      - name: Aggregate
+      - name: "Coverage: Aggregate"
         run: >-
           grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
@@ -384,10 +384,10 @@ jobs:
           --ignore "target/*"
           -o ./lcov.info
         
-      - name: Fix coverage info
+      - name: "Coverage: Fix report"
         run: ./rust-covfix -o lcov.info lcov.info
         
-      - name: Publish
+      - name: "Coverage: Publish"
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
