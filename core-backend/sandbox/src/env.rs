@@ -89,7 +89,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: later_ext
                         .take()
-                        .expect("consume with no clones, some method called only once; qed")
+                        .expect("method called only once with no clones around; qed")
                         .into_gas_amount(),
                 })
             }
@@ -146,7 +146,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                     gas_amount: runtime
                         .ext
                         .take()
-                        .expect("consume with no clones, some method called only once; qed")
+                        .expect("method called only once with no clones around; qed")
                         .into_gas_amount(),
                 })
             }
@@ -161,7 +161,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                     gas_amount: runtime
                         .ext
                         .take()
-                        .expect("consume with no clones, some method called only once; qed")
+                        .expect("method called only once with no clones around; qed")
                         .into_gas_amount(),
                 })
             }
@@ -175,7 +175,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 gas_amount: runtime
                     .ext
                     .take()
-                    .expect("consume with no clones, some method called only once; qed")
+                    .expect("method called only once with no clones around; qed")
                     .into_gas_amount(),
             });
         }
@@ -227,7 +227,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
         let info = ext
             .take()
-            .expect("consume with no clones, some method called only once; qed")
+            .expect("method called only once with no clones around; qed")
             .into_ext_info(|ptr, buff| {
                 memory
                     .read(ptr, buff)
@@ -278,7 +278,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         self.runtime
             .ext
             .take()
-            .expect("consume with no clones, some method called only once; qed")
+            .expect("method called only once with no clones around; qed")
             .into_gas_amount()
     }
 }

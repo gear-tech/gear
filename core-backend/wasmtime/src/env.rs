@@ -83,7 +83,7 @@ impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
         } = self;
         let info = ext
             .take()
-            .expect("consume with no clones, some method called only once; qed")
+            .expect("method called only once with no clones around; qed") // todo [sab] not sure about that
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                 memory
                     .read(&mut store, offset, buffer)
@@ -359,7 +359,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
     fn drop_env(self) -> GasAmount {
         self.ext
             .take()
-            .expect("consume with no clones, some method called only once; qed")
+            .expect("method called only once with no clones around; qed")
             .into_gas_amount()
     }
 }
