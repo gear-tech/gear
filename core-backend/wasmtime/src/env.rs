@@ -73,7 +73,7 @@ fn set_pages<T: Ext>(
 impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
     fn prepare_post_execution_data(
         self,
-    ) -> Result<(ExtInfo, WasmBeginAddress), BackendError<'static>> {
+    ) -> Result<(Option<ExtInfo>, WasmBeginAddress), BackendError<'static>> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
         let WasmtimeEnvironment {
             mut store,
@@ -81,21 +81,21 @@ impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
             memory,
             ..
         } = self;
-        let info = ext
-            .take()
-            .expect("method called only once with no clones around; qed") // todo [sab] not sure about that
-            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                memory
-                    .read(&mut store, offset, buffer)
-                    .map_err(|_| "Cannot read wasmtime memory")
+        ext.take()
+            .map(|ext| {
+                ext.into_ext_info(|offset: usize, buffer: &mut [u8]| {
+                    memory
+                        .read(&mut store, offset, buffer)
+                        .map_err(|_| "Cannot read wasmtime memory")
+                })
+                .map_err(|(reason, gas_amount)| BackendError {
+                    reason,
+                    description: None,
+                    gas_amount,
+                })
             })
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason,
-                description: None,
-                gas_amount,
-            })?;
-
-        Ok((info, wasm_memory_addr))
+            .transpose()
+            .map(|maybe_info| (maybe_info, wasm_memory_addr))
     }
 }
 
@@ -299,7 +299,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             // Entry function found
             f
         } else {
-            let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
+            let (info, wasm_memory_addr) =
+                self.prepare_post_execution_data()
+                    .map(|(maybe_info, mem_addr)| {
+                        (
+                            maybe_info.expect("method called only once with no clones around; qed"),
+                            mem_addr,
+                        )
+                    })?;
             let gas_amount = info.gas_amount.clone();
 
             // Entry function not found, so we mean this as empty function
@@ -317,7 +324,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
+        let (info, wasm_memory_addr) =
+            self.prepare_post_execution_data()
+                .map(|(maybe_info, mem_addr)| {
+                    (
+                        maybe_info.expect("method called only once with no clones around; qed"),
+                        mem_addr,
+                    )
+                })?;
         let gas_amount = info.gas_amount.clone();
 
         let termination = if let Err(e) = &res {
