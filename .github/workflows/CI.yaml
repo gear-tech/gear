@@ -361,7 +361,7 @@ jobs:
           -p pallet-gas 
           -p pallet-gear-program 
           -p pallet-usage 
-          --target-dir target-coverage --no-fail-fast --tests
+          --no-fail-fast --tests
         env:
           RUSTFLAGS: -Cinstrument-coverage
         
