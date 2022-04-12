@@ -386,6 +386,7 @@ jobs:
           --ignore "examples/*"
           --ignore "utils/*"
           --ignore "target/*"
+          --ignore "gear-test/*"
           -o ./lcov.info
         
       - name: "Coverage: Fix report"
