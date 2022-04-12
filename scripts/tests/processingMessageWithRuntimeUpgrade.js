@@ -23,7 +23,7 @@ const upload_program = (api, account, pathToDemoPing) => {
 
 const getNextBlock = async (api, hash) => {
   const block = await api.rpc.chain.getBlock(hash);
-  const blockNumber = block.block.header.number;
+  const blockNumber = block.block.header.number.toNumber();
   return api.rpc.chain.getBlockHash(blockNumber + 1);
 };
 
@@ -45,16 +45,15 @@ const listenToInit = (api) => {
   };
 };
 
-const checkBlockEvents = async (api, hash) => {
+const messageDequeuedIsOccured = async (api, hash) => {
   const apiAt = await api.at(hash);
   const events = await apiAt.query.system.events();
-  return new Promise((resolve, reject) => {
-    events.forEach(({ event }) => {
-      if (api.events.gear.MessagesDequeued.is(event)) {
-        reject(event.data[0]);
-      }
-    });
-    resolve('ok');
+  return new Promise((resolve) => {
+    if (events.filter(({ event }) => api.events.gear.MessagesDequeued.is(event)).length > 0) {
+      resolve(true);
+    } else {
+      resolve(false);
+    }
   });
 };
 
@@ -105,8 +104,9 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   assert.notStrictEqual(proccessedMessagesCount, undefined, 'sendMessage txs were not proccessed successfully');
   assert.equal(proccessedMessagesCount, 54, 'not all sendMessage txs were proccessed successfully');
   assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not proccessed successfully');
-  assert.doesNotReject(
-    checkBlockEvents(api, await getNextBlock(api, codeUpdatedBlock)),
+  assert.notEqual(
+    await messageDequeuedIsOccured(api, await getNextBlock(api, codeUpdatedBlock)),
+    true,
     'setCode and sendMessage were proccessed in the same block',
   );
 
