@@ -379,9 +379,6 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
             
-      - name: Fix premissions
-        run: sudo chmod -R 777 ./target
-        
       - name: Aggregate
         run: >-
           ./grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
