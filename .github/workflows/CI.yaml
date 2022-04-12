@@ -308,6 +308,14 @@ jobs:
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
+
       - name: "Install: Build deps"
         run: |
           sudo apt update
