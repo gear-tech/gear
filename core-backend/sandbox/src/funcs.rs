@@ -371,8 +371,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_len = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
 
-        let result = ctx
-            .ext
+        ctx.ext
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
@@ -382,11 +381,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
-            });
-        result
+            })
     }
 
-    pub fn reply_with_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
         let payload_ptr = pop_i32(&mut args)?;
@@ -394,8 +392,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let value_ptr = pop_i32(&mut args)?;
         let gas_limit_ptr = pop_i32(&mut args)?;
 
-        let result = ctx
-            .ext
+        ctx.ext
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
@@ -410,8 +407,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
-            });
-        result
+            })
     }
 
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -425,6 +421,32 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.reply_commit(ReplyPacket::new(Default::default(), value))?;
+                wto(ctx, message_id_ptr, message_id.as_ref())
+            })
+            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(|_| {
+                ctx.trap = Some("Trapping: unable to send message");
+                HostError
+            })
+    }
+
+    pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let message_id_ptr = pop_i32(&mut args)?;
+        let value_ptr = pop_i32(&mut args)?;
+        let gas_limit_ptr = pop_i32(&mut args)?;
+
+        ctx.ext
+            .clone()
+            .with(|ext| {
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
+                let gas_limit = funcs::get_u128(&ctx.memory, gas_limit_ptr)?;
+                let message_id = ext.reply_commit(ReplyPacket::new_with_gas(
+                    Default::default(),
+                    gas_limit as GasLimit,
+                    value,
+                ))?;
                 wto(ctx, message_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
