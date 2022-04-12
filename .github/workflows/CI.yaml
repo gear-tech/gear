@@ -381,7 +381,7 @@ jobs:
             
       - name: "Coverage: Aggregate"
         run: >-
-          grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
+          ./grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
           --ignore "examples/*"
           --ignore "utils/*"
