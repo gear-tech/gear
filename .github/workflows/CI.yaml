@@ -147,9 +147,6 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
 
-      - name: "Test: Gear pallet" # Temporary feature to test sandbox backend
-        run: ./scripts/gear.sh test pallet --release
-
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
