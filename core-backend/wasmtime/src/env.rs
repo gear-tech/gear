@@ -27,7 +27,7 @@ use alloc::{
 };
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
-    TerminationReason, WasmBeginAddress,
+    TerminationReason, HostPointer,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -73,7 +73,7 @@ fn set_pages<T: Ext>(
 impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
     fn prepare_post_execution_data(
         self,
-    ) -> Result<(Option<ExtInfo>, WasmBeginAddress), BackendError<'static>> {
+    ) -> Result<(Option<ExtInfo>, HostPointer), BackendError<'static>> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
         let WasmtimeEnvironment {
             mut store,
@@ -281,18 +281,17 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> WasmBeginAddress {
-        self.memory.data_ptr(&self.store) as WasmBeginAddress
+    fn get_wasm_memory_begin_addr(&self) -> HostPointer {
+        self.memory.data_ptr(&self.store) as HostPointer
     }
 
-    fn execute<Pre, Post>(
+    fn execute<F>(
         mut self,
         entry_point: &str,
-        _pre_execution_handler: Option<Pre>,
-        post_execution_handler: Post,
+        post_execution_handler: F,
     ) -> Result<BackendReport, BackendError>
     where
-        Post: FnOnce(WasmBeginAddress) -> Result<(), &'static str>,
+        F: FnOnce(HostPointer) -> Result<(), &'static str>,
     {
         let func = self.instance.get_func(&mut self.store, entry_point);
 
