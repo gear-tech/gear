@@ -334,13 +334,17 @@ jobs:
           mv rust-covfix-linux-x86_64/rust-covfix ./
 
       - name: "Cache: Unpack"
-        if: github.event.pull_request.merged == false
+        if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
           cp /root/cache/gear-test* /tmp/
           tar -xf /tmp/gear-test_cache.tar -C /
           tar -xf /tmp/gear-test_cargo_registry.tar -C /
           tar -xf /tmp/gear-test_target.tar
+          cp /root/cache/build* /tmp/
+          tar -xf /tmp/build_cache.tar -C /
+          tar -xf /tmp/build_cargo_registry.tar -C /
+          tar -xf /tmp/build_target.tar
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build wasm-proc
@@ -396,12 +400,3 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
-
-      - name: "Cache: Pack"
-        if: github.event.pull_request.merged == true
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/gear-test_target.tar ./target
-          tar -cf /tmp/gear-test_cache.tar /tmp/cachepot
-          tar -cf /tmp/gear-test_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
