@@ -285,26 +285,44 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        fn on_runtime_upgrade() -> Weight {
+            log::debug!(target: "runtime::gear::hooks", "🚧 Runtime upgrade");
+
+            Weight::MAX
+        }
+
         /// Initialization
-        fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
+        fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
+            log::debug!(target: "runtime::gear::hooks", "🚧 Initialization of block #{:?}", bn);
+
             // Reset block gas allowance
             GasAllowance::<T>::put(T::BlockGasLimit::get());
             T::DbWeight::get().writes(1)
         }
 
         /// Finalization
-        fn on_finalize(_bn: BlockNumberFor<T>) {}
+        fn on_finalize(bn: BlockNumberFor<T>) {
+            log::debug!(target: "runtime::gear::hooks", "🚧 Finalization of block #{:?}", bn);
+        }
 
         /// Queue processing occurs after all normal extrinsics in the block
         ///
         /// There should always remain enough weight for this hook to be invoked
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
+                target: "runtime::gear::hooks",
+                "🚧 Queue processing of block #{:?} with weight='{:?}'",
+                bn,
+                remaining_weight,
+            );
+
+            log::debug!(
                 target: "runtime::gear",
                 "{} of weight remains in block {:?} after normal extrinsics have been processed",
                 remaining_weight,
                 bn,
             );
+
             // Adjust the block gas allowance based on actual remaining weight
             MessagesSent::<T>::put(0);
             TotalHandled::<T>::put(0);

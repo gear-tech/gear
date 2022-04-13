@@ -2,6 +2,7 @@
 
 *.png binary
 *.jpg binary
+*.wasm binary
 
 **/Cargo.lock linguist-generated=true
 **/package-lock.json linguist-generated=true
