@@ -39,6 +39,7 @@ members = [
     "wait",
     "token-vendor",
     "token-vendor/workshop-example",
+    "reply",
 ]
 
 exclude = [
