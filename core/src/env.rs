@@ -334,4 +334,14 @@ mod tests {
 
         assert!(converted_inner.is_ok());
     }
+
+    #[test]
+    // TODO #841 Change to `should_panic` test
+    fn taking_ext_clone() {
+        let original_ext = LaterExt::new(ExtImplementedStruct(0));
+        let cloned_ext = original_ext.clone();
+
+        assert!(original_ext.take().is_some());
+        assert!(cloned_ext.take().is_none());
+    }
 }
