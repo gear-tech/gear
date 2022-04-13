@@ -345,6 +345,27 @@ benchmarks! {
         Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
+    gr_size {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_size",
+                params: vec![],
+                return_type: Some(ValueType::I32),
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; 1024], 0u32.into())?;
+    }
+
     gr_send_init {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {
@@ -517,6 +538,60 @@ benchmarks! {
     }: {
         Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }
+
+    gr_exit_code {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_exit_code",
+                params: vec![],
+                return_type: Some(ValueType::I32),
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let msg_id = MessageId::from(10);
+        let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
+        Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+    }: {
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
+    }
+
+    // We cannot call `gr_exit` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_exit {
+        let r in 0 .. 1;
+        let pid_bytes = ProgramId::from(1).encode();
+        let pid_len = pid_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_exit",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0_u32,
+                    value: pid_bytes,
+                },
+            ],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(0),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
