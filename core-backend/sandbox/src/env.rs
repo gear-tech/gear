@@ -274,7 +274,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             })
     }
 
-    fn drop_env(self) -> GasAmount {
+    fn into_gas_amount(self) -> GasAmount {
         self.runtime
             .ext
             .take()

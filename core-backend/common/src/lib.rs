@@ -109,7 +109,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
     fn get_wasm_memory_begin_addr(&self) -> HostPointer;
 
-    /// Run setuped instance starting at `entry_point` - wasm export function name.
+    /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
     fn execute<F>(
         self,
@@ -119,8 +119,8 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     where
         F: FnOnce(HostPointer) -> Result<(), &'static str>;
 
-    /// Unset env ext and returns gas amount.
-    fn drop_env(self) -> GasAmount;
+    /// Consumes environment and returns gas state.
+    fn into_gas_amount(self) -> GasAmount;
 }
 
 pub trait OnSuccessCode<T, E> {

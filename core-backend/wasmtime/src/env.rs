@@ -370,7 +370,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             })
     }
 
-    fn drop_env(self) -> GasAmount {
+    fn into_gas_amount(self) -> GasAmount {
         self.ext
             .take()
             .expect("method called only once with no clones around; qed")

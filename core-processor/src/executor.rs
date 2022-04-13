@@ -249,7 +249,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         ) {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: env.drop_env(),
+                gas_amount: env.into_gas_amount(),
                 reason: e,
                 allowance_exceed: false,
             });
