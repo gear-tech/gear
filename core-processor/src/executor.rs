@@ -320,18 +320,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
-            let old_data = initial_data.as_ref().ok_or(ExecutionError {
-                program_id,
-                gas_amount: info.gas_amount.clone(),
-                reason: "RUNTIME ERROR: changed page has no data in initial pages",
-                allowance_exceed: false,
-            })?;
-            if !new_data.eq(old_data.as_ref()) {
-                page_update.insert(page, Some(new_data));
-                log::trace!(
-                    "Page {} has been changed - will be updated in storage",
-                    page.0
-                );
+            match initial_data.as_ref() {
+                Some(old_data) => {
+                    if !new_data.eq(old_data.as_ref()) {
+                        page_update.insert(page, Some(new_data));
+                        log::trace!(
+                            "Page {} has been changed - will be updated in storage",
+                            page.0
+                        );
+                    }
+                },
+                None => return Err(ExecutionError {
+                    program_id,
+                    gas_amount: info.gas_amount,
+                    reason: "RUNTIME ERROR: changed page has no data in initial pages",
+                    allowance_exceed: false,
+                }),
             }
         } else {
             page_update.insert(page, Some(new_data));
