@@ -366,6 +366,74 @@ benchmarks! {
         Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; 1024], 0u32.into())?;
     }
 
+    gr_read {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let pages = 1u32;
+        let buffer_size = pages * 64 * 1024 - 4;
+        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_read",
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
+                return_type: None,
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0,
+                    value: buffer_size.to_le_bytes().to_vec(),
+                },
+            ],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0), // at
+                Instruction::I32Const(0), // len
+                Instruction::I32Const(0), // output ptr
+                Instruction::Call(0),
+                ])),
+                .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+    }
+
+    gr_read_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let pages = 16u32;
+        let buffer_size = pages * 64 * 1024 - 4;
+        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
+        let pid_bytes = instance.addr.encode();
+        let pid_len = pid_bytes.len();
+        let value_bytes = 0_u128.encode();
+        let value_len = value_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_read",
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32],
+                return_type: None,
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0,
+                    value: buffer_size.to_le_bytes().to_vec(),
+                },
+            ],
+            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0), // at
+                Instruction::I32Const((n * 1024) as i32), // len
+                Instruction::I32Const(0), // output ptr
+                Instruction::Call(0),
+                ])),
+                .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; (n * 1024) as usize], 0u32.into())?;
+    }
+
     gr_send_init {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {

@@ -50,6 +50,8 @@ pub trait WeightInfo {
 	fn gr_value(r: u32, ) -> Weight;
 	fn gr_value_available(r: u32, ) -> Weight;
 	fn gr_size(r: u32, ) -> Weight;
+	fn gr_read(r: u32, ) -> Weight;
+	fn gr_read_per_kb(n: u32, ) -> Weight;
 	fn gr_send_init(r: u32, ) -> Weight;
 	fn gr_send_push(r: u32, ) -> Weight;
 	fn gr_send_push_per_kb(n: u32, ) -> Weight;
@@ -4225,6 +4227,14 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	fn gr_exit(r: u32, ) -> Weight {
 		(41_793_000 as Weight)
     }
+
+	fn gr_read(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+    }
+
+	fn gr_read_per_kb(n: u32, ) -> Weight {
+		(41_793_000 as Weight)
+    }
 }
 
 // For backwards compatibility and tests
@@ -8337,6 +8347,14 @@ impl WeightInfo for () {
     }
 
 	fn gr_exit(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+    }
+	
+	fn gr_read(r: u32, ) -> Weight {
+		(41_793_000 as Weight)
+    }
+
+	fn gr_read_per_kb(n: u32, ) -> Weight {
 		(41_793_000 as Weight)
     }
 }

@@ -278,6 +278,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_size`.
     pub gr_size: Weight,
 
+    /// Weight of calling `gr_read`.
+    pub gr_read: Weight,
+
+    /// Weight per payload byte by `gr_read`.
+    pub gr_read_per_byte: Weight,
+
     /// Weight of calling `gr_value_available`.
     pub gr_send_init: Weight,
 
@@ -487,6 +493,8 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_value: cost_batched!(gr_value),
             gr_value_available: cost_batched!(gr_value_available),
             gr_size: cost_batched!(gr_size),
+            gr_read: cost_batched!(gr_read),
+            gr_read_per_byte: cost_byte_batched!(gr_read_per_kb),
             gr_send_init: cost_batched!(gr_send_init),
             gr_send_push: cost_batched!(gr_send_push),
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
