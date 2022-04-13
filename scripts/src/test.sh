@@ -77,12 +77,11 @@ pallet_test() {
 runtime_upgrade_test() {
   TEST_SCRIPT_PATH="$1/scripts/test-utils"
 
-  NODE_PATH="$1/target/release/gear-node"
   RUNTIME_PATH="$1/scripts/test-utils/gear_runtime.compact.compressed.wasm"
   DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" "$NODE_PATH" --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" cargo run --package gear-node --release -- --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"

@@ -201,10 +201,10 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-pallet test-js gtest
+test: test-gear test-js gtest
 
 .PHONY: test-release
-test-release: test-gear-release test-pallet-release test-js gtest rtest test-runtime-upgrade
+test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
 test-gear: init-js examples
