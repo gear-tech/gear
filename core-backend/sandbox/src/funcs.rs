@@ -460,8 +460,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let gas_limit = funcs::get_u128(&ctx.memory, gas_limit_ptr)?;
-                ext.reply_commit(ReplyPacket::new_with_gas(Default::default(), gas_limit as GasLimit, value))
-                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
+                ext.reply_commit(ReplyPacket::new_with_gas(
+                    Default::default(),
+                    gas_limit as GasLimit,
+                    value,
+                ))
+                .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
