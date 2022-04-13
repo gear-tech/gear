@@ -119,8 +119,6 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
     true,
     'A message was processed in the next block after CodeUpdated event',
   );
-
-  console.log('Passed');
 };
 
 const args = process.argv.slice(2);
@@ -137,11 +135,17 @@ main(pathToRuntimeCode, pathToDemoPing)
     exitCode = 1;
   })
   .finally(() => {
-    exec("kill -9 $(pgrep -a gear-node)", (err, stdout, __) => {
+    exec("kill -9 $(pgrep -a gear-node)", (err, stdout, stderr) => {
       if (err) {
         console.log(`Unable to execute kill command`);
-        process.exit(2);
       }
+
+      if (exitCode == 0) {
+        console.log('✅ Test passed');
+      } else {
+        console.log('❌ Test failed');
+      }
+
       process.exit(exitCode);
     });
   });
