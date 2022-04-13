@@ -21,8 +21,8 @@
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo,
-    TerminationReason, HostPointer,
+    funcs as common_funcs, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
+    TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},

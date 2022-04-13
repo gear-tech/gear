@@ -26,8 +26,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
-    TerminationReason, HostPointer,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, HostPointer,
+    IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
