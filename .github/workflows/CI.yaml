@@ -382,6 +382,7 @@ jobs:
           --ignore "runtime/*"
           --ignore "gcore/*"
           --ignore "gstd/*"
+          --ignore "galloc/*"
           -o ./lcov.info
         
       - name: "Coverage: Fix report"
