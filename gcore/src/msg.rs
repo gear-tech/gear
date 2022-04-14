@@ -329,7 +329,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
 }
 
 /// Finalize and send a current reply message with gas limit.
-
+///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
 /// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
