@@ -391,6 +391,8 @@ jobs:
           --ignore "utils/*"
           --ignore "target/*"
           --ignore "gear-test/*"
+          --ignore "node/*"
+          --ignore "runtime/*"
           -o ./lcov.info
         
       - name: "Coverage: Fix report"
