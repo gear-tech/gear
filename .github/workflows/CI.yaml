@@ -354,22 +354,9 @@ jobs:
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
-        
-      - name: "Test: Specified packages"
-        run: >-
-          cargo nextest run 
-          -p gear-core 
-          -p gear-core-processor 
-          -p gear-backend-sandbox 
-          -p gear-backend-wasmtime 
-          -p gear-runtime 
-          -p gear-runtime-interface 
-          -p gear-lazy-pages 
-          -p pallet-gear-debug 
-          -p pallet-gas 
-          -p pallet-gear-program 
-          -p pallet-usage 
-          --no-fail-fast --tests
+
+      - name: "Test: Gear workspace"
+        run: ./scripts/gear.sh test gear
         env:
           RUSTFLAGS: -Cinstrument-coverage
         
