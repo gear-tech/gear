@@ -681,9 +681,9 @@ fn dust_discarded_with_noop() {
 fn gas_properly_handled_for_trap_replies() {
     init_logger();
     new_test_ext().execute_with(|| {
-        // 1st user has just above `T::TrapReplyExistentialGasLimit` reserved
+        // 3st user has just above `T::TrapReplyExistentialGasLimit` reserved
         assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&3, 1_100));
-        // 2nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
+        // 4nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
         assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&4, 500));
 
         run_to_block(10);
