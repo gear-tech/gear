@@ -380,6 +380,8 @@ jobs:
           --ignore "gear-test/*"
           --ignore "node/*"
           --ignore "runtime/*"
+          --ignore "gcore/*"
+          --ignore "gstd/*"
           -o ./lcov.info
         
       - name: "Coverage: Fix report"
