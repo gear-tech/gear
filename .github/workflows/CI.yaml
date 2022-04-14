@@ -365,6 +365,11 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
           
+      - name: "Test: Runtime upgrade and queue processing"
+        run: ./scripts/gear.sh test runtime-upgrade
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+          
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh coverage gtest
         env:
