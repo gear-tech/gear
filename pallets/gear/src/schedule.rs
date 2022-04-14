@@ -284,6 +284,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: Weight,
 
+    /// Weight of calling `gr_block_height`.
+    pub gr_block_height: Weight,
+
+    /// Weight of calling `gr_block_timestamp`.
+    pub gr_block_timestamp: Weight,
+
     /// Weight of calling `gr_value_available`.
     pub gr_send_init: Weight,
 
@@ -298,6 +304,15 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: Weight,
+
+    /// Weight of calling `gr_reply`.
+    pub gr_reply: Weight,
+
+    /// Weight per payload byte by `gr_reply`.
+    pub gr_reply_per_byte: Weight,
+
+    /// Weight of calling `gr_reply_to`.
+    pub gr_reply_to: Weight,
 
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: Weight,
@@ -411,7 +426,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 512,
+            memory_pages: 16,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -495,11 +510,16 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_size: cost_batched!(gr_size),
             gr_read: cost_batched!(gr_read),
             gr_read_per_byte: cost_byte_batched!(gr_read_per_kb),
+            gr_block_height: cost_batched!(gr_block_height),
+            gr_block_timestamp: cost_batched!(gr_block_timestamp),
             gr_send_init: cost_batched!(gr_send_init),
             gr_send_push: cost_batched!(gr_send_push),
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
             gr_send_commit: cost_batched!(gr_send_commit),
             gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
+            gr_reply: cost_batched!(gr_reply),
+            gr_reply_per_byte: cost_byte_batched!(gr_reply_per_kb),
+            gr_reply_to: cost_batched!(gr_reply_to),
             gr_exit_code: cost_batched!(gr_exit_code),
             gr_exit: cost!(gr_exit),
             gr_leave: cost!(gr_leave),
