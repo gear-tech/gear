@@ -289,6 +289,7 @@ jobs:
     runs-on: [self-hosted, cachepot]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
+      RUSTFLAGS: -Cinstrument-coverage
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -333,19 +334,6 @@ jobs:
           curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
           mv rust-covfix-linux-x86_64/rust-covfix ./
 
-      - name: "Cache: Unpack"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          cp /root/cache/gear-test* /tmp/
-          tar -xf /tmp/gear-test_cache.tar -C /
-          tar -xf /tmp/gear-test_cargo_registry.tar -C /
-          tar -xf /tmp/gear-test_target.tar
-          cp /root/cache/build* /tmp/
-          tar -xf /tmp/build_cache.tar -C /
-          tar -xf /tmp/build_cargo_registry.tar -C /
-          tar -xf /tmp/build_target.tar
-
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build wasm-proc
 
@@ -357,19 +345,13 @@ jobs:
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
         
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh coverage rtest
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
           
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh coverage gtest
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
-            
+        
       - name: "Coverage: Aggregate"
         run: >-
           ./grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
