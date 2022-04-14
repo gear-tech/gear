@@ -11,14 +11,33 @@ fixtures:
   - title: ping-pong
 
     messages:
-      - destination: 1
+      - step: 1
+        destination: 1
         payload:
           kind: utf-8
           value: PING
+      - step: 2
+        destination: 1
+        payload:
+          kind: utf-8
+          value: PING_REPLY_WITH_GAS
+      - step: 3
+        destination: 1
+        payload:
+          kind: utf-8
+          value: PING_REPLY_COMMIT_WITH_GAS
 
     expected:
       - step: 1
-        messages: []
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: PING_REPLY_WITH_GAS
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: PING_REPLY_COMMIT_WITH_GAS
         log:
           - destination: 1000001
             payload:
@@ -26,4 +45,32 @@ fixtures:
               value: PONG
 
       - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: PING_REPLY_COMMIT_WITH_GAS
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: PONG
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: pong reply with gas message
+      - step: 3
         messages: []
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: PONG
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: pong reply with gas message
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: pong Part 1 pong Part 2

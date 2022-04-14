@@ -14,6 +14,16 @@ pub unsafe extern "C" fn handle() {
         msg::reply_bytes("PONG", 0).unwrap();
     }
 
+    if new_msg == "PING_REPLY_WITH_GAS" {
+        msg::reply_with_gas(b"pong reply with gas message", 0, 0).unwrap();
+    }
+
+    if new_msg == "PING_REPLY_COMMIT_WITH_GAS" {
+        msg::reply_push(b"pong Part 1 ").unwrap();
+        msg::reply_push(b"pong Part 2").unwrap();
+        msg::reply_commit_with_gas(0, 0).unwrap();
+    }
+
     MESSAGE_LOG.push(new_msg);
 
     debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
@@ -21,14 +31,6 @@ pub unsafe extern "C" fn handle() {
     for log in MESSAGE_LOG.iter() {
         debug!(log);
     }
-
-    debug!("Starting reply with gas test");
-    msg::reply_with_gas(b"reply with gas message", 42, 0).unwrap();
-
-    debug!("Starting reply commit with gas test");
-    msg::reply_push(b"Part 1").unwrap();
-    msg::reply_push(b"Part 2").unwrap();
-    msg::reply_commit_with_gas(42, 0).unwrap();
 }
 
 #[no_mangle]
