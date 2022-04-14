@@ -305,7 +305,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Supposed to fail"]
     fn subtree_gas_limit_remains_intact() {
         // Consider the following gas tree configuration:
         //
