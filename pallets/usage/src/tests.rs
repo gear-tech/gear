@@ -743,12 +743,6 @@ fn gas_properly_handled_for_trap_replies() {
         // Both messages should have been removed from wait list
         assert_eq!(wait_list_contents().len(), 0);
 
-        // 100 gas spent for rent payment by 1st message => total_issuance = 1000
-        assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
-            1000
-        );
-
         assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
             ProgramId::from(3).into_origin()
         ));
@@ -756,8 +750,7 @@ fn gas_properly_handled_for_trap_replies() {
             ProgramId::from(4).into_origin()
         ));
 
-        // Upon queue processing in the following block all the gas must be consumed or spent
-        run_to_block(16);
+        // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::total_issuance(),
             0

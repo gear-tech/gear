@@ -45,7 +45,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{Currency, Get},
+        traits::{Currency, Get, Imbalance, ReservableCurrency},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
     use gear_core::{
@@ -376,9 +376,17 @@ pub mod pallet {
                             }
 
                             // Consume the corresponding node
-                            let _ = <T as pallet_gear::Config>::GasHandler::consume(
-                                msg_id.into_origin(),
-                            );
+                            if let Some((neg_imbalance, external)) = T::GasHandler::consume(msg_id.into_origin()) {
+                                let gas_left = neg_imbalance.peek();
+                                log::debug!("Unreserve balance on message processed: {}", gas_left);
+
+                                let refund = T::GasPrice::gas_price(gas_left);
+
+                                let _ = <T as pallet_gear::Config>::Currency::unreserve(
+                                    &<T::AccountId as Origin>::from_origin(external),
+                                    refund,
+                                );
+                            }
                         } else {
                             // Wait init messages can't reach that, because if program init failed,
                             // then all waiting messages are moved to queue deleted.
