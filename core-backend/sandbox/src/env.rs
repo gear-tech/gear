@@ -21,8 +21,8 @@
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
-    TerminationReason,
+    funcs as common_funcs, get_current_gas_state, BackendError, BackendReport, Environment,
+    HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -87,10 +87,8 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Create env memory fail",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: later_ext
-                        .take()
-                        .expect("method called only once with no clones around; qed")
-                        .into_gas_amount(),
+                    gas_amount: get_current_gas_state(later_ext)
+                        .expect("method called only once with no clones around; qed"),
                 })
             }
         };
@@ -143,11 +141,8 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to instantiate module",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime
-                        .ext
-                        .take()
-                        .expect("method called only once with no clones around; qed")
-                        .into_gas_amount(),
+                    gas_amount: get_current_gas_state(runtime.ext)
+                        .expect("method called only once with no clones around; qed"),
                 })
             }
         };
@@ -158,11 +153,8 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to get wasm module exports",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime
-                        .ext
-                        .take()
-                        .expect("method called only once with no clones around; qed")
-                        .into_gas_amount(),
+                    gas_amount: get_current_gas_state(runtime.ext)
+                        .expect("method called only once with no clones around; qed"),
                 })
             }
         };
@@ -172,11 +164,8 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             return Err(BackendError {
                 reason: "Unable to set module memory data",
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: runtime
-                    .ext
-                    .take()
-                    .expect("method called only once with no clones around; qed")
-                    .into_gas_amount(),
+                gas_amount: get_current_gas_state(runtime.ext)
+                    .expect("method called only once with no clones around; qed"),
             });
         }
 
@@ -275,10 +264,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        self.runtime
-            .ext
-            .take()
+        get_current_gas_state(self.runtime.ext)
             .expect("method called only once with no clones around; qed")
-            .into_gas_amount()
     }
 }

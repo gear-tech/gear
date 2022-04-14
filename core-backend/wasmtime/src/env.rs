@@ -26,8 +26,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, HostPointer,
-    IntoExtInfo, TerminationReason,
+    funcs as common_funcs, get_current_gas_state, BackendError, BackendReport, Environment,
+    ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -68,10 +68,6 @@ fn set_pages<T: Ext>(
         }
     }
     Ok(())
-}
-
-fn try_into_gas_amount<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Option<GasAmount> {
-    later_ext.take().map(IntoExtInfo::into_gas_amount)
 }
 
 impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
@@ -125,7 +121,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Create env memory failed",
                     description: Some(e.to_string().into()),
-                    gas_amount: try_into_gas_amount(later_ext)
+                    gas_amount: get_current_gas_state(later_ext)
                         .expect("existing clone is not taken"),
                 })
             }
@@ -181,7 +177,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to create module",
                     description: Some(e.to_string().into()),
-                    gas_amount: try_into_gas_amount(later_ext)
+                    gas_amount: get_current_gas_state(later_ext)
                         .expect("existing clone is not taken"),
                 })
             }
@@ -195,7 +191,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     description: import
                         .name()
                         .map(|v| format!("Function {:?} is not env", v).into()),
-                    gas_amount: try_into_gas_amount(later_ext)
+                    gas_amount: get_current_gas_state(later_ext)
                         .expect("existing clone is not taken"),
                 });
             }
@@ -221,7 +217,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     reason: "Missing import",
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: try_into_gas_amount(later_ext)
+                    gas_amount: get_current_gas_state(later_ext)
                         .expect("existing clone is not taken"),
                 });
             }
@@ -233,7 +229,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to create instance",
                     description: Some(e.to_string().into()),
-                    gas_amount: try_into_gas_amount(later_ext)
+                    gas_amount: get_current_gas_state(later_ext)
                         .expect("existing clone is not taken"),
                 })
             }
@@ -244,7 +240,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             return Err(BackendError {
                 reason: "Unable to set module memory data",
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: try_into_gas_amount(later_ext).expect("existing clone is not taken"),
+                gas_amount: get_current_gas_state(later_ext).expect("existing clone is not taken"),
             });
         }
 
