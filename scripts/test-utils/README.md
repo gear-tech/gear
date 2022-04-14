@@ -1,0 +1,2 @@
+- `npm install` - Install dependencies
+- `npm test path/to/gear_runtime.wasm path/to/demo_ping.opt.wasm` - Run test

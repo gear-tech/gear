@@ -312,6 +312,10 @@ case "$COMMAND" in
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;
 
+      runtime-upgrade)
+        header "Running js test for runtime upgrade"
+        runtime_upgrade_test "$ROOT_DIR"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
