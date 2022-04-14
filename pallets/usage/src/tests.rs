@@ -682,14 +682,14 @@ fn gas_properly_handled_for_trap_replies() {
     init_logger();
     new_test_ext().execute_with(|| {
         // 1st user has just above `T::TrapReplyExistentialGasLimit` reserved
-        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&1, 1_100));
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&3, 1_100));
         // 2nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
-        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&2, 500));
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&4, 500));
 
         run_to_block(10);
 
         // Populate wait list with 2 messages
-        populate_wait_list_with_split(2, 10, 1, 1_100);
+        populate_wait_list_with_split(2, 10, 3, 1_100);
 
         let wl = wait_list_contents()
             .into_iter()
@@ -749,6 +749,13 @@ fn gas_properly_handled_for_trap_replies() {
             1000
         );
 
+        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
+            ProgramId::from(3).into_origin()
+        ));
+        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
+            ProgramId::from(4).into_origin()
+        ));
+
         // Upon queue processing in the following block all the gas must be consumed or spent
         run_to_block(16);
         assert_eq!(
@@ -757,8 +764,8 @@ fn gas_properly_handled_for_trap_replies() {
         );
 
         // Ensure the message sender has the funds unreserved
-        assert_eq!(Balances::reserved_balance(&1), 0);
-        assert_eq!(Balances::free_balance(&1), 999_900); // Initital 1_000_000 less 100 paid for rent
+        assert_eq!(Balances::reserved_balance(&3), 0);
+        assert_eq!(Balances::free_balance(&3), 999_900); // Initital 1_000_000 less 100 paid for rent
         assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 201); // Initial 101 + 100 charged for rent
     });
 }

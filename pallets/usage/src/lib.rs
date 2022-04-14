@@ -70,6 +70,8 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_gear::Config
         + SendTransactionTypes<Call<Self>>
+    where
+        <Self as frame_system::Config>::AccountId: Origin,
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -111,7 +113,10 @@ pub mod pallet {
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
-    pub enum Event<T: Config> {
+    pub enum Event<T: Config>
+    where
+        T::AccountId: Origin,
+    {
         WaitListRentCollected(u32),
     }
 
@@ -125,7 +130,10 @@ pub mod pallet {
     /// Accepting the unsigned `collect_waitlist_rent` extrinsic either if it originated on the
     /// the local node or if it has already been included in a block.
     #[pallet::validate_unsigned]
-    impl<T: Config> ValidateUnsigned for Pallet<T> {
+    impl<T: Config> ValidateUnsigned for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         type Call = Call<T>;
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
@@ -160,7 +168,10 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             0_u64
@@ -235,7 +246,10 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         fn do_rent_collection(
             payees_list: Vec<PayeeInfo>,
             external_account: Option<&T::AccountId>,
@@ -349,12 +363,17 @@ pub mod pallet {
                             let message = ReplyMessage::from_packet(trap_message_id, packet);
                             let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
-                            // Enqueue the trap reply message
-                            let _ = <T as pallet_gear::Config>::GasHandler::split(
-                                msg_id.into_origin(),
-                                trap_message_id.into_origin(),
-                            );
-                            common::queue_dispatch(dispatch);
+                            if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination().into_origin()) {
+                                // Enqueue the trap reply message
+                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                    msg_id.into_origin(),
+                                    trap_message_id.into_origin(),
+                                );
+
+                                common::queue_dispatch(dispatch);
+                            } else {
+                                pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)
+                            }
 
                             // Consume the corresponding node
                             let _ = <T as pallet_gear::Config>::GasHandler::consume(
@@ -387,7 +406,10 @@ pub mod pallet {
     }
 
     #[pallet::call]
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Collect rent payment for keeping messages in the wait list.
         ///
         /// This extrinsic can be both signed and unsigned:

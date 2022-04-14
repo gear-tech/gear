@@ -79,6 +79,7 @@ use primitive_types::H256;
 
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+use common::Origin;
 use frame_support::{traits::Get, RuntimeDebug};
 use frame_system::offchain::SubmitTransaction;
 use frame_system::pallet_prelude::*;
@@ -134,7 +135,10 @@ pub struct WaitListInvoiceData<BlockNumber> {
 
 type WaitListKeyIterator = frame_support::storage::KeyPrefixIterator<(H256, H256)>;
 
-impl<T: Config> Pallet<T> {
+impl<T: Config> Pallet<T>
+where
+    T::AccountId: Origin,
+{
     /// Iterates through a portion of the wait list and sends an unsigned transaction
     /// back on-chain to collect payment from the visited messages.
     pub fn waitlist_usage(now: BlockNumberFor<T>) -> Result<(), OffchainError> {
