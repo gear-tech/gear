@@ -84,14 +84,14 @@ pallet_test() {
 }
 
 # $1 - ROOT DIR
-runtime_upgrade_test() {
+runtime_upgrade_test_debug() {
   TEST_SCRIPT_PATH="$1/scripts/test-utils"
 
   RUNTIME_PATH="$1/scripts/test-utils/gear_runtime.compact.compressed.wasm"
   DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" cargo run --package gear-node --release -- --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" cargo run --package gear-node $CARGO_FLAGS -- --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"
@@ -100,4 +100,9 @@ runtime_upgrade_test() {
   npm test "$RUNTIME_PATH" "$DEMO_PING_PATH"
 
   # Killing node process added in js script
+}
+
+runtime_upgrade_test() {
+  CARGO_FLAGS="--release"
+  runtime_upgrade_test_debug $1
 }

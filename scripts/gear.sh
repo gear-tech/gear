@@ -338,6 +338,10 @@ case "$COMMAND" in
         header "Running node runtime testsuite"
         rtest_debug "$ROOT_DIR"; ;;
 
+      runtime-upgrade)
+        header "Running js test for runtime upgrade"
+        runtime_upgrade_test_debug "$ROOT_DIR"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         coverage_usage
