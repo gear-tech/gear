@@ -37,7 +37,6 @@ use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
     prelude::*,
 };
 
@@ -46,7 +45,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageNumber, WasmPageNumber},
     message::StoredDispatch,
-    program::Program as NativeProgram,
 };
 
 pub use storage_queue::Iterator;
@@ -249,19 +247,6 @@ pub enum ProgramError {
 }
 
 impl Program {
-    pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
-        let is_initialized = self.is_initialized();
-        let program: ActiveProgram = self.try_into()?;
-        let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
-        let native_program = NativeProgram::from_parts(
-            ProgramId::from_origin(id),
-            code,
-            program.persistent_pages,
-            is_initialized,
-        );
-        Ok(native_program)
-    }
-
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
@@ -615,6 +600,7 @@ pub fn reset_storage() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp_std::convert::TryInto;
 
     fn get_active_program(id: H256) -> Option<ActiveProgram> {
         get_program(id).and_then(|p| p.try_into().ok())

@@ -86,6 +86,7 @@ pub mod pallet {
         code::Code,
         ids::{CodeId, MessageId, ProgramId},
         message::*,
+        program::Program as NativeProgram,
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -634,31 +635,38 @@ pub mod pallet {
                     );
 
                     let program_id = dispatch.destination();
+                    let current_message_id = dispatch.id();
+                    let maybe_message_reply = dispatch.reply();
+
                     let maybe_active_actor = if let Some(maybe_active_program) =
                         common::get_program(program_id.into_origin())
                     {
-                        let current_message_id = dispatch.id();
-                        let maybe_message_reply = dispatch.reply();
-
                         // Check whether message should be added to the wait list
-                        if let Program::Active(ref prog) = maybe_active_program {
+                        if let Program::Active(prog) = maybe_active_program {
                             let schedule = T::Schedule::get();
-                            if let Some(code) = common::get_code(prog.code_hash) {
+                            let code = if let Some(code) = common::get_code(prog.code_hash) {
                                 if code.instruction_weights_version()
-                                    < schedule.instruction_weights.version
+                                    == schedule.instruction_weights.version
                                 {
-                                    // The instruction weights have changed.
-                                    // We need to re-instrument the code with the new instruction weights.
-                                    if let Ok(_code_size) =
-                                        Self::reinstrument_code(prog.code_hash, &schedule)
-                                    {
-                                        // todo: charge for code instrumenting
-                                    } else {
-                                        // todo: mark code as unable for instrument to skip next time
-                                        continue;
-                                    }
+                                    code
+                                } else if let Ok(_code_size) =
+                                    Self::reinstrument_code(prog.code_hash, &schedule)
+                                {
+                                    // todo: charge for code instrumenting
+                                    code
+                                } else {
+                                    // todo: mark code as unable for instrument to skip next time
+                                    continue;
                                 }
-                            }
+                            } else {
+                                log::debug!(
+                                    "Code '{:?}' not found for program '{:?}'",
+                                    prog.code_hash,
+                                    program_id
+                                );
+                                continue;
+                            };
+
                             let is_for_wait_list = maybe_message_reply.is_none()
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id.into_origin());
                             if is_for_wait_list {
@@ -676,26 +684,32 @@ pub mod pallet {
 
                                 continue;
                             }
-                        }
 
-                        maybe_active_program
-                            .try_into_native(program_id.into_origin())
-                            .ok()
-                            .map(|program| {
-                                let balance = <T as Config>::Currency::free_balance(
-                                    &<T::AccountId as Origin>::from_origin(
-                                        program_id.into_origin(),
-                                    ),
-                                )
-                                .unique_saturated_into();
+                            let native_program = NativeProgram::from_parts(
+                                program_id,
+                                code,
+                                prog.persistent_pages,
+                                matches!(prog.state, ProgramState::Initialized),
+                            );
 
-                                ExecutableActor { program, balance }
+                            let balance = <T as Config>::Currency::free_balance(
+                                &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                            )
+                            .unique_saturated_into();
+
+                            Some(ExecutableActor {
+                                program: native_program,
+                                balance,
                             })
+                        } else {
+                            log::debug!("Program '{:?}' is not active", program_id,);
+
+                            None
+                        }
                     } else {
                         None
                     };
 
-                    let program_id = dispatch.destination();
                     let origin = <T as Config>::GasHandler::get_origin(msg_id).expect(
                         "Gas node is guaranteed to exist for the key due to earlier checks",
                     );

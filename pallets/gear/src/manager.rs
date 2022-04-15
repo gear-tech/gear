@@ -21,7 +21,7 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program};
+use common::{ActiveProgram, DAGBasedLedger, GasPrice, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -40,7 +40,7 @@ use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
+use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config> {
     // Messages with these destinations will be forcibly pushed to the queue.
@@ -71,17 +71,26 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn get_actor_balance(id: H256) -> u128 {
-        <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-            .unique_saturated_into()
-    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
-        let program = common::get_program(id)
-            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
+        let program = common::get_program(id).and_then(|p| {
+            let is_initialized = p.is_initialized();
+            p.try_into().ok().and_then(|p: ActiveProgram| {
+                common::get_code(p.code_hash).map(|c| {
+                    NativeProgram::from_parts(
+                        ProgramId::from_origin(id),
+                        c,
+                        p.persistent_pages,
+                        is_initialized,
+                    )
+                })
+            })
+        })?;
 
-        let balance = Self::get_actor_balance(id);
+        let balance =
+            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+                .unique_saturated_into();
 
         Some(ExecutableActor { program, balance })
     }
