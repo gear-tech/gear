@@ -19,7 +19,7 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, DAGBasedLedger, Origin as _};
+use common::{self, Origin as _, ValueTree};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::{
@@ -542,6 +542,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
+                .unwrap()
                 .0,
             1000
         );
@@ -557,6 +558,7 @@ fn trap_reply_message_is_sent() {
 
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
+                .unwrap()
                 .unwrap()
                 .0,
             500

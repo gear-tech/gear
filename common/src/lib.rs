@@ -159,7 +159,7 @@ pub trait PaymentProvider<AccountId> {
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
 /// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
 /// however, the intended use is very close to the UTxO based ledger model.
-pub trait DAGBasedLedger {
+pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
@@ -192,18 +192,29 @@ pub trait DAGBasedLedger {
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, DispatchError>;
 
-    /// Get the external origin for a key, if the latter exists.
-    fn get_origin(key: Self::Key) -> Option<Self::ExternalOrigin>;
+    /// The external origin for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, DispatchError>;
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
-    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::Key)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_limit(key: Self::Key) -> Result<Option<(Self::Balance, Self::Key)>, DispatchError>;
 
     /// Consume underlying value.
     ///
     /// If `key` does not identify any value or the value can't be fully consumed due to
-    /// being a part of other value or itself having unconsumed parts, return None,
+    /// being a part of other value or itself having unconsumed parts, return `None`,
     /// else the corresponding piece of value is destroyed and imbalance is created.
-    fn consume(key: Self::Key) -> Option<(Self::NegativeImbalance, Self::ExternalOrigin)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn consume(
+        key: Self::Key,
+    ) -> Result<Option<(Self::NegativeImbalance, Self::ExternalOrigin)>, DispatchError>;
 
     /// Burns underlying value.
     ///
