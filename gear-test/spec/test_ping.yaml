@@ -25,17 +25,6 @@ fixtures:
           value: PING_REPLY_COMMIT_WITH_GAS
 
     expected:
-      - step: 1
-        messages:
-          - destination: 1
-            payload:
-              kind: utf-8
-              value: PING_REPLY_WITH_GAS
-          - destination: 1
-            payload:
-              kind: utf-8
-              value: PING_REPLY_COMMIT_WITH_GAS
-
       - log:
         - destination: 1000001
           payload:
