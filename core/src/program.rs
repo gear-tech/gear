@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    code::Code,
+    code::InstrumentedCodeAndId,
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
@@ -32,7 +32,7 @@ use core::convert::TryFrom;
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
-    code: Code,
+    code: InstrumentedCodeAndId,
     /// Saved state of memory pages.
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Program is initialized.
@@ -41,7 +41,7 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: Code) -> Self {
+    pub fn new(id: ProgramId, code: InstrumentedCodeAndId) -> Self {
         Program {
             id,
             code,
@@ -53,7 +53,7 @@ impl Program {
     /// New program from stored data
     pub fn from_parts(
         id: ProgramId,
-        code: Code,
+        code: InstrumentedCodeAndId,
         persistent_pages_numbers: BTreeSet<PageNumber>,
         is_initialized: bool,
     ) -> Self {
@@ -69,7 +69,7 @@ impl Program {
     }
 
     /// Reference to [`Code`] of this program.
-    pub fn code(&self) -> &Code {
+    pub fn code(&self) -> &InstrumentedCodeAndId {
         &self.code
     }
 
@@ -164,6 +164,11 @@ impl Program {
     pub fn clear_memory(&mut self) {
         self.persistent_pages.clear();
     }
+
+    /// Decomposes this instance into tuple of binary code and persistent pages.
+    pub fn into_code_and_pages(self) -> (Vec<u8>, BTreeMap<PageNumber, Option<Box<PageBuf>>>) {
+        (self.code.into_code(), self.persistent_pages)
+    }
 }
 
 #[cfg(test)]
@@ -171,7 +176,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::code::Code;
+    use crate::code::{Code, CodeAndId};
     use crate::ids::ProgramId;
     use crate::memory::PageNumber;
     use alloc::{vec, vec::Vec};
@@ -218,14 +223,12 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = Code::try_new(
-            binary,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
+        let code = Code::try_new(binary, 1, |_| {
+            wasm_instrument::gas_metering::ConstantCostRules::default()
+        })
         .unwrap();
-        let mut program = Program::new(ProgramId::from(1), code);
+        let code_and_id = CodeAndId::new(code);
+        let mut program = Program::new(ProgramId::from(1), code_and_id.into());
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());

@@ -23,7 +23,7 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId},
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
@@ -83,12 +83,9 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = Code::try_new(
-        message.code.clone(),
-        1,
-        None,
-        wasm_instrument::gas_metering::ConstantCostRules::default(),
-    )
+    let code = Code::try_new(message.code.clone(), 1, |_| {
+        wasm_instrument::gas_metering::ConstantCostRules::default()
+    })
     .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
     if code.static_pages() > AllocationsConfig::default().max_pages {
@@ -134,15 +131,14 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            let code = Code::try_new(
-                code_bytes.clone(),
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
+            let code = Code::try_new(code_bytes.clone(), 1, |_| {
+                wasm_instrument::gas_metering::ConstantCostRules::default()
+            })
             .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
-            journal_handler.store_code(code.code_hash(), code);
+            let (code, code_id) = CodeAndId::new(code).into_parts();
+
+            journal_handler.store_code(code_id, code);
             journal_handler.store_original_code(&code_bytes);
         }
     }

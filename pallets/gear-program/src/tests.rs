@@ -38,12 +38,9 @@ fn pause_program_works() {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeId::generate(&code).into_origin();
 
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
+        let code = Code::try_new(code, 1, |_| {
+            wasm_instrument::gas_metering::ConstantCostRules::default()
+        })
         .expect("Error creating Code");
 
         common::set_code(code_hash, &code);
@@ -144,12 +141,9 @@ fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeId::generate(&code).into_origin();
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
+        let code = Code::try_new(code, 1, |_| {
+            wasm_instrument::gas_metering::ConstantCostRules::default()
+        })
         .expect("Error creating Code");
 
         common::set_code(code_hash, &code);
@@ -183,12 +177,9 @@ fn pause_terminated_program_fails() {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeId::generate(&code).into_origin();
 
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
+        let code = Code::try_new(code, 1, |_| {
+            wasm_instrument::gas_metering::ConstantCostRules::default()
+        })
         .expect("Error creating Code");
 
         common::set_code(code_hash, &code);
@@ -448,12 +439,9 @@ mod utils {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeId::generate(&code).into_origin();
 
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
+        let code = Code::try_new(code, 1, |_| {
+            wasm_instrument::gas_metering::ConstantCostRules::default()
+        })
         .expect("Error creating Code");
 
         common::set_code(code_hash, &code);

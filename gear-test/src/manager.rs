@@ -19,7 +19,7 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
@@ -61,11 +61,11 @@ impl ExecutionContext for InMemoryExtManager {
             .insert(CodeId::generate(code), code.to_vec());
     }
     fn store_program(&mut self, id: ProgramId, code: Code, _init_message_id: MessageId) -> Program {
-        let code_hash = code.code_hash();
+        let code_and_id = CodeAndId::new(code);
 
-        self.store_code(code_hash, code.clone());
+        self.store_code(code_and_id.code_id(), code_and_id.code().clone());
 
-        let program = Program::new(id, code);
+        let program = Program::new(id, code_and_id.into());
 
         self.waiting_init.insert(program.id(), vec![]);
         self.actors.insert(
@@ -230,12 +230,9 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(
-                        code.clone(),
-                        1,
-                        None,
-                        wasm_instrument::gas_metering::ConstantCostRules::default(),
-                    )
+                    let code = Code::try_new(code.clone(), 1, |_| {
+                        wasm_instrument::gas_metering::ConstantCostRules::default()
+                    })
                     .unwrap();
 
                     self.store_program(candidate_id, code, init_message_id);

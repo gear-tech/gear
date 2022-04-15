@@ -1248,16 +1248,10 @@ fn test_code_submission_pass() {
 
         let saved_code = common::get_code(code_hash);
 
-        let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).unwrap_or_default();
         let schedule = <Test as Config>::Schedule::get();
-        let gas_rules = schedule.rules(&module);
-
-        let code = Code::try_new(
-            code,
-            schedule.instruction_weights.version,
-            Some(module),
-            gas_rules,
-        )
+        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+            schedule.rules(module)
+        })
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
 

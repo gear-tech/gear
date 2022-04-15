@@ -29,9 +29,9 @@ use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
 };
 use gear_core::{
-    code::Code,
+    code::CodeAndId,
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageNumber, WasmPageNumber},
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
@@ -80,7 +80,7 @@ where
                 common::get_code(p.code_hash).map(|c| {
                     NativeProgram::from_parts(
                         ProgramId::from_origin(id),
-                        c,
+                        CodeAndId::from_parts_unchecked(c, CodeId::from_origin(p.code_hash)).into(),
                         p.persistent_pages,
                         is_initialized,
                     )
@@ -95,18 +95,22 @@ where
         Some(ExecutableActor { program, balance })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code: Code, message_id: H256) {
-        let code_hash: H256 = code.code_hash().into_origin();
+    pub fn set_program(
+        &self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        static_pages: WasmPageNumber,
+        message_id: H256,
+    ) {
+        let code_hash: H256 = code_id.into_origin();
         assert!(
             common::code_exists(code_hash),
             "Program set must be called only when code exists",
         );
 
-        let program = NativeProgram::new(program_id, code);
-
         // An empty program has been just constructed: it contains no persistent pages.
         let program = common::ActiveProgram {
-            static_pages: program.static_pages(),
+            static_pages,
             persistent_pages: Default::default(),
             code_hash,
             state: common::ProgramState::Uninitialized { message_id },
@@ -500,11 +504,15 @@ where
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
         let code_hash = <[u8; 32]>::from(code_id).into();
 
-        if let Some(mut code) = common::get_code(code_hash) {
-            code.set_code_hash(code_id);
+        if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    self.set_program(candidate_id, code.clone(), init_message.into_origin());
+                    self.set_program(
+                        candidate_id,
+                        code_id,
+                        code.static_pages(),
+                        init_message.into_origin(),
+                    );
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

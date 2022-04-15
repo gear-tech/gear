@@ -22,7 +22,12 @@ use common::Origin as _;
 use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
-use gear_core::{ids::CodeId, program::Program};
+use gear_core::{
+    code::{Code, CodeAndId},
+    ids::ProgramId,
+    program::Program,
+};
+use hex_literal::hex;
 use parking_lot::RwLock;
 use primitive_types::H256;
 use sp_core::offchain::{
@@ -263,11 +268,23 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     storage_value_ref.get::<T>().ok().flatten()
 }
 
-pub(crate) fn set_program(program: Program) {
-    let code_hash = CodeId::generate(program.raw_code()).into_origin();
+pub(crate) fn set_program(program_id: ProgramId) -> Program {
+    let code = Code::try_new(
+        hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+        1,
+        |_| wasm_instrument::gas_metering::ConstantCostRules::default(),
+    )
+    .expect("Error creating Code");
+
+    let code_and_id = CodeAndId::new(code);
+
+    let code_hash = code_and_id.code_id().into_origin();
     if !common::code_exists(code_hash) {
-        common::set_code(code_hash, program.code());
+        common::set_code(code_hash, code_and_id.code());
     }
+
+    let program = Program::new(program_id, code_and_id.into());
+
     common::set_program(
         H256::from_slice(program.id().as_ref()),
         common::ActiveProgram {
@@ -287,6 +304,8 @@ pub(crate) fn set_program(program: Program) {
             })
             .collect(),
     );
+
+    program
 }
 
 pub(crate) fn decode_txs(pool: Arc<RwLock<PoolState>>) -> Vec<Extrinsic> {

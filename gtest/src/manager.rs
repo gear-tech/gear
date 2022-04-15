@@ -23,7 +23,7 @@ use crate::{
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
@@ -530,15 +530,12 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(
-                        code.clone(),
-                        1,
-                        None,
-                        wasm_instrument::gas_metering::ConstantCostRules::default(),
-                    )
+                    let code = Code::try_new(code.clone(), 1, |_| {
+                        wasm_instrument::gas_metering::ConstantCostRules::default()
+                    })
                     .expect("Program can't be constructed with provided code");
 
-                    let candidate = CoreProgram::new(candidate_id, code);
+                    let candidate = CoreProgram::new(candidate_id, CodeAndId::new(code).into());
                     self.store_new_actor(
                         candidate_id,
                         Program::new(candidate),
