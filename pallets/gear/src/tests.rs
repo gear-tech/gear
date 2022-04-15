@@ -478,7 +478,7 @@ fn lazy_pages() {
             let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
             wasm_pages_to_pages_set(all_wasm_pages.iter())
         };
-        let mut res_pages = lazy_pages.clone();
+        let mut res_pages = lazy_pages;
         res_pages.extend(released_pages.iter());
 
         assert_eq!(res_pages, all_pages);
