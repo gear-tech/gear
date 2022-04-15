@@ -148,10 +148,6 @@ case "$COMMAND" in
         header "Checking gear examples"
         examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
-      benchmark)
-        header "Checking node benchmarks"
-        benchmark_check "$@"; ;;
-
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         check_usage
