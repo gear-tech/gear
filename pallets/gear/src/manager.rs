@@ -71,15 +71,17 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
+    pub fn get_actor_balance(id: H256) -> u128 {
+        <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+            .unique_saturated_into()
+    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
         let program = common::get_program(id)
             .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
 
-        let balance =
-            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-                .unique_saturated_into();
+        let balance = Self::get_actor_balance(id);
 
         Some(ExecutableActor { program, balance })
     }
@@ -110,6 +112,8 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
+        Pallet::<T>::message_handled();
+
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
@@ -338,18 +342,20 @@ where
             }
             common::queue_dispatch(dispatch);
         } else {
+            let message = dispatch.into_parts().1;
+
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            Pallet::<T>::insert_to_mailbox(
-                dispatch.destination().into_origin(),
-                dispatch.message().clone(),
-            );
-            Pallet::<T>::deposit_event(Event::Log(dispatch.message().clone()));
+            Pallet::<T>::insert_to_mailbox(message.destination().into_origin(), message.clone());
+
+            Pallet::<T>::deposit_event(Event::Log(message));
         }
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+        Pallet::<T>::message_handled();
+
         common::insert_waiting_message(
             dispatch.destination().into_origin(),
             dispatch.id().into_origin(),
@@ -426,7 +432,6 @@ where
         data: Option<Vec<u8>>,
     ) {
         let program_id = program_id.into_origin();
-        let page_number = page_number.raw();
 
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");
@@ -504,5 +509,18 @@ where
                 self.marked_destinations.insert(candidate);
             }
         }
+    }
+
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
+        log::debug!(
+            "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
+            dispatch.id(),
+            Pallet::<T>::gas_allowance(),
+            gas_burned,
+        );
+
+        Pallet::<T>::stop_processing();
+        Pallet::<T>::decrease_gas_allowance(gas_burned);
+        common::queue_dispatch_first(dispatch);
     }
 }

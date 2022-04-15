@@ -29,9 +29,8 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
-use gstd::{debug, msg, prelude::*};
+use gstd::prelude::*;
 
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Request {
@@ -49,43 +48,51 @@ pub enum Reply {
     List(Vec<(u32, u32)>),
 }
 
-static mut STATE: Option<BTreeMap<u32, u32>> = None;
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use super::*;
 
-#[no_mangle]
-pub unsafe extern "C" fn handle() {
-    let reply = match msg::load() {
-        Ok(request) => process(request),
-        Err(e) => {
-            debug!("Error processing request: {:?}", e);
-            Reply::Error
-        }
-    };
+    use alloc::collections::BTreeMap;
+    use gstd::{debug, msg};
 
-    msg::reply(reply, 0);
-}
+    static mut STATE: Option<BTreeMap<u32, u32>> = None;
 
-fn state() -> &'static mut BTreeMap<u32, u32> {
-    unsafe { STATE.as_mut().unwrap() }
-}
+    #[no_mangle]
+    pub unsafe extern "C" fn handle() {
+        let reply = match msg::load() {
+            Ok(request) => process(request),
+            Err(e) => {
+                debug!("Error processing request: {:?}", e);
+                Reply::Error
+            }
+        };
 
-fn process(request: Request) -> Reply {
-    use Request::*;
+        msg::reply(reply, 0).unwrap();
+    }
 
-    match request {
-        Insert(key, value) => Reply::Value(state().insert(key, value)),
-        Remove(key) => Reply::Value(state().remove(&key)),
-        List => Reply::List(state().iter().map(|(k, v)| (*k, *v)).collect()),
-        Clear => {
-            state().clear();
-            Reply::None
+    fn state() -> &'static mut BTreeMap<u32, u32> {
+        unsafe { STATE.as_mut().unwrap() }
+    }
+
+    fn process(request: Request) -> Reply {
+        use Request::*;
+
+        match request {
+            Insert(key, value) => Reply::Value(state().insert(key, value)),
+            Remove(key) => Reply::Value(state().remove(&key)),
+            List => Reply::List(state().iter().map(|(k, v)| (*k, *v)).collect()),
+            Clear => {
+                state().clear();
+                Reply::None
+            }
         }
     }
-}
 
-#[no_mangle]
-pub unsafe extern "C" fn init() {
-    STATE = Some(BTreeMap::new());
-    msg::reply((), 0);
+    #[no_mangle]
+    pub unsafe extern "C" fn init() {
+        STATE = Some(BTreeMap::new());
+        msg::reply((), 0).unwrap();
+    }
 }
 
 #[cfg(test)]

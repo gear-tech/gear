@@ -34,6 +34,7 @@ use gear_core::{
 };
 
 use gear_common::{DAGBasedLedger, Origin as _};
+use gear_test::sample::ChainProgram;
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -42,7 +43,7 @@ use gear_test::{
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
-use pallet_gear_debug::DebugData;
+use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -193,7 +194,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
         let program = gear_common::ActiveProgram {
-            static_pages: 0,
+            static_pages: 0.into(),
             persistent_pages: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
@@ -319,8 +320,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let mut message_queue: Vec<(StoredMessage, GasLimit)> = snapshot
                     .dispatch_queue
-                    .iter()
-                    .map(|dispatch| (dispatch.message().clone(), 0))
+                    .into_iter()
+                    .map(|dispatch| (dispatch.into_parts().1, 0))
                     .collect();
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
@@ -366,15 +367,19 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .programs
                     .iter()
                     .filter_map(|p| {
-                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
-                            let code = gear_common::get_code(p.code_hash)
-                                .expect("code should be in the storage");
-                            Some(CoreProgram::from_parts(
-                                *pid,
-                                code,
-                                p.persistent_pages.keys().cloned().collect(),
-                                true,
-                            ))
+                        if let ProgramState::Active(info) = &p.state {
+                            if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                                let code = gear_common::get_code(info.code_hash)
+                                    .expect("code should be in the storage");
+                                Some(CoreProgram::from_parts(
+                                    *pid,
+                                    code,
+                                    info.persistent_pages.keys().cloned().collect(),
+                                    true,
+                                ))
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
@@ -393,6 +398,40 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     if let Err(alloc_errors) = gear_test::check::check_allocations(&progs, alloc) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(alloc_errors);
+                    }
+                }
+
+                let actual_programs = snapshot
+                    .programs
+                    .iter()
+                    .filter_map(|p| {
+                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                            Some((*pid, p.state == ProgramState::Terminated))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if let Some(programs_struct) = &exp.programs {
+                    let expected_programs = programs_struct
+                        .ids
+                        .iter()
+                        .map(|program: &ChainProgram| {
+                            (
+                                program.address.to_program_id(),
+                                program.terminated.unwrap_or_default(),
+                            )
+                        })
+                        .collect();
+
+                    if let Err(state_errors) = gear_test::check::check_programs_state(
+                        &expected_programs,
+                        &actual_programs,
+                        programs_struct.only.unwrap_or_default(),
+                    ) {
+                        errors.push(format!("step: {:?}", exp.step));
+                        errors.extend(state_errors);
                     }
                 }
 

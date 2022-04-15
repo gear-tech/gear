@@ -21,9 +21,11 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber},
+    memory::{
+        wasm_pages_to_pages_set, AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber,
+    },
     message::{ExitCode, HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 
@@ -34,6 +36,7 @@ pub trait ProcessorExt {
     #[allow(clippy::too_many_arguments)]
     fn new(
         gas_counter: GasCounter,
+        gas_allowance_counter: GasAllowanceCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
         message_context: MessageContext,
@@ -75,15 +78,14 @@ pub trait ProcessorExt {
         old_mem_addr: u64,
         new_mem_addr: u64,
     ) -> Result<(), &'static str>;
-
-    /// Returns list of current lazy pages numbers
-    fn get_lazy_pages_numbers() -> Vec<u32>;
 }
 
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Gas counter.
     pub gas_counter: GasCounter,
+    /// Gas allowance counter.
+    pub gas_allowance_counter: GasAllowanceCounter,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -113,6 +115,7 @@ pub struct Ext {
 impl ProcessorExt for Ext {
     fn new(
         gas_counter: GasCounter,
+        gas_allowance_counter: GasAllowanceCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
         message_context: MessageContext,
@@ -127,6 +130,7 @@ impl ProcessorExt for Ext {
     ) -> Self {
         Self {
             gas_counter,
+            gas_allowance_counter,
             value_counter,
             allocations_context,
             message_context,
@@ -174,10 +178,6 @@ impl ProcessorExt for Ext {
     ) -> Result<(), &'static str> {
         Ok(())
     }
-
-    fn get_lazy_pages_numbers() -> Vec<u32> {
-        Vec::default()
-    }
 }
 
 impl IntoExtInfo for Ext {
@@ -185,14 +185,14 @@ impl IntoExtInfo for Ext {
         self,
         mut get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)> {
-        let accessed_pages_numbers = self.allocations_context.allocations().clone();
-        let mut accessed_pages = BTreeMap::new();
-        for page in accessed_pages_numbers {
+        let pages = wasm_pages_to_pages_set(self.allocations_context.allocations().iter());
+        let mut pages_data = BTreeMap::new();
+        for page in pages.iter() {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
             if let Err(err) = get_page_data(page.offset(), &mut buf) {
                 return Err((err, self.gas_counter.into()));
             }
-            accessed_pages.insert(page, buf);
+            pages_data.insert(*page, buf);
         }
 
         let (outcome, context_store) = self.message_context.drain();
@@ -200,8 +200,8 @@ impl IntoExtInfo for Ext {
 
         Ok(ExtInfo {
             gas_amount: self.gas_counter.into(),
-            pages: self.allocations_context.allocations().clone(),
-            accessed_pages,
+            pages,
+            pages_data,
             generated_dispatches,
             awakening,
             context_store,
@@ -232,15 +232,15 @@ impl Ext {
 impl EnvExt for Ext {
     fn alloc(
         &mut self,
-        pages_num: PageNumber,
+        pages_num: WasmPageNumber,
         mem: &mut dyn Memory,
-    ) -> Result<PageNumber, &'static str> {
+    ) -> Result<WasmPageNumber, &'static str> {
         // Greedily charge gas for allocations
-        self.charge_gas(pages_num.raw() * self.config.alloc_cost as u32)?;
+        self.charge_gas(pages_num.0 * self.config.alloc_cost as u32)?;
         // Greedily charge gas for grow
-        self.charge_gas(pages_num.raw() * self.config.mem_grow_cost as u32)?;
+        self.charge_gas(pages_num.0 * self.config.mem_grow_cost as u32)?;
 
-        let old_mem_size = mem.size().raw();
+        let old_mem_size = mem.size();
 
         let result = self
             .allocations_context
@@ -250,22 +250,21 @@ impl EnvExt for Ext {
         let page_number = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for grow
-        let new_mem_size = mem.size().raw();
+        let new_mem_size = mem.size();
         let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back =
-            self.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
+            self.config.mem_grow_cost * (pages_num - grow_pages_num).0 as u64;
 
         // Returns back greedily used gas for allocations
-        let first_page = page_number.raw();
-        let last_page = first_page + pages_num.raw() - 1;
+        let first_page = page_number;
+        let last_page = first_page + pages_num - 1.into();
         let mut new_alloced_pages_num = 0;
-        for page in first_page..=last_page {
+        for page in first_page.0..=last_page.0 {
             if !self.allocations_context.is_init_page(page.into()) {
                 new_alloced_pages_num += 1;
             }
         }
-        gas_to_return_back +=
-            self.config.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
+        gas_to_return_back += self.config.alloc_cost * (pages_num.0 - new_alloced_pages_num) as u64;
 
         self.refund_gas(gas_to_return_back as u32)?;
 
@@ -379,14 +378,14 @@ impl EnvExt for Ext {
         self.program_id
     }
 
-    fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
+    fn free(&mut self, page: WasmPageNumber) -> Result<(), &'static str> {
         let result = self
             .allocations_context
-            .free(ptr)
+            .free(page)
             .map_err(|_e| "Free error");
 
         // Returns back gas for allocated page if it's new
-        if !self.allocations_context.is_init_page(ptr) {
+        if !self.allocations_context.is_init_page(page) {
             self.refund_gas(self.config.alloc_cost as u32)?;
         }
 
@@ -404,15 +403,23 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
-        if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
-            Ok(())
-        } else {
-            self.return_and_store_err(Err("Gas limit exceeded"))
-        }
+        use ChargeResult::*;
+
+        let common_charge = self.gas_counter.charge(val as u64);
+        let allowance_charge = self.gas_allowance_counter.charge(val as u64);
+
+        let res = match (common_charge, allowance_charge) {
+            (NotEnough, _) => Err("Gas limit exceeded"),
+            (Enough, NotEnough) => Err(gear_backend_common::GAS_ALLOWANCE_STR),
+            (Enough, Enough) => Ok(()),
+        };
+
+        self.return_and_store_err(res)
     }
 
     fn refund_gas(&mut self, val: u32) -> Result<(), &'static str> {
         if self.gas_counter.refund(val as u64) == ChargeResult::Enough {
+            self.gas_allowance_counter.refund(val as u64);
             Ok(())
         } else {
             self.return_and_store_err(Err("Too many gas added"))

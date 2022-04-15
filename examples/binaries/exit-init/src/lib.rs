@@ -20,6 +20,6 @@ mod wasm {
     pub unsafe extern "C" fn init() {
         exec::exit(msg::source());
         // should not be executed
-        msg::reply(b"reply", 0);
+        msg::reply(b"reply", 0).unwrap();
     }
 }

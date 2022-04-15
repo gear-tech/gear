@@ -100,11 +100,6 @@ impl CollectState for InMemoryExtManager {
             })
             .collect();
 
-        let actors = actors
-            .into_iter()
-            .filter_map(|(id, a_opt)| a_opt.map(|a| (id, a)))
-            .collect();
-
         State {
             dispatch_queue,
             log,
@@ -177,7 +172,7 @@ impl JournalHandler for InMemoryExtManager {
                 self.dispatch_queue.push_back(dispatch.into_stored());
             }
         } else {
-            self.log.push(dispatch.message().clone().into_stored());
+            self.log.push(dispatch.into_parts().1.into_stored());
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
@@ -257,5 +252,9 @@ impl JournalHandler for InMemoryExtManager {
                 self.marked_destinations.insert(invalid_candidate);
             }
         }
+    }
+
+    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
+        panic!("Processing stopped. Used for on-chain logic only.");
     }
 }

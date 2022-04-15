@@ -65,12 +65,14 @@ mod sys {
         gas_limit: u64,
         value_ptr: *const u8,
         _message_id_ptr: *mut u8,
-    ) {
+    ) -> i32 {
         ptr::copy(program, PROGRAM.0.as_mut_ptr(), 32);
         MESSAGE_LEN = data_len as _;
         ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);
         GAS_LIMIT = gas_limit;
         VALUE = *(value_ptr as *const u128);
+
+        0
     }
 
     #[no_mangle]
@@ -99,7 +101,7 @@ fn messages() {
         *elem = i as u8;
     }
 
-    msg::send_with_gas(ActorId(id), b"HELLO", 1000, 12345678);
+    msg::send_with_gas(ActorId(id), b"HELLO", 1000, 12345678).unwrap();
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ActorId(id));

@@ -272,11 +272,7 @@ pub(crate) fn set_program(program: Program) {
         H256::from_slice(program.id().as_ref()),
         common::ActiveProgram {
             static_pages: program.static_pages(),
-            persistent_pages: program
-                .get_pages()
-                .iter()
-                .map(|(num, _)| num.raw())
-                .collect(),
+            persistent_pages: program.get_pages().iter().map(|(num, _)| *num).collect(),
             code_hash,
             state: common::ProgramState::Initialized,
         },
@@ -287,7 +283,7 @@ pub(crate) fn set_program(program: Program) {
                 let buf = buf
                     .as_ref()
                     .expect("When set program, each page must have data");
-                (num.raw(), buf.to_vec())
+                (*num, buf.to_vec())
             })
             .collect(),
     );

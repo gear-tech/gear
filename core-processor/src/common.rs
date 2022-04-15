@@ -43,6 +43,8 @@ pub enum DispatchResultKind {
     Wait,
     /// Exit dispatch.
     Exit(ProgramId),
+    /// Gas allowance exceed.
+    GasAllowanceExceed,
 }
 
 /// Result of the specific dispatch.
@@ -196,6 +198,13 @@ pub enum JournalNote {
         /// Collection of program candidate ids and their init message ids.
         candidates: Vec<(ProgramId, MessageId)>,
     },
+    /// Stop processing queue.
+    StopProcessing {
+        /// Pushes StoredDispatch back to the top of the queue.
+        dispatch: StoredDispatch,
+        /// Decreases gas allowance by that amount, burned for processing try.
+        gas_burned: u64,
+    },
 }
 
 /// Journal handler.
@@ -234,6 +243,10 @@ pub trait JournalHandler {
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
     fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>);
+    /// Stop processing queue.
+    ///
+    /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64);
 }
 
 /// Execution error.
@@ -244,6 +257,8 @@ pub struct ExecutionError {
     pub gas_amount: GasAmount,
     /// Error text.
     pub reason: &'static str,
+    /// Triggered by gas allowance exceed.
+    pub allowance_exceed: bool,
 }
 
 /// Executable actor.
@@ -260,6 +275,8 @@ pub struct ExecutableActor {
 pub struct ExecutionContext {
     /// Original user.
     pub origin: ProgramId,
+    /// Gas allowance of the block.
+    pub gas_allowance: u64,
 }
 
 #[derive(Clone, Default)]
@@ -270,7 +287,7 @@ pub struct State {
     /// Log records.
     pub log: Vec<StoredMessage>,
     /// State of each executable actor.
-    pub actors: BTreeMap<ProgramId, ExecutableActor>,
+    pub actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     /// Is current state failed.
     pub current_failed: bool,
 }
@@ -285,18 +302,21 @@ impl Debug for State {
                 &self
                     .actors
                     .iter()
-                    .map(|(id, ExecutableActor { program, balance })| {
-                        (
-                            *id,
+                    .filter_map(|(id, actor)| {
+                        actor.as_ref().map(|actor| {
                             (
-                                *balance,
-                                program
-                                    .get_pages()
-                                    .keys()
-                                    .cloned()
-                                    .collect::<BTreeSet<PageNumber>>(),
-                            ),
-                        )
+                                *id,
+                                (
+                                    actor.balance,
+                                    actor
+                                        .program
+                                        .get_pages()
+                                        .keys()
+                                        .cloned()
+                                        .collect::<BTreeSet<PageNumber>>(),
+                                ),
+                            )
+                        })
                     })
                     .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
             )

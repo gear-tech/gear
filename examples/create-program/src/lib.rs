@@ -35,7 +35,7 @@ pub unsafe extern "C" fn handle() {
             );
             debug!("A new program is created {:?}", new_program_id);
 
-            let msg_id = msg::send(new_program_id, b"", 0);
+            let msg_id = msg::send(new_program_id, b"", 0).unwrap();
             debug!("Sent to a new program message with id {:?}", msg_id);
 
             COUNTER += 1;
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn handle() {
             );
             debug!("A new program is created {:?}", new_program_id);
 
-            let msg_id = msg::send(new_program_id, b"", 0);
+            let msg_id = msg::send(new_program_id, b"", 0).unwrap();
             debug!("Sent to a new program message with id {:?}", msg_id);
         }
         _ => {

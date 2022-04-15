@@ -1,4 +1,4 @@
-use gstd::{exec, msg, MessageId, BTreeMap};
+use gstd::{exec, msg, BTreeMap, MessageId};
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
         panic!("not initialized");
     }
 
-    msg::reply(b"Hello, world!", 0);
+    msg::reply(b"Hello, world!", 0).unwrap();
 }
 
 #[no_mangle]
@@ -29,11 +29,7 @@ pub unsafe extern "C" fn init() {
             }
 
             INIT_MESSAGE = msg::id();
-            msg::send(
-                msg::source(),
-                b"PING",
-                0,
-            );
+            msg::send(msg::source(), b"PING", 0).unwrap();
             STATE = State::WaitForReply;
             exec::wait();
         }

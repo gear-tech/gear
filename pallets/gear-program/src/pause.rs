@@ -20,7 +20,7 @@ use super::*;
 use codec::{Decode, Encode};
 use common::Origin as _;
 use frame_support::{dispatch::DispatchResult, storage::PrefixIterator};
-use gear_core::message::StoredDispatch;
+use gear_core::{memory::PageNumber, message::StoredDispatch};
 use scale_info::TypeInfo;
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]
@@ -36,7 +36,7 @@ fn decode_dispatch_tuple(_key: &[u8], value: &[u8]) -> Result<(StoredDispatch, u
     <(StoredDispatch, u32)>::decode(&mut &*value)
 }
 
-fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
+fn memory_pages_hash(pages: &BTreeMap<PageNumber, Vec<u8>>) -> H256 {
     pages.using_encoded(sp_io::hashing::blake2_256).into()
 }
 
@@ -94,7 +94,7 @@ impl<T: Config> pallet::Pallet<T> {
 
     pub(super) fn resume_program_impl(
         program_id: H256,
-        memory_pages: BTreeMap<u32, Vec<u8>>,
+        memory_pages: BTreeMap<PageNumber, Vec<u8>>,
         wait_list: BTreeMap<H256, StoredDispatch>,
         block_number: u32,
     ) -> DispatchResult {

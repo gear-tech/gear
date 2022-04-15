@@ -258,9 +258,8 @@ pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, System};
-
     use super::Program;
+    use crate::{Log, System};
 
     #[test]
     fn test_handle_messages_to_failing_program() {

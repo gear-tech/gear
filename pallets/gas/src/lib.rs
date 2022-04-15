@@ -52,7 +52,8 @@ impl Default for ValueType {
 
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
-    pub refs: u32,
+    pub spec_refs: u32,
+    pub unspec_refs: u32,
     pub inner: ValueType,
     pub consumed: bool,
 }
@@ -61,7 +62,8 @@ impl ValueNode {
     pub fn new(origin: H256, value: u64) -> Self {
         Self {
             inner: ValueType::External { id: origin, value },
-            refs: 0,
+            spec_refs: 0,
+            unspec_refs: 0,
             consumed: false,
         }
     }
@@ -88,6 +90,10 @@ impl ValueNode {
             ValueType::SpecifiedLocal { parent, .. } => Some(parent),
             ValueType::UnspecifiedLocal { parent } => Some(parent),
         }
+    }
+
+    pub fn refs(&self) -> u32 {
+        self.spec_refs.saturating_add(self.unspec_refs)
     }
 }
 
@@ -146,14 +152,20 @@ pub mod pallet {
             let res = Self::value_view(key).and_then(|current_node| match current_node.inner {
                 ValueType::SpecifiedLocal { parent, .. }
                 | ValueType::UnspecifiedLocal { parent } => {
-                    if current_node.consumed && current_node.refs == 0 {
+                    if current_node.consumed && current_node.refs() == 0 {
                         let mut parent_node =
                             Self::value_view(parent).expect("Parent node must exist for any node");
+
                         assert!(
-                            parent_node.refs != 0,
+                            parent_node.refs() != 0,
                             "parent node must contain ref to its child node"
                         );
-                        parent_node.refs -= 1;
+
+                        if let ValueType::SpecifiedLocal { .. } = current_node.inner {
+                            parent_node.spec_refs -= 1;
+                        } else {
+                            parent_node.unspec_refs -= 1;
+                        }
 
                         ValueView::<T>::mutate(parent, |node| {
                             *node = Some(parent_node);
@@ -167,9 +179,11 @@ pub mod pallet {
                             // going up until external or specified parent is found
 
                             let (parent_key, mut parent_node) = Self::node_with_value(parent);
+
                             let parent_val = parent_node
                                 .inner_value_mut()
                                 .expect("Querying parent with value");
+
                             *parent_val = parent_val.saturating_add(self_value);
 
                             ValueView::<T>::mutate(parent_key, |value| {
@@ -184,7 +198,7 @@ pub mod pallet {
                     }
                 }
                 ValueType::External { id, value } => {
-                    if current_node.refs == 0 && current_node.consumed {
+                    if current_node.refs() == 0 && current_node.consumed {
                         delete_current_node = true;
                         Some((NegativeImbalance::new(value), id))
                     } else {
@@ -274,50 +288,66 @@ where
                 | ValueType::SpecifiedLocal { parent, .. } => {
                     let mut parent_node =
                         Self::value_view(parent).expect("Parent node must exist for any node");
+
                     assert!(
-                        parent_node.refs != 0,
+                        parent_node.refs() != 0,
                         "parent node must contain ref to its child node"
                     );
-                    if node.refs == 0 {
+
+                    if node.refs() == 0 {
                         delete_current_node = true;
-                        parent_node.refs -= 1;
+
+                        if let ValueType::SpecifiedLocal { .. } = node.inner {
+                            parent_node.spec_refs -= 1;
+                        } else {
+                            parent_node.unspec_refs -= 1;
+                        }
                     }
-                    if parent_node.refs == 0 {
+
+                    if parent_node.refs() == 0 {
                         consume_parent_node = true;
                     }
-                    // Update parent node
-                    ValueView::<T>::mutate(parent, |value| {
-                        *value = Some(parent_node);
-                    });
+
+                    if delete_current_node {
+                        // Update parent node
+                        ValueView::<T>::mutate(parent, |value| {
+                            *value = Some(parent_node);
+                        });
+                    }
 
                     // Upstream value to the first node that limits value
                     if let ValueType::SpecifiedLocal {
                         value: self_value, ..
                     } = node.inner
                     {
-                        let (parent_key, mut parent_node) = Self::node_with_value(parent);
-                        let parent_val = parent_node
-                            .inner_value_mut()
-                            .expect("Querying parent with value");
-                        *parent_val = parent_val.saturating_add(self_value);
+                        if node.unspec_refs == 0 {
+                            let (parent_key, mut parent_node) = Self::node_with_value(parent);
+                            let parent_val = parent_node
+                                .inner_value_mut()
+                                .expect("Querying parent with value");
+                            *parent_val = parent_val.saturating_add(self_value);
 
-                        ValueView::<T>::mutate(parent_key, |value| {
-                            *value = Some(parent_node);
-                        });
+                            ValueView::<T>::mutate(parent_key, |value| {
+                                *value = Some(parent_node);
+                            });
+                        }
                     }
 
                     if delete_current_node {
                         ValueView::<T>::remove(key);
                     } else {
                         node.consumed = true;
-                        if let Some(inner_value) = node.inner_value_mut() {
-                            *inner_value = 0
-                        };
 
-                        // Save current node
-                        ValueView::<T>::mutate(key, |value| {
-                            *value = Some(node);
-                        });
+                        if node.unspec_refs == 0 {
+                            if let Some(inner_value) = node.inner_value_mut() {
+                                *inner_value = 0
+                            };
+
+                            // Save current node
+                            ValueView::<T>::mutate(key, |value| {
+                                *value = Some(node);
+                            });
+                        }
                     }
 
                     // now check if the parent node can be consumed as well
@@ -330,7 +360,7 @@ where
                 ValueType::External { id, value } => {
                     node.consumed = true;
 
-                    if node.refs == 0 {
+                    if node.refs() == 0 {
                         // Delete current node
                         ValueView::<T>::remove(id);
 
@@ -369,11 +399,12 @@ where
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
 
-        node.refs += 1;
+        node.unspec_refs += 1;
 
         let new_node = ValueNode {
             inner: ValueType::UnspecifiedLocal { parent: key },
-            refs: 0,
+            spec_refs: 0,
+            unspec_refs: 0,
             consumed: false,
         };
 
@@ -398,14 +429,15 @@ where
             Error::<T>::InsufficientBalance
         );
 
-        node.refs += 1;
+        node.spec_refs += 1;
 
         let new_node = ValueNode {
             inner: ValueType::SpecifiedLocal {
                 value: amount,
                 parent: key,
             },
-            refs: 0,
+            spec_refs: 0,
+            unspec_refs: 0,
             consumed: false,
         };
 

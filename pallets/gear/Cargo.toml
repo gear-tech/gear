@@ -16,7 +16,6 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.16", default-features = false }
-parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 wasm-instrument = { version = "0.1", default-features = false }
 
@@ -37,7 +36,6 @@ sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-arithmetic = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -46,19 +44,12 @@ pallet-gear-program = { path = "../gear-program", default-features = false }
 # Benchmark deps
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 serde = { version = "1", optional = true, features = ["derive"] }
-libsecp256k1 = { version = "0.7", optional = true, default-features = false, features = [
-	"hmac",
-	"static-context",
-] }
 rand = { version = "0.8", optional = true, default-features = false }
 rand_pcg = { version = "0.3", optional = true }
 
 [dev-dependencies]
-serde = "1.0.136"
 env_logger = "0.9"
 wabt = "0.10"
-gear-core = { path = "../../core" }
-hex-literal = "0.3.4"
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
@@ -66,6 +57,7 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
+page_size = "0.4.2"
 
 [features]
 default = ['std']
@@ -94,11 +86,8 @@ runtime-benchmarks = [
 	"frame-benchmarking",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
-	"parity-wasm",
 	"common/runtime-benchmarks",
 	"sp-sandbox",
-	"rand",
-	"libsecp256k1",
 	"rand",
 	"rand_pcg",
 ]
