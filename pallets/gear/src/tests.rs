@@ -16,19 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeSet;
-
 use codec::Encode;
 use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
 use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::{
-    code::Code,
-    memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber},
-};
-use gear_runtime_interface as gear_ri;
+use gear_core::code::Code;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
 use super::{

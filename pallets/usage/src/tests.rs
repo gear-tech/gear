@@ -81,16 +81,16 @@ fn populate_wait_list_with_split(
             StoredDispatch::new(DispatchKind::Handle, message, None),
             blk_num.try_into().unwrap(),
         );
-        if last_msg_id.is_none() {
+        if let Some(last_msg_id) = last_msg_id {
+            let _ = <Test as pallet_gear::Config>::GasHandler::split(
+                last_msg_id.into_origin(),
+                msg_id.into_origin(),
+            );
+        } else {
             let _ = <Test as pallet_gear::Config>::GasHandler::create(
                 user_id.into_origin(),
                 msg_id.into_origin(),
                 gas_limit,
-            );
-        } else {
-            let _ = <Test as pallet_gear::Config>::GasHandler::split(
-                last_msg_id.expect("Guaranteed to have value").into_origin(),
-                msg_id.into_origin(),
             );
         }
         last_msg_id = Some(msg_id);

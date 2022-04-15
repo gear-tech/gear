@@ -116,11 +116,11 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3].into();
-        let encoded_message_payload: Payload = message_payload.encode().into();
-        let reply_payload: Payload = vec![3, 2, 1].into();
-        let encoded_reply_payload: Payload = reply_payload.encode().into();
-        let log = Log::builder().payload(message_payload.clone());
+        let message_payload: Payload = vec![1, 2, 3];
+        let encoded_message_payload: Payload = message_payload.encode();
+        let reply_payload: Payload = vec![3, 2, 1];
+        let encoded_reply_payload: Payload = reply_payload.encode();
+        let log = Log::builder().payload(message_payload);
 
         //Building message based on arranged data
         let message = Message::new(
@@ -146,7 +146,7 @@ mod tests {
         let message_replier = destination_user_mailbox.take_message(log);
 
         //Replying on sended message and extracting log
-        let reply_log = message_replier.reply(reply_payload.clone(), 1).log;
+        let reply_log = message_replier.reply(reply_payload, 1).log;
         let last_reply_log = reply_log.last().expect("No message log in run result");
 
         //Sending one more message to be sure that no critical move semantic didn't occur
@@ -175,8 +175,8 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3].into();
-        let reply_payload: Payload = vec![3, 2, 1].into();
+        let message_payload: Payload = vec![1, 2, 3];
+        let reply_payload: Payload = vec![3, 2, 1];
         let message_log = Log::builder().payload(message_payload.clone());
 
         //Building message based on arranged data
@@ -184,7 +184,7 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.encode().into(),
+            message_payload.encode(),
             Default::default(),
             2,
             None,
@@ -209,9 +209,9 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3].into();
+        let message_payload: Payload = vec![1, 2, 3];
         let reply_payload_array: [u8; 3] = [3, 2, 1];
-        let reply_payload: Payload = reply_payload_array.to_vec().into();
+        let reply_payload: Payload = reply_payload_array.to_vec();
         let log = Log::builder().payload(message_payload.clone());
 
         //Building message based on arranged data
@@ -219,7 +219,7 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.encode().into(),
+            message_payload.encode(),
             Default::default(),
             2,
             None,
@@ -247,7 +247,7 @@ mod tests {
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
-        let message_payload: Payload = vec![1, 2, 3].into();
+        let message_payload: Payload = vec![1, 2, 3];
         let log = Log::builder().payload(message_payload.clone());
 
         //Building message based on arranged data
@@ -255,7 +255,7 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.encode().into(),
+            message_payload.encode(),
             Default::default(),
             2,
             None,
