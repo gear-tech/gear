@@ -78,7 +78,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency, ConstBool},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -248,32 +248,21 @@ pub mod pallet {
     #[pallet::getter(fn gas_allowance)]
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
 
-    #[pallet::type_value]
-    pub fn ZeroU128() -> u128 {
-        0
-    }
+    #[pallet::storage]
+    #[pallet::getter(fn message_queue_len)]
+    pub type MessageQueueLength<T: Config> = StorageValue<_, u128, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn messages_sent)]
-    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery, ZeroU128>;
-
-    #[pallet::type_value]
-    pub fn ZeroU32() -> u32 {
-        0
-    }
+    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn total_handled)]
-    pub type TotalHandled<T: Config> = StorageValue<_, u32, ValueQuery, ZeroU32>;
-
-    #[pallet::type_value]
-    pub fn True() -> bool {
-        true
-    }
+    pub type TotalHandled<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn can_process_queue)]
-    pub type CanProcessQueue<T: Config> = StorageValue<_, bool, ValueQuery, True>;
+    pub type CanProcessQueue<T: Config> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
@@ -410,12 +399,6 @@ pub mod pallet {
                     )
                     .map_err(|_| b"Code failed to load: {}".to_vec())?;
 
-                    // let code_hash = <[u8; 32]>::from(code.code_hash()).into();
-
-                    // common::set_original_code(code_hash, code.original_code());
-
-                    // common::set_code(code_hash, &code);
-
                     let _ = Self::set_code_with_metadata(&code, source);
 
                     ExtManager::<T>::default().set_program(program_id, code, root_message_id);
@@ -471,7 +454,10 @@ pub mod pallet {
             let dispatch = dispatch.into_stored();
 
             common::clear_dispatch_queue();
+            Self::reset_queue_len();
+
             common::queue_dispatch(dispatch);
+            Self::increase_queue_len();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -484,6 +470,8 @@ pub mod pallet {
             let mut max_gas_spent = 0;
 
             while let Some(queued_dispatch) = common::dequeue_dispatch() {
+                Self::decrease_queue_len();
+
                 let actor_id = queued_dispatch.destination();
                 let actor = ext_manager
                     .get_executable_actor(actor_id.into_origin())
@@ -536,6 +524,18 @@ pub mod pallet {
             }
 
             Ok(max_gas_spent)
+        }
+
+        pub(crate) fn reset_queue_len() {
+            MessageQueueLength::<T>::mutate(|x| *x = 0);
+        }
+
+        pub(crate) fn increase_queue_len() {
+            MessageQueueLength::<T>::mutate(|x| *x = x.saturating_add(1));
+        }
+
+        pub(crate) fn decrease_queue_len() {
+            MessageQueueLength::<T>::mutate(|x| *x = x.saturating_sub(1));
         }
 
         pub(crate) fn decrease_gas_allowance(gas_charge: u64) {
@@ -600,6 +600,8 @@ pub mod pallet {
 
             while Self::can_process_queue() {
                 if let Some(dispatch) = common::dequeue_dispatch() {
+                    Self::decrease_queue_len();
+
                     let msg_id = dispatch.id().into_origin();
                     let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
                         limit
@@ -612,6 +614,7 @@ pub mod pallet {
                         );
 
                         common::queue_dispatch(dispatch);
+                        Self::increase_queue_len();
 
                         // Since we requeue the message without GasHandler we have to take
                         // into account that there can left only such messages in the queue.
@@ -983,6 +986,7 @@ pub mod pallet {
                 .into_stored();
 
             common::queue_dispatch(dispatch);
+            Self::increase_queue_len();
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id,
@@ -1071,6 +1075,7 @@ pub mod pallet {
                 common::queue_dispatch(
                     message.into_stored_dispatch(ProgramId::from_origin(origin)),
                 );
+                Self::increase_queue_len();
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id: message_id.into_origin(),
@@ -1157,6 +1162,7 @@ pub mod pallet {
                     destination,
                     original_message.id(),
                 ));
+                Self::increase_queue_len();
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id: message_id.into_origin(),
@@ -1202,6 +1208,7 @@ pub mod pallet {
             <Mailbox<T>>::remove_all(None);
             GearProgramPallet::<T>::reset_storage();
             common::reset_storage();
+            Self::reset_queue_len();
 
             Self::deposit_event(Event::DatabaseWiped);
 
