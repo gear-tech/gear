@@ -37,8 +37,7 @@ use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
-        self, CustomSection, External, FuncBody, Instruction, Instructions, Module, Section,
-        ValueType,
+        self, CustomSection, FuncBody, Instruction, Instructions, Module, Section, ValueType,
     },
 };
 
@@ -263,65 +262,6 @@ impl<T: Config> WasmModule<T>
 where
     T: Config,
 {
-    /// Uses the supplied wasm module and instruments it when requested.
-    pub fn instrumented(code: &[u8], inject_gas: bool, inject_stack: bool) -> Self {
-        let module = {
-            let mut module = Module::from_bytes(code).unwrap();
-            if inject_gas {
-                module = inject_gas_metering::<T>(module);
-            }
-            if inject_stack {
-                module = inject_stack_metering::<T>(module);
-            }
-            module
-        };
-        let limits = *module
-            .import_section()
-            .unwrap()
-            .entries()
-            .iter()
-            .find_map(|e| {
-                if let External::Memory(mem) = e.external() {
-                    Some(mem)
-                } else {
-                    None
-                }
-            })
-            .unwrap()
-            .limits();
-        let code = module.to_bytes().unwrap();
-        let hash = T::Hashing::hash(&code);
-        let memory = ImportedMemory {
-            min_pages: limits.initial(),
-            max_pages: limits.maximum().unwrap(),
-        };
-        Self {
-            code,
-            hash,
-            memory: Some(memory),
-        }
-    }
-
-    /// Creates a wasm module with an empty `handle` and `init` function and nothing else.
-    pub fn dummy() -> Self {
-        ModuleDefinition::default().into()
-    }
-
-    /// Same as `dummy` but with maximum sized linear memory and a dummy section of specified size.
-    pub fn dummy_with_bytes(dummy_bytes: u32) -> Self {
-        // We want the module to have the size `dummy_bytes`.
-        // This is not completely correct as the overhead grows when the contract grows
-        // because of variable length integer encoding. However, it is good enough to be that
-        // close for benchmarking purposes.
-        let module_overhead = 65;
-        ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            dummy_section: dummy_bytes.saturating_sub(module_overhead),
-            ..Default::default()
-        }
-        .into()
-    }
-
     /// Creates a memory instance for use in a sandbox with dimensions declared in this module
     /// and adds it to `env`. A reference to that memory is returned so that it can be used to
     /// access the memory contents from the supervisor.
@@ -379,9 +319,6 @@ pub mod body {
     pub enum DynInstr {
         /// Insert the associated instruction.
         Regular(Instruction),
-        /// Insert a I32Const with incrementing value for each insertion.
-        /// (start_at, increment_by)
-        Counter(u32, u32),
         /// Insert a I32Const with a random value in [low, high) not divisible by two.
         /// (low, high)
         RandomUnaligned(u32, u32),
@@ -438,11 +375,6 @@ pub mod body {
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
-                DynInstr::Counter(offset, increment_by) => {
-                    let current = *offset;
-                    *offset += *increment_by;
-                    vec![Instruction::I32Const(current as i32)]
-                }
                 DynInstr::RandomUnaligned(low, high) => {
                     let unaligned = rng.gen_range(*low..*high) | 1;
                     vec![Instruction::I32Const(unaligned as i32)]
@@ -494,12 +426,6 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
-}
-
-fn inject_gas_metering<T: Config>(module: Module) -> Module {
-    let schedule = T::Schedule::get();
-    let gas_rules = schedule.rules(&module);
-    wasm_instrument::gas_metering::inject(module, &gas_rules, "env").unwrap()
 }
 
 fn inject_stack_metering<T: Config>(module: Module) -> Module {

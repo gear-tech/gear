@@ -81,16 +81,16 @@ fn populate_wait_list_with_split(
             StoredDispatch::new(DispatchKind::Handle, message, None),
             blk_num.try_into().unwrap(),
         );
-        if last_msg_id.is_none() {
+        if let Some(last_msg_id) = last_msg_id {
+            let _ = <Test as pallet_gear::Config>::GasHandler::split(
+                last_msg_id.into_origin(),
+                msg_id.into_origin(),
+            );
+        } else {
             let _ = <Test as pallet_gear::Config>::GasHandler::create(
                 user_id.into_origin(),
                 msg_id.into_origin(),
                 gas_limit,
-            );
-        } else {
-            let _ = <Test as pallet_gear::Config>::GasHandler::split(
-                last_msg_id.expect("Guaranteed to have value").into_origin(),
-                msg_id.into_origin(),
             );
         }
         last_msg_id = Some(msg_id);
@@ -502,11 +502,7 @@ fn trap_reply_message_is_sent() {
         // Populate wait list with 2 messages
         populate_wait_list(2, 10, 2, vec![1_100, 500]);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.into_parts().1, n))
-            .collect::<Vec<_>>();
-
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
@@ -653,11 +649,7 @@ fn dust_discarded_with_noop() {
         // Populate wait list with 2 messages
         populate_wait_list(1, 10, 1, vec![1_100]);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.into_parts().1, n))
-            .collect::<Vec<_>>();
-
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 1);
 
         run_to_block(15);
@@ -691,11 +683,7 @@ fn gas_properly_handled_for_trap_replies() {
         // Populate wait list with 2 messages
         populate_wait_list_with_split(2, 10, 3, 1_100);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.into_parts().1, n))
-            .collect::<Vec<_>>();
-
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
