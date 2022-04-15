@@ -381,6 +381,8 @@ fn unused_gas_released_back_works() {
 #[cfg(unix)]
 #[test]
 fn lazy_pages() {
+    use gear_runtime_interface as gear_gi;
+
     // This test access different pages in linear wasm memory
     // and check that lazy-pages (see gear-lazy-pages) works correct:
     // For each page, which has been loaded from storage <=> page has been accessed.
