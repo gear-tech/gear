@@ -45,6 +45,7 @@ impl ContextSettings {
     pub fn new(sending_fee: u64, outgoing_limit: u32) -> Self {
         Self {
             sending_fee,
+            /// Number of inited programs before LimitExceeded, 1024 by default
             outgoing_limit,
         }
     }

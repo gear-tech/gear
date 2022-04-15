@@ -24,7 +24,10 @@ use codec::{Decode, Encode};
 use core::ops::Deref;
 use scale_info::TypeInfo;
 
-/// Message.
+/// Message 
+/// 
+/// It is a structure for message between actors. 
+/// Is is super class for InitMessage, ReplyMessage, HandleMessage.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct Message {
     /// Message id.

@@ -27,6 +27,8 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Reply message.
+/// 
+/// This message subclass specialized to be used in context::MessageContext::reply_commit method
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyMessage {
     /// Message id.
