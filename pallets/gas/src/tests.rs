@@ -303,4 +303,67 @@ mod tests {
             assert_eq!(Gas::get_origin(split_1_1_1), Some(origin));
         });
     }
+
+    #[test]
+    fn subtree_gas_limit_remains_intact() {
+        // Consider the following gas tree configuration:
+        //
+        //                          root
+        //                      (external: 200)
+        //                            |
+        //                            |
+        //                          node_1
+        //                     (specified: 300)
+        //                      /           \
+        //                     /             \
+        //                 node_2           node_3
+        //            (specified: 250)    (unspecified)
+        //             /           \
+        //            /             \
+        //        node_4           node_5
+        //    (unspecified)    (specified: 250)
+        //
+        // Total value locked in the tree is 1000.
+        // node_3 defines the gas limit for its child nodes with unspecified limit (node_4)
+        // node_1 defines the gas limit for its right subtree - node_3
+        // Regardless which nodes are consumed first, the gas limit of each "unspecified" node
+        // must remain exactly as it was initially set: not more, not less.
+        //
+        // In the test scenario node_1 is consumed first, and then node_2 is consumed.
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let origin = H256::random();
+            let root = H256::random();
+            let node_1 = H256::random();
+            let node_2 = H256::random();
+            let node_3 = H256::random();
+            let node_4 = H256::random();
+            let node_5 = H256::random();
+
+            // Prepare the initial configuration
+            assert_ok!(Gas::create(origin, root, 1000));
+            assert_ok!(Gas::split_with_value(root, node_1, 800));
+            assert_ok!(Gas::split_with_value(node_1, node_2, 500));
+            assert_ok!(Gas::split(node_1, node_3));
+            assert_ok!(Gas::split(node_2, node_4));
+            assert_ok!(Gas::split_with_value(node_2, node_5, 250));
+
+            // Check gas limits in the beginning
+            assert_eq!(Gas::get_limit(root), Some((200, root)));
+            assert_eq!(Gas::get_limit(node_1), Some((300, node_1)));
+            assert_eq!(Gas::get_limit(node_2), Some((250, node_2)));
+            assert_eq!(Gas::get_limit(node_3), Some((300, node_1))); // defined by parent
+            assert_eq!(Gas::get_limit(node_4), Some((250, node_2))); // defined by parent
+            assert_eq!(Gas::get_limit(node_5), Some((250, node_5)));
+
+            // Consume node_1
+            assert!(matches!(Gas::consume(node_1), None));
+            // Expect gas limit of the node_3 to remain unchanged
+            assert_eq!(Gas::get_limit(node_3), Some((300, node_1)));
+
+            // Consume node_2
+            assert!(matches!(Gas::consume(node_2), None));
+            // Expect gas limit of the node_4 to remain unchanged
+            assert_eq!(Gas::get_limit(node_4), Some((250, node_2)));
+        });
+    }
 }
