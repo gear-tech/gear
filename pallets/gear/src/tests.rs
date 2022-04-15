@@ -381,7 +381,9 @@ fn unused_gas_released_back_works() {
 #[cfg(unix)]
 #[test]
 fn lazy_pages() {
-    use gear_runtime_interface as gear_gi;
+    use gear_core::memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber};
+    use gear_runtime_interface as gear_ri;
+    use std::collections::BTreeSet;
 
     // This test access different pages in linear wasm memory
     // and check that lazy-pages (see gear-lazy-pages) works correct:
