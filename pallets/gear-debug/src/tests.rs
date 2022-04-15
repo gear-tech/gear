@@ -88,7 +88,7 @@ fn debug_mode_works() {
         let program_id_2 = generate_program_id(&code_2);
 
         PalletGear::<Test>::submit_program(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             code_1.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -123,7 +123,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::submit_program(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -166,7 +166,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             program_id_1,
             vec![],
             1_000_000_u64,
@@ -177,7 +177,7 @@ fn debug_mode_works() {
         let message_id_1 = get_last_message_id();
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             program_id_2,
             vec![],
             1_000_000_u64,
