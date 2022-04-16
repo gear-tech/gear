@@ -194,6 +194,8 @@ impl<E: Ext> LaterExt<E> {
 #[cfg(test)]
 /// This module contains tests of interacting with LaterExt
 mod tests {
+    // todo #841 remove most of tests
+
     use super::*;
 
     /// Struct with internal value to interact with LaterExt
@@ -306,13 +308,13 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::redundant_clone)]
     /// Test that ext's clone still refers to the same inner object as the original one
     fn ext_cloning() {
         let ext_source = LaterExt::new(ExtImplementedStruct(0));
         let ext_clone = ext_source.clone();
 
         // ext_clone refers the same inner as ext_source,
-        // so setting on one causes setting on other
         let inner = ext_clone.take();
 
         assert_eq!(inner, Some(ExtImplementedStruct(0)));
