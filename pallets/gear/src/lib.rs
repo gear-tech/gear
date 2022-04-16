@@ -70,7 +70,10 @@ pub mod pallet {
     use super::*;
 
     use alloc::format;
-    use common::{self, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState};
+    use common::{
+        self, CodeMetadata, CodeStorageTrait, DAGBasedLedger, GasPrice, Origin, Program,
+        ProgramState,
+    };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
@@ -131,6 +134,8 @@ pub mod pallet {
         type WaitListFeePerBlock: Get<u64>;
 
         type DebugInfo: DebugInfo;
+
+        type CodeStorage: CodeStorageTrait;
     }
 
     type BalanceOf<T> =
@@ -210,8 +215,6 @@ pub mod pallet {
         ValueLessThanMinimal,
         /// Unable to intrument program code
         GasInstrumentationFailed,
-        /// No code could be found at the supplied code hash.
-        CodeNotFound,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -405,13 +408,15 @@ pub mod pallet {
                     .map_err(|_| b"Code failed to load: {}".to_vec())?;
 
                     let code_and_id = CodeAndId::new(code);
+                    let code_id = code_and_id.code_id();
+                    let static_pages = code_and_id.code().static_pages();
 
-                    let _ = Self::set_code_with_metadata(&code_and_id, source);
+                    let _ = Self::set_code_with_metadata(code_and_id, source);
 
                     ExtManager::<T>::default().set_program(
                         program_id,
-                        code_and_id.code_id(),
-                        code_and_id.code().static_pages(),
+                        code_id,
+                        static_pages,
                         root_message_id,
                     );
 
@@ -638,16 +643,18 @@ pub mod pallet {
                         // Check whether message should be added to the wait list
                         if let Program::Active(prog) = maybe_active_program {
                             let schedule = T::Schedule::get();
-                            let code = if let Some(code) = common::get_code(prog.code_hash) {
+                            let code_id = CodeId::from_origin(prog.code_hash);
+                            let code_and_id = if let Some(code) = T::CodeStorage::get_code(code_id)
+                            {
                                 if code.instruction_weights_version()
                                     == schedule.instruction_weights.version
                                 {
-                                    code
-                                } else if let Ok(_code_size) =
-                                    Self::reinstrument_code(prog.code_hash, &schedule)
+                                    CodeAndId::from_parts_unchecked(code, code_id)
+                                } else if let Ok(code_and_id) =
+                                    Self::reinstrument_code(code_id, code, &schedule)
                                 {
                                     // todo: charge for code instrumenting
-                                    code
+                                    code_and_id
                                 } else {
                                     // todo: mark code as unable for instrument to skip next time
                                     continue;
@@ -655,7 +662,7 @@ pub mod pallet {
                             } else {
                                 log::debug!(
                                     "Code '{:?}' not found for program '{:?}'",
-                                    prog.code_hash,
+                                    code_id,
                                     program_id
                                 );
 
@@ -682,11 +689,7 @@ pub mod pallet {
 
                             let native_program = NativeProgram::from_parts(
                                 program_id,
-                                CodeAndId::from_parts_unchecked(
-                                    code,
-                                    CodeId::from_origin(prog.code_hash),
-                                )
-                                .into(),
+                                code_and_id.into(),
                                 prog.persistent_pages,
                                 matches!(prog.state, ProgramState::Initialized),
                             );
@@ -757,34 +760,28 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        fn set_code_with_metadata(code_and_id: &CodeAndId, who: H256) -> Result<H256, Error<T>> {
+        fn set_code_with_metadata(code_and_id: CodeAndId, who: H256) -> Result<H256, Error<T>> {
             let hash: H256 = code_and_id.code_id().into_origin();
-
-            ensure!(!common::code_exists(hash), Error::<T>::CodeAlreadyExists);
-
-            common::set_code(hash, code_and_id.code());
 
             let metadata = {
                 let block_number =
                     <frame_system::Pallet<T>>::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
-            common::set_code_metadata(hash, metadata);
+
+            T::CodeStorage::add_code(code_and_id, metadata)
+                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Ok(hash)
         }
 
         fn reinstrument_code(
-            code_hash: H256,
+            code_id: CodeId,
+            code: Code,
             schedule: &Schedule<T>,
-        ) -> Result<u32, DispatchError> {
-            let original_code =
-                common::get_original_code(code_hash).ok_or(Error::<T>::CodeNotFound)?;
-
-            let original_code_len = original_code.len();
-
+        ) -> Result<CodeAndId, DispatchError> {
             let code = Code::try_new(
-                original_code,
+                code.into_raw_code(),
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
@@ -793,8 +790,10 @@ pub mod pallet {
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            common::set_code(code_hash, &code);
-            Ok(original_code_len as u32)
+            let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
+            T::CodeStorage::update_code(code_and_id.clone());
+
+            Ok(code_and_id)
         }
     }
 
@@ -834,7 +833,7 @@ pub mod pallet {
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let code_hash = Self::set_code_with_metadata(&CodeAndId::new(code), who.into_origin())?;
+            let code_hash = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 
@@ -934,20 +933,18 @@ pub mod pallet {
 
             let origin = who.into_origin();
 
+            let code_id = code_and_id.code_id();
+            let static_pages = code_and_id.code().static_pages();
+
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code_and_id, origin) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(
-                program_id,
-                code_and_id.code_id(),
-                code_and_id.code().static_pages(),
-                message_id,
-            );
+            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));

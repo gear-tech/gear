@@ -21,7 +21,7 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{ActiveProgram, DAGBasedLedger, GasPrice, Origin, Program};
+use common::{ActiveProgram, CodeStorageTrait, DAGBasedLedger, GasPrice, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -77,10 +77,11 @@ where
         let program = common::get_program(id).and_then(|p| {
             let is_initialized = p.is_initialized();
             p.try_into().ok().and_then(|p: ActiveProgram| {
-                common::get_code(p.code_hash).map(|c| {
+                let code_id = CodeId::from_origin(p.code_hash);
+                T::CodeStorage::get_code(code_id).map(|c| {
                     NativeProgram::from_parts(
                         ProgramId::from_origin(id),
-                        CodeAndId::from_parts_unchecked(c, CodeId::from_origin(p.code_hash)).into(),
+                        CodeAndId::from_parts_unchecked(c, code_id).into(),
                         p.persistent_pages,
                         is_initialized,
                     )
@@ -102,9 +103,8 @@ where
         static_pages: WasmPageNumber,
         message_id: H256,
     ) {
-        let code_hash: H256 = code_id.into_origin();
         assert!(
-            common::code_exists(code_hash),
+            T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",
         );
 
@@ -112,7 +112,7 @@ where
         let program = common::ActiveProgram {
             static_pages,
             persistent_pages: Default::default(),
-            code_hash,
+            code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
         };
 
@@ -502,9 +502,7 @@ where
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        let code_hash = <[u8; 32]>::from(code_id).into();
-
-        if let Some(code) = common::get_code(code_hash) {
+        if let Some(code) = T::CodeStorage::get_code(code_id) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
                     self.set_program(
@@ -520,7 +518,7 @@ where
         } else {
             log::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
             for (candidate, _) in candidates {
                 self.marked_destinations.insert(candidate);

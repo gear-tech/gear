@@ -23,6 +23,7 @@ use alloc::vec::Vec;
 use anyhow::Result;
 use codec::{Decode, Encode};
 use parity_wasm::elements::Module;
+use scale_info::TypeInfo;
 use wasm_instrument::gas_metering::Rules;
 
 /// Instrumentation error.
@@ -49,7 +50,7 @@ pub enum CodeError {
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct Code {
     /// Code instrumented with the latest schedule.
     code: Vec<u8>,
@@ -123,6 +124,11 @@ impl Code {
     /// Returns initial memory size from memory import.
     pub fn static_pages(&self) -> WasmPageNumber {
         self.static_pages
+    }
+
+    /// Consumes this instance and returns the raw binary code.
+    pub fn into_raw_code(self) -> Vec<u8> {
+        self.raw_code
     }
 }
 
