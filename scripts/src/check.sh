@@ -15,7 +15,6 @@ check_usage() {
 
     gear           check gear workspace compile
     examples       check gear program examples compile
-    benchmark      check benchmarks compile
 
 EOF
 }
@@ -29,11 +28,4 @@ examples_check() {
   cd "$1"/examples
   CARGO_TARGET_DIR="$2" cargo +nightly hack check --release --workspace
   cd "$1"
-}
-
-benchmark_check() {
-  cargo check --features=runtime-benchmarks "$@" \
-    -p gear-node \
-    -p pallet-gear \
-    -p gear-runtime
 }

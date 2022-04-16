@@ -81,16 +81,16 @@ fn populate_wait_list_with_split(
             StoredDispatch::new(DispatchKind::Handle, message, None),
             blk_num.try_into().unwrap(),
         );
-        if last_msg_id.is_none() {
+        if let Some(last_msg_id) = last_msg_id {
+            let _ = <Test as pallet_gear::Config>::GasHandler::split(
+                last_msg_id.into_origin(),
+                msg_id.into_origin(),
+            );
+        } else {
             let _ = <Test as pallet_gear::Config>::GasHandler::create(
                 user_id.into_origin(),
                 msg_id.into_origin(),
                 gas_limit,
-            );
-        } else {
-            let _ = <Test as pallet_gear::Config>::GasHandler::split(
-                last_msg_id.expect("Guaranteed to have value").into_origin(),
-                msg_id.into_origin(),
             );
         }
         last_msg_id = Some(msg_id);
@@ -502,11 +502,7 @@ fn trap_reply_message_is_sent() {
         // Populate wait list with 2 messages
         populate_wait_list(2, 10, 2, vec![1_100, 500]);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.into_parts().1, n))
-            .collect::<Vec<_>>();
-
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
@@ -653,11 +649,7 @@ fn dust_discarded_with_noop() {
         // Populate wait list with 2 messages
         populate_wait_list(1, 10, 1, vec![1_100]);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.into_parts().1, n))
-            .collect::<Vec<_>>();
-
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 1);
 
         run_to_block(15);
@@ -681,21 +673,17 @@ fn dust_discarded_with_noop() {
 fn gas_properly_handled_for_trap_replies() {
     init_logger();
     new_test_ext().execute_with(|| {
-        // 1st user has just above `T::TrapReplyExistentialGasLimit` reserved
-        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&1, 1_100));
-        // 2nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
-        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&2, 500));
+        // 3st user has just above `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&3, 1_100));
+        // 4nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&4, 500));
 
         run_to_block(10);
 
         // Populate wait list with 2 messages
-        populate_wait_list_with_split(2, 10, 1, 1_100);
+        populate_wait_list_with_split(2, 10, 3, 1_100);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.into_parts().1, n))
-            .collect::<Vec<_>>();
-
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
@@ -743,22 +731,22 @@ fn gas_properly_handled_for_trap_replies() {
         // Both messages should have been removed from wait list
         assert_eq!(wait_list_contents().len(), 0);
 
-        // 100 gas spent for rent payment by 1st message => total_issuance = 1000
-        assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
-            1000
-        );
+        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
+            ProgramId::from(3).into_origin()
+        ));
+        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
+            ProgramId::from(4).into_origin()
+        ));
 
-        // Upon queue processing in the following block all the gas must be consumed or spent
-        run_to_block(16);
+        // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::total_issuance(),
             0
         );
 
         // Ensure the message sender has the funds unreserved
-        assert_eq!(Balances::reserved_balance(&1), 0);
-        assert_eq!(Balances::free_balance(&1), 999_900); // Initital 1_000_000 less 100 paid for rent
+        assert_eq!(Balances::reserved_balance(&3), 0);
+        assert_eq!(Balances::free_balance(&3), 999_900); // Initital 1_000_000 less 100 paid for rent
         assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 201); // Initial 101 + 100 charged for rent
     });
 }
