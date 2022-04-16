@@ -508,8 +508,8 @@ fn trap_reply_message_is_sent() {
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
-        let _program_1 = crate::mock::set_program(1.into());
-        let _program_2 = crate::mock::set_program(2.into());
+        let _program_1 = crate::mock::set_program::<Test>(1.into(), [0; 32].into(), 10);
+        let _program_2 = crate::mock::set_program::<Test>(2.into(), [0; 32].into(), 10);
 
         run_to_block(15);
 
@@ -676,8 +676,8 @@ fn gas_properly_handled_for_trap_replies() {
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
-        let _program_1 = crate::mock::set_program(1.into());
-        let _program_2 = crate::mock::set_program(2.into());
+        let _program_1 = crate::mock::set_program::<Test>(1.into(), [0; 32].into(), 10);
+        let _program_2 = crate::mock::set_program::<Test>(2.into(), [0; 32].into(), 10);
 
         run_to_block(15);
 

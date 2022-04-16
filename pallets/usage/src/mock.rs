@@ -18,7 +18,7 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use common::Origin as _;
+use common::{Origin as _, CodeMetadata, CodeStorageTrait};
 use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
@@ -137,6 +137,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type Schedule = ();
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}
@@ -268,7 +269,7 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     storage_value_ref.get::<T>().ok().flatten()
 }
 
-pub(crate) fn set_program(program_id: ProgramId) -> Program {
+pub(crate) fn set_program<T: pallet_gear::Config>(program_id: ProgramId, who: H256, bn: u32) -> Program {
     let code = Code::try_new(
         hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
         1,
@@ -279,9 +280,7 @@ pub(crate) fn set_program(program_id: ProgramId) -> Program {
     let code_and_id = CodeAndId::new(code);
 
     let code_hash = code_and_id.code_id().into_origin();
-    if !common::code_exists(code_hash) {
-        common::set_code(code_hash, code_and_id.code());
-    }
+    let _ = T::CodeStorage::add_code(code_and_id.clone(), CodeMetadata::new(who, bn));
 
     let program = Program::new(program_id, code_and_id.into());
 
