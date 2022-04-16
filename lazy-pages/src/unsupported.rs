@@ -18,6 +18,8 @@
 
 //! Lazy pages for unsupported OS.
 
+/// # Safety
+/// Safe because always returns `false`
 pub unsafe fn init_lazy_pages() -> bool {
-    return false;
+    false
 }

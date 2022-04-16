@@ -316,9 +316,6 @@ pub(crate) fn decode_txs(pool: Arc<RwLock<PoolState>>) -> Vec<Extrinsic> {
         .transactions
         .iter()
         .cloned()
-        .map(|bytes| {
-            let tx = Extrinsic::decode(&mut &bytes[..]).unwrap();
-            tx
-        })
+        .map(|bytes| Extrinsic::decode(&mut &bytes[..]).unwrap())
         .collect::<Vec<_>>()
 }

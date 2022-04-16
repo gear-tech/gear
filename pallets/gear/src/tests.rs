@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeSet;
-
 use codec::Encode;
 use common::{self, CodeStorageTrait, DAGBasedLedger, GasPrice as _, Origin as _};
 use demo_distributor::{Request, WASM_BINARY};
@@ -27,9 +25,7 @@ use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
     ids::CodeId,
-    memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber},
 };
-use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
 use super::{
@@ -388,6 +384,10 @@ fn unused_gas_released_back_works() {
 #[cfg(unix)]
 #[test]
 fn lazy_pages() {
+    use gear_core::memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber};
+    use gear_runtime_interface as gear_ri;
+    use std::collections::BTreeSet;
+
     // This test access different pages in linear wasm memory
     // and check that lazy-pages (see gear-lazy-pages) works correct:
     // For each page, which has been loaded from storage <=> page has been accessed.
@@ -481,7 +481,7 @@ fn lazy_pages() {
             let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
             wasm_pages_to_pages_set(all_wasm_pages.iter())
         };
-        let mut res_pages = lazy_pages.clone();
+        let mut res_pages = lazy_pages;
         res_pages.extend(released_pages.iter());
 
         assert_eq!(res_pages, all_pages);
