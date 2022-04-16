@@ -324,6 +324,7 @@ impl CodeMetadata {
 }
 
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
+#[deprecated]
 enum CodeKeyPrefixKind {
     // "g::code::orig"
     OriginalCode,
@@ -340,6 +341,7 @@ pub fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
+#[deprecated]
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::OriginalCode => STORAGE_ORIGINAL_CODE_PREFIX,
@@ -383,11 +385,13 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     key
 }
 
+#[deprecated]
 pub fn get_code(code_hash: H256) -> Option<Code> {
     sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::Code))
         .map(|bytes| Code::decode(&mut &bytes[..]).expect("Code encoded correctly; qed"))
 }
 
+#[deprecated]
 pub fn set_code(code_hash: H256, code: &Code) {
     sp_io::storage::set(
         &code_key(code_hash, CodeKeyPrefixKind::Code),
@@ -395,14 +399,17 @@ pub fn set_code(code_hash: H256, code: &Code) {
     )
 }
 
+#[deprecated]
 pub fn get_original_code(code_hash: H256) -> Option<Vec<u8>> {
     sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode))
 }
 
+#[deprecated]
 pub fn set_original_code(code_hash: H256, code: &[u8]) {
     sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode), code)
 }
 
+#[deprecated]
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
     sp_io::storage::set(
         &code_key(code_hash, CodeKeyPrefixKind::CodeMetadata),
@@ -410,6 +417,7 @@ pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
     )
 }
 
+#[deprecated]
 pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
     sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeMetadata))
         .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
@@ -583,6 +591,7 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     messages.unwrap_or_default()
 }
 
+#[deprecated]
 pub fn code_exists(code_hash: H256) -> bool {
     sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::Code))
 }
