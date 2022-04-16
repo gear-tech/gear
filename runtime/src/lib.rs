@@ -354,6 +354,7 @@ impl pallet_gear::Config for Runtime {
     type BlockGasLimit = BlockGasLimit;
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
+    type CodeStorage = GearProgram;
 }
 
 #[cfg(feature = "debug-mode")]

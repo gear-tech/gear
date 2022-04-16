@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{ActiveProgram, Origin as _, ProgramState, CodeStorageTrait};
+use common::{ActiveProgram, CodeStorageTrait, Origin as _, ProgramState};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
@@ -45,8 +45,7 @@ fn pause_program_works() {
         let code_id = code_and_id.code_id();
         let code_hash = code_id.into_origin();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1))
-            .unwrap();
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let wasm_static_pages = WasmPageNumber(16);
         let static_pages = wasm_static_pages.to_gear_pages();
@@ -151,8 +150,7 @@ fn pause_program_twice_fails() {
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1))
-            .unwrap();
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
         let static_pages = 256;
@@ -189,8 +187,7 @@ fn pause_terminated_program_fails() {
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1))
-            .unwrap();
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
         let static_pages = 256;
@@ -453,8 +450,7 @@ mod utils {
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1))
-            .unwrap();
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let static_pages = wasm_static_pages.to_gear_pages();
         let memory_pages = {

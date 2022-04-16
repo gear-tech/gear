@@ -18,7 +18,7 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use common::{Origin as _, CodeMetadata, CodeStorageTrait};
+use common::{CodeMetadata, CodeStorageTrait, Origin as _};
 use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
@@ -269,7 +269,11 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     storage_value_ref.get::<T>().ok().flatten()
 }
 
-pub(crate) fn set_program<T: pallet_gear::Config>(program_id: ProgramId, who: H256, bn: u32) -> Program {
+pub(crate) fn set_program<T: pallet_gear::Config>(
+    program_id: ProgramId,
+    who: H256,
+    bn: u32,
+) -> Program {
     let code = Code::try_new(
         hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
         1,
