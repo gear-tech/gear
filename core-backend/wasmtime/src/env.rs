@@ -302,19 +302,19 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                             mem_addr,
                         )
                     })?;
-            let gas_amount = info.gas_amount.clone();
 
             // Entry function not found, so we mean this as empty function
-            return post_execution_handler(wasm_memory_addr)
-                .map(|_| BackendReport {
+            return match post_execution_handler(wasm_memory_addr) {
+                Ok(_) => Ok(BackendReport {
                     termination: TerminationReason::Success,
                     info,
-                })
-                .map_err(|e| BackendError {
+                }),
+                Err(e) => Err(BackendError {
                     reason: e,
                     description: None,
-                    gas_amount,
-                });
+                    gas_amount: info.gas_amount,
+                }),
+            };
         };
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
@@ -327,7 +327,6 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                         mem_addr,
                     )
                 })?;
-        let gas_amount = info.gas_amount.clone();
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
@@ -356,13 +355,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        post_execution_handler(wasm_memory_addr)
-            .map(|_| BackendReport { termination, info })
-            .map_err(|e| BackendError {
+        match post_execution_handler(wasm_memory_addr) {
+            Ok(_) => Ok(BackendReport { termination, info }),
+            Err(e) => Err(BackendError {
                 reason: e,
                 description: None,
-                gas_amount,
-            })
+                gas_amount: info.gas_amount,
+            }),
+        }
     }
 
     fn into_gas_amount(self) -> GasAmount {

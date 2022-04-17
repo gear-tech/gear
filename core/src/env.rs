@@ -145,12 +145,12 @@ pub trait Ext {
 }
 
 /// Basic struct for interacting with external API, provided to the program.
-/// 
+///
 /// Stores `Ext` type and manages it with reference counter. RC is used to make the carrier
 /// optionally clone-able.
-/// 
-/// The struct can't be instantiated outside the module although it has `pub` visibility. 
-/// This is done intentionally in order to provide dereference to it for wrappers which 
+///
+/// The struct can't be instantiated outside the module although it has `pub` visibility.
+/// This is done intentionally in order to provide dereference to it for wrappers which
 /// are used outside the module ([`ExtCarrier`], [`ReplicableExtCarrier`]) and to reduce
 /// repetitiveness of `with`/`with_fallible` methods.  
 // TODO #852 type will be redundant after resolving the issue.
@@ -189,7 +189,7 @@ impl<E: Ext> BaseExtCarrier<E> {
 }
 
 /// Struct for interacting with Ext.
-/// 
+///
 /// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
 pub struct ExtCarrier<E: Ext>(BaseExtCarrier<E>); // todo [sab] remove Rc
 
@@ -217,7 +217,7 @@ impl<E: Ext> Deref for ExtCarrier<E> {
 }
 
 /// "Clone-able" struct for interacting with Ext.
-/// 
+///
 /// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
 // TODO #852 type will be redundant after resolving the issue.
 pub struct ReplicableExtCarrier<E: Ext>(BaseExtCarrier<E>);
@@ -229,8 +229,8 @@ impl<E: Ext> ReplicableExtCarrier<E> {
     }
 
     /// Take ownership over wrapped ext.
-    /// 
-    /// Because of the fact that the type is actually a wrapper over `Rc`, 
+    ///
+    /// Because of the fact that the type is actually a wrapper over `Rc`,
     /// we have no guarantee that `take` can be called only once on the same
     /// data. That's why `Option<E>` is returned instead of `E` as in [`ExtCarrier`]
     pub fn take(self) -> Option<E> {
@@ -366,10 +366,7 @@ mod tests {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
 
-        assert_eq!(
-            ext.0.inner,
-            Rc::new(RefCell::new(Some(ext_implementer)))
-        );
+        assert_eq!(ext.0.inner, Rc::new(RefCell::new(Some(ext_implementer))));
 
         let inner = ext.take();
 
@@ -384,7 +381,7 @@ mod tests {
         let r_ext = ReplicableExtCarrier::new(ext_implementer);
 
         assert!(ext.with(converter).is_ok());
-        assert!(r_ext.with(converter).is_ok());        
+        assert!(r_ext.with(converter).is_ok());
     }
 
     #[test]

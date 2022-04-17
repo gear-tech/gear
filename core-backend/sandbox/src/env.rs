@@ -248,14 +248,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             TerminationReason::Success
         };
 
-        let gas_amount = info.gas_amount.clone();
-        post_execution_handler(wasm_memory_addr)
-            .map(|_| BackendReport { termination, info })
-            .map_err(|e| BackendError {
+        match post_execution_handler(wasm_memory_addr) {
+            Ok(_) => Ok(BackendReport { termination, info }),
+            Err(e) => Err(BackendError {
                 reason: e,
                 description: None,
-                gas_amount,
-            })
+                gas_amount: info.gas_amount,
+            }),
+        }
     }
 
     fn into_gas_amount(self) -> GasAmount {
