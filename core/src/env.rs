@@ -27,7 +27,7 @@ use alloc::rc::Rc;
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
-// use core::ops::Deref; todo [sab] try with it
+use core::ops::Deref;
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -144,25 +144,35 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str>;
 }
 
-struct BaseLaterExt<E: Ext> {
+/// Basic struct for interacting with external API, provided to the program.
+/// 
+/// Stores `Ext` type and manages it with reference counter. RC is used to make the carrier
+/// optionally clone-able.
+/// 
+/// The struct can't be instantiated outside the module although it has `pub` visibility. 
+/// This is done intentionally in order to provide dereference to it for wrappers which 
+/// are used outside the module ([`ExtCarrier`], [`ReplicableExtCarrier`]) and to reduce
+/// repetitiveness of `with`/`with_fallible` methods.  
+// TODO #852 type will be redundant after resolving the issue.
+pub struct BaseExtCarrier<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
 }
 
-impl<E: Ext> BaseLaterExt<E> {
-    /// New ext
+impl<E: Ext> BaseExtCarrier<E> {
+    // New base ext carrier
     fn new(e: E) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Some(e))),
         }
     }
 
-    /// Call fn with inner ext
-    fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+    /// Calls infallible fn with inner ext
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         self.with_fallible(|e| Ok(f(e)))
     }
 
-    /// Call fn with inner ext
-    fn with_fallible<R>(
+    /// Calls fallible fn with inner ext
+    pub fn with_fallible<R>(
         &self,
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
@@ -176,88 +186,72 @@ impl<E: Ext> BaseLaterExt<E> {
 
         res
     }
-
-    /// Unset inner ext
-    fn take(self) -> Option<E> {
-        self.inner.borrow_mut().take()
-    }
 }
 
-/// Struct for interacting with Ext
-pub struct ExtCarrier<E: Ext> {
-    base_ext: BaseLaterExt<E>,
-}
+/// Struct for interacting with Ext.
+/// 
+/// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
+pub struct ExtCarrier<E: Ext>(BaseExtCarrier<E>); // todo [sab] remove Rc
 
 impl<E: Ext> ExtCarrier<E> {
-    /// New ext
+    /// New ext carrier
     pub fn new(e: E) -> Self {
-        Self {
-            base_ext: BaseLaterExt::new(e),
-        }
+        Self(BaseExtCarrier::new(e))
     }
 
-    /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
-        self.base_ext.with(f)
-    }
-
-    /// Call fn with inner ext
-    pub fn with_fallible<R>(
-        &self,
-        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
-    ) -> Result<R, &'static str> {
-        self.base_ext.with_fallible(f)
-    }
-
-    /// Unset inner ext
+    /// Take ownership over wrapped ext.
     pub fn take(self) -> E {
-        self.base_ext
+        let BaseExtCarrier { inner } = self.0;
+        inner
             .take()
-            .expect("method can be called only once with no clones around; qed")
+            .expect("can be called only once during instance consumption; qed")
     }
 }
 
-/// Struct for interacting with Ext. Cloneable
-pub struct ReplicableExtCarrier<E: Ext> {
-    base_ext: BaseLaterExt<E>,
+impl<E: Ext> Deref for ExtCarrier<E> {
+    type Target = BaseExtCarrier<E>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
+
+/// "Clone-able" struct for interacting with Ext.
+/// 
+/// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
+// TODO #852 type will be redundant after resolving the issue.
+pub struct ReplicableExtCarrier<E: Ext>(BaseExtCarrier<E>);
 
 impl<E: Ext> ReplicableExtCarrier<E> {
-    /// New ext
+    /// New clone-able ext carrier
     pub fn new(e: E) -> Self {
-        Self {
-            base_ext: BaseLaterExt::new(e),
-        }
+        Self(BaseExtCarrier::new(e))
     }
 
-    /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
-        self.base_ext.with(f)
-    }
-
-    /// Call fn with inner ext
-    pub fn with_fallible<R>(
-        &self,
-        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
-    ) -> Result<R, &'static str> {
-        self.base_ext.with_fallible(f)
-    }
-
-    /// Unset inner ext
+    /// Take ownership over wrapped ext.
+    /// 
+    /// Because of the fact that the type is actually a wrapper over `Rc`, 
+    /// we have no guarantee that `take` can be called only once on the same
+    /// data. That's why `Option<E>` is returned instead of `E` as in [`ExtCarrier`]
     pub fn take(self) -> Option<E> {
-        self.base_ext.take()
+        self.0.inner.take()
+    }
+}
+
+impl<E: Ext> Deref for ReplicableExtCarrier<E> {
+    type Target = BaseExtCarrier<E>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
 impl<E: Ext> Clone for ReplicableExtCarrier<E> {
     fn clone(&self) -> Self {
-        let base_ext = {
-            let BaseLaterExt { inner } = &self.base_ext;
-            BaseLaterExt {
-                inner: inner.clone(),
-            }
-        };
-        Self { base_ext }
+        let BaseExtCarrier { inner } = &self.0;
+        Self(BaseExtCarrier {
+            inner: inner.clone(),
+        })
     }
 }
 
