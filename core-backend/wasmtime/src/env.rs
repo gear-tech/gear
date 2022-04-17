@@ -51,11 +51,11 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
     instance: Instance,
 }
 
-// todo [sab] новый issue
+// TODO #852 remove after resolving the issue
 fn get_current_gas_state<E: Ext + IntoExtInfo>(
-    later_ext: ReplicableExtCarrier<E>,
+    ext_carrier: ReplicableExtCarrier<E>,
 ) -> Option<GasAmount> {
-    later_ext.take().map(IntoExtInfo::into_gas_amount)
+    ext_carrier.take().map(IntoExtInfo::into_gas_amount)
 }
 
 fn set_pages<T: Ext>(
@@ -113,11 +113,11 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let later_ext = ReplicableExtCarrier::new(ext);
+        let ext_carrier = ReplicableExtCarrier::new(ext);
 
         let engine = Engine::default();
         let store_data = StoreData {
-            ext: later_ext.clone(),
+            ext: ext_carrier.clone(),
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
@@ -128,7 +128,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Create env memory failed",
                     description: Some(e.to_string().into()),
-                    gas_amount: get_current_gas_state(later_ext)
+                    gas_amount: get_current_gas_state(ext_carrier)
                         .expect("existing clone is not taken"),
                 })
             }
@@ -184,7 +184,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to create module",
                     description: Some(e.to_string().into()),
-                    gas_amount: get_current_gas_state(later_ext)
+                    gas_amount: get_current_gas_state(ext_carrier)
                         .expect("existing clone is not taken"),
                 })
             }
@@ -198,7 +198,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     description: import
                         .name()
                         .map(|v| format!("Function {:?} is not env", v).into()),
-                    gas_amount: get_current_gas_state(later_ext)
+                    gas_amount: get_current_gas_state(ext_carrier)
                         .expect("existing clone is not taken"),
                 });
             }
@@ -224,7 +224,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     reason: "Missing import",
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: get_current_gas_state(later_ext)
+                    gas_amount: get_current_gas_state(ext_carrier)
                         .expect("existing clone is not taken"),
                 });
             }
@@ -236,7 +236,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to create instance",
                     description: Some(e.to_string().into()),
-                    gas_amount: get_current_gas_state(later_ext)
+                    gas_amount: get_current_gas_state(ext_carrier)
                         .expect("existing clone is not taken"),
                 })
             }
@@ -247,13 +247,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             return Err(BackendError {
                 reason: "Unable to set module memory data",
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: get_current_gas_state(later_ext).expect("existing clone is not taken"),
+                gas_amount: get_current_gas_state(ext_carrier)
+                    .expect("existing clone is not taken"),
             });
         }
 
         Ok(WasmtimeEnvironment {
             store,
-            ext: later_ext,
+            ext: ext_carrier,
             memory,
             instance,
         })

@@ -79,7 +79,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let later_ext = ExtCarrier::new(ext);
+        let ext_carrier = ExtCarrier::new(ext);
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
@@ -87,7 +87,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Create env memory fail",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: later_ext.take().into_gas_amount(),
+                    gas_amount: ext_carrier.take().into_gas_amount(),
                 })
             }
         };
@@ -129,7 +129,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gas", funcs::gas);
 
         let mut runtime = Runtime {
-            ext: later_ext,
+            ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
         };
