@@ -150,7 +150,7 @@ pub trait Ext {
 /// optionally clone-able.
 ///
 /// The struct can't be instantiated outside the module although it has `pub` visibility.
-/// This is done intentionally in order to provide dereference to it for wrappers which
+/// This is done intentionally in order to provide deref to it for wrappers which
 /// are used outside the module ([`ExtCarrier`], [`ReplicableExtCarrier`]) and to reduce
 /// repetitiveness of `with`/`with_fallible` methods.  
 // TODO #852 type will be redundant after resolving the issue.
@@ -191,7 +191,7 @@ impl<E: Ext> BaseExtCarrier<E> {
 /// Struct for interacting with Ext.
 ///
 /// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
-pub struct ExtCarrier<E: Ext>(BaseExtCarrier<E>); // todo [sab] remove Rc
+pub struct ExtCarrier<E: Ext>(BaseExtCarrier<E>);
 
 impl<E: Ext> ExtCarrier<E> {
     /// New ext carrier
