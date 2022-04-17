@@ -27,6 +27,7 @@ use alloc::rc::Rc;
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
+// use core::ops::Deref; todo [sab] try with it
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -143,34 +144,25 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str>;
 }
 
-/// Struct for interacting with Ext
-pub struct LaterExt<E: Ext> {
+struct BaseLaterExt<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
 }
 
-impl<E: Ext> Clone for LaterExt<E> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: Rc::clone(&self.inner),
-        }
-    }
-}
-
-impl<E: Ext> LaterExt<E> {
+impl<E: Ext> BaseLaterExt<E> {
     /// New ext
-    pub fn new(e: E) -> Self {
+    fn new(e: E) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Some(e))),
         }
     }
 
     /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+    fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         self.with_fallible(|e| Ok(f(e)))
     }
 
     /// Call fn with inner ext
-    pub fn with_fallible<R>(
+    fn with_fallible<R>(
         &self,
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
@@ -186,164 +178,242 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Unset inner ext
-    pub fn take(self) -> Option<E> {
+    fn take(self) -> Option<E> {
         self.inner.borrow_mut().take()
     }
 }
 
-#[cfg(test)]
-/// This module contains tests of interacting with LaterExt
-mod tests {
-    // todo #841 remove most of tests
+/// Struct for interacting with Ext
+pub struct ExtCarrier<E: Ext> {
+    base_ext: BaseLaterExt<E>,
+}
 
-    use super::*;
-
-    /// Struct with internal value to interact with LaterExt
-    #[derive(Debug, PartialEq)]
-    struct ExtImplementedStruct(u8);
-
-    /// Empty Ext implementation for test struct
-    impl Ext for ExtImplementedStruct {
-        fn alloc(
-            &mut self,
-            _pages: WasmPageNumber,
-            _mem: &mut dyn Memory,
-        ) -> Result<WasmPageNumber, &'static str> {
-            Err("")
-        }
-        fn block_height(&self) -> u32 {
-            0
-        }
-        fn block_timestamp(&self) -> u64 {
-            0
-        }
-        fn origin(&self) -> ProgramId {
-            ProgramId::from(0)
-        }
-        fn send_init(&mut self) -> Result<usize, &'static str> {
-            Ok(0)
-        }
-        fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, &'static str> {
-            Ok(MessageId::default())
-        }
-        fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn send_commit(
-            &mut self,
-            _handle: usize,
-            _msg: HandlePacket,
-        ) -> Result<MessageId, &'static str> {
-            Ok(MessageId::default())
-        }
-        fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-            None
-        }
-        fn source(&mut self) -> ProgramId {
-            ProgramId::from(0)
-        }
-        fn exit(&mut self, _value_destination: ProgramId) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn message_id(&mut self) -> MessageId {
-            0.into()
-        }
-        fn program_id(&self) -> ProgramId {
-            0.into()
-        }
-        fn free(&mut self, _page: WasmPageNumber) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn debug(&mut self, _data: &str) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn msg(&mut self) -> &[u8] {
-            &[]
-        }
-        fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn gas_available(&self) -> u64 {
-            1_000_000
-        }
-        fn value(&self) -> u128 {
-            0
-        }
-        fn value_available(&self) -> u128 {
-            1_000_000
-        }
-        fn leave(&mut self) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn wait(&mut self) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
-            Ok(())
-        }
-        fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, &'static str> {
-            Ok(Default::default())
+impl<E: Ext> ExtCarrier<E> {
+    /// New ext
+    pub fn new(e: E) -> Self {
+        Self {
+            base_ext: BaseLaterExt::new(e),
         }
     }
 
-    #[test]
-    /// Test that we are able to set and unset LaterExt value
-    fn setting_and_unsetting_inner_ext() {
-        let ext = LaterExt::new(ExtImplementedStruct(0));
-
-        assert_eq!(
-            ext.inner,
-            Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
-        );
-
-        let inner = ext.take();
-
-        assert_eq!(inner, Some(ExtImplementedStruct(0)));
+    /// Call fn with inner ext
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+        self.base_ext.with(f)
     }
 
-    #[test]
-    #[allow(clippy::redundant_clone)]
-    /// Test that ext's clone still refers to the same inner object as the original one
-    fn ext_cloning() {
-        let ext_source = LaterExt::new(ExtImplementedStruct(0));
-        let ext_clone = ext_source.clone();
-
-        // ext_clone refers the same inner as ext_source,
-        let inner = ext_clone.take();
-
-        assert_eq!(inner, Some(ExtImplementedStruct(0)));
+    /// Call fn with inner ext
+    pub fn with_fallible<R>(
+        &self,
+        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
+    ) -> Result<R, &'static str> {
+        self.base_ext.with_fallible(f)
     }
 
-    /// Test function of format `Fn(&mut E: Ext) -> R`
-    /// to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
-    /// For example, returns the field of ext's inner value.
-    fn converter(e: &mut ExtImplementedStruct) -> u8 {
-        e.0
-    }
-
-    #[test]
-    /// Test that ext's `with<R>(...)` works correct when the inner is set
-    fn calling_fn_with_inner_ext() {
-        let ext = LaterExt::new(ExtImplementedStruct(0));
-
-        let converted_inner = ext.with(converter);
-
-        assert!(converted_inner.is_ok());
-    }
-
-    #[test]
-    // TODO #841 Change to `should_panic` test
-    fn taking_ext_clone() {
-        let original_ext = LaterExt::new(ExtImplementedStruct(0));
-        let cloned_ext = original_ext.clone();
-
-        assert!(original_ext.take().is_some());
-        assert!(cloned_ext.take().is_none());
+    /// Unset inner ext
+    pub fn take(self) -> E {
+        self.base_ext
+            .take()
+            .expect("method can be called only once with no clones around; qed")
     }
 }
+
+/// Struct for interacting with Ext. Cloneable
+pub struct ReplicableExtCarrier<E: Ext> {
+    base_ext: BaseLaterExt<E>,
+}
+
+impl<E: Ext> ReplicableExtCarrier<E> {
+    /// New ext
+    pub fn new(e: E) -> Self {
+        Self {
+            base_ext: BaseLaterExt::new(e),
+        }
+    }
+
+    /// Call fn with inner ext
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+        self.base_ext.with(f)
+    }
+
+    /// Call fn with inner ext
+    pub fn with_fallible<R>(
+        &self,
+        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
+    ) -> Result<R, &'static str> {
+        self.base_ext.with_fallible(f)
+    }
+
+    /// Unset inner ext
+    pub fn take(self) -> Option<E> {
+        self.base_ext.take()
+    }
+}
+
+impl<E: Ext> Clone for ReplicableExtCarrier<E> {
+    fn clone(&self) -> Self {
+        let base_ext = {
+            let BaseLaterExt { inner } = &self.base_ext;
+            BaseLaterExt {
+                inner: inner.clone(),
+            }
+        };
+        Self { base_ext }
+    }
+}
+
+// #[cfg(test)]
+// /// This module contains tests of interacting with LaterExt
+// mod tests {
+//     // todo #841 todo [sab] remove most of tests
+
+//     use super::*;
+
+//     /// Struct with internal value to interact with LaterExt
+//     #[derive(Debug, PartialEq)]
+//     struct ExtImplementedStruct(u8);
+
+//     /// Empty Ext implementation for test struct
+//     impl Ext for ExtImplementedStruct {
+//         fn alloc(
+//             &mut self,
+//             _pages: WasmPageNumber,
+//             _mem: &mut dyn Memory,
+//         ) -> Result<WasmPageNumber, &'static str> {
+//             Err("")
+//         }
+//         fn block_height(&self) -> u32 {
+//             0
+//         }
+//         fn block_timestamp(&self) -> u64 {
+//             0
+//         }
+//         fn origin(&self) -> ProgramId {
+//             ProgramId::from(0)
+//         }
+//         fn send_init(&mut self) -> Result<usize, &'static str> {
+//             Ok(0)
+//         }
+//         fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, &'static str> {
+//             Ok(MessageId::default())
+//         }
+//         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn send_commit(
+//             &mut self,
+//             _handle: usize,
+//             _msg: HandlePacket,
+//         ) -> Result<MessageId, &'static str> {
+//             Ok(MessageId::default())
+//         }
+//         fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
+//             None
+//         }
+//         fn source(&mut self) -> ProgramId {
+//             ProgramId::from(0)
+//         }
+//         fn exit(&mut self, _value_destination: ProgramId) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn message_id(&mut self) -> MessageId {
+//             0.into()
+//         }
+//         fn program_id(&self) -> ProgramId {
+//             0.into()
+//         }
+//         fn free(&mut self, _page: WasmPageNumber) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn debug(&mut self, _data: &str) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn msg(&mut self) -> &[u8] {
+//             &[]
+//         }
+//         fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn gas_available(&self) -> u64 {
+//             1_000_000
+//         }
+//         fn value(&self) -> u128 {
+//             0
+//         }
+//         fn value_available(&self) -> u128 {
+//             1_000_000
+//         }
+//         fn leave(&mut self) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn wait(&mut self) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
+//             Ok(())
+//         }
+//         fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, &'static str> {
+//             Ok(Default::default())
+//         }
+//     }
+
+//     #[test]
+//     /// Test that we are able to set and unset LaterExt value
+//     fn setting_and_unsetting_inner_ext() {
+//         let ext = LaterExt::new(ExtImplementedStruct(0));
+
+//         assert_eq!(
+//             ext.inner,
+//             Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
+//         );
+
+//         let inner = ext.take();
+
+//         assert_eq!(inner, Some(ExtImplementedStruct(0)));
+//     }
+
+//     #[test]
+//     #[allow(clippy::redundant_clone)]
+//     /// Test that ext's clone still refers to the same inner object as the original one
+//     fn ext_cloning() {
+//         let ext_source = LaterExt::new(ExtImplementedStruct(0));
+//         let ext_clone = ext_source.clone();
+
+//         // ext_clone refers the same inner as ext_source,
+//         let inner = ext_clone.take();
+
+//         assert_eq!(inner, Some(ExtImplementedStruct(0)));
+//     }
+
+//     /// Test function of format `Fn(&mut E: Ext) -> R`
+//     /// to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
+//     /// For example, returns the field of ext's inner value.
+//     fn converter(e: &mut ExtImplementedStruct) -> u8 {
+//         e.0
+//     }
+
+//     #[test]
+//     /// Test that ext's `with<R>(...)` works correct when the inner is set
+//     fn calling_fn_with_inner_ext() {
+//         let ext = LaterExt::new(ExtImplementedStruct(0));
+
+//         let converted_inner = ext.with(converter);
+
+//         assert!(converted_inner.is_ok());
+//     }
+
+//     #[test]
+//     // TODO #841 todo [sab] Change to `should_panic` test
+//     fn taking_ext_clone() {
+//         let original_ext = LaterExt::new(ExtImplementedStruct(0));
+//         let cloned_ext = original_ext.clone();
+
+//         assert!(original_ext.take().is_some());
+//         assert!(cloned_ext.take().is_none());
+//     }
+// }

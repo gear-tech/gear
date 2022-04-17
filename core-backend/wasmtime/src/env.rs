@@ -26,11 +26,11 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, get_current_gas_state, BackendError, BackendReport, Environment,
-    ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, HostPointer,
+    IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::{Ext, ReplicableExtCarrier},
     gas::GasAmount,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
@@ -40,15 +40,22 @@ use wasmtime::{
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
-    pub ext: LaterExt<E>,
+    pub ext: ReplicableExtCarrier<E>,
 }
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: Store<StoreData<E>>,
-    ext: LaterExt<E>,
+    ext: ReplicableExtCarrier<E>,
     memory: WasmtimeMemory,
     instance: Instance,
+}
+
+// todo [sab] новый issue
+fn get_current_gas_state<E: Ext + IntoExtInfo>(
+    later_ext: ReplicableExtCarrier<E>,
+) -> Option<GasAmount> {
+    later_ext.take().map(IntoExtInfo::into_gas_amount)
 }
 
 fn set_pages<T: Ext>(
@@ -106,7 +113,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let later_ext = LaterExt::new(ext);
+        let later_ext = ReplicableExtCarrier::new(ext);
 
         let engine = Engine::default();
         let store_data = StoreData {

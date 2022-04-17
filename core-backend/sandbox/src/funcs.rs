@@ -65,8 +65,8 @@ pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
         .map_err(|_| HostError)
 }
 
-fn wto<E: Ext>(ctx: &mut Runtime<E>, ptr: usize, buff: &[u8]) -> Result<(), &'static str> {
-    ctx.memory.write(ptr, buff).map_err(|e| {
+fn wto(memory: &mut dyn Memory, ptr: usize, buff: &[u8]) -> Result<(), &'static str> {
+    memory.write(ptr, buff).map_err(|e| {
         log::error!("Canno write to mem: {:?}", e);
         "Cannot write to sandbox memory: {:?}"
     })
@@ -86,15 +86,15 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let value_ptr = pop_i32(&mut args)?;
         let message_id_ptr = pop_i32(&mut args)?;
 
-        let result = ctx
-            .ext
-            .clone()
+        let Runtime { ext, memory, .. } = ctx;
+
+        let result = ext
             .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
+                let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
+                let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(memory, value_ptr)?;
                 ext.send(HandlePacket::new(dest, payload, value))
-                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
+                    .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
             })
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
@@ -115,15 +115,15 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let value_ptr = pop_i32(&mut args)?;
         let message_id_ptr = pop_i32(&mut args)?;
 
-        let result = ctx
-            .ext
-            .clone()
+        let Runtime { ext, memory, .. } = ctx;
+
+        let result = ext
             .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
+                let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
+                let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(memory, value_ptr)?;
                 ext.send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
-                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
+                    .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
             })
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
@@ -142,23 +142,23 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let program_id_ptr = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                ext.send_commit(
-                    handle_ptr,
-                    HandlePacket::new(dest, Default::default(), value),
-                )
-                .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
-            })
-            .map_err(Into::into)
-            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
-            .map_err(|_err| {
-                ctx.trap = Some("Trapping: unable to send message");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
+            let value = funcs::get_u128(memory, value_ptr)?;
+            ext.send_commit(
+                handle_ptr,
+                HandlePacket::new(dest, Default::default(), value),
+            )
+            .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+        })
+        .map_err(Into::into)
+        .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
+        .map_err(|_err| {
+            ctx.trap = Some("Trapping: unable to send message");
+            HostError
+        })
     }
 
     pub fn send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -170,23 +170,23 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let gas_limit = pop_i64(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                ext.send_commit(
-                    handle_ptr,
-                    HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
-                )
-                .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
-            })
-            .map_err(Into::into)
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
+            let value = funcs::get_u128(memory, value_ptr)?;
+            ext.send_commit(
+                handle_ptr,
+                HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
+            )
+            .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+        })
+        .map_err(Into::into)
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to send message");
+            HostError
+        })
     }
 
     pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -194,18 +194,18 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let handle_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                ext.send_init()
-                    .on_success_code(|handle| wto(ctx, handle_ptr, &handle.to_le_bytes()))
-            })
-            .map_err(Into::into)
-            .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle))))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to initiate message sending");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            ext.send_init()
+                .on_success_code(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))
+        })
+        .map_err(Into::into)
+        .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle))))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to initiate message sending");
+            HostError
+        })
     }
 
     pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -215,16 +215,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_ptr = pop_i32(&mut args)?;
         let payload_len = pop_i32(&mut args)?;
 
-        ctx.ext
-            .with(|ext| {
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                ext.send_push(handle_ptr, &payload).into_error_code()
-            })
-            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to push message payload");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+            ext.send_push(handle_ptr, &payload).into_error_code()
+        })
+        .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to push message payload");
+            HostError
+        })
     }
 
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -234,17 +235,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let len: usize = pop_i32(&mut args)?;
         let dest = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let msg = ext.msg().to_vec();
-                wto(ctx, dest, &msg[at..(at + len)])
-            })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let msg = ext.msg().to_vec();
+            wto(memory, dest, &msg[at..(at + len)])
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
     }
 
     pub fn size(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
@@ -257,10 +258,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let value_dest_ptr = pop_i32(&mut args.iter())?;
 
-        let _: Result<ReturnValue, HostError> = ctx
-            .ext
+        let Runtime { ext, memory, .. } = ctx;
+
+        let _: Result<ReturnValue, HostError> = ext
             .with(|ext: &mut E| {
-                let value_dest: ProgramId = funcs::get_bytes32(&ctx.memory, value_dest_ptr)?.into();
+                let value_dest: ProgramId = funcs::get_bytes32(memory, value_dest_ptr)?.into();
                 ext.exit(value_dest)
             })
             .map(|_| Ok(ReturnValue::Unit))
@@ -310,9 +312,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let pages: u32 = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with_fallible(|ext| ext.alloc(pages.into(), &mut ctx.memory))
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with_fallible(|ext| ext.alloc(pages.into(), memory))
             .map(|page| {
                 log::debug!("ALLOC: {} pages at {:?}", pages, page);
                 ReturnValue::Value(Value::I32(page.0 as i32))
@@ -363,17 +365,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let origin_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let origin = ext.origin();
-                wto(ctx, origin_ptr, origin.as_ref())
-            })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to get origin");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let origin = ext.origin();
+            wto(memory, origin_ptr, origin.as_ref())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get origin");
+            HostError
+        })
     }
 
     pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -383,11 +385,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_len = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
 
-        let result = ctx
-            .ext
+        let Runtime { ext, memory, .. } = ctx;
+
+        let result = ext
             .with(|ext| {
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
+                let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(memory, value_ptr)?;
                 ext.reply(ReplyPacket::new(payload, value))
                     .map(|_| ())
                     .into_error_code()
@@ -406,19 +409,19 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let message_id_ptr = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                ext.reply_commit(ReplyPacket::new(Default::default(), value))
-                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
-            })
-            .map_err(Into::into)
-            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let value = funcs::get_u128(memory, value_ptr)?;
+            ext.reply_commit(ReplyPacket::new(Default::default(), value))
+                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+        })
+        .map_err(Into::into)
+        .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to send message");
+            HostError
+        })
     }
 
     pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -432,10 +435,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         })?;
 
         match maybe_message_id {
-            Some((message_id, _)) => wto(ctx, dest, message_id.as_ref()).map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })?,
+            Some((message_id, _)) => {
+                wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
+                    ctx.trap = Some(err);
+                    HostError
+                })?
+            }
             None => {
                 ctx.trap = Some("Not running in the reply context");
                 return Err(HostError);
@@ -451,16 +456,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_ptr = pop_i32(&mut args)?;
         let payload_len = pop_i32(&mut args)?;
 
-        ctx.ext
-            .with(|ext| {
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                ext.reply_push(&payload).into_error_code()
-            })
-            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to push payload into reply");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+            ext.reply_push(&payload).into_error_code()
+        })
+        .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to push payload into reply");
+            HostError
+        })
     }
 
     pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -469,23 +475,23 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let str_ptr = pop_i32(&mut args)?;
         let str_len = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with_fallible(|ext| {
-                let mut data = vec![0u8; str_len];
-                ctx.memory
-                    .read(str_ptr, &mut data)
-                    .map_err(|_| "Failed to tead memory")?;
-                match String::from_utf8(data) {
-                    Ok(s) => ext.debug(&s),
-                    Err(_) => Err("Failed to parse debug string"),
-                }
-            })
-            .map(|_| ReturnValue::Unit)
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with_fallible(|ext| {
+            let mut data = vec![0u8; str_len];
+            memory
+                .read(str_ptr, &mut data)
+                .map_err(|_| "Failed to tead memory")?;
+            match String::from_utf8(data) {
+                Ok(s) => ext.debug(&s),
+                Err(_) => Err("Failed to parse debug string"),
+            }
+        })
+        .map(|_| ReturnValue::Unit)
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
     }
 
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
@@ -502,17 +508,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let msg_id_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let message_id = ext.message_id();
-                wto(ctx, msg_id_ptr, message_id.as_ref())
-            })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to get message id");
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let message_id = ext.message_id();
+            wto(memory, msg_id_ptr, message_id.as_ref())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get message id");
+            HostError
+        })
     }
 
     pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -520,17 +526,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let source_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let source = ext.program_id();
-                wto(ctx, source_ptr, source.as_ref())
-            })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let source = ext.program_id();
+            wto(memory, source_ptr, source.as_ref())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
     }
 
     pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -538,17 +544,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let source_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| {
-                let source = ext.source();
-                wto(ctx, source_ptr, source.as_ref())
-            })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let source = ext.source();
+            wto(memory, source_ptr, source.as_ref())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
     }
 
     pub fn value(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -556,9 +562,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let value_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| funcs::set_u128(&mut ctx.memory, value_ptr, ext.value()))
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| funcs::set_u128(memory, value_ptr, ext.value()))
             .and_then(|res| {
                 res.map(|_| ReturnValue::Unit)
                     .map_err(|_| "Cannot set u128")
@@ -574,9 +580,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let value_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .clone()
-            .with(|ext| funcs::set_u128(&mut ctx.memory, value_ptr, ext.value_available()))
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| funcs::set_u128(memory, value_ptr, ext.value_available()))
             .and_then(|res| {
                 res.map(|_| ReturnValue::Unit)
                     .map_err(|_| "Cannot set u128")
@@ -618,16 +624,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let waker_id_ptr = pop_i32(&mut args)?;
 
-        ctx.ext
-            .with(|ext| {
-                let waker_id: MessageId = funcs::get_bytes32(&ctx.memory, waker_id_ptr)?.into();
-                ext.wake(waker_id)
-            })
-            .map(|_| return_none())
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })?
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with(|ext| {
+            let waker_id: MessageId = funcs::get_bytes32(memory, waker_id_ptr)?.into();
+            ext.wake(waker_id)
+        })
+        .map(|_| return_none())
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })?
     }
 
     pub fn create_program_wgas(
@@ -645,14 +652,14 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let value_ptr = pop_i32(&mut args)?;
         let program_id_ptr = pop_i32(&mut args)?;
 
-        let result = ctx
-            .ext
-            .clone()
+        let Runtime { ext, memory, .. } = ctx;
+
+        let result = ext
             .with(|ext: &mut E| -> Result<(), &'static str> {
-                let code_hash = funcs::get_bytes32(&ctx.memory, code_hash_ptr)?;
-                let salt = funcs::get_vec(&ctx.memory, salt_ptr, salt_len)?;
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
+                let code_hash = funcs::get_bytes32(memory, code_hash_ptr)?;
+                let salt = funcs::get_vec(memory, salt_ptr, salt_len)?;
+                let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(memory, value_ptr)?;
                 let new_actor_id = ext.create_program(InitPacket::new_with_gas(
                     code_hash.into(),
                     salt,
@@ -660,7 +667,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     gas_limit,
                     value,
                 ))?;
-                wto(ctx, program_id_ptr, new_actor_id.as_ref())
+                wto(memory, program_id_ptr, new_actor_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_err| {

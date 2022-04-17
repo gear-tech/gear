@@ -32,7 +32,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
@@ -45,11 +45,6 @@ pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
 pub type HostPointer = u64;
-
-// TODO Remove after #841
-pub fn get_current_gas_state<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Option<GasAmount> {
-    later_ext.take().map(IntoExtInfo::into_gas_amount)
-}
 
 #[derive(Debug)]
 pub enum TerminationReason<'a> {
