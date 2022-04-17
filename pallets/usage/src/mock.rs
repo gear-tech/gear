@@ -19,7 +19,7 @@
 use crate as pallet_usage;
 use codec::Decode;
 use common::Origin as _;
-use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
+use frame_support::traits::{ConstU64, ConstU8, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_core::{ids::CodeId, program::Program};
@@ -131,6 +131,7 @@ impl pallet_gear::Config for Test {
     type BlockGasLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
+    type MessageQueueLengthStep = ConstU8<5>;
     type Schedule = ();
 }
 

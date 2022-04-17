@@ -19,7 +19,7 @@
 use crate as pallet_gear_debug;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize},
+    traits::{ConstU8, FindAuthor, OnFinalize, OnIdle, OnInitialize},
 };
 use frame_system as system;
 use primitive_types::H256;
@@ -134,6 +134,7 @@ impl pallet_gear::Config for Test {
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = super::Pallet<Test>;
     type WaitListFeePerBlock = ();
+    type MessageQueueLengthStep = ConstU8<5>;
     type Schedule = ();
 }
 

@@ -23,7 +23,9 @@ use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
 };
-use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
+use frame_support::traits::{
+    ConstU32, ConstU8, Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize,
+};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
@@ -107,7 +109,7 @@ impl system::Config for Test {
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
+    type MaxConsumers = ConstU32<16>;
 }
 
 pub struct GasConverter;
@@ -136,6 +138,7 @@ impl pallet_gear::Config for Test {
     type Schedule = MySchedule;
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = ();
+    type MessageQueueLengthStep = ConstU8<5>;
     type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
