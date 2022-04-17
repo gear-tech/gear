@@ -257,7 +257,7 @@ pub mod pallet {
     pub type MessageQueueLength<T: Config> = StorageValue<_, u128, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn current_cost_multiplier)]
+    #[pallet::getter(fn current_cost_multiplier_pow)]
     pub type CurrentCostMultiplier<T: Config> = StorageValue<_, u8, ValueQuery>;
 
     #[pallet::storage]
@@ -534,6 +534,12 @@ pub mod pallet {
             Ok(max_gas_spent)
         }
 
+        pub(crate) fn cost_multiplier() -> Weight {
+            (2 as Weight)
+                .checked_pow(Self::current_cost_multiplier_pow() as u32)
+                .unwrap_or(Weight::MAX)
+        }
+
         pub(crate) fn reset_queue_len() {
             MessageQueueLength::<T>::mutate(|x| *x = 0);
             CurrentCostMultiplier::<T>::mutate(|x| *x = 0);
@@ -790,18 +796,6 @@ pub mod pallet {
             Ok(hash)
         }
 
-        // fn instrument_code(
-        //     module: Module,
-        //     schedule: &Schedule<T>,
-        // ) -> Result<Vec<u8>, &'static str> {
-        //     let instrumented_module =
-        //         wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-        //             .map_err(|_| "error instrumenting code")?;
-
-        //     wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-        //         .map_err(|_| "error serializing instrumented module")
-        // }
-
         fn reinstrument_code(
             code_hash: H256,
             schedule: &Schedule<T>,
@@ -856,9 +850,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
-        #[pallet::weight(
-            <T as Config>::WeightInfo::submit_code(code.len() as u32)
-        )]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_code(code.len() as u32))]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -927,6 +919,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+                * Pallet::<T>::cost_multiplier()
         )]
         pub fn submit_program(
             origin: OriginFor<T>,
@@ -1037,7 +1030,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32) * Pallet::<T>::cost_multiplier())]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: H256,
@@ -1129,7 +1122,7 @@ pub mod pallet {
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32) * Pallet::<T>::cost_multiplier())]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: H256,
