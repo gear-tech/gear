@@ -37,11 +37,13 @@ pub const OUTGOING_LIMIT: u32 = 1024;
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
     sending_fee: u64,
-    /// Number of inited programs before LimitExceeded, 1024 by default
+    /// Number of inited programs before LimitExceeded, 1024 by default.
     outgoing_limit: u32,
 }
 
 impl ContextSettings {
+    pub const DEFAULT_OUTGOING_LIMIT: u32 = 1024;
+
     /// Create new ContextSettings.
     pub fn new(sending_fee: u64, outgoing_limit: u32) -> Self {
         Self {
@@ -66,7 +68,7 @@ pub struct ContextOutcome {
     handle: Vec<HandleMessage>,
     reply: Option<ReplyMessage>,
     awakening: Vec<MessageId>,
-    // Additional information section
+    // Additional information section.
     program_id: ProgramId,
     source: ProgramId,
     origin_msg_id: MessageId,
@@ -300,13 +302,15 @@ mod tests {
     use super::MessageContext;
     use crate::message::context::{ContextSettings, Error};
 
-    #[cfg(debug_assertions)]
     #[test]
     fn duplicated_init() {
         let mut message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
-        assert_eq!(message_context.settings.outgoing_limit, 1024);
+        assert_eq!(
+            message_context.settings.outgoing_limit,
+            ContextSettings::DEFAULT_OUTGOING_LIMIT
+        );
 
         let result = message_context.init_program(Default::default());
 
@@ -317,7 +321,6 @@ mod tests {
         assert_eq!(duplicated_init, Err(Error::DuplicateInit));
     }
 
-    #[cfg(debug_assertions)]
     #[test]
     fn outgoing_limit_exceeded() {
         let settings = ContextSettings::new(0, 0);
@@ -334,7 +337,6 @@ mod tests {
         assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
     }
 
-    #[cfg(debug_assertions)]
     #[test]
     fn commit_out_of_bounds() {
         let mut message_context =
@@ -345,7 +347,6 @@ mod tests {
         assert_eq!(out_of_bounds, Err(Error::OutOfBounds));
     }
 
-    #[cfg(debug_assertions)]
     #[test]
     fn successful_commit() {
         let mut message_context =
