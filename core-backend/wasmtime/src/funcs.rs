@@ -51,10 +51,10 @@ fn write_to_caller_memory<'a, T: Ext>(
     mem: &WasmtimeMemory,
     offset: usize,
     buffer: &[u8],
-) -> Result<(), String> {
+) -> Result<(), &'static str> {
     get_caller_memory(caller, mem)
         .write(offset, buffer)
-        .map_err(|e| format!("Cannot write mem: {:?}", e))
+        .map_err(|_| "Cannot write mem")
 }
 
 impl<E: Ext + 'static> FuncsHandler<E> {
@@ -239,7 +239,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, &str> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
@@ -253,9 +253,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                         )
                     })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send reply message")
-            .map_err(Trap::new)
+            .map_err(|_| Trap::new("Trapping: unable to send reply message"))
         };
         Func::wrap(store, func)
     }
@@ -264,7 +262,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func =
             move |mut caller: Caller<'_, StoreData<E>>, message_id_ptr: i32, value_ptr: i32| {
                 let ext = caller.data().ext.clone();
-                ext.with(|ext: &mut E| -> Result<i32, String> {
+                ext.with_fallible(|ext: &mut E| -> Result<i32, &str> {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
                     let value = get_u128(&mem_wrap, value_ptr as usize)?;
                     ext.reply_commit(ReplyPacket::new(Default::default(), value))
@@ -277,9 +275,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                             )
                         })
                 })
-                .map_err(Trap::new)?
-                .map_err(|_| "Trapping: unable to send message")
-                .map_err(Trap::new)
+                .map_err(|_| Trap::new("Trapping: unable to send reply"))
             };
         Func::wrap(store, func)
     }
@@ -321,7 +317,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, &str> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
@@ -336,9 +332,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                         )
                     })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send message")
-            .map_err(Trap::new)
+            .map_err(|_| Trap::new("Trapping: unable to send message"))
         };
         Func::wrap(store, func)
     }
@@ -352,7 +346,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, &str> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
@@ -372,9 +366,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send message")
-            .map_err(Trap::new)
+            .map_err(|_| Trap::new("Trapping: unable to send message"))
         };
         Func::wrap(store, func)
     }
@@ -386,7 +378,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          program_id_ptr: i32,
                          value_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, &str> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
@@ -403,9 +395,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|e| format!("Trapping: unable to commit and send message: {}", e))
-            .map_err(Trap::new)
+            .map_err(|e| {
+                Trap::new(format!(
+                    "Trapping: unable to commit and send message: {}",
+                    e
+                ))
+            })
         };
         Func::wrap(store, func)
     }
@@ -418,7 +413,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          gas_limit: i64,
                          value_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, &str> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
@@ -435,9 +430,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to commit and send message")
-            .map_err(Trap::new)
+            .map_err(|_| Trap::new("Trapping: unable to commit and send message"))
         };
         Func::wrap(store, func)
     }
@@ -445,7 +438,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn send_init(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, handle_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 ext.send_init().on_success_code(|handle| {
                     write_to_caller_memory(
                         &mut caller,
@@ -455,10 +448,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to init message")
-            .map_err(Trap::new)
-            .map(|handle| handle as i32)
+            .map_err(|_| Trap::new("Trapping: unable to init message"))
+            // todo [sab] was removed map, maybe needed
         };
         Func::wrap(store, func)
     }
@@ -492,7 +483,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          program_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with_fallible(|ext: &mut E| -> Result<(), &str> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let code_hash = get_bytes32(&mem_wrap, code_hash_ptr as usize)?;
                 let salt = get_vec(&mem_wrap, salt_ptr as usize, salt_len as usize)?;
@@ -512,9 +503,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     new_actor_id.as_ref(),
                 )
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to create a new program")
-            .map_err(Trap::new)
+            .map_err(|_| Trap::new("Trapping: unable to create a new program"))
         };
         Func::wrap(store, func)
     }

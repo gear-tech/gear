@@ -28,7 +28,6 @@ use alloc::{
     borrow::Cow,
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
 use gear_core::{
@@ -123,23 +122,21 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn into_gas_amount(self) -> GasAmount;
 }
 
+// todo [sab] docs
 pub trait OnSuccessCode<T, E> {
-    fn on_success_code<F>(self, f: F) -> Result<i32, String>
+    fn on_success_code<F>(self, f: F) -> Result<i32, E>
     where
         F: FnMut(T) -> Result<(), E>;
 }
 
-impl<T, E, E2> OnSuccessCode<T, E2> for Result<T, E>
-where
-    E2: Into<String>,
-{
-    fn on_success_code<F>(self, mut f: F) -> Result<i32, String>
+impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
+    fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
     where
-        F: FnMut(T) -> Result<(), E2>,
+        F: FnMut(T) -> Result<(), E>,
     {
         match self {
             Ok(t) => {
-                f(t).map_err(Into::into)?;
+                f(t)?;
                 Ok(0)
             }
             Err(_) => Ok(1),
