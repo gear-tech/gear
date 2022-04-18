@@ -27,14 +27,17 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
+pub use pallet_transaction_payment::{Multiplier, MultiplierUpdate};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, IdentifyAccount, NumberFor, Verify,
+    },
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
+    ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 use sp_std::prelude::*;
@@ -301,6 +304,36 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
+    pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_integer(1);
+}
+
+/// Custom fee multiplier which remains constant regardless the network congestion
+/// TODO: consider using Substrate's built-in `pallet_transaction_payment::TargetedFeeAdjustment`
+/// to allow elastic fees based on network conditions (if that's more appropriate)
+pub struct ConstantFeeMultiplier<M>(sp_std::marker::PhantomData<M>);
+
+impl<M> MultiplierUpdate for ConstantFeeMultiplier<M>
+where
+    M: frame_support::traits::Get<Multiplier>,
+{
+    fn min() -> Multiplier {
+        M::get()
+    }
+    fn target() -> Perquintill {
+        Default::default()
+    }
+    fn variability() -> Multiplier {
+        Default::default()
+    }
+}
+impl<M> Convert<Multiplier, Multiplier> for ConstantFeeMultiplier<M>
+where
+    M: frame_support::traits::Get<Multiplier>,
+{
+    fn convert(previous: Multiplier) -> Multiplier {
+        let min_multiplier = M::get();
+        previous.max(min_multiplier)
+    }
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -308,7 +341,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
-    type FeeMultiplierUpdate = ();
+    type FeeMultiplierUpdate = ConstantFeeMultiplier<MinimumMultiplier>;
 }
 
 impl pallet_sudo::Config for Runtime {
