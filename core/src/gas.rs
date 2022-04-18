@@ -74,6 +74,7 @@ impl GasCounter {
         }
 
         self.left -= amount;
+        // `burned` can't overflow as `amount` can't be greather than u64::MAX
         self.burned += amount;
 
         ChargeResult::Enough
@@ -201,7 +202,7 @@ impl GasAllowanceCounter {
 
     /// Refund `amount` of gas.
     pub fn refund(&mut self, amount: u64) {
-        self.0 += amount as u128
+        self.0 = self.0.saturating_add(amount as u128);
     }
 }
 
