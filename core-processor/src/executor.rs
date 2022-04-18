@@ -242,13 +242,18 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     );
 
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr())
-            .map_err(|e| ExecutionError {
+        if let Err(e) = A::protect_pages_and_init_info(
+            initial_pages,
+            program_id,
+            env.get_wasm_memory_begin_addr(),
+        ) {
+            return Err(ExecutionError {
                 program_id,
-                gas_amount: env.drop_env(),
+                gas_amount: env.into_gas_amount(),
                 reason: e,
                 allowance_exceed: false,
-            })?;
+            });
+        }
     }
 
     // Page which is right after stack last page
@@ -256,36 +261,30 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport {
-        termination,
-        wasm_memory_addr,
-        info,
-    } = match env.execute(kind.into_entry()) {
-        Ok(report) => report,
-        Err(e) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: e.gas_amount,
-                reason: e.reason,
-                allowance_exceed: false,
-            })
-        }
-    };
+    let BackendReport { termination, info } =
+        match env.execute(kind.into_entry(), |wasm_memory_addr| {
+            // accessed lazy pages old data will be added to `initial_pages`
+            // TODO: if post execution actions err is connected, with removing pages protections,
+            // then we should panic here, because protected pages may cause UB later, during err handling,
+            // if somebody will try to access this pages.
+            if lazy_pages_enabled {
+                A::post_execution_actions(initial_pages, wasm_memory_addr)
+            } else {
+                Ok(())
+            }
+        }) {
+            Ok(report) => report,
+            Err(e) => {
+                return Err(ExecutionError {
+                    program_id,
+                    gas_amount: e.gas_amount,
+                    reason: e.reason,
+                    allowance_exceed: false,
+                })
+            }
+        };
 
     log::trace!("term reason = {:?}", termination);
-
-    if lazy_pages_enabled {
-        // accessed lazy pages old data will be added to `initial_pages`
-        // TODO: if post execution actions err is connected, with removing pages protections,
-        // then we should panic here, because protected pages may cause UB later, during err handling,
-        // if somebody will try to access this pages.
-        A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
-            program_id,
-            gas_amount: info.gas_amount.clone(),
-            reason: e,
-            allowance_exceed: false,
-        })?;
-    }
 
     // Parsing outcome.
     let kind = match termination {
@@ -321,18 +320,24 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
-            let old_data = initial_data.as_ref().ok_or_else(|| ExecutionError {
-                program_id,
-                gas_amount: info.gas_amount.clone(),
-                reason: "RUNTIME ERROR: changed page has no data in initial pages",
-                allowance_exceed: false,
-            })?;
-            if !new_data.eq(old_data.as_ref()) {
-                page_update.insert(page, Some(new_data));
-                log::trace!(
-                    "Page {} has been changed - will be updated in storage",
-                    page.0
-                );
+            match initial_data.as_ref() {
+                Some(old_data) => {
+                    if !new_data.eq(old_data.as_ref()) {
+                        page_update.insert(page, Some(new_data));
+                        log::trace!(
+                            "Page {} has been changed - will be updated in storage",
+                            page.0
+                        );
+                    }
+                }
+                None => {
+                    return Err(ExecutionError {
+                        program_id,
+                        gas_amount: info.gas_amount,
+                        reason: "RUNTIME ERROR: changed page has no data in initial pages",
+                        allowance_exceed: false,
+                    })
+                }
             }
         } else {
             page_update.insert(page, Some(new_data));
