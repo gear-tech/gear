@@ -45,15 +45,15 @@ mod sys {
         pub fn gr_reply_wgas(
             data_ptr: *const u8,
             data_len: u32,
+            gas_limit: u64,
             value_ptr: *const u8,
-            gas_limit_ptr: *const u8,
             message_id_ptr: *mut u8,
         ) -> ErrorCode;
-        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8) -> ErrorCode;
+        pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> ErrorCode;
         pub fn gr_reply_commit_wgas(
-            message_id_ptr: *mut u8,
+            gas_limit: u64,
             value_ptr: *const u8,
-            gas_limit_ptr: *const u8,
+            message_id_ptr: *mut u8,
         ) -> ErrorCode;
         pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_reply_to(dest: *mut u8);
@@ -233,8 +233,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
     }
 }
 
-/// Send a new message with gas limit as a reply to the message currently being
-/// processed.
+/// Send a new message as [`reply`] function but with concrete gas limit.
 ///
 /// Some programs can reply to other programs, i.e. check another program's
 /// state and use it as a parameter for its own business logic [`MessageId`].
@@ -245,10 +244,10 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
 /// `handle_reply`.
 ///
 /// First argument is the reply message payload in bytes.
-/// Second argument `value` is the value to be transferred from the current
+/// Second argument is `gas_limit`. It means the maximum amount of gas that you
+/// want to spend on message sending.
+/// Third argument `value` is the value to be transferred from the current
 /// program account to the reply message target account.
-/// Third argument is `gas_limit`. It means the maximum count of gas that you
-/// want to spend on this message sending.
 ///
 /// Reply message transactions will be posted only after processing is finished,
 /// similar to the standard message [`send`](crate::msg::send).
@@ -269,16 +268,16 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
 /// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply_with_gas(
     payload: &[u8],
+    gas_limit: u64,
     value: u128,
-    gas_limit: u128,
 ) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_wgas(
             payload.as_ptr(),
             payload.len() as _,
+            gas_limit,
             value.to_le_bytes().as_ptr(),
-            gas_limit.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
         .into_reply_error()?;
@@ -320,15 +319,16 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
-            message_id.as_mut_slice().as_mut_ptr(),
             value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
         )
         .into_reply_error()?;
         Ok(message_id)
     }
 }
 
-/// Finalize and send a current reply message with gas limit.
+/// Finalize and send a current reply message as ['reply_commit'] function but
+/// with concrete gas limit.
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
@@ -358,13 +358,13 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message with in parts.
-pub fn reply_commit_with_gas(value: u128, gas_limit: u128) -> Result<MessageId, ReplyError> {
+pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit_wgas(
-            message_id.as_mut_slice().as_mut_ptr(),
+            gas_limit,
             value.to_le_bytes().as_ptr(),
-            gas_limit.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
         )
         .into_reply_error()?;
         Ok(message_id)

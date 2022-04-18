@@ -30,7 +30,7 @@ use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
     memory::Memory,
-    message::{GasLimit, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -383,18 +383,20 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_ptr = pop_i32(&mut args)?;
         let payload_len = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
 
         ctx.ext
+            .clone()
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 ext.reply(ReplyPacket::new(payload, value))
-                    .map(|_| ())
-                    .into_error_code()
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
+            .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send reply message");
+                ctx.trap = Some("Trapping: unable to send message");
                 HostError
             })
     }
@@ -404,25 +406,22 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let payload_ptr = pop_i32(&mut args)?;
         let payload_len = pop_i32(&mut args)?;
+        let gas_limit = pop_i64(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
-        let gas_limit_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
 
         ctx.ext
+            .clone()
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let gas_limit = funcs::get_u128(&ctx.memory, gas_limit_ptr)?;
-                ext.reply(ReplyPacket::new_with_gas(
-                    payload,
-                    gas_limit as GasLimit,
-                    value,
-                ))
-                .map(|_| ())
-                .into_error_code()
+                ext.reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
+            .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send reply message");
+                ctx.trap = Some("Trapping: unable to send message");
                 HostError
             })
     }
@@ -430,8 +429,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
-        let message_id_ptr = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
 
         ctx.ext
             .clone()
@@ -451,18 +450,17 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
-        let message_id_ptr = pop_i32(&mut args)?;
+        let gas_limit = pop_i64(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
-        let gas_limit_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
 
         ctx.ext
             .clone()
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let gas_limit = funcs::get_u128(&ctx.memory, gas_limit_ptr)?;
                 ext.reply_commit(ReplyPacket::new_with_gas(
                     Default::default(),
-                    gas_limit as GasLimit,
+                    gas_limit,
                     value,
                 ))
                 .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))

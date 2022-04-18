@@ -216,8 +216,7 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
-/// Send a new message with gas limit as a reply to the message currently being
-/// processed.
+/// Send a new message as [`reply`] function but with concrete gas limit.
 ///
 /// Some programs can reply to other programs, i.e. check another program's
 /// state and use it as a parameter for its own business logic [`MessageId`].
@@ -228,10 +227,10 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
 /// `handle_reply`.
 ///
 /// First argument is the reply message payload in bytes.
-/// Second argument `value` is the value to be transferred from the current
+/// Second argument is `gas_limit`. It means the maximum amount of gas that you
+/// want to spend on message sending.
+/// Third argument `value` is the value to be transferred from the current
 /// program account to the reply message target account.
-/// Third argument is `gas_limit`. It means the maximum count of gas that you
-/// want to spend on this message sending.
 ///
 /// Reply message transactions will be posted only after processing is finished,
 /// similar to the standard message [`send`](crate::msg::send).
@@ -250,8 +249,8 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_with_gas(payload: &[u8], value: u128, gas_limit: u128) -> Result<MessageId> {
-    gcore::msg::reply_with_gas(payload, value, gas_limit).into_contract_result()
+pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
+    gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
 }
 
 /// Finalize and send a current reply message.
@@ -288,7 +287,8 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
 
-/// Finalize and send a current reply message with gas limit.
+/// Finalize and send a current reply message as ['reply_commit'] function but
+/// with concrete gas limit.
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
@@ -318,8 +318,8 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit_with_gas(value: u128, gas_limit: u128) -> Result<MessageId> {
-    gcore::msg::reply_commit_with_gas(value, gas_limit).into_contract_result()
+pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
+    gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
 }
 
 /// Push a payload part to the current reply message.

@@ -25,7 +25,6 @@ use alloc::{string::String, vec};
 use gear_backend_common::funcs::*;
 use gear_backend_common::{IntoErrorCode, OnSuccessCode};
 use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
-use gear_core::message::GasLimit;
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
@@ -265,28 +264,23 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData<E>>,
                          payload_ptr: i32,
                          payload_len: i32,
+                         gas_limit: u64,
                          value_ptr: i32,
-                         gas_limit_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<i32, String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
-                let gas_limit = get_u128(&mem_wrap, gas_limit_ptr as usize)?;
-                ext.reply(ReplyPacket::new_with_gas(
-                    payload,
-                    gas_limit as GasLimit,
-                    value,
-                ))
-                .on_success_code(|message_id| {
-                    write_to_caller_memory(
-                        &mut caller,
-                        &mem,
-                        message_id_ptr as isize as _,
-                        message_id.as_ref(),
-                    )
-                })
+                ext.reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
+                    .on_success_code(|message_id| {
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            message_id_ptr as isize as _,
+                            message_id.as_ref(),
+                        )
+                    })
             })
             .map_err(Trap::new)?
             .map_err(|_| "Trapping: unable to send reply message")
@@ -297,7 +291,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
     pub fn reply_commit(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func =
-            move |mut caller: Caller<'_, StoreData<E>>, message_id_ptr: i32, value_ptr: i32| {
+            move |mut caller: Caller<'_, StoreData<E>>, value_ptr: i32, message_id_ptr: i32| {
                 let ext = caller.data().ext.clone();
                 ext.with(|ext: &mut E| -> Result<i32, String> {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
@@ -321,17 +315,16 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
     pub fn reply_commit_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>,
-                         message_id_ptr: i32,
+                         gas_limit: u64,
                          value_ptr: i32,
-                         gas_limit_ptr: i32| {
+                         message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<i32, String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
-                let gas_limit = get_u128(&mem_wrap, gas_limit_ptr as usize)?;
                 ext.reply_commit(ReplyPacket::new_with_gas(
                     Default::default(),
-                    gas_limit as GasLimit,
+                    gas_limit,
                     value,
                 ))
                 .on_success_code(|message_id| {
