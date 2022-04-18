@@ -258,7 +258,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn current_cost_multiplier_pow)]
-    pub type CurrentCostMultiplier<T: Config> = StorageValue<_, u8, ValueQuery>;
+    pub type CurrentCostMultiplierPow<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn messages_sent)]
@@ -536,13 +536,13 @@ pub mod pallet {
 
         pub fn cost_multiplier() -> u32 {
             2_u32
-                .checked_pow(Self::current_cost_multiplier_pow() as u32)
+                .checked_pow(Self::current_cost_multiplier_pow())
                 .unwrap_or(u32::MAX)
         }
 
         pub(crate) fn reset_queue_len() {
             MessageQueueLength::<T>::mutate(|x| *x = 0);
-            CurrentCostMultiplier::<T>::mutate(|x| *x = 0);
+            CurrentCostMultiplierPow::<T>::mutate(|x| *x = 0);
         }
 
         pub(crate) fn increase_queue_len() {
@@ -550,7 +550,7 @@ pub mod pallet {
                 *x = x.saturating_add(1);
 
                 if *x % T::MessageQueueLengthStep::get() as u128 == 0 {
-                    CurrentCostMultiplier::<T>::mutate(|y| *y = y.saturating_add(1));
+                    CurrentCostMultiplierPow::<T>::mutate(|y| *y = y.saturating_add(1));
                 };
             });
         }
@@ -561,7 +561,7 @@ pub mod pallet {
 
                 let step = T::MessageQueueLengthStep::get() as u128;
                 if *x % step == step.saturating_sub(1) {
-                    CurrentCostMultiplier::<T>::mutate(|y| *y = y.saturating_sub(1));
+                    CurrentCostMultiplierPow::<T>::mutate(|y| *y = y.saturating_sub(1));
                 };
             });
         }
