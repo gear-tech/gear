@@ -37,6 +37,7 @@ pub const OUTGOING_LIMIT: u32 = 1024;
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
     sending_fee: u64,
+    /// Number of inited programs before LimitExceeded, 1024 by default
     outgoing_limit: u32,
 }
 
@@ -45,7 +46,6 @@ impl ContextSettings {
     pub fn new(sending_fee: u64, outgoing_limit: u32) -> Self {
         Self {
             sending_fee,
-            /// Number of inited programs before LimitExceeded, 1024 by default
             outgoing_limit,
         }
     }
@@ -310,7 +310,7 @@ mod tests {
 
         let result = message_context.init_program(Default::default());
 
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let duplicated_init = message_context.init_program(Default::default());
 
@@ -352,15 +352,15 @@ mod tests {
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
         let result = message_context.init_program(Default::default());
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let result = message_context.send_init();
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let handle = result.unwrap();
 
         let result = message_context.send_commit(handle, Default::default());
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -369,18 +369,18 @@ mod tests {
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
         let result = message_context.init_program(Default::default());
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let result = message_context.send_init();
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let handle = result.unwrap();
 
         let result = message_context.send_commit(handle, Default::default());
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let result = message_context.reply_commit(Default::default());
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let result = message_context.reply_commit(Default::default());
         assert!(matches!(result, Err(Error::DuplicateReply)));
