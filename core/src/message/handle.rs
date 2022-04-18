@@ -26,7 +26,7 @@ use crate::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Subclass of the Message to use in the method  context::MessageContext::send_commit method
+/// Subclass of the Message to use in the method  context::MessageContext::send_commit.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct HandleMessage {
     /// Message id.
