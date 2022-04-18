@@ -148,14 +148,6 @@ pub struct LaterExt<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
 }
 
-impl<E: Ext> Default for LaterExt<E> {
-    fn default() -> Self {
-        Self {
-            inner: Rc::new(RefCell::new(None)),
-        }
-    }
-}
-
 impl<E: Ext> Clone for LaterExt<E> {
     fn clone(&self) -> Self {
         Self {
@@ -165,9 +157,11 @@ impl<E: Ext> Clone for LaterExt<E> {
 }
 
 impl<E: Ext> LaterExt<E> {
-    /// Set ext
-    pub fn set(&mut self, e: E) {
-        *self.inner.borrow_mut() = Some(e)
+    /// New ext
+    pub fn new(e: E) -> Self {
+        Self {
+            inner: Rc::new(RefCell::new(Some(e))),
+        }
     }
 
     /// Call fn with inner ext
@@ -192,17 +186,16 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Unset inner ext
-    pub fn unset(&mut self) -> E {
-        self.inner
-            .borrow_mut()
-            .take()
-            .expect("Unset should be paired with set and called after")
+    pub fn take(self) -> Option<E> {
+        self.inner.borrow_mut().take()
     }
 }
 
 #[cfg(test)]
 /// This module contains tests of interacting with LaterExt
 mod tests {
+    // todo #841 remove most of tests
+
     use super::*;
 
     /// Struct with internal value to interact with LaterExt
@@ -300,62 +293,31 @@ mod tests {
     }
 
     #[test]
-    /// Test that the new LaterExt object contains reference on None value
-    fn empty_ext_creation() {
-        let ext: LaterExt<ExtImplementedStruct> = Default::default();
-
-        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
-    }
-
-    #[test]
     /// Test that we are able to set and unset LaterExt value
     fn setting_and_unsetting_inner_ext() {
-        let mut ext: LaterExt<_> = Default::default();
-
-        ext.set(ExtImplementedStruct(0));
+        let ext = LaterExt::new(ExtImplementedStruct(0));
 
         assert_eq!(
             ext.inner,
             Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
         );
 
-        let inner = ext.unset();
+        let inner = ext.take();
 
-        assert_eq!(inner, ExtImplementedStruct(0));
-        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
-
-        ext.set(ExtImplementedStruct(0));
-        // When we set a new value, the previous one is reset
-        ext.set(ExtImplementedStruct(1));
-
-        let inner = ext.unset();
-
-        assert_eq!(inner, ExtImplementedStruct(1));
-        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
+        assert_eq!(inner, Some(ExtImplementedStruct(0)));
     }
 
     #[test]
-    #[should_panic(expected = "Unset should be paired with set and called after")]
-    /// Test that unsetting an empty value causes panic
-    fn unsetting_empty_ext() {
-        let mut ext: LaterExt<ExtImplementedStruct> = Default::default();
-
-        let _ = ext.unset();
-    }
-
-    #[test]
+    #[allow(clippy::redundant_clone)]
     /// Test that ext's clone still refers to the same inner object as the original one
     fn ext_cloning() {
-        let mut ext_source: LaterExt<_> = Default::default();
-        let mut ext_clone = ext_source.clone();
+        let ext_source = LaterExt::new(ExtImplementedStruct(0));
+        let ext_clone = ext_source.clone();
 
         // ext_clone refers the same inner as ext_source,
-        // so setting on one causes setting on other
-        ext_source.set(ExtImplementedStruct(0));
+        let inner = ext_clone.take();
 
-        let inner = ext_clone.unset();
-
-        assert_eq!(inner, ExtImplementedStruct(0));
+        assert_eq!(inner, Some(ExtImplementedStruct(0)));
     }
 
     /// Test function of format `Fn(&mut E: Ext) -> R`
@@ -368,8 +330,7 @@ mod tests {
     #[test]
     /// Test that ext's `with<R>(...)` works correct when the inner is set
     fn calling_fn_with_inner_ext() {
-        let mut ext: LaterExt<_> = Default::default();
-        ext.set(ExtImplementedStruct(0));
+        let ext = LaterExt::new(ExtImplementedStruct(0));
 
         let converted_inner = ext.with(converter);
 
@@ -377,11 +338,12 @@ mod tests {
     }
 
     #[test]
-    /// Test that calling ext's `with<R>(...)` throws error
-    /// when the inner value was not set or was unsetted
-    fn calling_fn_with_empty_ext() {
-        let ext: LaterExt<_> = Default::default();
+    // TODO #841 Change to `should_panic` test
+    fn taking_ext_clone() {
+        let original_ext = LaterExt::new(ExtImplementedStruct(0));
+        let cloned_ext = original_ext.clone();
 
-        assert!(ext.with(converter).is_err());
+        assert!(original_ext.take().is_some());
+        assert!(cloned_ext.take().is_none());
     }
 }
