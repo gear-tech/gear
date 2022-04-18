@@ -54,7 +54,7 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
-        if: github.event.pull_request.merged == false
+        if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
           cp /root/cache/check* /tmp/
@@ -72,16 +72,13 @@ jobs:
         run: ./scripts/gear.sh format doc --check
 
       - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features
 
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples
 
-      - name: "Check compile: Node benchmark"
-        run: ./scripts/gear.sh check benchmark
-
       - name: "Cache: Pack"
-        if: github.event.pull_request.merged == true
+        if: ${{ github.ref == 'refs/heads/master' }}
         continue-on-error: true
         run: |
           tar -cf /tmp/check_target.tar ./target
@@ -127,7 +124,7 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
-        if: github.event.pull_request.merged == false
+        if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
           cp /root/cache/build* /tmp/
@@ -147,17 +144,17 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
 
-      - name: "Test: Gear pallet" # Temporary feature to test sandbox backend
-        run: ./scripts/gear.sh test pallet --release
-
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
+      - name: "Test: Runtime upgrade and queue processing"
+        run: ./scripts/gear.sh test runtime-upgrade
+
       - name: "Cache: Pack"
-        if: github.event.pull_request.merged == true
+        if: ${{ github.ref == 'refs/heads/master' }}
         continue-on-error: true
         run: |
           tar -cf /tmp/build_target.tar ./target
@@ -252,7 +249,7 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
-        if: github.event.pull_request.merged == false
+        if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
           cp /root/cache/gear-test* /tmp/
@@ -276,10 +273,119 @@ jobs:
         run: ./scripts/gear.sh test gtest
 
       - name: "Cache: Pack"
-        if: github.event.pull_request.merged == true
+        if: ${{ github.ref == 'refs/heads/master' }}
         continue-on-error: true
         run: |
           tar -cf /tmp/gear-test_target.tar ./target
           tar -cf /tmp/gear-test_cache.tar /tmp/cachepot
           tar -cf /tmp/gear-test_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
+          
+  coverage:
+    needs: spec_version
+    runs-on: [self-hosted, cachepot]
+    env:
+      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+        
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
+
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+
+      - name: "Install: grcov"
+        run: |
+          curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
+          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
+          xargs curl -L | 
+          tar xj
+          
+      - name: "Install: rust-covfix"
+        run: |
+          curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+          mv rust-covfix-linux-x86_64/rust-covfix ./
+
+      - name: "Cache: Unpack"
+        if: ${{ github.ref != 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          cp /root/cache/gear-test* /tmp/
+          tar -xf /tmp/gear-test_cache.tar -C /
+          tar -xf /tmp/gear-test_cargo_registry.tar -C /
+          tar -xf /tmp/gear-test_target.tar
+          cp /root/cache/build* /tmp/
+          tar -xf /tmp/build_cache.tar -C /
+          tar -xf /tmp/build_cargo_registry.tar -C /
+          tar -xf /tmp/build_target.tar
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build wasm-proc
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
+
+      - name: "Test: Gear workspace"
+        run: ./scripts/gear.sh test gear
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+        
+      - name: "Test: Process node runtime testsuite"
+        run: ./scripts/gear.sh coverage rtest
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+          
+      - name: "Test: Process gear-test"
+        run: ./scripts/gear.sh coverage gtest
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+            
+      - name: "Coverage: Aggregate"
+        run: >-
+          ./grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
+          --ignore "/*"
+          --ignore "examples/*"
+          --ignore "utils/*"
+          --ignore "target/*"
+          --ignore "gear-test/*"
+          --ignore "node/*"
+          --ignore "runtime/*"
+          --ignore "gcore/*"
+          --ignore "gstd/*"
+          --ignore "galloc/*"
+          -o ./lcov.info
+        
+      - name: "Coverage: Fix report"
+        run: ./rust-covfix -o lcov.info lcov.info
+        
+      - name: "Coverage: Publish"
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./lcov.info

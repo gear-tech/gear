@@ -92,7 +92,7 @@ mod tests {
     use super::*;
 
     // Creates a new factory and initializes it.
-    fn prepare_factory<'a>(sys: &'a System) -> Program<'a> {
+    fn prepare_factory(sys: &System) -> Program {
         // Store child
         let code_hash_stored = sys.submit_code("./child_contract.wasm");
         assert_eq!(code_hash_stored, CHILD_CODE_HASH.into());

@@ -66,6 +66,8 @@ impl CargoCommand {
             .args(&self.rustc_flags)
             .env(self.skip_build_env(), ""); // Don't build the original crate recursively
 
+        self.set_cargo_encoded_rustflags(&mut cargo);
+
         let status = cargo.status()?;
         ensure!(
             status.success(),
@@ -84,5 +86,14 @@ impl CargoCommand {
                 .to_uppercase()
                 .replace('-', "_"),
         )
+    }
+
+    fn set_cargo_encoded_rustflags(&self, command: &mut Command) {
+        const RUSTFLAGS: &str = "CARGO_ENCODED_RUSTFLAGS";
+
+        let rustflags = env::var(RUSTFLAGS)
+            .expect("`CARGO_ENCODED_RUSTFLAGS` is always set in build scripts")
+            .replace("-Cinstrument-coverage", "");
+        command.env(RUSTFLAGS, rustflags);
     }
 }
