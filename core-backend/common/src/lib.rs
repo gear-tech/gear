@@ -32,7 +32,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    env::Ext,
+    env::{Ext, LaterExt},
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
@@ -43,6 +43,13 @@ pub const EXIT_TRAP_STR: &str = "exit";
 pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
+
+pub type HostPointer = u64;
+
+// TODO Remove after #841
+pub fn get_current_gas_state<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Option<GasAmount> {
+    later_ext.take().map(IntoExtInfo::into_gas_amount)
+}
 
 #[derive(Debug)]
 pub enum TerminationReason<'a> {
@@ -79,7 +86,6 @@ pub trait IntoExtInfo {
 
 pub struct BackendReport<'a> {
     pub termination: TerminationReason<'a>,
-    pub wasm_memory_addr: u64,
     pub info: ExtInfo,
 }
 
@@ -106,14 +112,20 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
-    fn get_wasm_memory_begin_addr(&mut self) -> u64;
+    fn get_wasm_memory_begin_addr(&self) -> HostPointer;
 
-    /// Run setuped instance starting at `entry_point` - wasm export function name.
-    /// - IMPORTANT: env is in inconsistent state after execution.
-    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
+    /// Run instance setup starting at `entry_point` - wasm export function name.
+    /// Also runs `post_execution_handler` after running instance at provided entry point.
+    fn execute<F>(
+        self,
+        entry_point: &str,
+        post_execution_handler: F,
+    ) -> Result<BackendReport, BackendError>
+    where
+        F: FnOnce(HostPointer) -> Result<(), &'static str>;
 
-    /// Unset env ext and returns gas amount.
-    fn drop_env(&mut self) -> GasAmount;
+    /// Consumes environment and returns gas state.
+    fn into_gas_amount(self) -> GasAmount;
 }
 
 pub trait OnSuccessCode<T, E> {

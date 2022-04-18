@@ -211,7 +211,7 @@ impl IntoExtInfo for Ext {
         })
     }
 
-    fn into_gas_amount(self: Ext) -> GasAmount {
+    fn into_gas_amount(self) -> GasAmount {
         self.gas_counter.into()
     }
 }
