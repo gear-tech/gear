@@ -534,10 +534,10 @@ pub mod pallet {
             Ok(max_gas_spent)
         }
 
-        pub(crate) fn cost_multiplier() -> Weight {
-            (2 as Weight)
+        pub(crate) fn cost_multiplier() -> u32 {
+            2_u32
                 .checked_pow(Self::current_cost_multiplier_pow() as u32)
-                .unwrap_or(Weight::MAX)
+                .unwrap_or(u32::MAX)
         }
 
         pub(crate) fn reset_queue_len() {
@@ -919,7 +919,6 @@ pub mod pallet {
         /// has been removed.
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
-                * Pallet::<T>::cost_multiplier()
         )]
         pub fn submit_program(
             origin: OriginFor<T>,
@@ -1030,7 +1029,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32) * Pallet::<T>::cost_multiplier())]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: H256,
@@ -1122,7 +1121,7 @@ pub mod pallet {
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32) * Pallet::<T>::cost_multiplier())]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: H256,
