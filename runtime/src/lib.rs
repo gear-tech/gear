@@ -318,7 +318,10 @@ where
 
     fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
         smallvec::smallvec!(WeightToFeeCoefficient {
-            coeff_integer: pallet_gear::Pallet::<T>::cost_multiplier().into(),
+            coeff_integer: 2_u32
+                .checked_pow(pallet_gear::Pallet::<T>::current_cost_multiplier_pow())
+                .unwrap_or(u32::MAX)
+                .into(),
             coeff_frac: Perbill::zero(),
             negative: false,
             degree: 1,

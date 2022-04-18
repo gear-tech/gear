@@ -534,12 +534,6 @@ pub mod pallet {
             Ok(max_gas_spent)
         }
 
-        pub fn cost_multiplier() -> u32 {
-            2_u32
-                .checked_pow(Self::current_cost_multiplier_pow())
-                .unwrap_or(u32::MAX)
-        }
-
         pub(crate) fn reset_queue_len() {
             MessageQueueLength::<T>::mutate(|x| *x = 0);
             CurrentCostMultiplierPow::<T>::mutate(|x| *x = 0);
