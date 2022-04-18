@@ -87,7 +87,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Create env memory fail",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: ext_carrier.take().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -140,7 +140,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to instantiate module",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime.ext.take().into_gas_amount(),
+                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -151,7 +151,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to get wasm module exports",
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime.ext.take().into_gas_amount(),
+                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -161,7 +161,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             return Err(BackendError {
                 reason: "Unable to set module memory data",
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: runtime.ext.take().into_gas_amount(),
+                gas_amount: runtime.ext.into_inner().into_gas_amount(),
             });
         }
 
@@ -211,7 +211,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         log::debug!("execution res = {:?}", res);
 
         let info = ext
-            .take()
+            .into_inner()
             .into_ext_info(|ptr, buff| {
                 memory
                     .read(ptr, buff)
@@ -259,6 +259,6 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        self.runtime.ext.take().into_gas_amount()
+        self.runtime.ext.into_inner().into_gas_amount()
     }
 }

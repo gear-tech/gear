@@ -55,7 +55,7 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
 fn get_current_gas_state<E: Ext + IntoExtInfo>(
     ext_carrier: ReplicableExtCarrier<E>,
 ) -> Option<GasAmount> {
-    ext_carrier.take().map(IntoExtInfo::into_gas_amount)
+    ext_carrier.into_inner().map(IntoExtInfo::into_gas_amount)
 }
 
 fn set_pages<T: Ext>(
@@ -88,7 +88,7 @@ impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
             memory,
             ..
         } = self;
-        ext.take()
+        ext.into_inner()
             .map(|ext| {
                 ext.into_ext_info(|offset: usize, buffer: &mut [u8]| {
                     memory
@@ -367,7 +367,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
     fn into_gas_amount(self) -> GasAmount {
         self.ext
-            .take()
+            .into_inner()
             .expect("method called only once with no clones around; qed")
             .into_gas_amount()
     }

@@ -199,8 +199,8 @@ impl<E: Ext> ExtCarrier<E> {
         Self(BaseExtCarrier::new(e))
     }
 
-    /// Take ownership over wrapped ext.
-    pub fn take(self) -> E {
+    /// Unwraps hidden `E` value
+    pub fn into_inner(self) -> E {
         let BaseExtCarrier { inner } = self.0;
         inner
             .take()
@@ -228,12 +228,12 @@ impl<E: Ext> ReplicableExtCarrier<E> {
         Self(BaseExtCarrier::new(e))
     }
 
-    /// Take ownership over wrapped ext.
+    /// Unwraps hidden `E` value.
     ///
     /// Because of the fact that the type is actually a wrapper over `Rc`,
     /// we have no guarantee that `take` can be called only once on the same
     /// data. That's why `Option<E>` is returned instead of `E` as in [`ExtCarrier`]
-    pub fn take(self) -> Option<E> {
+    pub fn into_inner(self) -> Option<E> {
         self.0.inner.take()
     }
 }
@@ -368,7 +368,7 @@ mod tests {
 
         assert_eq!(ext.0.inner, Rc::new(RefCell::new(Some(ext_implementer))));
 
-        let inner = ext.take();
+        let inner = ext.into_inner();
 
         assert_eq!(inner, ext_implementer);
     }
@@ -392,7 +392,7 @@ mod tests {
         let ext = ReplicableExtCarrier::new(ext_implementer);
         let ext_clone = ext.clone();
 
-        let inner = ext_clone.take().expect("ext is set");
+        let inner = ext_clone.into_inner().expect("ext is set");
 
         assert_eq!(inner, ext_implementer);
     }
@@ -402,8 +402,8 @@ mod tests {
         let ext = ReplicableExtCarrier::new(ExtImplementedStruct(0));
         let ext_clone = ext.clone();
 
-        assert!(ext_clone.take().is_some());
-        assert!(ext.take().is_none())
+        assert!(ext_clone.into_inner().is_some());
+        assert!(ext.into_inner().is_none())
     }
 
     #[test]
@@ -413,7 +413,7 @@ mod tests {
         let ext = ReplicableExtCarrier::new(ExtImplementedStruct(0));
         let ext_clone = ext.clone();
 
-        let _ = ext.take();
+        let _ = ext.into_inner();
         assert_eq!(
             ext_clone.with(converter).unwrap_err(),
             "with should be called only when inner is set"
