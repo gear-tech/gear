@@ -28,13 +28,17 @@ use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use sp_api::impl_runtime_apis;
+use sp_arithmetic::{
+    traits::{BaseArithmetic, Unsigned},
+    Perbill,
+};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
+    ApplyExtrinsicResult, MultiSignature, Percent,
 };
 use sp_std::convert::{TryFrom, TryInto};
 use sp_std::prelude::*;
@@ -53,7 +57,8 @@ pub use frame_support::{
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-        IdentityFee, Weight,
+        IdentityFee, Weight, WeightToFeeCoefficient, WeightToFeeCoefficients,
+        WeightToFeePolynomial,
     },
     StorageValue,
 };
@@ -299,6 +304,28 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 }
 
+/// Implementor of `WeightToFeePolynomial` that maps one unit of weight to one unit of fee,
+/// multiplied by the message queue load factor.
+pub struct GearWeightToFee<B, T>(sp_std::marker::PhantomData<(B, T)>);
+
+impl<B, T> WeightToFeePolynomial for GearWeightToFee<B, T>
+where
+    B: BaseArithmetic + From<u32> + Copy + Unsigned,
+    T: pallet_gear::Config,
+    T::AccountId: gear_common::Origin,
+{
+    type Balance = B;
+
+    fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
+        smallvec::smallvec!(WeightToFeeCoefficient {
+            coeff_integer: pallet_gear::Pallet::<T>::cost_multiplier().into(),
+            coeff_frac: Perbill::zero(),
+            negative: false,
+            degree: 1,
+        })
+    }
+}
+
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
 }
@@ -307,7 +334,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
-    type WeightToFee = IdentityFee<Balance>;
+    type WeightToFee = GearWeightToFee<Balance, Self>;
     type FeeMultiplierUpdate = ();
 }
 

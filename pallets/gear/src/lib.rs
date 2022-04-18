@@ -534,7 +534,7 @@ pub mod pallet {
             Ok(max_gas_spent)
         }
 
-        pub(crate) fn cost_multiplier() -> u32 {
+        pub fn cost_multiplier() -> u32 {
             2_u32
                 .checked_pow(Self::current_cost_multiplier_pow() as u32)
                 .unwrap_or(u32::MAX)
