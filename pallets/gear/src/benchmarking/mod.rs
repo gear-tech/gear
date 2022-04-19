@@ -38,7 +38,7 @@ use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
-use common::{benchmarking, Origin, CodeStorageTrait};
+use common::{benchmarking, CodeStorageTrait, Origin};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
