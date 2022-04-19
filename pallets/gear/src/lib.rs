@@ -206,9 +206,9 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
-		/// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
-		/// current schedule.
-		CodeTooLarge,
+        /// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
+        /// current schedule.
+        CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
         /// Value doesnt cover ExistenceDeposit

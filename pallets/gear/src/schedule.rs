@@ -385,12 +385,6 @@ macro_rules! cost_instr {
     };
 }
 
-macro_rules! cost_byte_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_args!($name, $( $arg ),+) / 1024
-	}
-}
-
 macro_rules! cost_byte_batched_args {
 	($name:ident, $( $arg: expr ),+) => {
 		cost_batched_args!($name, $( $arg ),+) / 1024
@@ -406,12 +400,6 @@ macro_rules! cost {
 macro_rules! cost_batched {
     ($name:ident) => {
         cost_batched_args!($name, 1)
-    };
-}
-
-macro_rules! cost_byte {
-    ($name:ident) => {
-        cost_byte_args!($name, 1)
     };
 }
 

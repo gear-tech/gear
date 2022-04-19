@@ -1204,7 +1204,7 @@ fn distributor_distribute() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000,
+            100_000_000,
             0,
         ));
 
