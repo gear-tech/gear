@@ -169,7 +169,7 @@ impl core::ops::Sub for WasmPageNumber {
 ///
 /// # Examples
 ///
-/// We assume the one wasm page contains 4 gear pages.
+/// We assume the one wasm page contains 16 gear pages.
 ///
 /// ```
 /// # use std::collections::BTreeSet;
