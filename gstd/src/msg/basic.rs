@@ -216,7 +216,7 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
-/// Send a new message as [`reply`] function but with concrete gas limit.
+/// Same as ['reply'], but with explicit gas limit.
 ///
 /// Some programs can reply to other programs, i.e. check another program's
 /// state and use it as a parameter for its own business logic [`MessageId`].
@@ -287,8 +287,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
 
-/// Finalize and send a current reply message as ['reply_commit'] function but
-/// with concrete gas limit.
+/// Same as ['reply_commit'], but with explicit gas limit.
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business

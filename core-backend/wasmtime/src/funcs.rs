@@ -264,7 +264,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData<E>>,
                          payload_ptr: i32,
                          payload_len: i32,
-                         gas_limit: u64,
+                         gas_limit: i64,
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
@@ -272,7 +272,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
-                ext.reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
+                ext.reply(ReplyPacket::new_with_gas(payload, gas_limit as _, value))
                     .on_success_code(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
@@ -283,7 +283,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     })
             })
             .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send reply message")
+            .map_err(|_| "Trapping: unable to send reply message with gas")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -307,7 +307,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                         })
                 })
                 .map_err(Trap::new)?
-                .map_err(|_| "Trapping: unable to send message")
+                .map_err(|_| "Trapping: unable to send reply message")
                 .map_err(Trap::new)
             };
         Func::wrap(store, func)
@@ -315,7 +315,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
     pub fn reply_commit_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>,
-                         gas_limit: u64,
+                         gas_limit: i64,
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
@@ -324,7 +324,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 ext.reply_commit(ReplyPacket::new_with_gas(
                     Default::default(),
-                    gas_limit,
+                    gas_limit as _,
                     value,
                 ))
                 .on_success_code(|message_id| {
@@ -337,7 +337,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 })
             })
             .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send message")
+            .map_err(|_| "Trapping: unable to send reply  message with gas")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)

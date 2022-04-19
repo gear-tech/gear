@@ -396,7 +396,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
+                ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
             })
     }
@@ -421,7 +421,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
+                ctx.trap = Some("Trapping: unable to reply with gas");
                 HostError
             })
     }
@@ -442,7 +442,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
+                ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
             })
     }
@@ -468,7 +468,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .map_err(Into::into)
             .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
+                ctx.trap = Some("Trapping: unable to send reply message with gas");
                 HostError
             })
     }
