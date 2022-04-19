@@ -18,12 +18,14 @@
 
 //! Common structures for processing.
 
+use alloc::string::String;
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::{self, Debug, Formatter},
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use gear_backend_common::BackendError;
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
@@ -31,6 +33,7 @@ use gear_core::{
     message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
 };
+use gear_core_errors::{ExtError, MemoryError};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -38,7 +41,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<&'static str>),
+    Trap(Option<ExtError>),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.
@@ -112,7 +115,7 @@ pub enum DispatchOutcome {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        reason: &'static str,
+        reason: Option<String>,
     },
     /// Message was a trap.
     MessageTrap {
@@ -121,7 +124,7 @@ pub enum DispatchOutcome {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: Option<&'static str>,
+        trap: Option<String>,
     },
     /// Message was a success.
     Success(MessageId),
@@ -256,9 +259,40 @@ pub struct ExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: &'static str,
+    pub reason: Option<ExecutionErrorReason>,
     /// Triggered by gas allowance exceed.
     pub allowance_exceed: bool,
+}
+
+/// Reason of execution error
+pub enum ExecutionErrorReason {
+    /// Memory error
+    Memory(MemoryError),
+    /// Backend error
+    Backend(BackendError<'static>),
+    /// Processor error
+    Processor(String),
+    /// Ext error
+    Ext(String),
+    /// Program's max page is not last page in wasm page
+    NotLastPage,
+    /// Not enough gas to load memory
+    LoadMemoryGasExceeded,
+    /// Not enough gas to grow memory size
+    GrowMemoryGasExceeded,
+    /// Not enough gas for initial memory
+    InitialMemoryGasExceeded,
+    /// Mem size less then static pages num
+    InsufficientMemorySize,
+    /// Changed page has no data in initial pages
+    PageNoData,
+}
+
+impl fmt::Display for ExecutionErrorReason {
+    fn fmt(&self, _fmt: &mut fmt::Formatter) -> fmt::Result {
+        // TODO
+        Ok(())
+    }
 }
 
 /// Executable actor.

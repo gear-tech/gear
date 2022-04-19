@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::common::ExecutionErrorReason;
 use crate::{
     common::{
         DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
@@ -23,6 +24,7 @@ use crate::{
     configs::ExecutionSettings,
     ext::ProcessorExt,
 };
+use alloc::string::ToString;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
@@ -71,7 +73,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Program's max page is not last page in wasm page.",
+                reason: Some(ExecutionErrorReason::NotLastPage),
                 allowance_exceed: false,
             });
         }
@@ -85,7 +87,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "",
+                reason: None,
                 allowance_exceed: true,
             });
         };
@@ -94,7 +96,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas to load memory.",
+                reason: Some(ExecutionErrorReason::LoadMemoryGasExceeded),
                 allowance_exceed: false,
             });
         };
@@ -107,7 +109,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "",
+                reason: None,
                 allowance_exceed: true,
             });
         }
@@ -116,7 +118,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas to grow memory size.",
+                reason: Some(ExecutionErrorReason::GrowMemoryGasExceeded),
                 allowance_exceed: false,
             });
         }
@@ -131,7 +133,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "",
+                reason: None,
                 allowance_exceed: true,
             });
         };
@@ -140,7 +142,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas for initial memory.",
+                reason: Some(ExecutionErrorReason::InitialMemoryGasExceeded),
                 allowance_exceed: false,
             });
         };
@@ -157,7 +159,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         return Err(ExecutionError {
             program_id,
             gas_amount: gas_counter.into(),
-            reason: "Mem size less then static pages num",
+            reason: Some(ExecutionErrorReason::InsufficientMemorySize),
             allowance_exceed: false,
         });
     }
@@ -171,7 +173,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 return Err(ExecutionError {
                     program_id,
                     gas_amount: gas_counter.into(),
-                    reason: e,
+                    reason: Some(ExecutionErrorReason::Memory(e)),
                     allowance_exceed: false,
                 })
             }
@@ -217,7 +219,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: ext.into_gas_amount(),
-                reason: e,
+                reason: Some(ExecutionErrorReason::Processor(e.to_string())),
                 allowance_exceed: false,
             })
         }
@@ -227,8 +229,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         log::error!("Setup instance err = {:?}", err);
         ExecutionError {
             program_id,
-            gas_amount: err.gas_amount,
-            reason: err.reason,
+            gas_amount: err.gas_amount.clone(),
+            reason: Some(ExecutionErrorReason::Backend(err)),
             allowance_exceed: false,
         }
     })?;
@@ -250,7 +252,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: env.into_gas_amount(),
-                reason: e,
+                reason: Some(ExecutionErrorReason::Processor(e.to_string())),
                 allowance_exceed: false,
             });
         }
@@ -277,8 +279,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             Err(e) => {
                 return Err(ExecutionError {
                     program_id,
-                    gas_amount: e.gas_amount,
-                    reason: e.reason,
+                    gas_amount: e.gas_amount.clone(),
+                    reason: Some(ExecutionErrorReason::Backend(e)),
                     allowance_exceed: false,
                 })
             }
@@ -298,7 +300,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
                 program_id,
                 description.unwrap_or_else(|| "None".into()),
-                explanation.unwrap_or("None"),
+                explanation
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "None".to_string()),
             );
 
             DispatchResultKind::Trap(explanation)
@@ -334,7 +338,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                     return Err(ExecutionError {
                         program_id,
                         gas_amount: info.gas_amount,
-                        reason: "RUNTIME ERROR: changed page has no data in initial pages",
+                        reason: Some(ExecutionErrorReason::PageNoData),
                         allowance_exceed: false,
                     })
                 }
