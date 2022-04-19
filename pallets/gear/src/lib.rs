@@ -206,6 +206,9 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
+		/// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
+		/// current schedule.
+		CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
         /// Value doesnt cover ExistenceDeposit
@@ -1036,6 +1039,11 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
+            ensure!(
+                code.len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
             let module =
                 wasm_instrument::parity_wasm::deserialize_buffer(&code).unwrap_or_default();
 
@@ -1051,6 +1059,11 @@ pub mod pallet {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
+
+            ensure!(
+                code.code().len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
 
             let code_hash = Self::set_code_with_metadata(&code, who.into_origin())?;
 
@@ -1098,7 +1111,7 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::weight(
-            <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+            <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
         pub fn submit_program(
             origin: OriginFor<T>,
@@ -1118,6 +1131,11 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
+            ensure!(
+                code.len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
             let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
@@ -1135,6 +1153,11 @@ pub mod pallet {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
+
+            ensure!(
+                code.code().len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
 
             let packet = InitPacket::new_with_gas(
                 code.code_hash(),

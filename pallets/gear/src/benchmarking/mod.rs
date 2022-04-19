@@ -35,20 +35,21 @@ use crate::{
     Pallet as Gear, *,
 };
 use codec::Encode;
-use frame_benchmarking::benchmarks;
+use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_support::traits::Get;
 use frame_system::RawOrigin;
 
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
-use sp_runtime::traits::{Bounded, Hash};
-
 use common::{benchmarking, Origin};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::{
+    traits::{Bounded, Hash, UniqueSaturatedInto},
+    Perbill,
+};
 
 use frame_support::traits::Currency;
 
@@ -139,27 +140,46 @@ benchmarks! {
         T::AccountId: Origin,
     }
 
+    // This constructs a program that is maximal expensive to instrument.
+    // It creates a maximum number of metering blocks per byte.
+    //
+    // `c`: Size of the code in kilobytes.
     submit_code {
-        let c in 0 .. MAX_CODE_LEN;
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        let code = benchmarking::generate_wasm3(vec![0u8; c as usize]).unwrap();
-        let code_hash: H256 = CodeId::generate(&code).into_origin();
-    }: _(RawOrigin::Signed(caller), code)
+        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let s in 0 .. code::max_pages::<T>() * 64 * 1024;
+        let salt = vec![42u8; s as usize];
+        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let caller = whitelisted_caller();
+        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let origin = RawOrigin::Signed(caller.clone());
+    }: _(origin, code)
     verify {
-        assert!(common::code_exists(code_hash));
+        assert!(common::code_exists(hash.into_origin()));
     }
 
+    // This constructs a program that is maximal expensive to instrument.
+    // It creates a maximum number of metering blocks per byte.
+    // The size of the salt influences the runtime because is is hashed in order to
+    // determine the program address.
+    //
+    // `c`: Size of the code in kilobytes.
+    // `s`: Size of the salt in kilobytes.
+    //
+    // # Note
+    //
+    // We cannot let `c` grow to the maximum code size because the code is not allowed
+    // to be larger than the maximum size **after instrumentation**.
     submit_program {
-        let c in MIN_CODE_LEN .. MAX_CODE_LEN;
-        let p in 0 .. MAX_PAYLOAD_LEN;
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm3(vec![0u8; (c - MIN_CODE_LEN) as usize]).unwrap();
-        let salt = vec![255u8; 32];
-        let payload = vec![1_u8; p as usize];
-        // Using a non-zero `value` to count in the transfer, as well
-        let value = 10_000_u32;
-    }: _(RawOrigin::Signed(caller), code, salt, payload, 100_000_000_u64, value.into())
+        let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
+        let s in 0 .. code::max_pages::<T>() * 64 * 1024;
+        let salt = vec![42u8; s as usize];
+        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let caller = whitelisted_caller();
+        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let origin = RawOrigin::Signed(caller.clone());
+    }: _(origin, code, salt, vec![], 100_000_000_u64, value.into())
     verify {
         assert!(common::dequeue_dispatch().is_some());
     }
