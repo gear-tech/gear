@@ -450,6 +450,9 @@ pub mod body {
     pub enum DynInstr {
         /// Insert the associated instruction.
         Regular(Instruction),
+        /// Insert a I32Const with incrementing value for each insertion.
+        /// (start_at, increment_by)
+        Counter(u32, u32),
         /// Insert a I32Const with a random value in [low, high) not divisible by two.
         /// (low, high)
         RandomUnaligned(u32, u32),
@@ -506,6 +509,11 @@ pub mod body {
             .take(instructions.len() * usize::try_from(repetitions).unwrap())
             .flat_map(|idx| match &mut instructions[idx] {
                 DynInstr::Regular(instruction) => vec![instruction.clone()],
+                DynInstr::Counter(offset, increment_by) => {
+                    let current = *offset;
+                    *offset += *increment_by;
+                    vec![Instruction::I32Const(current as i32)]
+                }
                 DynInstr::RandomUnaligned(low, high) => {
                     let unaligned = rng.gen_range(*low..*high) | 1;
                     vec![Instruction::I32Const(unaligned as i32)]
@@ -557,6 +565,12 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
+}
+
+fn inject_gas_metering<T: Config>(module: Module) -> Module {
+    let schedule = T::Schedule::get();
+    let gas_rules = schedule.rules(&module);
+    wasm_instrument::gas_metering::inject(module, &gas_rules, "env").unwrap()
 }
 
 fn inject_stack_metering<T: Config>(module: Module) -> Module {

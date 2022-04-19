@@ -254,6 +254,9 @@ pub struct InstructionWeights<T: Config> {
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct HostFnWeights<T: Config> {
+    /// Weight of calling `alloc`.
+    pub alloc: Weight,
+
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: Weight,
 
@@ -500,6 +503,7 @@ impl<T: Config> Default for InstructionWeights<T> {
 impl<T: Config> Default for HostFnWeights<T> {
     fn default() -> Self {
         Self {
+            alloc: cost_batched!(alloc),
             gr_gas_available: cost_batched!(gr_gas_available),
             gr_msg_id: cost_batched!(gr_msg_id),
             gr_origin: cost_batched!(gr_origin),

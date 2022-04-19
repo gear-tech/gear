@@ -26,7 +26,7 @@ mod sandbox;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        DataSegment, ImportedFunction, ImportedMemory, ModuleDefinition, WasmModule,
+        DataSegment, ImportedFunction, ImportedMemory, Location, ModuleDefinition, WasmModule,
     },
     sandbox::Sandbox,
 };
@@ -230,22 +230,77 @@ benchmarks! {
         assert!(common::dequeue_dispatch().is_none());
     }
 
-    // // This benchmarks the additional weight that is charged when a program is executed the
-    // // first time after a new schedule was deployed: For every new schedule a program needs
-    // // to re-run the instrumentation once.
-    // reinstrument {
-    //     let c in 0 .. T::Schedule::get().limits.code_len;
-    //     let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
-    //     let code = Code::new_raw(code, 1, None).unwrap();
+    // This benchmarks the additional weight that is charged when a program is executed the
+    // first time after a new schedule was deployed: For every new schedule a program needs
+    // to re-run the instrumentation once.
+    reinstrument {
+        let c in 0 .. T::Schedule::get().limits.code_len;
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let code = Code::new_raw(code, 1, None).unwrap();
 
-    //     common::set_code(code.code_hash().into_origin(), &code);
+        common::set_code(code.code_hash().into_origin(), &code);
 
-    //     if let Some(original_code) = code.original_code() {
-    //         common::set_original_code(code.code_hash().into_origin(), original_code);
-    //     }
-    //     let schedule = T::Schedule::get();
+        if let Some(original_code) = code.original_code() {
+            common::set_original_code(code.code_hash().into_origin(), original_code);
+        }
+        let schedule = T::Schedule::get();
+    }: {
+        Gear::<T>::reinstrument_code(code.code_hash().into_origin(), &schedule)?;
+    }
+
+    alloc {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "alloc",
+                params: vec![ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0),
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+    }
+
+    // TODO: benchmark batches and size is bigger than memory limits
+    // free {
+    //     let r in 0 .. API_BENCHMARK_BATCHES;
+    //     let code = WasmModule::<T>::from(ModuleDefinition {
+    //         memory: Some(ImportedMemory::max::<T>()),
+    //         imported_functions: vec![ImportedFunction {
+    //             module: "env",
+    //             name: "alloc",
+    //             params: vec![ValueType::I32],
+    //             return_type: Some(ValueType::I32),
+    //         },
+    //         ImportedFunction {
+    //             module: "env",
+    //             name: "free",
+    //             params: vec![ValueType::I32],
+    //             return_type: None,
+    //         }],
+    //         init_body: Some(body::plain(vec![
+    //             Instruction::I32Const(1),
+    //             Instruction::Call(0),
+    //             Instruction::Drop,
+    //         ])),
+    //         handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+    //             Instruction::I32Const(1),
+    //             Instruction::Call(0),
+    //         ])),
+    //         .. Default::default()
+    //     });
+    //     let instance = Program::<T>::new(code, vec![])?;
     // }: {
-    //     Gear::<T>::reinstrument_code(code.code_hash(), &schedule)?;
+    //     Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     // }
 
     gas {
@@ -475,7 +530,7 @@ benchmarks! {
     }: {
         Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }
-    
+
     gr_send_init {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {

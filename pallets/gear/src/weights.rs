@@ -41,6 +41,7 @@ pub trait WeightInfo {
 	fn send_reply(p: u32, ) -> Weight;
 	fn initial_allocation(q: u32, ) -> Weight;
 	fn alloc_in_handle(q: u32, ) -> Weight;
+	fn alloc(r: u32, ) -> Weight;
 	fn gas(r: u32, ) -> Weight;
 	fn gr_gas_available(r: u32, ) -> Weight;
 	fn gr_msg_id(r: u32, ) -> Weight;
@@ -160,6 +161,13 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 		(265_457_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(18 as Weight))
 			.saturating_add(T::DbWeight::get().writes(16 as Weight))
+	}
+	fn alloc(r: u32, ) -> Weight {
+		(303_238_000 as Weight)
+			// Standard Error: 322_000
+			.saturating_add((61_873_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads(11 as Weight))
+			.saturating_add(T::DbWeight::get().writes(9 as Weight))
 	}
 	fn gas(r: u32, ) -> Weight {
 		(303_238_000 as Weight)
@@ -638,6 +646,13 @@ impl WeightInfo for () {
 		(265_457_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(18 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(16 as Weight))
+	}
+	fn alloc(r: u32, ) -> Weight {
+		(303_238_000 as Weight)
+			// Standard Error: 322_000
+			.saturating_add((61_873_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(RocksDbWeight::get().reads(11 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(9 as Weight))
 	}
 	fn gas(r: u32, ) -> Weight {
 		(303_238_000 as Weight)

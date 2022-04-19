@@ -974,7 +974,7 @@ pub mod pallet {
             Ok(hash)
         }
 
-        fn reinstrument_code(
+        pub fn reinstrument_code(
             code_hash: H256,
             schedule: &Schedule<T>,
         ) -> Result<u32, DispatchError> {
