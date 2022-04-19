@@ -136,3 +136,13 @@ cargo run -- \
 ```
 
 Execute `cargo run -- --help` to learn more about the template node's CLI options.
+
+### Upgrade
+
+To perform a runtime upgrade, Substrate uses existing runtime logic to update 
+the Wasm runtime stored on the blockchain to a new consensus-breaking version with new logic.
+This upgrade gets pushed out to all syncing nodes on the network as a part of the consensus process.
+Once the Wasm runtime is upgraded, the executor will see that the native runtime spec_name, spec_version,
+or authoring_version no longer matches this new Wasm runtime. As a result,
+it will fall back to execute the canonical Wasm runtime instead of using the native runtime
+in any of the execution processes.
