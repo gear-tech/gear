@@ -337,7 +337,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 })
             })
             .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send reply  message with gas")
+            .map_err(|_| "Trapping: unable to send reply message with gas")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
