@@ -24,9 +24,16 @@ use crate::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec::Vec};
-use anyhow::Result;
 use codec::{Decode, Encode};
+use core::array::TryFromSliceError;
 use core::convert::TryFrom;
+
+/// A program error
+#[derive(Debug, Clone, Copy)]
+pub enum Error {
+    /// Failed to convert PageBuf from slice
+    TryFromSlice(TryFromSliceError),
+}
 
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
@@ -102,7 +109,7 @@ impl Program {
     }
 
     /// Set memory from buffer.
-    pub fn set_memory(&mut self, buffer: &[u8]) -> Result<()> {
+    pub fn set_memory(&mut self, buffer: &[u8]) -> Result<(), Error> {
         self.persistent_pages.clear();
         let boxed_slice: Box<[u8]> = buffer.into();
         // TODO: also alloc remainder.
@@ -113,7 +120,7 @@ impl Program {
     }
 
     /// Setting multiple pages
-    pub fn set_pages(&mut self, pages: BTreeMap<PageNumber, Vec<u8>>) -> Result<()> {
+    pub fn set_pages(&mut self, pages: BTreeMap<PageNumber, Vec<u8>>) -> Result<(), Error> {
         for (page_num, page_data) in pages {
             self.set_page(page_num, &page_data)?;
         }
@@ -121,12 +128,11 @@ impl Program {
     }
 
     /// Set memory page from buffer.
-    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<()> {
+    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<(), Error> {
         self.persistent_pages.insert(
             page,
             Option::from(Box::new(
-                PageBuf::try_from(buf)
-                    .map_err(|err| anyhow::format_err!("TryFromSlice err: {}", err))?,
+                PageBuf::try_from(buf).map_err(Error::TryFromSlice)?,
             )),
         );
         Ok(())

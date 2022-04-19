@@ -22,6 +22,7 @@ members = [
     "core-backend/wasmtime",
     "core-backend/sandbox",
     "core-processor",
+    "core-errors",
     "examples/binaries/*",
     "galloc",
     "gcore",

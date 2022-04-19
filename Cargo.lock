@@ -2081,6 +2081,7 @@ name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
  "gear-core",
+ "gear-core-errors",
  "log",
 ]
 
@@ -2132,9 +2133,9 @@ dependencies = [
 name = "gear-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "blake2-rfc",
  "derive_more",
+ "gear-core-errors",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2146,6 +2147,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-core-errors"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
@@ -2153,6 +2162,7 @@ dependencies = [
  "blake2-rfc",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "parity-scale-codec",
 ]

@@ -24,7 +24,6 @@ use crate::{
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::rc::Rc;
-use anyhow::Result;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
 
@@ -41,6 +40,9 @@ pub enum PageAction {
 
 /// External api for managing memory, messages, allocations and gas-counting.
 pub trait Ext {
+    /// An error issued in api
+    type Error;
+
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutives memory pages.
@@ -48,7 +50,7 @@ pub trait Ext {
         &mut self,
         pages: WasmPageNumber,
         mem: &mut dyn Memory,
-    ) -> Result<WasmPageNumber, &'static str>;
+    ) -> Result<WasmPageNumber, Self::Error>;
 
     /// Get the current block height.
     fn block_height(&self) -> u32;
@@ -61,28 +63,28 @@ pub trait Ext {
     fn origin(&self) -> ProgramId;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn send_init(&mut self) -> Result<usize, &'static str>;
+    fn send_init(&mut self) -> Result<usize, Self::Error>;
 
     /// Push an extra buffer into message payload by handle.
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
+    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str>;
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: HandlePacket) -> Result<MessageId, &'static str> {
+    fn send(&mut self, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         let handle = self.send_init()?;
         self.send_commit(handle, msg)
     }
 
     /// Push an extra buffer into reply message.
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error>;
 
     /// Complete reply message and send it to source program.
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str>;
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.reply_commit(msg)
     }
 
@@ -93,7 +95,7 @@ pub trait Ext {
     fn source(&mut self) -> ProgramId;
 
     /// Terminate the program and transfer all available value to the address.
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), &'static str>;
+    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> MessageId;
@@ -105,24 +107,24 @@ pub trait Ext {
     ///
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
     /// should be `free`-d separately.
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), &'static str>;
+    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error>;
 
     /// Send debug message.
     ///
     /// This should be no-op in release builds.
-    fn debug(&mut self, data: &str) -> Result<(), &'static str>;
+    fn debug(&mut self, data: &str) -> Result<(), Self::Error>;
 
     /// Interrupt the program, saving it's state.
-    fn leave(&mut self) -> Result<(), &'static str>;
+    fn leave(&mut self) -> Result<(), Self::Error>;
 
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
     /// Charge some gas.
-    fn charge_gas(&mut self, amount: u32) -> Result<(), &'static str>;
+    fn charge_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
 
     /// Refund some gas.
-    fn refund_gas(&mut self, amount: u32) -> Result<(), &'static str>;
+    fn refund_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&self) -> u64;
@@ -134,13 +136,13 @@ pub trait Ext {
     fn value_available(&self) -> u128;
 
     /// Interrupt the program and reschedule execution.
-    fn wait(&mut self) -> Result<(), &'static str>;
+    fn wait(&mut self) -> Result<(), Self::Error>;
 
     /// Wake the waiting message and move it to the processing queue.
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str>;
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error>;
 
     /// Send init message to create a new program
-    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str>;
+    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
 }
 
 /// Struct for interacting with Ext
@@ -198,18 +200,22 @@ mod tests {
 
     use super::*;
 
+    struct AllocError;
+
     /// Struct with internal value to interact with LaterExt
     #[derive(Debug, PartialEq)]
     struct ExtImplementedStruct(u8);
 
     /// Empty Ext implementation for test struct
     impl Ext for ExtImplementedStruct {
+        type Error = AllocError;
+
         fn alloc(
             &mut self,
             _pages: WasmPageNumber,
             _mem: &mut dyn Memory,
-        ) -> Result<WasmPageNumber, &'static str> {
-            Err("")
+        ) -> Result<WasmPageNumber, Self::Error> {
+            Err(AllocError)
         }
         fn block_height(&self) -> u32 {
             0
@@ -220,23 +226,23 @@ mod tests {
         fn origin(&self) -> ProgramId {
             ProgramId::from(0)
         }
-        fn send_init(&mut self) -> Result<usize, &'static str> {
+        fn send_init(&mut self) -> Result<usize, Self::Error> {
             Ok(0)
         }
-        fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
-        fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::Error> {
             Ok(())
         }
         fn send_commit(
             &mut self,
             _handle: usize,
             _msg: HandlePacket,
-        ) -> Result<MessageId, &'static str> {
+        ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
         fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
@@ -245,7 +251,7 @@ mod tests {
         fn source(&mut self) -> ProgramId {
             ProgramId::from(0)
         }
-        fn exit(&mut self, _value_destination: ProgramId) -> Result<(), &'static str> {
+        fn exit(&mut self, _value_destination: ProgramId) -> Result<(), Self::Error> {
             Ok(())
         }
         fn message_id(&mut self) -> MessageId {
@@ -254,19 +260,19 @@ mod tests {
         fn program_id(&self) -> ProgramId {
             0.into()
         }
-        fn free(&mut self, _page: WasmPageNumber) -> Result<(), &'static str> {
+        fn free(&mut self, _page: WasmPageNumber) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn debug(&mut self, _data: &str) -> Result<(), &'static str> {
+        fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
             Ok(())
         }
         fn msg(&mut self) -> &[u8] {
             &[]
         }
-        fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+        fn charge_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+        fn refund_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
         fn gas_available(&self) -> u64 {
@@ -278,16 +284,16 @@ mod tests {
         fn value_available(&self) -> u128 {
             1_000_000
         }
-        fn leave(&mut self) -> Result<(), &'static str> {
+        fn leave(&mut self) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn wait(&mut self) -> Result<(), &'static str> {
+        fn wait(&mut self) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
+        fn wake(&mut self, _waker_id: MessageId) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, &'static str> {
+        fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
             Ok(Default::default())
         }
     }

@@ -20,7 +20,6 @@
 
 use crate::ids::CodeId;
 use alloc::vec::Vec;
-use anyhow::Result;
 use codec::{Decode, Encode};
 use parity_wasm::elements::Module;
 use wasm_instrument::gas_metering::Rules;
