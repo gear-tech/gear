@@ -146,8 +146,6 @@ benchmarks! {
     // `c`: Size of the code in kilobytes.
     submit_code {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
-        let s in 0 .. code::max_pages::<T>() * 64 * 1024;
-        let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
