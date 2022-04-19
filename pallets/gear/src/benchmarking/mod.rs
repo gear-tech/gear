@@ -38,7 +38,7 @@ use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
-use common::{benchmarking, Origin};
+use common::{benchmarking, Origin, CodeStorageTrait};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
@@ -69,7 +69,7 @@ benchmarks! {
         let code_hash: H256 = CodeId::generate(&code).into_origin();
     }: _(RawOrigin::Signed(caller), code)
     verify {
-        assert!(common::code_exists(code_hash));
+        assert!(<T as pallet::Config>::CodeStorage::exists(CodeId::from_origin(code_hash)));
     }
 
     submit_program {
