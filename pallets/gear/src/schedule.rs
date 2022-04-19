@@ -429,7 +429,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 16,
+            memory_pages: 128,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -444,7 +444,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 2),
             i64store: cost_instr!(instr_i64store, 2),
