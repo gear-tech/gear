@@ -35,7 +35,7 @@ use crate::{
     Pallet as Gear, *,
 };
 use codec::Encode;
-use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::Get;
 use frame_system::RawOrigin;
 
@@ -150,7 +150,7 @@ benchmarks! {
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
-        let origin = RawOrigin::Signed(caller.clone());
+        let origin = RawOrigin::Signed(caller);
     }: _(origin, code)
     verify {
         assert!(common::code_exists(hash.into_origin()));
@@ -176,8 +176,8 @@ benchmarks! {
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
-        let origin = RawOrigin::Signed(caller.clone());
-    }: _(origin, code, salt, vec![], 100_000_000_u64, value.into())
+        let origin = RawOrigin::Signed(caller);
+    }: _(origin, code, salt, vec![], 100_000_000_u64, value)
     verify {
         assert!(common::dequeue_dispatch().is_some());
     }
