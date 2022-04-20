@@ -19,7 +19,7 @@
 use crate as pallet_usage;
 use codec::Decode;
 use common::Origin as _;
-use frame_support::traits::{ConstU64, ConstU8, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
+use frame_support::traits::{ConstU32, ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_core::{ids::CodeId, program::Program};
@@ -104,7 +104,7 @@ impl system::Config for Test {
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
+    type MaxConsumers = ConstU32<16>;
 }
 
 pub struct GasConverter;

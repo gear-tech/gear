@@ -19,7 +19,7 @@
 use crate as pallet_gear_debug;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU8, FindAuthor, OnFinalize, OnIdle, OnInitialize},
+    traits::{ConstU32, FindAuthor, OnFinalize, OnIdle, OnInitialize},
 };
 use frame_system as system;
 use primitive_types::H256;
@@ -76,7 +76,7 @@ impl system::Config for Test {
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
+    type MaxConsumers = ConstU32<16>;
 }
 
 impl pallet_gear_debug::Config for Test {

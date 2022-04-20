@@ -23,9 +23,7 @@ use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
 };
-use frame_support::traits::{
-    ConstU32, ConstU8, Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize,
-};
+use frame_support::traits::{ConstU32, Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
