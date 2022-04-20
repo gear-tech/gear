@@ -157,14 +157,14 @@ pub mod pallet {
                             Self::value_view(parent).expect("Parent node must exist for any node");
 
                         assert!(
-                            parent_node.refs() != 0,
+                            parent_node.refs() > 0,
                             "parent node must contain ref to its child node"
                         );
 
                         if let ValueType::SpecifiedLocal { .. } = current_node.inner {
-                            parent_node.spec_refs -= 1;
+                            parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
                         } else {
-                            parent_node.unspec_refs -= 1;
+                            parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
                         }
 
                         ValueView::<T>::mutate(parent, |node| {
@@ -290,7 +290,7 @@ where
                         Self::value_view(parent).expect("Parent node must exist for any node");
 
                     assert!(
-                        parent_node.refs() != 0,
+                        parent_node.refs() > 0,
                         "parent node must contain ref to its child node"
                     );
 
@@ -298,9 +298,9 @@ where
                         delete_current_node = true;
 
                         if let ValueType::SpecifiedLocal { .. } = node.inner {
-                            parent_node.spec_refs -= 1;
+                            parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
                         } else {
-                            parent_node.unspec_refs -= 1;
+                            parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
                         }
                     }
 
@@ -399,7 +399,7 @@ where
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
 
-        node.unspec_refs += 1;
+        node.unspec_refs = node.unspec_refs.saturating_add(1);
 
         let new_node = ValueNode {
             inner: ValueType::UnspecifiedLocal { parent: key },
@@ -429,7 +429,7 @@ where
             Error::<T>::InsufficientBalance
         );
 
-        node.spec_refs += 1;
+        node.spec_refs = node.spec_refs.saturating_add(1);
 
         let new_node = ValueNode {
             inner: ValueType::SpecifiedLocal {
@@ -450,6 +450,13 @@ where
 
         // re-querying it since it might be the same node we already updated above.. :(
         let (node_key_with_value, mut node_with_value) = Self::node_with_value(key);
+        ensure!(
+            node_with_value
+                .inner_value()
+                .expect("Querying node with value")
+                >= amount,
+            Error::<T>::InsufficientBalance
+        );
         *node_with_value
             .inner_value_mut()
             .expect("Querying node with value") -= amount;
