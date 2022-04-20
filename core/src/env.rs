@@ -363,7 +363,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     /// Test that we are able to instantiate and take ExtCarrier value
     fn create_take_ext_carrier() {
         let ext_implementer = ExtImplementedStruct(0);
@@ -385,63 +384,31 @@ mod tests {
 
         assert!(ext.with(converter).is_ok());
         assert!(r_ext.with(converter).is_ok());
-=======
-    /// Test that we are able to set and unset LaterExt value
-    fn setting_and_unsetting_inner_ext() {
-        let ext = LaterExt::new(ExtImplementedStruct(0));
-
-        assert_eq!(
-            ext.inner,
-            Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
-        );
-
-        let inner = ext.take();
-
-        assert_eq!(inner, Some(ExtImplementedStruct(0)));
->>>>>>> 5bf75749814f058bd4964d0e79495fd22c4f1869
     }
 
     #[test]
     #[allow(clippy::redundant_clone)]
     /// Test that ext's clone still refers to the same inner object as the original one
     fn ext_cloning() {
-<<<<<<< HEAD
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ReplicableExtCarrier::new(ext_implementer);
         let ext_clone = ext.clone();
 
         let inner = ext_clone.into_inner().expect("ext is set");
-=======
-        let ext_source = LaterExt::new(ExtImplementedStruct(0));
-        let ext_clone = ext_source.clone();
-
-        // ext_clone refers the same inner as ext_source,
-        let inner = ext_clone.take();
-
-        assert_eq!(inner, Some(ExtImplementedStruct(0)));
-    }
->>>>>>> 5bf75749814f058bd4964d0e79495fd22c4f1869
 
         assert_eq!(inner, ext_implementer);
     }
 
     #[test]
-<<<<<<< HEAD
     fn taking_ext_with_clone() {
         let ext = ReplicableExtCarrier::new(ExtImplementedStruct(0));
         let ext_clone = ext.clone();
-=======
-    /// Test that ext's `with<R>(...)` works correct when the inner is set
-    fn calling_fn_with_inner_ext() {
-        let ext = LaterExt::new(ExtImplementedStruct(0));
->>>>>>> 5bf75749814f058bd4964d0e79495fd22c4f1869
 
         assert!(ext_clone.into_inner().is_some());
         assert!(ext.into_inner().is_none())
     }
 
     #[test]
-<<<<<<< HEAD
     /// Test that calling ext's `with<R>(...)` throws error
     /// when the inner value was taken
     fn calling_fn_with_empty_ext() {
@@ -453,14 +420,5 @@ mod tests {
             ext_clone.with(converter).unwrap_err(),
             "with should be called only when inner is set"
         );
-=======
-    // TODO #841 Change to `should_panic` test
-    fn taking_ext_clone() {
-        let original_ext = LaterExt::new(ExtImplementedStruct(0));
-        let cloned_ext = original_ext.clone();
-
-        assert!(original_ext.take().is_some());
-        assert!(cloned_ext.take().is_none());
->>>>>>> 5bf75749814f058bd4964d0e79495fd22c4f1869
     }
 }
