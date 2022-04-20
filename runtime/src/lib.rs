@@ -29,10 +29,6 @@ use pallet_grandpa::{
 };
 pub use pallet_transaction_payment::{Multiplier, MultiplierUpdate};
 use sp_api::impl_runtime_apis;
-use sp_arithmetic::{
-    traits::{BaseArithmetic, Unsigned},
-    Perbill,
-};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
@@ -41,7 +37,7 @@ use sp_runtime::{
         AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, IdentifyAccount, NumberFor, Verify,
     },
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Perquintill,
+    ApplyExtrinsicResult, MultiSignature, Perbill, Percent, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 use sp_std::prelude::*;
@@ -55,7 +51,7 @@ pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU32, ConstU64, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness,
+        ConstU128, ConstU32, ConstU64, ConstU8, FindAuthor, Get, KeyOwnerProofSystem, Randomness,
         StorageInfo,
     },
     weights::{
@@ -307,47 +303,43 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 }
 
-/// Implementor of `WeightToFeePolynomial` that maps one unit of weight to one unit of fee,
-/// multiplied by the message queue load factor.
-pub struct GearWeightToFee<B, T>(sp_std::marker::PhantomData<(B, T)>);
-
-impl<B, T> WeightToFeePolynomial for GearWeightToFee<B, T>
-where
-    B: BaseArithmetic + From<u32> + Copy + Unsigned,
-    T: pallet_gear::Config,
-    T::AccountId: gear_common::Origin,
-{
-    type Balance = B;
-
-    fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-        smallvec::smallvec!(WeightToFeeCoefficient {
-            coeff_integer: 2_u32
-                .checked_pow(pallet_gear::Pallet::<T>::current_cost_multiplier_pow())
-                .unwrap_or(u32::MAX)
-                .into(),
-            coeff_frac: Perbill::zero(),
-            negative: false,
-            degree: 1,
-        })
-    }
-}
-
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_integer(1);
+    pub const QueueLengthStep: u128 = 10;
 }
 
 /// Custom fee multiplier which remains constant regardless the network congestion
 /// TODO: consider using Substrate's built-in `pallet_transaction_payment::TargetedFeeAdjustment`
 /// to allow elastic fees based on network conditions (if that's more appropriate)
-pub struct ConstantFeeMultiplier<M>(sp_std::marker::PhantomData<M>);
+pub struct GearFeeMultiplier<T, S>(sp_std::marker::PhantomData<(T, S)>);
 
-impl<M> MultiplierUpdate for ConstantFeeMultiplier<M>
+impl<T, S> Convert<Multiplier, Multiplier> for GearFeeMultiplier<T, S>
 where
-    M: frame_support::traits::Get<Multiplier>,
+    T: pallet_gear::Config,
+    T::AccountId: gear_common::Origin,
+    S: Get<u128>,
+{
+    fn convert(_previous: Multiplier) -> Multiplier {
+        let queue_length = pallet_gear::Pallet::<T>::message_queue_len();
+        let len_step = S::get().max(1); // Avoiding division by 0.
+
+        let pow = queue_length
+            .saturating_div(len_step)
+            .try_into()
+            .unwrap_or(u32::MAX);
+
+        2u128.checked_pow(pow).unwrap_or(u128::MAX).into()
+    }
+}
+
+impl<T, S> MultiplierUpdate for GearFeeMultiplier<T, S>
+where
+    T: pallet_gear::Config,
+    T::AccountId: gear_common::Origin,
+    S: Get<u128>,
 {
     fn min() -> Multiplier {
-        M::get()
+        Default::default()
     }
     fn target() -> Perquintill {
         Default::default()
@@ -356,22 +348,13 @@ where
         Default::default()
     }
 }
-impl<M> Convert<Multiplier, Multiplier> for ConstantFeeMultiplier<M>
-where
-    M: frame_support::traits::Get<Multiplier>,
-{
-    fn convert(previous: Multiplier) -> Multiplier {
-        let min_multiplier = M::get();
-        previous.max(min_multiplier)
-    }
-}
 
 impl pallet_transaction_payment::Config for Runtime {
     type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
-    type FeeMultiplierUpdate = ConstantFeeMultiplier<MinimumMultiplier>;
+    type FeeMultiplierUpdate = GearFeeMultiplier<Self, QueueLengthStep>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -387,6 +370,7 @@ impl pallet_utility::Config for Runtime {
 }
 
 pub struct GasConverter;
+
 impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
 }
@@ -416,7 +400,6 @@ impl pallet_gear::Config for Runtime {
     type Schedule = Schedule;
     type BlockGasLimit = BlockGasLimit;
     type WaitListFeePerBlock = WaitListFeePerBlock;
-    type MessageQueueLengthStep = ConstU8<5>;
     type DebugInfo = DebugInfo;
 }
 

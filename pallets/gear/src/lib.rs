@@ -129,10 +129,6 @@ pub mod pallet {
         #[pallet::constant]
         type WaitListFeePerBlock: Get<u64>;
 
-        /// Message queue length step for doubling extrinsic cost.
-        #[pallet::constant]
-        type MessageQueueLengthStep: Get<u8>;
-
         type DebugInfo: DebugInfo;
     }
 
@@ -255,10 +251,6 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn message_queue_len)]
     pub type MessageQueueLength<T: Config> = StorageValue<_, u128, ValueQuery>;
-
-    #[pallet::storage]
-    #[pallet::getter(fn current_cost_multiplier_pow)]
-    pub type CurrentCostMultiplierPow<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn messages_sent)]
@@ -534,28 +526,14 @@ pub mod pallet {
 
         pub(crate) fn reset_queue_len() {
             MessageQueueLength::<T>::mutate(|x| *x = 0);
-            CurrentCostMultiplierPow::<T>::mutate(|x| *x = 0);
         }
 
         pub(crate) fn increase_queue_len() {
-            MessageQueueLength::<T>::mutate(|x| {
-                *x = x.saturating_add(1);
-
-                if *x % T::MessageQueueLengthStep::get() as u128 == 0 {
-                    CurrentCostMultiplierPow::<T>::mutate(|y| *y = y.saturating_add(1));
-                };
-            });
+            MessageQueueLength::<T>::mutate(|x| *x = x.saturating_add(1));
         }
 
         pub(crate) fn decrease_queue_len() {
-            MessageQueueLength::<T>::mutate(|x| {
-                *x = x.saturating_sub(1);
-
-                let step = T::MessageQueueLengthStep::get() as u128;
-                if *x % step == step.saturating_sub(1) {
-                    CurrentCostMultiplierPow::<T>::mutate(|y| *y = y.saturating_sub(1));
-                };
-            });
+            MessageQueueLength::<T>::mutate(|x| *x = x.saturating_sub(1));
         }
 
         pub(crate) fn decrease_gas_allowance(gas_charge: u64) {
