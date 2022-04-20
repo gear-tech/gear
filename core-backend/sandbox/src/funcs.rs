@@ -67,8 +67,8 @@ pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
 
 fn wto(memory: &mut dyn Memory, ptr: usize, buff: &[u8]) -> Result<(), &'static str> {
     memory.write(ptr, buff).map_err(|e| {
-        log::error!("Canno write to mem: {:?}", e);
-        "Cannot write to sandbox memory: {:?}"
+        log::error!("Cannot write to mem: {:?}", e);
+        e.as_str()
     })
 }
 
@@ -126,7 +126,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             })
             .map(|err_code| Value::I32(err_code).into())
             .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send message");
+                ctx.trap = Some("Trapping: unable to send message with gas");
                 HostError
             });
         result
@@ -152,7 +152,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
         })
         .map(|err_code| Value::I32(err_code).into())
-        .map_err(|_err| {
+        .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
         })
@@ -180,7 +180,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         })
         .map(|_| ReturnValue::Unit)
         .map_err(|_| {
-            ctx.trap = Some("Trapping: unable to send message");
+            ctx.trap = Some("Trapping: unable to send message with gas");
             HostError
         })
     }
@@ -268,10 +268,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let reply_tuple = ctx.ext.with(|ext| ext.reply_to()).map_err(|err| {
-            ctx.trap = Some(err);
-            HostError
-        })?;
+        let reply_tuple = ctx.ext.with(|ext| ext.reply_to()).map_err(|_| HostError)?;
 
         if let Some((_, exit_code)) = reply_tuple {
             return_i32(exit_code)
@@ -325,12 +322,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         if let Err(err) = ctx.ext.with_fallible(|ext| ext.free(page.into())) {
             log::debug!("FREE ERROR: {:?}", err);
             ctx.trap = Some(err);
-            return Err(HostError);
+            Err(HostError)
         } else {
             log::debug!("FREE: {}", page);
+            return_none()
         }
-
-        return_none()
     }
 
     pub fn block_height(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
@@ -409,7 +405,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         })
         .map(|err_code| Value::I32(err_code).into())
         .map_err(|_| {
-            ctx.trap = Some("Trapping: unable to send message");
+            ctx.trap = Some("Trapping: unable to send reply");
             HostError
         })
     }
@@ -419,20 +415,18 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let dest = pop_i32(&mut args)?;
 
-        if let Ok(maybe_message_id) = ctx.ext.with(|ext| ext.reply_to()) {
-            if let Some((message_id, _)) = maybe_message_id {
-                let _ = wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
-                    ctx.trap = Some(err);
-                    HostError
-                })?;
+        let maybe_message_id = ctx.ext.with(|ext| ext.reply_to()).map_err(|_| HostError)?;
 
-                return_none()
-            } else {
-                ctx.trap = Some("Not running in the reply context");
-                Err(HostError)
-            }
+        if let Some((message_id, _)) = maybe_message_id {
+            let _ = wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
+                ctx.trap = Some(err);
+                HostError
+            })?;
+
+            return_none()
         } else {
-            unreachable!("result in `ext.with` is infallible")
+            ctx.trap = Some("Not running in the reply context");
+            Err(HostError)
         }
     }
 
@@ -465,9 +459,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ext.with_fallible(|ext| {
             let mut data = vec![0u8; str_len];
-            memory
-                .read(str_ptr, &mut data)
-                .map_err(|_| "Failed to tead memory")?;
+            memory.read(str_ptr, &mut data).map_err(|e| e.as_str())?;
             match String::from_utf8(data) {
                 Ok(s) => ext.debug(&s),
                 Err(_) => Err("Failed to parse debug string"),
@@ -644,7 +636,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 wto(memory, program_id_ptr, new_actor_id.as_ref())
             })
             .map(|_| ReturnValue::Unit)
-            .map_err(|_err| {
+            .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to create program");
                 HostError
             });

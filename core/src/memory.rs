@@ -58,6 +58,21 @@ pub enum Error {
     MemoryAccessError,
 }
 
+impl Error {
+    /// Converts error type to `str` message.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Error::OutOfMemory => "Memory is over",
+            Error::AllocationsInUse => "Allocation is in use",
+            Error::InvalidFree(_) => {
+                // todo [sab] str with page num
+                "Specified page cannot be freed by the current program"
+            }
+            Error::MemoryAccessError => "Out of bounds memory access",
+        }
+    }
+}
+
 /// Page buffer.
 pub type PageBuf = [u8; GEAR_PAGE_SIZE];
 

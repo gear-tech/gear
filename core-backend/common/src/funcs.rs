@@ -57,3 +57,5 @@ pub fn set_u128(mem: &mut dyn Memory, ptr: usize, val: u128) -> Result<(), &'sta
     mem.write(ptr, &val.to_le_bytes())
         .map_err(|_| "Cannot set u128 in memory")
 }
+
+// todo [sab] map_err return `str` but with more context from previous error
