@@ -55,7 +55,7 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_read`.
     pub gr_read: u64,
 
-    /// u64 per payload byte by `gr_read`.
+    /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: u64,
 
     /// Weight of calling `gr_block_height`.
@@ -70,23 +70,29 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_send_push`.
     pub gr_send_push: u64,
 
-    /// u64 per payload byte by `gr_send_push`.
+    /// Weight per payload byte by `gr_send_push`.
     pub gr_send_push_per_byte: u64,
 
     /// Weight of calling `gr_send_commit`.
     pub gr_send_commit: u64,
 
-    /// u64 per payload byte by `gr_send_commit`.
+    /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
     /// Weight of calling `gr_reply`.
     pub gr_reply: u64,
 
-    /// u64 per payload byte by `gr_reply`.
+    /// Weight per payload byte by `gr_reply`.
     pub gr_reply_per_byte: u64,
 
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
+
+    /// Weight of calling `gr_debug`.
+    pub gr_debug: u64,
+
+    /// Weight per payload byte by `gr_debug`.
+    pub gr_debug_per_byte: u64,
 
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: u64,
@@ -174,6 +180,8 @@ pub enum RuntimeCosts {
     Reply(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
+    /// Weight of calling `gr_debug`.
+    Debug(u32),
     /// Weight of calling `gr_exit_code`.
     ExitCode,
     /// Weight of calling `gr_exit`.
@@ -217,6 +225,9 @@ impl RuntimeCosts {
                 .gr_reply
                 .saturating_mul(s.gr_reply_per_byte.saturating_add(len.into())),
             ReplyTo => s.gr_reply_to,
+            Debug(len) => s
+                .gr_debug
+                .saturating_mul(s.gr_debug_per_byte.saturating_add(len.into())),
             ExitCode => s.gr_exit_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,

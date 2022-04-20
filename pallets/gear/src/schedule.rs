@@ -318,6 +318,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: Weight,
 
+    /// Weight of calling `gr_debug`.
+    pub gr_debug: Weight,
+
+    /// Weight per payload byte by `gr_debug`.
+    pub gr_debug_per_byte: Weight,
+
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: Weight,
 
@@ -512,6 +518,8 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_commit_per_byte: self.gr_send_commit_per_byte,
             gr_reply: self.gr_reply,
             gr_reply_per_byte: self.gr_reply_per_byte,
+            gr_debug: self.gr_debug,
+            gr_debug_per_byte: self.gr_debug_per_byte,
             gr_reply_to: self.gr_reply_to,
             gr_exit_code: self.gr_exit_code,
             gr_exit: self.gr_exit,
@@ -546,6 +554,8 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
             gr_reply: cost_batched!(gr_reply),
             gr_reply_per_byte: cost_byte_batched!(gr_reply_per_kb),
+            gr_debug: cost_batched!(gr_debug),
+            gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
             gr_reply_to: cost_batched!(gr_reply_to),
             gr_exit_code: cost_batched!(gr_exit_code),
             gr_exit: cost!(gr_exit),

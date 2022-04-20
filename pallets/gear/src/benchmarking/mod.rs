@@ -1490,6 +1490,108 @@ benchmarks! {
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
+    gr_debug {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_debug",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0),
+                Instruction::I32Const(0),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+    }: {
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                    Default::default(),
+                );
+
+        core_processor::handle_journal(journal, &mut ext_manager);
+    }
+
+    gr_debug_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_debug",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: None,
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0_u32,
+                    value: vec![0x65; T::Schedule::get().limits.payload_len as usize],
+                },
+            ],
+            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0),
+                Instruction::I32Const((n * 1024) as i32),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+    }: {
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                    Default::default(),
+                );
+
+        core_processor::handle_journal(journal, &mut ext_manager);
+    }
+
     gr_exit_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {
