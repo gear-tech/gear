@@ -31,7 +31,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    env::Ext,
+    env::{Ext, LaterExt},
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
