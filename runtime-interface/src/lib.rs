@@ -171,42 +171,30 @@ pub trait GearRI {
     /// If `protect` argument is true then restrict all accesses to page,
     /// else allows read and write accesses.
     fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
-        let mut prev_page = 0u32;
-        let mut size_in_pages = 0u32;
-        let mut lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
-
-        if let Some(page) = lazy_pages.last() {
-            // This case is impossible in real live, so just returns err and does nothing.
-            if *page == u32::MAX || *page == u32::MAX - 1 {
-                return Err(MprotectError::PageError);
-            }
+        let lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
+        if lazy_pages.is_empty() {
+            return Ok(());
         }
 
-        // We add this page num to lazy pages in order to be able correctly
-        // finish lazy pages handling in loop. This last page won't be
-        // handled.
-        lazy_pages.push(u32::MAX);
+        let mprotect = |start, count, protect: bool| unsafe {
+            let addr = wasm_mem_addr + (start * PageNumber::size()) as u64;
+            let size = count * PageNumber::size();
+            sys_mprotect_interval(addr, size, !protect, !protect, false)
+        };
 
         // Collects continuous intervals of memory from lazy pages to protect them.
-        for page in lazy_pages {
-            if prev_page + 1 == page {
-                size_in_pages += 1;
+        let mut start = lazy_pages[0] as usize; // Can't panic as we've checked `lazy_pages` is not empty
+        let mut count = 1;
+        for page in lazy_pages.into_iter().skip(1) {
+            if start + count == page as usize {
+                count = count.saturating_add(1);
             } else {
-                if size_in_pages != 0 {
-                    let addr = wasm_mem_addr
-                        + ((prev_page + 1 - size_in_pages) as usize * PageNumber::size()) as u64;
-                    let size = size_in_pages as usize * PageNumber::size();
-                    if protect {
-                        unsafe { sys_mprotect_interval(addr, size, false, false, false)? };
-                    } else {
-                        unsafe { sys_mprotect_interval(addr, size, true, true, false)? };
-                    }
-                }
-                size_in_pages = 1;
+                mprotect(start, count, protect)?;
+                start = page as _;
+                count = 1;
             }
-            prev_page = page;
         }
-        Ok(())
+        mprotect(start, count, protect)
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
