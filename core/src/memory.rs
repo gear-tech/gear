@@ -149,7 +149,7 @@ impl core::ops::Add for WasmPageNumber {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        Self(self.0 + other.0)
+        Self(self.0.saturating_add(other.0))
     }
 }
 
@@ -157,7 +157,7 @@ impl core::ops::Sub for WasmPageNumber {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        Self(self.0 - other.0)
+        Self(self.0.saturating_sub(other.0))
     }
 }
 
@@ -166,48 +166,62 @@ impl core::ops::Sub for WasmPageNumber {
 /// then we will include this wasm page in result set.
 /// If there is wasm pages, for which `pages_iter` contains not all pages,
 /// then returns Err.
-/// ````
-/// Example: if one wasm page contains 4 gear pages
-/// pages = [0,1,2,3,12,13,14,15]
-/// then result wasm pages = [0,3]
 ///
-/// pages = [0,1,2,3,5,6,7,8]
-/// then result is Err
-/// ````
+/// # Examples
+///
+/// We assume the one wasm page contains 16 gear pages.
+///
+/// ```
+/// # use std::collections::BTreeSet;
+/// # use gear_core::memory::{self, PageNumber, WasmPageNumber};
+///
+/// let gear_pages: BTreeSet<_> = vec![0..16, 48..64].into_iter().flatten().map(PageNumber).collect();
+/// let wasm_pages: BTreeSet<_> = [0, 3].map(WasmPageNumber).into();
+/// assert_eq!(memory::pages_to_wasm_pages_set(gear_pages.iter()), Ok(wasm_pages));
+///
+/// let gear_pages: BTreeSet<_> = vec![0..16, 50..66].into_iter().flatten().map(PageNumber).collect();
+/// assert!(memory::pages_to_wasm_pages_set(gear_pages.iter()).is_err());
+/// ```
 pub fn pages_to_wasm_pages_set<'a>(
-    mut pages_iter: impl Iterator<Item = &'a PageNumber>,
+    pages_iter: impl Iterator<Item = &'a PageNumber>,
 ) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
-    let mut wasm_pages = BTreeSet::<WasmPageNumber>::new();
-    while let Some(page) = pages_iter.next() {
-        if page.0 % PageNumber::num_in_one_wasm_page() != 0 {
-            return Err("There is wasm page, which has not all gear pages in the begin");
-        }
-        let wasm_page_num = WasmPageNumber(page.0 / PageNumber::num_in_one_wasm_page());
-        wasm_pages.insert(wasm_page_num);
-        for _ in 0..(WasmPageNumber::size() / PageNumber::size() - 1) {
-            pages_iter
-                .next()
-                .expect("There is wasm page, which has not all gear pages in the end");
-        }
-    }
+    let mut wasm_pages = BTreeSet::new();
+    pages_iter
+        .step_by(PageNumber::num_in_one_wasm_page() as _)
+        .try_for_each(|gp| {
+            if gp.0 % PageNumber::num_in_one_wasm_page() == 0 {
+                wasm_pages.insert(WasmPageNumber(gp.0 / PageNumber::num_in_one_wasm_page()));
+                Ok(())
+            } else {
+                Err("There is wasm page, which has not all gear pages in the begin")
+            }
+        })?;
     Ok(wasm_pages)
 }
 
 /// Transforms wasm pages set to corresponding gear pages set.
-/// ````
-/// Example: if one wasm page contains 4 gear pages
-/// wasm pages = [1,5,8]
-/// then result gear pages = [4,5,6,7,20,21,22,23,32,33,34,35]
-/// ````
+///
+/// # Examples
+///
+/// We assume the one wasm page contains 16 gear pages.
+///
+/// ```
+/// # use std::collections::BTreeSet;
+/// # use gear_core::memory::{self, PageNumber, WasmPageNumber};
+///
+/// let wasm_pages: BTreeSet<_> = [1, 5, 8].map(WasmPageNumber).into();
+/// let gear_pages: BTreeSet<_> = vec![16..32, 80..96, 128..144]
+///     .into_iter().flatten().map(PageNumber).collect();
+/// assert_eq!(memory::wasm_pages_to_pages_set(wasm_pages.iter()), gear_pages);
+/// ```
 pub fn wasm_pages_to_pages_set<'a>(
     wasm_pages_iter: impl Iterator<Item = &'a WasmPageNumber>,
 ) -> BTreeSet<PageNumber> {
-    let mut pages = BTreeSet::<PageNumber>::new();
-    for page in wasm_pages_iter {
-        let gear_page = page.to_gear_pages().0;
-        pages.extend((gear_page..gear_page + PageNumber::num_in_one_wasm_page()).map(PageNumber));
-    }
-    pages
+    wasm_pages_iter
+        .map(|wp| wp.to_gear_pages().0)
+        .flat_map(|gp| (gp..gp.saturating_add(PageNumber::num_in_one_wasm_page())))
+        .map(PageNumber)
+        .collect()
 }
 
 /// Memory interface for the allocator.
@@ -282,7 +296,7 @@ impl AllocationsContext {
         pages: WasmPageNumber,
         mem: &mut dyn Memory,
     ) -> Result<WasmPageNumber, Error> {
-        // silly allocator, brute-forces fist continuous sector
+        // silly allocator, brute-forces first continuous sector
         let mut candidate = self.static_pages;
         let mut found = WasmPageNumber(0);
 

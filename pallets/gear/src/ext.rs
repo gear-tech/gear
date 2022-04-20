@@ -165,9 +165,17 @@ impl EnvExt for LazyPagesExt {
         mem: &mut dyn Memory,
     ) -> Result<WasmPageNumber, &'static str> {
         // Greedily charge gas for allocations
-        self.charge_gas(pages_num.0 * self.inner.config.alloc_cost as u32)?;
+        self.charge_gas(
+            pages_num
+                .0
+                .saturating_mul(self.inner.config.alloc_cost as u32),
+        )?;
         // Greedily charge gas for grow
-        self.charge_gas(pages_num.0 * self.inner.config.mem_grow_cost as u32)?;
+        self.charge_gas(
+            pages_num
+                .0
+                .saturating_mul(self.inner.config.mem_grow_cost as u32),
+        )?;
 
         let old_mem_size = mem.size();
 
@@ -199,8 +207,11 @@ impl EnvExt for LazyPagesExt {
         // Returns back greedily used gas for grow
         let new_mem_size = mem.size();
         let grow_pages_num = new_mem_size - old_mem_size;
-        let mut gas_to_return_back =
-            self.inner.config.mem_grow_cost * (pages_num - grow_pages_num).0 as u64;
+        let mut gas_to_return_back = self
+            .inner
+            .config
+            .mem_grow_cost
+            .saturating_mul((pages_num - grow_pages_num).0 as u64);
 
         // Returns back greedily used gas for allocations
         let first_page = page_number;
@@ -211,8 +222,12 @@ impl EnvExt for LazyPagesExt {
                 new_alloced_pages_num = new_alloced_pages_num + 1.into();
             }
         }
-        gas_to_return_back +=
-            self.inner.config.alloc_cost * (pages_num - new_alloced_pages_num).0 as u64;
+        gas_to_return_back = gas_to_return_back.saturating_add(
+            self.inner
+                .config
+                .alloc_cost
+                .saturating_mul((pages_num - new_alloced_pages_num).0 as u64),
+        );
 
         self.refund_gas(gas_to_return_back as u32)?;
 
