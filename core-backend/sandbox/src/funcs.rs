@@ -274,7 +274,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let reply_tuple = ctx.ext.with(|ext| ext.reply_to()).map_err(|err| {
+        let reply_tuple = ctx.ext.with_fallible(|ext| ext.reply_to()).map_err(|err| {
             ctx.trap = Some(err);
             HostError
         })?;
@@ -343,7 +343,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn block_height(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let block_height = ctx
             .ext
-            .with(|ext| ext.block_height())
+            .with_fallible(|ext| ext.block_height())
             .map_err(|_| HostError)?;
 
         return_i32(block_height)
@@ -352,7 +352,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn block_timestamp(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let block_timestamp = ctx
             .ext
-            .with(|ext| ext.block_timestamp())
+            .with_fallible(|ext| ext.block_timestamp())
             .map_err(|_| HostError)?;
 
         return_i64(block_timestamp)
@@ -365,9 +365,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| {
-                let origin = ext.origin();
-                wto(ctx, origin_ptr, origin.as_ref())
+            .with_fallible(|ext| {
+                let origin = ext.origin()?;
+                Ok(wto(ctx, origin_ptr, origin.as_ref()))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -426,7 +426,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let dest = pop_i32(&mut args)?;
 
-        let maybe_message_id = ctx.ext.with(|ext| ext.reply_to()).map_err(|err| {
+        let maybe_message_id = ctx.ext.with_fallible(|ext| ext.reply_to()).map_err(|err| {
             ctx.trap = Some(err);
             HostError
         })?;
@@ -491,7 +491,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let gas_available = ctx
             .ext
-            .with(|ext| ext.gas_available())
+            .with_fallible(|ext| ext.gas_available())
             .map_err(|_| HostError)?;
 
         return_i64(gas_available)
@@ -504,9 +504,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| {
-                let message_id = ext.message_id();
-                wto(ctx, msg_id_ptr, message_id.as_ref())
+            .with_fallible(|ext| {
+                let message_id = ext.message_id()?;
+                Ok(wto(ctx, msg_id_ptr, message_id.as_ref()))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -522,9 +522,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| {
-                let source = ext.program_id();
-                wto(ctx, source_ptr, source.as_ref())
+            .with_fallible(|ext| {
+                let source = ext.program_id()?;
+                Ok(wto(ctx, source_ptr, source.as_ref()))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|err| {
@@ -540,9 +540,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| {
-                let source = ext.source();
-                wto(ctx, source_ptr, source.as_ref())
+            .with_fallible(|ext| {
+                let source = ext.source()?;
+                Ok(wto(ctx, source_ptr, source.as_ref()))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|err| {
@@ -558,7 +558,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| funcs::set_u128(&mut ctx.memory, value_ptr, ext.value()))
+            .with_fallible(|ext| {
+                let value = ext.value()?;
+                Ok(funcs::set_u128(&mut ctx.memory, value_ptr, value))
+            })
             .and_then(|res| {
                 res.map(|_| ReturnValue::Unit)
                     .map_err(|_| "Cannot set u128")
@@ -576,7 +579,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| funcs::set_u128(&mut ctx.memory, value_ptr, ext.value_available()))
+            .with_fallible(|ext| {
+                let value_available = ext.value_available()?;
+                Ok(funcs::set_u128(&mut ctx.memory, value_ptr, value_available))
+            })
             .and_then(|res| {
                 res.map(|_| ReturnValue::Unit)
                     .map_err(|_| "Cannot set u128")

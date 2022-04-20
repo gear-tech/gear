@@ -20,6 +20,7 @@
 
 #![cfg(feature = "runtime-benchmarks")]
 
+#[allow(dead_code)]
 mod code;
 mod sandbox;
 
@@ -426,8 +427,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -504,8 +506,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_gas_available {
@@ -549,8 +552,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_msg_id {
@@ -582,8 +586,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_origin {
@@ -615,8 +620,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_program_id {
@@ -648,8 +654,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_source {
@@ -683,8 +690,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_value {
@@ -716,8 +724,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_value_available {
@@ -749,8 +758,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_size {
@@ -794,8 +804,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_read {
@@ -850,8 +861,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_read_per_kb {
@@ -910,8 +922,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_block_height {
@@ -955,8 +968,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_block_timestamp {
@@ -1000,8 +1014,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_send_init {
@@ -1046,8 +1061,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_send_push {
@@ -1103,8 +1119,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_send_push_per_kb {
@@ -1160,8 +1177,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -1229,9 +1247,10 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
 
-        core_processor::handle_journal(journal.clone(), &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -1297,9 +1316,10 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
 
-        core_processor::handle_journal(journal.clone(), &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // Benchmark the `gr_reply` call.
@@ -1356,9 +1376,10 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
 
-        core_processor::handle_journal(journal.clone(), &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_reply_per_kb {
@@ -1413,9 +1434,10 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
 
-        core_processor::handle_journal(journal.clone(), &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_reply_to {
@@ -1462,9 +1484,10 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
 
-        core_processor::handle_journal(journal.clone(), &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_exit_code {
@@ -1511,9 +1534,10 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
 
-        core_processor::handle_journal(journal.clone(), &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // We cannot call `gr_exit` multiple times. Therefore our weight determination is not
@@ -1567,8 +1591,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
@@ -1613,8 +1638,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
@@ -1659,8 +1685,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_wake {
@@ -1725,8 +1752,9 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                 );
-         core_processor::handle_journal(journal.clone(), &mut ext_manager);
+         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly

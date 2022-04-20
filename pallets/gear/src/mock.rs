@@ -241,6 +241,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         timestamp: Timestamp::get(),
     };
 
+    let schedule = <Test as pallet_gear::Config>::Schedule::get();
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
 
@@ -253,6 +254,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         ProgramId::from_origin(dest),
         u64::MAX,
         <Test as pallet_gear::Config>::OutgoingLimit::get(),
+        schedule.host_fn_weights.into_core(),
     );
 
     let mut gas_burned: u64 = 0;

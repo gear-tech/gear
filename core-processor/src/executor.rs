@@ -211,6 +211,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         context.origin,
         program_id,
         Default::default(),
+        settings.host_fn_weights,
     );
 
     let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, initial_pages) {

@@ -25,6 +25,7 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use frame_support::{weights::Weight, DefaultNoBound};
+use gear_core::costs::HostFnWeights as CoreHostFnWeights;
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -484,6 +485,40 @@ impl<T: Config> Default for InstructionWeights<T> {
             i64rotl: cost_instr!(instr_i64rotl, 3),
             i64rotr: cost_instr!(instr_i64rotr, 3),
             _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> HostFnWeights<T> {
+    pub fn into_core(self) -> CoreHostFnWeights {
+        CoreHostFnWeights {
+            alloc: self.alloc,
+            gr_gas_available: self.gr_gas_available,
+            gr_msg_id: self.gr_msg_id,
+            gr_origin: self.gr_origin,
+            gr_program_id: self.gr_program_id,
+            gr_source: self.gr_source,
+            gr_value: self.gr_value,
+            gr_value_available: self.gr_value_available,
+            gr_size: self.gr_size,
+            gr_read: self.gr_read,
+            gr_read_per_byte: self.gr_read_per_byte,
+            gr_block_height: self.gr_block_height,
+            gr_block_timestamp: self.gr_block_timestamp,
+            gr_send_init: self.gr_send_init,
+            gr_send_push: self.gr_send_push,
+            gr_send_push_per_byte: self.gr_send_push_per_byte,
+            gr_send_commit: self.gr_send_commit,
+            gr_send_commit_per_byte: self.gr_send_commit_per_byte,
+            gr_reply: self.gr_reply,
+            gr_reply_per_byte: self.gr_reply_per_byte,
+            gr_reply_to: self.gr_reply_to,
+            gr_exit_code: self.gr_exit_code,
+            gr_exit: self.gr_exit,
+            gr_leave: self.gr_leave,
+            gr_wait: self.gr_wait,
+            gr_wake: self.gr_wake,
+            gas: self.gas,
         }
     }
 }

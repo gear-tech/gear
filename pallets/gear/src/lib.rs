@@ -471,6 +471,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
+            let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
 
             let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
@@ -479,8 +480,6 @@ pub mod pallet {
             let dispatch = match kind {
                 HandleKind::Init(ref code) => {
                     let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
-
-                    let schedule = T::Schedule::get();
 
                     let module =
                         wasm_instrument::parity_wasm::deserialize_buffer(code).unwrap_or_default();
@@ -580,6 +579,7 @@ pub mod pallet {
                     actor_id,
                     u64::MAX,
                     T::OutgoingLimit::get(),
+                    schedule.host_fn_weights.clone().into_core(),
                 );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
@@ -713,6 +713,7 @@ pub mod pallet {
                         Self::gas_allowance(),
                     );
 
+                    let schedule = T::Schedule::get();
                     let program_id = dispatch.destination();
                     let maybe_active_actor = if let Some(maybe_active_program) =
                         common::get_program(program_id.into_origin())
@@ -722,7 +723,6 @@ pub mod pallet {
 
                         // Check whether message should be added to the wait list
                         if let Program::Active(ref prog) = maybe_active_program {
-                            let schedule = T::Schedule::get();
                             if let Some(code) = common::get_code(prog.code_hash) {
                                 if code.instruction_weights_version()
                                     < schedule.instruction_weights.version
@@ -792,6 +792,7 @@ pub mod pallet {
                         program_id,
                         Self::gas_allowance(),
                         T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.into_core(),
                     );
 
                     core_processor::handle_journal(journal, &mut ext_manager);

@@ -28,6 +28,7 @@ use crate::{
 use alloc::vec::Vec;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
+    costs::HostFnWeights,
     env::Ext as EnvExt,
     ids::{MessageId, ProgramId},
     message::{
@@ -53,6 +54,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     program_id: ProgramId,
     gas_allowance: u64,
     outgoing_limit: u32,
+    host_fn_weights: HostFnWeights,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -64,6 +66,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             origin,
             gas_allowance,
             outgoing_limit,
+            host_fn_weights,
         ),
     }
 }
@@ -241,6 +244,7 @@ fn process_success(
     journal
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
@@ -249,10 +253,12 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     origin: ProgramId,
     gas_allowance: u64,
     outgoing_limit: u32,
+    host_fn_weights: HostFnWeights,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
-    let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
+    let execution_settings =
+        ExecutionSettings::new(block_info, existential_deposit, host_fn_weights);
     let execution_context = ExecutionContext {
         origin,
         gas_allowance,
