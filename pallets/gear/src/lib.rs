@@ -424,137 +424,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Same as get_gas_spent but process only one message.
-        #[cfg(feature = "runtime-benchmarks")]
-        pub fn process_message(
-            source: H256,
-            kind: HandleKind,
-            payload: Vec<u8>,
-            value: u128,
-        ) -> Result<(), &'static str> {
-            let mut ext_manager = ExtManager::<T>::default();
-
-            let bn: u64 = 1;
-            let root_message_id = MessageId::from(bn).into_origin();
-
-            let dispatch = match kind {
-                HandleKind::Init(ref code) => {
-                    let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
-
-                    let schedule = T::Schedule::get();
-
-                    let module =
-                        wasm_instrument::parity_wasm::deserialize_buffer(code).unwrap_or_default();
-
-                    let gas_rules = schedule.rules(&module);
-
-                    let code = Code::try_new(
-                        code.clone(),
-                        schedule.instruction_weights.version,
-                        Some(module),
-                        gas_rules,
-                    )
-                    .map_err(|_| "Code failed to load: {}")?;
-
-                    let _ = Self::set_code_with_metadata(&code, source);
-
-                    ExtManager::<T>::default().set_program(program_id, code, root_message_id);
-
-                    Dispatch::new(
-                        DispatchKind::Init,
-                        Message::new(
-                            MessageId::from_origin(root_message_id),
-                            ProgramId::from_origin(source),
-                            program_id,
-                            payload,
-                            Some(u64::MAX),
-                            value,
-                            None,
-                        ),
-                    )
-                }
-                HandleKind::Handle(dest) => Dispatch::new(
-                    DispatchKind::Handle,
-                    Message::new(
-                        MessageId::from_origin(root_message_id),
-                        ProgramId::from_origin(source),
-                        ProgramId::from_origin(dest),
-                        payload,
-                        Some(u64::MAX),
-                        value,
-                        None,
-                    ),
-                ),
-                HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = Self::remove_from_mailbox(source, msg_id)
-                        .ok_or("Internal error: unable to find message in mailbox")?;
-                    Dispatch::new(
-                        DispatchKind::Reply,
-                        Message::new(
-                            MessageId::from_origin(root_message_id),
-                            ProgramId::from_origin(source),
-                            msg.source(),
-                            payload,
-                            Some(u64::MAX),
-                            value,
-                            Some((msg.id(), exit_code)),
-                        ),
-                    )
-                }
-            };
-
-            let initial_gas = T::BlockGasLimit::get();
-            T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
-                .map_err(|_| "Internal error: unable to create gas handler")?;
-
-            let dispatch = dispatch.into_stored();
-
-            common::clear_dispatch_queue();
-            common::queue_dispatch(dispatch);
-
-            let block_info = BlockInfo {
-                height: 1,
-                timestamp: 1,
-            };
-
-            let existential_deposit =
-                <T as Config>::Currency::minimum_balance().unique_saturated_into();
-
-            if let Some(queued_dispatch) = common::dequeue_dispatch() {
-                let actor_id = queued_dispatch.destination();
-                let actor = ext_manager
-                    .get_executable_actor(actor_id.into_origin())
-                    .ok_or("Program not found in the storage")?;
-
-                let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    Some(actor),
-                    queued_dispatch.into_incoming(initial_gas),
-                    block_info,
-                    existential_deposit,
-                    ProgramId::from_origin(source),
-                    actor_id,
-                    u64::MAX,
-                    2048,
-                );
-
-                core_processor::handle_journal(journal.clone(), &mut ext_manager);
-
-                for note in journal {
-                    if let JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                        ..
-                    }) = note
-                    {
-                        return Err("Program terminated with a trap");
-                    }
-                }
-            }
-
-            Ok(())
-        }
-
         // Messages have only two options to be inserted in mailbox:
         // 1. While message processing called `gr_wait`.
         // 2. While message addressed to program, that hadn't finished it's initialization.
@@ -956,7 +825,7 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        fn set_code_with_metadata(code: &Code, who: H256) -> Result<H256, Error<T>> {
+        pub fn set_code_with_metadata(code: &Code, who: H256) -> Result<H256, Error<T>> {
             let hash: H256 = code.code_hash().into_origin();
 
             ensure!(!common::code_exists(hash), Error::<T>::CodeAlreadyExists);

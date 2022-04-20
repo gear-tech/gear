@@ -47,14 +47,12 @@ use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
 use sp_runtime::{
-    traits::{Bounded, Hash, UniqueSaturatedInto},
+    traits::{Bounded, UniqueSaturatedInto},
     Perbill,
 };
 
 use frame_support::traits::Currency;
 
-const MIN_CODE_LEN: u32 = 128;
-const MAX_CODE_LEN: u32 = 128 * 1024;
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
@@ -119,19 +117,139 @@ where
 
         Ok(result)
     }
-
-    fn code_exists(hash: &CodeId) -> bool {
-        common::code_exists(hash.into_origin())
-    }
-
-    fn code_removed(hash: &CodeId) -> bool {
-        !common::code_exists(hash.into_origin())
-    }
 }
 
 /// The funding that each account that either calls or instantiates programs is funded with.
 fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
     BalanceOf::<T>::max_value() / 2u32.into()
+}
+
+struct Exec<T: Config> {
+    ext_manager: ExtManager<T>,
+    maybe_actor: Option<ExecutableActor>,
+    dispatch: IncomingDispatch,
+    block_info: BlockInfo,
+    existential_deposit: u128,
+    origin: ProgramId,
+    program_id: ProgramId,
+    gas_allowance: u64,
+    outgoing_limit: u32,
+}
+
+fn prepare<T>(
+    source: H256,
+    kind: HandleKind,
+    payload: Vec<u8>,
+    value: u128,
+) -> Result<Exec<T>, &'static str>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    let ext_manager = ExtManager::<T>::default();
+    let bn: u64 = 1;
+    let root_message_id = MessageId::from(bn).into_origin();
+
+    let dispatch = match kind {
+        HandleKind::Init(ref code) => {
+            let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
+
+            let schedule = T::Schedule::get();
+
+            let module = wasm_instrument::parity_wasm::deserialize_buffer(code).unwrap_or_default();
+
+            let gas_rules = schedule.rules(&module);
+
+            let code = Code::try_new(
+                code.clone(),
+                schedule.instruction_weights.version,
+                Some(module),
+                gas_rules,
+            )
+            .map_err(|_| "Code failed to load: {}")?;
+
+            let _ = Gear::<T>::set_code_with_metadata(&code, source)?;
+
+            ExtManager::<T>::default().set_program(program_id, code, root_message_id);
+
+            Dispatch::new(
+                DispatchKind::Init,
+                Message::new(
+                    MessageId::from_origin(root_message_id),
+                    ProgramId::from_origin(source),
+                    program_id,
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    None,
+                ),
+            )
+        }
+        HandleKind::Handle(dest) => Dispatch::new(
+            DispatchKind::Handle,
+            Message::new(
+                MessageId::from_origin(root_message_id),
+                ProgramId::from_origin(source),
+                ProgramId::from_origin(dest),
+                payload,
+                Some(u64::MAX),
+                value,
+                None,
+            ),
+        ),
+        HandleKind::Reply(msg_id, exit_code) => {
+            let msg = Gear::<T>::remove_from_mailbox(source, msg_id)
+                .ok_or("Internal error: unable to find message in mailbox")?;
+            Dispatch::new(
+                DispatchKind::Reply,
+                Message::new(
+                    MessageId::from_origin(root_message_id),
+                    ProgramId::from_origin(source),
+                    msg.source(),
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    Some((msg.id(), exit_code)),
+                ),
+            )
+        }
+    };
+
+    let initial_gas = T::BlockGasLimit::get();
+    T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
+        .map_err(|_| "Internal error: unable to create gas handler")?;
+
+    let dispatch = dispatch.into_stored();
+
+    common::clear_dispatch_queue();
+    common::queue_dispatch(dispatch);
+
+    let block_info = BlockInfo {
+        height: 1,
+        timestamp: 1,
+    };
+
+    let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+    if let Some(queued_dispatch) = common::dequeue_dispatch() {
+        let actor_id = queued_dispatch.destination();
+        let actor = ext_manager
+            .get_executable_actor(actor_id.into_origin())
+            .ok_or("Program not found in the storage")?;
+        Ok(Exec {
+            ext_manager,
+            maybe_actor: Some(actor),
+            dispatch: queued_dispatch.into_incoming(initial_gas),
+            block_info,
+            existential_deposit,
+            origin: ProgramId::from_origin(source),
+            program_id: actor_id,
+            gas_allowance: u64::MAX,
+            outgoing_limit: 2048,
+        })
+    } else {
+        Err("Dispatch not found")
+    }
 }
 
 benchmarks! {
@@ -284,8 +402,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -338,9 +480,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
-
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_gas_available {
@@ -360,8 +525,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_msg_id {
@@ -369,8 +558,32 @@ benchmarks! {
         let instance = Program::<T>::new(WasmModule::getter(
             "env", "gr_msg_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_origin {
@@ -378,8 +591,32 @@ benchmarks! {
         let instance = Program::<T>::new(WasmModule::getter(
             "env", "gr_origin", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_program_id {
@@ -387,8 +624,32 @@ benchmarks! {
         let instance = Program::<T>::new(WasmModule::getter(
             "env", "gr_program_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_source {
@@ -396,8 +657,34 @@ benchmarks! {
         let instance = Program::<T>::new(WasmModule::getter(
             "env", "gr_source", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
+
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_value {
@@ -405,8 +692,32 @@ benchmarks! {
         let instance = Program::<T>::new(WasmModule::getter(
             "env", "gr_value", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_value_available {
@@ -414,8 +725,32 @@ benchmarks! {
         let instance = Program::<T>::new(WasmModule::getter(
             "env", "gr_value_available", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_size {
@@ -435,8 +770,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; 1024], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_read {
@@ -467,8 +826,32 @@ benchmarks! {
                 .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_read_per_kb {
@@ -503,8 +886,32 @@ benchmarks! {
                 .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; (n * 1024) as usize], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_block_height {
@@ -524,8 +931,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_block_timestamp {
@@ -545,8 +976,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_send_init {
@@ -567,8 +1022,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_send_push {
@@ -600,8 +1079,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_send_push_per_kb {
@@ -633,8 +1136,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -676,8 +1203,35 @@ benchmarks! {
                 .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+
+        core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -719,8 +1273,33 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+
+        core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // Benchmark the `gr_reply` call.
@@ -753,8 +1332,33 @@ benchmarks! {
                 .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+
+        core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_reply_per_kb {
@@ -785,8 +1389,33 @@ benchmarks! {
                 .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+
+        core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_reply_to {
@@ -809,8 +1438,33 @@ benchmarks! {
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
         Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+
+        core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_exit_code {
@@ -833,8 +1487,33 @@ benchmarks! {
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
         Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+
+        core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // We cannot call `gr_exit` multiple times. Therefore our weight determination is not
@@ -864,8 +1543,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
@@ -886,8 +1589,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
@@ -908,8 +1635,32 @@ benchmarks! {
             .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     gr_wake {
@@ -950,8 +1701,32 @@ benchmarks! {
                 <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
             );
         }
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                );
+         core_processor::handle_journal(journal.clone(), &mut ext_manager);
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly
@@ -1177,7 +1952,7 @@ benchmarks! {
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(2), // call aux
             ])),
-            inject_stack_metering: true,
+            inject_stack_metering: false,
             .. Default::default()
         }));
     }: {
@@ -1201,7 +1976,7 @@ benchmarks! {
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(0, 0)), // we only have one sig: 0
             ])),
-            inject_stack_metering: true,
+            inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
                 function_index: 2, // aux
@@ -1234,7 +2009,7 @@ benchmarks! {
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(p.min(1), 0)), // aux signature: 1 or 0
             ])),
-            inject_stack_metering: true,
+            inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
                 function_index: 2, // aux

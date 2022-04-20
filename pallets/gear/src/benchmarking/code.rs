@@ -40,8 +40,8 @@ use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
-        self, BlockType, CustomSection, External, FuncBody, Instruction, Instructions, Module,
-        Section, ValueType,
+        self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Module, Section,
+        ValueType,
     },
 };
 
@@ -273,64 +273,10 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    /// Uses the supplied wasm module and instruments it when requested.
-    pub fn instrumented(code: &[u8], inject_gas: bool, inject_stack: bool) -> Self {
-        let module = {
-            let mut module = Module::from_bytes(code).unwrap();
-            if inject_gas {
-                module = inject_gas_metering::<T>(module);
-            }
-            if inject_stack {
-                module = inject_stack_metering::<T>(module);
-            }
-            module
-        };
-        let limits = *module
-            .import_section()
-            .unwrap()
-            .entries()
-            .iter()
-            .find_map(|e| {
-                if let External::Memory(mem) = e.external() {
-                    Some(mem)
-                } else {
-                    None
-                }
-            })
-            .unwrap()
-            .limits();
-        let code = module.to_bytes().unwrap();
-        let hash = CodeId::generate(&code);
-        let memory = ImportedMemory {
-            min_pages: limits.initial(),
-        };
-        Self {
-            code,
-            hash,
-            memory: Some(memory),
-            _data: PhantomData,
-        }
-    }
-
     /// Creates a wasm module with an empty `handle` and `init` function and nothing else.
     pub fn dummy() -> Self {
         ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            ..Default::default()
-        }
-        .into()
-    }
-
-    /// Same as `dummy` but with maximum sized linear memory and a dummy section of specified size.
-    pub fn dummy_with_bytes(dummy_bytes: u32) -> Self {
-        // We want the module to have the size `dummy_bytes`.
-        // This is not completely correct as the overhead grows when the program grows
-        // because of variable length integer encoding. However, it is good enough to be that
-        // close for benchmarking purposes.
-        let module_overhead = 65;
-        ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            dummy_section: dummy_bytes.saturating_sub(module_overhead),
             ..Default::default()
         }
         .into()
@@ -565,12 +511,6 @@ where
     T: Config,
 {
     T::Schedule::get().limits.memory_pages
-}
-
-fn inject_gas_metering<T: Config>(module: Module) -> Module {
-    let schedule = T::Schedule::get();
-    let gas_rules = schedule.rules(&module);
-    wasm_instrument::gas_metering::inject(module, &gas_rules, "env").unwrap()
 }
 
 fn inject_stack_metering<T: Config>(module: Module) -> Module {
