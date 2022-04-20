@@ -434,6 +434,8 @@ impl EnvExt for Ext {
     fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
         use ChargeResult::*;
 
+        self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))?;
+
         let common_charge = self.gas_counter.charge(val as u64);
         let allowance_charge = self.gas_allowance_counter.charge(val as u64);
 
