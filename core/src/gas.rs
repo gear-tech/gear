@@ -19,7 +19,6 @@
 //! Gas module.
 
 /// This trait represents a token that can be used for charging `GasCounter`.
-/// There is no other way of charging it.
 ///
 /// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
 /// for consistency). If inlined there should be no observable difference compared
