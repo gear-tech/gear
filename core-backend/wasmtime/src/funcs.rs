@@ -395,7 +395,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             })
             .map_err(|e| {
                 Trap::new(format!(
-                    "Trapping: unable to commit and send message: {}", // todo [sab] use str not String
+                    "Trapping: unable to commit and send message: {}",
                     e
                 ))
             })

@@ -64,10 +64,7 @@ impl Error {
         match self {
             Error::OutOfMemory => "Memory is over",
             Error::AllocationsInUse => "Allocation is in use",
-            Error::InvalidFree(_) => {
-                // todo [sab] str with page num
-                "Specified page cannot be freed by the current program"
-            }
+            Error::InvalidFree(_) => "Program cannot free the page",
             Error::MemoryAccessError => "Out of bounds memory access",
         }
     }
