@@ -176,13 +176,6 @@ pub trait GearRI {
             return Ok(());
         }
 
-        if let Some(page) = lazy_pages.last() {
-            // This case is impossible in real live, so just returns err and does nothing.
-            if *page >= u32::MAX - 1 {
-                return Err(MprotectError::PageError);
-            }
-        }
-
         let mprotect = |start, count, protect: bool| unsafe {
             let addr = wasm_mem_addr + (start * PageNumber::size()) as u64;
             let size = count * PageNumber::size();
@@ -190,11 +183,11 @@ pub trait GearRI {
         };
 
         // Collects continuous intervals of memory from lazy pages to protect them.
-        let mut start = lazy_pages[0] as usize;
+        let mut start = lazy_pages[0] as usize; // Can't panic as we've checked `lazy_pages` is not empty
         let mut count = 1;
         for page in lazy_pages.into_iter().skip(1) {
             if start + count == page as usize {
-                count += 1;
+                count = count.saturating_add(1);
             } else {
                 mprotect(start, count, protect)?;
                 start = page as _;

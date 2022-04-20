@@ -74,7 +74,8 @@ impl GasCounter {
         }
 
         self.left -= amount;
-        // `burned` can't overflow as `amount` can't be greater than u64::MAX
+        // `burned` can't overflow as `amount` can't be greater than `u64::MAX`.
+        // Total `amount` can't exceed `u64::MAX` as we check it's not greater than `left` earlier.
         self.burned += amount;
 
         ChargeResult::Enough
