@@ -328,10 +328,8 @@ pub mod pallet {
             TotalHandled::<T>::put(0);
             CanProcessQueue::<T>::put(true);
             GasAllowance::<T>::put(remaining_weight.saturating_sub(T::DbWeight::get().writes(3)));
-            let mut weight = T::DbWeight::get().writes(4);
-            weight += Self::process_queue();
-
-            weight
+            let weight = T::DbWeight::get().writes(4);
+            weight.saturating_add(Self::process_queue())
         }
     }
 
@@ -409,12 +407,6 @@ pub mod pallet {
                         gas_rules,
                     )
                     .map_err(|_| b"Code failed to load: {}".to_vec())?;
-
-                    // let code_hash = <[u8; 32]>::from(code.code_hash()).into();
-
-                    // common::set_original_code(code_hash, code.original_code());
-
-                    // common::set_code(code_hash, &code);
 
                     let _ = Self::set_code_with_metadata(&code, source);
 
@@ -584,7 +576,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let mut weight = Self::gas_allowance() as Weight;
+            let weight = Self::gas_allowance() as Weight;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -733,8 +725,7 @@ pub mod pallet {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));
             }
 
-            weight = weight.saturating_sub(Self::gas_allowance());
-            weight
+            weight.saturating_sub(Self::gas_allowance())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -764,18 +755,6 @@ pub mod pallet {
 
             Ok(hash)
         }
-
-        // fn instrument_code(
-        //     module: Module,
-        //     schedule: &Schedule<T>,
-        // ) -> Result<Vec<u8>, &'static str> {
-        //     let instrumented_module =
-        //         wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-        //             .map_err(|_| "error instrumenting code")?;
-
-        //     wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-        //         .map_err(|_| "error serializing instrumented module")
-        // }
 
         fn reinstrument_code(
             code_hash: H256,
