@@ -417,7 +417,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 128,
+            memory_pages: 16,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
