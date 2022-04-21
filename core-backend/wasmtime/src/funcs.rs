@@ -95,14 +95,15 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn exit_code(store: &mut Store<StoreData<E>>) -> Func {
         let f = move |caller: Caller<'_, StoreData<E>>| {
             let ext = &caller.data().ext;
-            let reply_tuple = ext
-                .with(|ext: &mut E| ext.reply_to())
-                .map_err(|_| Trap::new("Internal error: infallible call returned Err"))?;
-            if let Some((_, exit_code)) = reply_tuple {
-                Ok(exit_code)
-            } else {
-                Err(Trap::new("Not running in the reply context"))
-            }
+            ext.with(|ext: &mut E| ext.reply_to())
+                .and_then(|maybe_exit_code| {
+                    if let Some((_, exit_code)) = maybe_exit_code {
+                        Ok(exit_code)
+                    } else {
+                        Err("Not running in the reply context")
+                    }
+                })
+                .map_err(Trap::new)
         };
         Func::wrap(store, f)
     }
@@ -294,15 +295,20 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn reply_to(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, dest: i32| {
             let ext = &caller.data().ext;
-            if let Some((msg_id, _)) = ext
-                .with(|ext: &mut E| ext.reply_to())
-                .map_err(|_| Trap::new("Internal error: infallible call returned Err"))?
-            {
-                write_to_caller_memory(&mut caller, &mem, dest as isize as _, msg_id.as_ref())
-                    .map_err(Trap::new)
-            } else {
-                Err(Trap::new("Not running in the reply context"))
-            }
+            ext.with(|ext: &mut E| ext.reply_to())
+                .and_then(|maybe_message_id| {
+                    if let Some((msg_id, _)) = maybe_message_id {
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            dest as isize as _,
+                            msg_id.as_ref(),
+                        )
+                    } else {
+                        Err("Not running in the reply context")
+                    }
+                })
+                .map_err(Trap::new)
         };
         Func::wrap(store, func)
     }

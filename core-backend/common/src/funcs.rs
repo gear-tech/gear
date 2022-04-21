@@ -49,7 +49,7 @@ pub fn get_u128(mem: &dyn Memory, ptr: usize) -> Result<u128, &'static str> {
 pub fn get_vec(mem: &dyn Memory, ptr: usize, len: usize) -> Result<Vec<u8>, &'static str> {
     let mut vec = vec![0u8; len];
     mem.read(ptr, &mut vec)
-        .map_err(|_| "Cannot read vector from mem")?;
+        .map_err(|_| "Cannot read bytes from mem")?;
     Ok(vec)
 }
 
