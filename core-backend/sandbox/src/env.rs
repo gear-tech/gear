@@ -119,8 +119,10 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_value_available", funcs::value_available);
         env_builder.add_host_func("env", "gr_reply", funcs::reply);
         env_builder.add_host_func("env", "gr_reply_commit", funcs::reply_commit);
+        env_builder.add_host_func("env", "gr_reply_commit_wgas", funcs::reply_commit_wgas);
         env_builder.add_host_func("env", "gr_reply_to", funcs::reply_to);
         env_builder.add_host_func("env", "gr_reply_push", funcs::reply_push);
+        env_builder.add_host_func("env", "gr_reply_wgas", funcs::reply_wgas);
         env_builder.add_host_func("env", "gr_debug", funcs::debug);
         env_builder.add_host_func("env", "gr_gas_available", funcs::gas_available);
         env_builder.add_host_func("env", "gr_msg_id", funcs::msg_id);
