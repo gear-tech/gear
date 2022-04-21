@@ -30,7 +30,7 @@ use gear_backend_common::{
     IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    env::{Ext, ReplicableExtCarrier},
+    env::{Ext, ExtCarrier, ExtCarrierClone},
     gas::GasAmount,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
@@ -40,22 +40,15 @@ use wasmtime::{
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
-    pub ext: ReplicableExtCarrier<E>,
+    pub ext: ExtCarrierClone<E>,
 }
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: Store<StoreData<E>>,
-    ext: ReplicableExtCarrier<E>,
+    ext: ExtCarrier<E>,
     memory: WasmtimeMemory,
     instance: Instance,
-}
-
-// TODO #852 remove after resolving the issue
-fn get_current_gas_state<E: Ext + IntoExtInfo>(
-    ext_carrier: ReplicableExtCarrier<E>,
-) -> Option<GasAmount> {
-    ext_carrier.into_inner().map(IntoExtInfo::into_gas_amount)
 }
 
 fn set_pages<T: Ext>(
@@ -78,9 +71,7 @@ fn set_pages<T: Ext>(
 }
 
 impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
-    fn prepare_post_execution_data(
-        self,
-    ) -> Result<(Option<ExtInfo>, HostPointer), BackendError<'static>> {
+    fn prepare_post_execution_data(self) -> Result<(ExtInfo, HostPointer), BackendError<'static>> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
         let WasmtimeEnvironment {
             mut store,
@@ -89,20 +80,17 @@ impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
             ..
         } = self;
         ext.into_inner()
-            .map(|ext| {
-                ext.into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                    memory
-                        .read(&mut store, offset, buffer)
-                        .map_err(|_| "Cannot read wasmtime memory")
-                })
-                .map_err(|(reason, gas_amount)| BackendError {
-                    reason,
-                    description: None,
-                    gas_amount,
-                })
+            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
+                memory
+                    .read(&mut store, offset, buffer)
+                    .map_err(|_| "Cannot read wasmtime memory")
             })
-            .transpose()
-            .map(|maybe_info| (maybe_info, wasm_memory_addr))
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason,
+                description: None,
+                gas_amount,
+            })
+            .map(|info| (info, wasm_memory_addr))
     }
 }
 
@@ -113,11 +101,11 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let ext_carrier = ReplicableExtCarrier::new(ext);
+        let ext_carrier = ExtCarrier::new(ext);
 
         let engine = Engine::default();
         let store_data = StoreData {
-            ext: ext_carrier.clone(),
+            ext: ext_carrier.create_carrier_clone(),
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
@@ -128,8 +116,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Create env memory failed",
                     description: Some(e.to_string().into()),
-                    gas_amount: get_current_gas_state(ext_carrier)
-                        .expect("existing clone is not taken"),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -184,8 +171,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to create module",
                     description: Some(e.to_string().into()),
-                    gas_amount: get_current_gas_state(ext_carrier)
-                        .expect("existing clone is not taken"),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -198,8 +184,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     description: import
                         .name()
                         .map(|v| format!("Function {:?} is not env", v).into()),
-                    gas_amount: get_current_gas_state(ext_carrier)
-                        .expect("existing clone is not taken"),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 });
             }
             imports.push((import.name(), Option::<Extern>::None));
@@ -224,8 +209,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     reason: "Missing import",
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: get_current_gas_state(ext_carrier)
-                        .expect("existing clone is not taken"),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 });
             }
         }
@@ -236,8 +220,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 return Err(BackendError {
                     reason: "Unable to create instance",
                     description: Some(e.to_string().into()),
-                    gas_amount: get_current_gas_state(ext_carrier)
-                        .expect("existing clone is not taken"),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -247,8 +230,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             return Err(BackendError {
                 reason: "Unable to set module memory data",
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: get_current_gas_state(ext_carrier)
-                    .expect("existing clone is not taken"),
+                gas_amount: ext_carrier.into_inner().into_gas_amount(),
             });
         }
 
@@ -294,14 +276,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             // Entry function found
             f
         } else {
-            let (info, wasm_memory_addr) =
-                self.prepare_post_execution_data()
-                    .map(|(maybe_info, mem_addr)| {
-                        (
-                            maybe_info.expect("method called only once with no clones around; qed"),
-                            mem_addr,
-                        )
-                    })?;
+            let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
 
             // Entry function not found, so we mean this as empty function
             return match post_execution_handler(wasm_memory_addr) {
@@ -319,14 +294,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let (info, wasm_memory_addr) =
-            self.prepare_post_execution_data()
-                .map(|(maybe_info, mem_addr)| {
-                    (
-                        maybe_info.expect("method called only once with no clones around; qed"),
-                        mem_addr,
-                    )
-                })?;
+        let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
@@ -366,9 +334,6 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        self.ext
-            .into_inner()
-            .expect("method called only once with no clones around; qed")
-            .into_gas_amount()
+        self.ext.into_inner().into_gas_amount()
     }
 }

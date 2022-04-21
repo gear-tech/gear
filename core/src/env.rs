@@ -27,7 +27,6 @@ use alloc::rc::Rc;
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
-use core::ops::Deref;
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -144,26 +143,24 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str>;
 }
 
-/// Basic struct for interacting with external API, provided to the program.
-///
-/// Stores `Ext` type and manages it with reference counter. RC is used to make the carrier
-/// optionally clone-able.
-///
-/// The struct can't be instantiated outside the module although it has `pub` visibility.
-/// This is done intentionally in order to provide deref to it for wrappers which
-/// are used outside the module ([`ExtCarrier`], [`ReplicableExtCarrier`]) and to reduce
-/// repetitiveness of `with`/`with_fallible` methods.  
-// TODO #852 type will be redundant after resolving the issue.
-pub struct BaseExtCarrier<E: Ext> {
+/// Struct for interacting with Ext.
+pub struct ExtCarrier<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
 }
 
-impl<E: Ext> BaseExtCarrier<E> {
-    // New base ext carrier
-    fn new(e: E) -> Self {
+impl<E: Ext> ExtCarrier<E> {
+    /// New ext carrier
+    pub fn new(e: E) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Some(e))),
         }
+    }
+
+    /// Unwraps hidden `E` value
+    pub fn into_inner(self) -> E {
+        self.inner
+            .take()
+            .expect("can be called only once during instance consumption; qed")
     }
 
     /// Calls infallible fn with inner ext
@@ -186,70 +183,48 @@ impl<E: Ext> BaseExtCarrier<E> {
 
         res
     }
-}
 
-/// Struct for interacting with Ext.
-///
-/// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
-pub struct ExtCarrier<E: Ext>(BaseExtCarrier<E>);
-
-impl<E: Ext> ExtCarrier<E> {
-    /// New ext carrier
-    pub fn new(e: E) -> Self {
-        Self(BaseExtCarrier::new(e))
-    }
-
-    /// Unwraps hidden `E` value
-    pub fn into_inner(self) -> E {
-        let BaseExtCarrier { inner } = self.0;
-        inner
-            .take()
-            .expect("can be called only once during instance consumption; qed")
-    }
-}
-
-impl<E: Ext> Deref for ExtCarrier<E> {
-    type Target = BaseExtCarrier<E>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// "Clone-able" struct for interacting with Ext.
-///
-/// Unlike [`BaseExtCarrier`] this struct is intended for external usage.
-// TODO #852 type will be redundant after resolving the issue.
-pub struct ReplicableExtCarrier<E: Ext>(BaseExtCarrier<E>);
-
-impl<E: Ext> ReplicableExtCarrier<E> {
-    /// New clone-able ext carrier
-    pub fn new(e: E) -> Self {
-        Self(BaseExtCarrier::new(e))
-    }
-
-    /// Unwraps hidden `E` value.
+    /// Creates clone for the current reference.
     ///
-    /// Because of the fact that the type is actually a wrapper over `Rc`,
-    /// we have no guarantee that `take` can be called only once on the same
-    /// data. That's why `Option<E>` is returned instead of `E` as in [`ExtCarrier`]
-    pub fn into_inner(self) -> Option<E> {
-        self.0.inner.take()
+    /// Clone type differs from the [`ExtCarrier`]. For rationale see [`ExtCarrierClone`] docs.
+    pub fn create_carrier_clone(&self) -> ExtCarrierClone<E> {
+        let clone = Self {
+            inner: self.inner.clone(),
+        };
+        ExtCarrierClone(clone)
     }
 }
 
-impl<E: Ext> Deref for ReplicableExtCarrier<E> {
-    type Target = BaseExtCarrier<E>;
+/// [`ExtCarrier`]'s clone.
+///
+/// Could be instantiated only by calling [`ExtCarrier::clone`] method.
+///
+/// Carriers of the [`crate::env`] module are actually wrappers over [`Rc`]. If we use [`Rc::clone`] we won't have a guarantee
+/// that [`ExtCarrier::into_inner`] can't be called twice and more on the same data, which potentially leads to panic.
+/// In order to give that guarantee, we mustn't provide an opportunity to unset `Ext` (by calling `into_inner`) on clones.
+/// So this idea is implemented with [`ExtCarrierClone`], which is the clone of [`ExtCarrier`], but with no ability to consume value
+/// to get access to the wrapped [`Ext`].
+pub struct ExtCarrierClone<E: Ext>(ExtCarrier<E>);
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl<E: Ext> ExtCarrierClone<E> {
+    /// Calls infallible fn with inner ext
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+        self.0.with(f)
+    }
+
+    /// Calls fallible fn with inner ext
+    pub fn with_fallible<R>(
+        &self,
+        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
+    ) -> Result<R, &'static str> {
+        self.0.with_fallible(f)
     }
 }
 
-impl<E: Ext> Clone for ReplicableExtCarrier<E> {
+impl<E: Ext> Clone for ExtCarrierClone<E> {
     fn clone(&self) -> Self {
-        let BaseExtCarrier { inner } = &self.0;
-        Self(BaseExtCarrier {
+        let ExtCarrier { inner } = &self.0;
+        Self(ExtCarrier {
             inner: inner.clone(),
         })
     }
@@ -257,8 +232,6 @@ impl<E: Ext> Clone for ReplicableExtCarrier<E> {
 
 #[cfg(test)]
 mod tests {
-    // todo #841 remove most of tests
-
     use super::*;
 
     // Test function of format `Fn(&mut E: Ext) -> R`
@@ -364,11 +337,11 @@ mod tests {
 
     #[test]
     /// Test that we are able to instantiate and take ExtCarrier value
-    fn create_take_ext_carrier() {
+    fn create_and_unwrap_ext_carrier() {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
 
-        assert_eq!(ext.0.inner, Rc::new(RefCell::new(Some(ext_implementer))));
+        assert_eq!(ext.inner, Rc::new(RefCell::new(Some(ext_implementer))));
 
         let inner = ext.into_inner();
 
@@ -376,14 +349,35 @@ mod tests {
     }
 
     #[test]
-    /// Test that ext's `with<R>(...)` works correct when the inner is set
-    fn calling_fn_with_inner_ext() {
+    fn calling_fn_within_inner_ext() {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
-        let r_ext = ReplicableExtCarrier::new(ext_implementer);
+        let ext_clone = ext.create_carrier_clone();
 
         assert!(ext.with(converter).is_ok());
-        assert!(r_ext.with(converter).is_ok());
+        assert!(ext_clone.with(converter).is_ok());
+    }
+
+    #[test]
+    fn calling_fn_when_ext_unwrapped() {
+        let ext = ExtCarrier::new(ExtImplementedStruct(0));
+        let ext_clone = ext.create_carrier_clone();
+
+        let _ = ext.into_inner();
+        assert_eq!(
+            ext_clone.with(converter).unwrap_err(),
+            "with should be called only when inner is set"
+        );
+    }
+
+    #[test]
+    fn calling_fn_when_dropped_ext() {
+        let ext = ExtCarrier::new(ExtImplementedStruct(0));
+        let ext_clone = ext.create_carrier_clone();
+
+        drop(ext);
+
+        assert!(ext_clone.with(converter).is_ok());
     }
 
     #[test]
@@ -391,34 +385,29 @@ mod tests {
     /// Test that ext's clone still refers to the same inner object as the original one
     fn ext_cloning() {
         let ext_implementer = ExtImplementedStruct(0);
-        let ext = ReplicableExtCarrier::new(ext_implementer);
-        let ext_clone = ext.clone();
+        let ext = ExtCarrier::new(ext_implementer);
+        let ext_clone = ext.create_carrier_clone();
 
-        let inner = ext_clone.into_inner().expect("ext is set");
-
-        assert_eq!(inner, ext_implementer);
-    }
-
-    #[test]
-    fn taking_ext_with_clone() {
-        let ext = ReplicableExtCarrier::new(ExtImplementedStruct(0));
-        let ext_clone = ext.clone();
-
-        assert!(ext_clone.into_inner().is_some());
-        assert!(ext.into_inner().is_none())
-    }
-
-    #[test]
-    /// Test that calling ext's `with<R>(...)` throws error
-    /// when the inner value was taken
-    fn calling_fn_with_empty_ext() {
-        let ext = ReplicableExtCarrier::new(ExtImplementedStruct(0));
-        let ext_clone = ext.clone();
-
-        let _ = ext.into_inner();
         assert_eq!(
-            ext_clone.with(converter).unwrap_err(),
-            "with should be called only when inner is set"
+            ext_clone.0.inner,
+            Rc::new(RefCell::new(Some(ext_implementer)))
         );
+    }
+
+    #[test]
+    fn unwrap_ext_with_dropped_clones() {
+        let ext_implementer = ExtImplementedStruct(0);
+        let ext = ExtCarrier::new(ext_implementer);
+        let ext_clone1 = ext.create_carrier_clone();
+        let ext_clone2 = ext_clone1.clone();
+
+        drop(ext_clone1);
+
+        assert!(ext_clone2.with(converter).is_ok());
+
+        drop(ext_clone2);
+
+        let inner = ext.into_inner();
+        assert_eq!(ext_implementer, inner);
     }
 }
