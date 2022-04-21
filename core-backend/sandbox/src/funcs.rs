@@ -96,7 +96,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 ext.send(HandlePacket::new(dest, payload, value))
                     .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
             })
-            .map(|err_code| Value::I32(err_code).into())
+            .map(|code| Value::I32(code).into())
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
@@ -124,7 +124,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 ext.send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
                     .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
             })
-            .map(|err_code| Value::I32(err_code).into())
+            .map(|code| Value::I32(code).into())
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message with gas");
                 HostError
@@ -151,7 +151,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             )
             .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
         })
-        .map(|err_code| Value::I32(err_code).into())
+        .map(|code| Value::I32(code).into())
         .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
@@ -196,7 +196,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             ext.send_init()
                 .on_success_code(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))
         })
-        .map(|err_code| Value::I32(err_code).into())
+        .map(|code| Value::I32(code).into())
         .map_err(|_| {
             ctx.trap = Some("Trapping: unable to initiate message sending");
             HostError
@@ -216,7 +216,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             ext.send_push(handle_ptr, &payload).into_error_code()
         })
-        .map(|err_code| Value::I32(err_code).into())
+        .map(|code| Value::I32(code).into())
         .map_err(|_| {
             ctx.trap = Some("Trapping: unable to push message payload");
             HostError
@@ -382,7 +382,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     .map(|_| ())
                     .into_error_code()
             })
-            .map(|err_code| Value::I32(err_code).into())
+            .map(|code| Value::I32(code).into())
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
@@ -403,7 +403,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             ext.reply_commit(ReplyPacket::new(Default::default(), value))
                 .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
         })
-        .map(|err_code| Value::I32(err_code).into())
+        .map(|code| Value::I32(code).into())
         .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send reply");
             HostError
@@ -442,7 +442,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             ext.reply_push(&payload).into_error_code()
         })
-        .map(|err_code| Value::I32(err_code).into())
+        .map(|code| Value::I32(code).into())
         .map_err(|_| {
             ctx.trap = Some("Trapping: unable to push payload into reply");
             HostError

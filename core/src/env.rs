@@ -149,26 +149,26 @@ pub struct ExtCarrier<E: Ext> {
 }
 
 impl<E: Ext> ExtCarrier<E> {
-    /// New ext carrier
+    /// New ext carrier.
     pub fn new(e: E) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Some(e))),
         }
     }
 
-    /// Unwraps hidden `E` value
+    /// Unwraps hidden `E` value.
     pub fn into_inner(self) -> E {
         self.inner
             .take()
             .expect("can be called only once during instance consumption; qed")
     }
 
-    /// Calls infallible fn with inner ext
+    /// Calls infallible fn with inner ext.
     pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         self.with_fallible(|e| Ok(f(e)))
     }
 
-    /// Calls fallible fn with inner ext
+    /// Calls fallible fn with inner ext.
     pub fn with_fallible<R>(
         &self,
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
@@ -203,7 +203,7 @@ impl<E: Ext> ExtCarrier<E> {
 /// that [`ExtCarrier::into_inner`] can't be called twice and more on the same data, which potentially leads to panic.
 /// In order to give that guarantee, we mustn't provide an opportunity to unset `Ext` (by calling `into_inner`) on clones.
 /// So this idea is implemented with [`ExtCarrierClone`], which is the clone of [`ExtCarrier`], but with no ability to consume value
-/// to get access to the wrapped [`Ext`].
+/// to get ownership over the wrapped [`Ext`].
 pub struct ExtCarrierClone<E: Ext>(ExtCarrier<E>);
 
 impl<E: Ext> ExtCarrierClone<E> {
@@ -336,7 +336,6 @@ mod tests {
     }
 
     #[test]
-    /// Test that we are able to instantiate and take ExtCarrier value
     fn create_and_unwrap_ext_carrier() {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
