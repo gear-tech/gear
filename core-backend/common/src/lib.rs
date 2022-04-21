@@ -122,7 +122,6 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn into_gas_amount(self) -> GasAmount;
 }
 
-// todo [sab] docs
 pub trait OnSuccessCode<T, E> {
     fn on_success_code<F>(self, f: F) -> Result<i32, E>
     where

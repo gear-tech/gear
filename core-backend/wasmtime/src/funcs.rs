@@ -96,13 +96,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let f = move |caller: Caller<'_, StoreData<E>>| {
             let ext = &caller.data().ext;
             ext.with(|ext: &mut E| ext.reply_to())
-                .and_then(|maybe_exit_code| {
-                    if let Some((_, exit_code)) = maybe_exit_code {
-                        Ok(exit_code)
-                    } else {
-                        Err("Not running in the reply context")
-                    }
-                })
+                .and_then(|v| v.ok_or("Not running in the reply context"))
+                .map(|(_, exit_code)| exit_code)
                 .map_err(Trap::new)
         };
         Func::wrap(store, f)
@@ -296,17 +291,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData<E>>, dest: i32| {
             let ext = &caller.data().ext;
             ext.with(|ext: &mut E| ext.reply_to())
-                .and_then(|maybe_message_id| {
-                    if let Some((msg_id, _)) = maybe_message_id {
-                        write_to_caller_memory(
-                            &mut caller,
-                            &mem,
-                            dest as isize as _,
-                            msg_id.as_ref(),
-                        )
-                    } else {
-                        Err("Not running in the reply context")
-                    }
+                .and_then(|v| v.ok_or("Not running in the reply context"))
+                .and_then(|(msg_id, _)| {
+                    write_to_caller_memory(&mut caller, &mem, dest as isize as _, msg_id.as_ref())
                 })
                 .map_err(Trap::new)
         };
