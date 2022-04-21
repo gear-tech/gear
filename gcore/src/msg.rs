@@ -42,7 +42,19 @@ mod sys {
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
         ) -> ErrorCode;
-        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8) -> ErrorCode;
+        pub fn gr_reply_wgas(
+            data_ptr: *const u8,
+            data_len: u32,
+            gas_limit: u64,
+            value_ptr: *const u8,
+            message_id_ptr: *mut u8,
+        ) -> ErrorCode;
+        pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> ErrorCode;
+        pub fn gr_reply_commit_wgas(
+            gas_limit: u64,
+            value_ptr: *const u8,
+            message_id_ptr: *mut u8,
+        ) -> ErrorCode;
         pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
@@ -221,6 +233,58 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
     }
 }
 
+/// Same as ['reply'], but with explicit gas limit.
+///
+/// Some programs can reply to other programs, i.e. check another program's
+/// state and use it as a parameter for its own business logic [`MessageId`].
+///
+/// This function allows sending such replies, which are similar to standard
+/// messages in terms of payload and different only in the way the message
+/// processing is handled by a separate program function called
+/// `handle_reply`.
+///
+/// First argument is the reply message payload in bytes.
+/// Second argument is `gas_limit`. It means the maximum amount of gas that you
+/// want to spend on message sending.
+/// Third argument `value` is the value to be transferred from the current
+/// program account to the reply message target account.
+///
+/// Reply message transactions will be posted only after processing is finished,
+/// similar to the standard message [`send`](crate::msg::send).
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+pub fn reply_with_gas(
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageId, ReplyError> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_wgas(
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+        )
+        .into_reply_error()?;
+        Ok(message_id)
+    }
+}
+
 /// Finalize and send a current reply message.
 
 /// Some programs can reply on their messages to other programs, i.e. check
@@ -255,8 +319,51 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
-            message_id.as_mut_slice().as_mut_ptr(),
             value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+        )
+        .into_reply_error()?;
+        Ok(message_id)
+    }
+}
+
+/// Same as ['reply_commit'], but with explicit gas limit.
+///
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
+/// function.
+///
+/// This function allows sending reply messages with gas limit filled with
+/// payload parts sent via ['reply_push'] during the message handling.
+/// Finalization of the reply message is done via [`reply_commit`] function
+/// similar to [`send_commit`].
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_push(b"Part 1").unwrap();
+///     // ...
+///     msg::reply_push(b"Part 2").unwrap();
+///     // ...
+///     msg::reply_commit_with_gas(42, 0).unwrap();
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message with in parts.
+pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, ReplyError> {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_commit_wgas(
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
         )
         .into_reply_error()?;
         Ok(message_id)

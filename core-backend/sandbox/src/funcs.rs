@@ -23,8 +23,9 @@ use core::{
     marker::PhantomData,
     slice::Iter,
 };
-use gear_backend_common::{funcs, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
-use gear_backend_common::{IntoErrorCode, OnSuccessCode};
+use gear_backend_common::{
+    funcs, IntoErrorCode, OnSuccessCode, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR,
+};
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
@@ -371,30 +372,52 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_ptr = pop_i32(&mut args)?;
         let payload_len = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
-        let result = ext
-            .with_fallible(|ext| {
-                let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
-                let value = funcs::get_u128(memory, value_ptr)?;
-                ext.reply(ReplyPacket::new(payload, value))
-                    .map(|_| ())
-                    .into_error_code()
-            })
-            .map(|code| Value::I32(code).into())
-            .map_err(|_| {
-                ctx.trap = Some("Trapping: unable to send reply message");
-                HostError
-            });
-        result
+        ext.with_fallible(|ext| {
+            let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+            let value = funcs::get_u128(memory, value_ptr)?;
+            ext.reply(ReplyPacket::new(payload, value))
+                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+        })
+        .map(|code| Value::I32(code).into())
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to send reply message");
+            HostError
+        })
+    }
+
+    pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let payload_ptr = pop_i32(&mut args)?;
+        let payload_len = pop_i32(&mut args)?;
+        let gas_limit = pop_i64(&mut args)?;
+        let value_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
+
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with_fallible(|ext| {
+            let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+            let value = funcs::get_u128(memory, value_ptr)?;
+            ext.reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
+                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+        })
+        .map(|code| Value::I32(code).into())
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to reply message with gas");
+            HostError
+        })
     }
 
     pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
-        let message_id_ptr = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -406,6 +429,31 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         .map(|code| Value::I32(code).into())
         .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send reply");
+            HostError
+        })
+    }
+
+    pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let gas_limit = pop_i64(&mut args)?;
+        let value_ptr = pop_i32(&mut args)?;
+        let message_id_ptr = pop_i32(&mut args)?;
+
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with_fallible(|ext| {
+            let value = funcs::get_u128(memory, value_ptr)?;
+            ext.reply_commit(ReplyPacket::new_with_gas(
+                Default::default(),
+                gas_limit,
+                value,
+            ))
+            .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+        })
+        .map(|code| Value::I32(code).into())
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to send reply message with gas");
             HostError
         })
     }
