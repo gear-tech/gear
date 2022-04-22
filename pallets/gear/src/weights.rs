@@ -292,19 +292,20 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().writes(8 as Weight))
 	}
 	fn gr_send_commit(r: u32, ) -> Weight {
-		(270_226_000 as Weight)
-			// Standard Error: 1_897_000
-			.saturating_add((892_759_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(15 as Weight))
-			.saturating_add(T::DbWeight::get().writes(9 as Weight))
-			.saturating_add(T::DbWeight::get().writes((200 as Weight).saturating_mul(r as Weight)))
+		(349_100_000 as Weight)
+			// Standard Error: 8_605_000
+			.saturating_add((24_500_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads(8 as Weight))
+			.saturating_add(T::DbWeight::get().reads((8 as Weight).saturating_mul(r as Weight)))
+			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+			.saturating_add(T::DbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
 	}
 	fn gr_send_commit_per_kb(n: u32, ) -> Weight {
-		(591_321_000 as Weight)
-			// Standard Error: 870_000
-			.saturating_add((187_215_000 as Weight).saturating_mul(n as Weight))
+		(330_512_000 as Weight)
+			// Standard Error: 80_000
+			.saturating_add((4_568_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(T::DbWeight::get().reads(14 as Weight))
-			.saturating_add(T::DbWeight::get().writes(210 as Weight))
+			.saturating_add(T::DbWeight::get().writes(12 as Weight))
 	}
 	fn gr_reply(r: u32, ) -> Weight {
 		(317_681_000 as Weight)
@@ -798,19 +799,20 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(8 as Weight))
 	}
 	fn gr_send_commit(r: u32, ) -> Weight {
-		(270_226_000 as Weight)
-			// Standard Error: 1_897_000
-			.saturating_add((892_759_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(RocksDbWeight::get().reads(15 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(9 as Weight))
-			.saturating_add(RocksDbWeight::get().writes((200 as Weight).saturating_mul(r as Weight)))
+		(349_100_000 as Weight)
+			// Standard Error: 8_605_000
+			.saturating_add((24_500_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(RocksDbWeight::get().reads(8 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((8 as Weight).saturating_mul(r as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(7 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
 	}
 	fn gr_send_commit_per_kb(n: u32, ) -> Weight {
-		(591_321_000 as Weight)
-			// Standard Error: 870_000
-			.saturating_add((187_215_000 as Weight).saturating_mul(n as Weight))
+		(330_512_000 as Weight)
+			// Standard Error: 80_000
+			.saturating_add((4_568_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(RocksDbWeight::get().reads(14 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(210 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(12 as Weight))
 	}
 	fn gr_reply(r: u32, ) -> Weight {
 		(317_681_000 as Weight)

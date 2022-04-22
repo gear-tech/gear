@@ -91,9 +91,6 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_debug`.
     pub gr_debug: u64,
 
-    /// Weight per payload byte by `gr_debug`.
-    pub gr_debug_per_byte: u64,
-
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: u64,
 
@@ -127,7 +124,6 @@ macro_rules! charge_gas_token {
 }
 
 /// Token to consume gas amount.
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Copy, Clone)]
 pub struct RuntimeToken {
     weight: u64,
@@ -140,8 +136,7 @@ impl Token for RuntimeToken {
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeCosts {
     /// Charge the gas meter with the cost of a metering block. The charged costs are
     /// the supplied cost of the block plus the overhead of the metering itself.
@@ -181,7 +176,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
-    Debug(u32),
+    Debug,
     /// Weight of calling `gr_exit_code`.
     ExitCode,
     /// Weight of calling `gr_exit`.
@@ -220,14 +215,12 @@ impl RuntimeCosts {
                 .saturating_add(s.gr_send_push_per_byte.saturating_mul(len.into())),
             SendCommit(len) => s
                 .gr_send_commit
-                .saturating_mul(s.gr_send_commit_per_byte.saturating_add(len.into())),
+                .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
             Reply(len) => s
                 .gr_reply
-                .saturating_mul(s.gr_reply_per_byte.saturating_add(len.into())),
+                .saturating_add(s.gr_reply_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
-            Debug(len) => s
-                .gr_debug
-                .saturating_mul(s.gr_debug_per_byte.saturating_add(len.into())),
+            Debug => s.gr_debug,
             ExitCode => s.gr_exit_code,
             Exit => s.gr_exit,
             Leave => s.gr_leave,

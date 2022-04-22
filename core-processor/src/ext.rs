@@ -422,7 +422,7 @@ impl EnvExt for Ext {
     }
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
-        self.charge_gas_runtime(RuntimeCosts::Debug(data.len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::Debug)?;
         
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 

@@ -1185,7 +1185,7 @@ benchmarks! {
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     gr_send_commit {
-        let r in 0 .. API_BENCHMARK_BATCHES;
+        let r in 0 .. 1;
         let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
         let pid_bytes = instance.addr.encode();
         let pid_len = pid_bytes.len();
@@ -1209,7 +1209,7 @@ benchmarks! {
                     value: value_bytes,
                 },
             ],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(r, &[
                 Instruction::I32Const(0), // program_id_ptr
                 Instruction::I32Const(0), // payload_ptr
                 Instruction::I32Const(0), // payload_len
@@ -1280,7 +1280,7 @@ benchmarks! {
                     value: value_bytes,
                 },
             ],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::plain(vec![
                 Instruction::I32Const(0), // program_id_ptr
                 Instruction::I32Const(0), // payload_ptr
                 Instruction::I32Const((n * 1024) as i32), // payload_len
@@ -1288,6 +1288,7 @@ benchmarks! {
                 Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
                 Instruction::Call(0),
                 Instruction::Drop,
+				Instruction::End,
             ])),
             .. Default::default()
         });
@@ -1503,60 +1504,6 @@ benchmarks! {
             handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
                 Instruction::I32Const(0),
                 Instruction::I32Const(0),
-                Instruction::Call(0),
-            ])),
-            .. Default::default()
-        });
-        let instance = Program::<T>::new(code, vec![])?;
-        let Exec {
-            mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
-    }: {
-        let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                );
-
-        core_processor::handle_journal(journal, &mut ext_manager);
-    }
-
-    gr_debug_per_kb {
-        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
-        let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![ImportedFunction {
-                module: "env",
-                name: "gr_debug",
-                params: vec![ValueType::I32, ValueType::I32],
-                return_type: None,
-            }],
-            data_segments: vec![
-                DataSegment {
-                    offset: 0_u32,
-                    value: vec![0x65; T::Schedule::get().limits.payload_len as usize],
-                },
-            ],
-            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0),
-                Instruction::I32Const((n * 1024) as i32),
                 Instruction::Call(0),
             ])),
             .. Default::default()

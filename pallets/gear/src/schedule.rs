@@ -321,9 +321,6 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_debug`.
     pub gr_debug: Weight,
 
-    /// Weight per payload byte by `gr_debug`.
-    pub gr_debug_per_byte: Weight,
-
     /// Weight of calling `gr_exit_code`.
     pub gr_exit_code: Weight,
 
@@ -392,6 +389,12 @@ macro_rules! cost_instr {
     };
 }
 
+macro_rules! cost_byte_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_args!($name, $( $arg ),+) / 1024
+	}
+}
+
 macro_rules! cost_byte_batched_args {
 	($name:ident, $( $arg: expr ),+) => {
 		cost_batched_args!($name, $( $arg ),+) / 1024
@@ -410,10 +413,16 @@ macro_rules! cost_batched {
     };
 }
 
+macro_rules! cost_byte {
+	($name:ident) => {
+		cost_byte_args!($name, 1)
+	};
+}
+
 macro_rules! cost_byte_batched {
-    ($name:ident) => {
-        cost_byte_batched_args!($name, 1)
-    };
+	($name:ident) => {
+		cost_byte_batched_args!($name, 1)
+	};
 }
 
 impl Default for Limits {
@@ -519,7 +528,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_reply: self.gr_reply,
             gr_reply_per_byte: self.gr_reply_per_byte,
             gr_debug: self.gr_debug,
-            gr_debug_per_byte: self.gr_debug_per_byte,
             gr_reply_to: self.gr_reply_to,
             gr_exit_code: self.gr_exit_code,
             gr_exit: self.gr_exit,
@@ -550,12 +558,11 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_init: cost_batched!(gr_send_init),
             gr_send_push: cost_batched!(gr_send_push),
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
-            gr_send_commit: cost_batched!(gr_send_commit),
-            gr_send_commit_per_byte: cost_byte_batched!(gr_send_commit_per_kb),
+            gr_send_commit: cost!(gr_send_commit) - cost_batched!(gr_send_init),
+            gr_send_commit_per_byte: cost_byte!(gr_send_commit_per_kb),
             gr_reply: cost_batched!(gr_reply),
             gr_reply_per_byte: cost_byte_batched!(gr_reply_per_kb),
             gr_debug: cost_batched!(gr_debug),
-            gr_debug_per_byte: cost_byte_batched!(gr_debug_per_kb),
             gr_reply_to: cost_batched!(gr_reply_to),
             gr_exit_code: cost_batched!(gr_exit_code),
             gr_exit: cost!(gr_exit),
