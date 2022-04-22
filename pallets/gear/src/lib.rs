@@ -332,10 +332,8 @@ pub mod pallet {
             TotalHandled::<T>::put(0);
             CanProcessQueue::<T>::put(true);
             GasAllowance::<T>::put(remaining_weight.saturating_sub(T::DbWeight::get().writes(3)));
-            let mut weight = T::DbWeight::get().writes(4);
-            weight += Self::process_queue();
-
-            weight
+            let weight = T::DbWeight::get().writes(4);
+            weight.saturating_add(Self::process_queue())
         }
     }
 
@@ -584,7 +582,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let mut weight = Self::gas_allowance() as Weight;
+            let weight = Self::gas_allowance() as Weight;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -749,8 +747,7 @@ pub mod pallet {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));
             }
 
-            weight = weight.saturating_sub(Self::gas_allowance());
-            weight
+            weight.saturating_sub(Self::gas_allowance())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
