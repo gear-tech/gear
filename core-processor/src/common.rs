@@ -269,7 +269,7 @@ pub enum ExecutionErrorReason {
     /// Memory error
     Memory(MemoryError),
     /// Backend error
-    Backend(BackendError<'static>),
+    Backend(BackendError),
     /// Processor error
     Processor(String),
     /// Ext error

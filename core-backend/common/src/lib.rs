@@ -28,9 +28,9 @@ use alloc::{
     borrow::Cow,
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
+use core::fmt;
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
@@ -38,6 +38,7 @@ use gear_core::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
+use gear_core_errors::ExtError;
 
 pub const EXIT_TRAP_STR: &str = "exit";
 pub const LEAVE_TRAP_STR: &str = "leave";
@@ -57,7 +58,7 @@ pub enum TerminationReason<'a> {
     Leave,
     Success,
     Trap {
-        explanation: Option<&'static str>,
+        explanation: Option<ExtError>,
         description: Option<Cow<'a, str>>,
     },
     Wait,
@@ -72,15 +73,15 @@ pub struct ExtInfo {
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<&'static str>,
+    pub trap_explanation: Option<ExtError>,
     pub exit_argument: Option<ProgramId>,
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
         self,
         get_page_data: F,
-    ) -> Result<ExtInfo, (&'static str, GasAmount)>;
+    ) -> Result<ExtInfo, (T, GasAmount)>;
     fn into_gas_amount(self) -> GasAmount;
 }
 
@@ -90,10 +91,23 @@ pub struct BackendReport<'a> {
 }
 
 #[derive(Debug)]
-pub struct BackendError<'a> {
+pub struct BackendError {
     pub gas_amount: GasAmount,
-    pub reason: &'static str,
-    pub description: Option<Cow<'a, str>>,
+    pub reason: BackendErrorReason,
+    pub description: Option<Cow<'static, str>>,
+}
+
+#[derive(Debug)]
+pub enum BackendErrorReason {
+    Specific(Cow<'static, str>),
+    CreateEnvMemory,
+    ModuleInstantiation,
+    GetWasmExports,
+    NonEnvImports,
+    MissingImport,
+    SetModuleMemoryData,
+    ModuleCreation,
+    InstanceCreation,
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
@@ -106,7 +120,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<'static>>;
+    ) -> Result<Self, BackendError>;
 
     /// Returns addr to the stack end if it can be identified
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
@@ -116,35 +130,33 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
-    fn execute<F>(
+    fn execute<F, T>(
         self,
         entry_point: &str,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(HostPointer) -> Result<(), &'static str>;
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display;
 
     /// Consumes environment and returns gas state.
     fn into_gas_amount(self) -> GasAmount;
 }
 
 pub trait OnSuccessCode<T, E> {
-    fn on_success_code<F>(self, f: F) -> Result<i32, String>
+    fn on_success_code<F>(self, f: F) -> Result<i32, E>
     where
         F: FnMut(T) -> Result<(), E>;
 }
 
-impl<T, E, E2> OnSuccessCode<T, E2> for Result<T, E>
-where
-    E2: Into<String>,
-{
-    fn on_success_code<F>(self, mut f: F) -> Result<i32, String>
+impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
+    fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
     where
-        F: FnMut(T) -> Result<(), E2>,
+        F: FnMut(T) -> Result<(), E>,
     {
         match self {
             Ok(t) => {
-                f(t).map_err(Into::into)?;
+                f(t)?;
                 Ok(0)
             }
             Err(_) => Ok(1),
@@ -153,14 +165,15 @@ where
 }
 
 pub trait IntoErrorCode {
-    fn into_error_code(self) -> Result<i32, &'static str>;
+    fn into_error_code(self) -> i32;
 }
 
-impl IntoErrorCode for Result<(), &str> {
-    fn into_error_code(self) -> Result<i32, &'static str> {
+impl<E> IntoErrorCode for Result<(), E> {
+    fn into_error_code(self) -> i32 {
         match self {
-            Ok(()) => Ok(0),
-            Err(_) => Ok(1),
+            Ok(()) => 0,
+            // TODO: actual error codes
+            Err(_) => 1,
         }
     }
 }

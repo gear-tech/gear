@@ -20,22 +20,74 @@ use core::marker::PhantomData;
 
 use crate::env::StoreData;
 use crate::memory::MemoryWrap;
-use alloc::format;
+use alloc::string::{FromUtf8Error, ToString};
 use alloc::{string::String, vec};
+use core::fmt;
 use gear_backend_common::funcs::*;
 use gear_backend_common::{IntoErrorCode, OnSuccessCode};
 use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_core::env::LaterExtWithError;
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
+use gear_core_errors::{CoreError, MemoryError, TerminationReason};
 use wasmtime::Memory as WasmtimeMemory;
 use wasmtime::{AsContextMut, Caller, Func, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _panthom: PhantomData<E>,
+}
+
+enum FuncError<E> {
+    Core(E),
+    Memory(MemoryError),
+    SetU128(MemoryError),
+    LaterExtWith(LaterExtWithError),
+    DebugString(FromUtf8Error),
+    GasUsageReport,
+    NoReplyContext,
+}
+
+impl<E> From<LaterExtWithError> for FuncError<E> {
+    fn from(err: LaterExtWithError) -> Self {
+        Self::LaterExtWith(err)
+    }
+}
+
+impl<E> From<MemoryError> for FuncError<E> {
+    fn from(err: MemoryError) -> Self {
+        Self::Memory(err)
+    }
+}
+
+impl<E> fmt::Display for FuncError<E>
+where
+    E: CoreError,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FuncError::Core(err) => fmt::Display::fmt(err, f),
+            FuncError::Memory(err) => fmt::Display::fmt(err, f),
+            FuncError::SetU128(err) => write!(f, "Cannot set u128: {}", err),
+            FuncError::LaterExtWith(err) => fmt::Display::fmt(err, f),
+            FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
+            FuncError::GasUsageReport => write!(f, "Unable to report about gas used"),
+            FuncError::NoReplyContext => write!(f, "Not running in the reply context"),
+        }
+    }
+}
+
+// for Trap::new
+impl<E> From<FuncError<E>> for String
+where
+    E: CoreError,
+{
+    fn from(err: FuncError<E>) -> Self {
+        err.to_string()
+    }
 }
 
 fn get_caller_memory<'a, T: Ext>(
@@ -51,13 +103,16 @@ fn write_to_caller_memory<'a, T: Ext>(
     mem: &WasmtimeMemory,
     offset: usize,
     buffer: &[u8],
-) -> Result<(), String> {
+) -> Result<(), FuncError<T::Error>> {
     get_caller_memory(caller, mem)
         .write(offset, buffer)
-        .map_err(|e| format!("Cannot write mem: {:?}", e))
+        .map_err(FuncError::Memory)
 }
 
-impl<E: Ext + 'static> FuncsHandler<E> {
+impl<E> FuncsHandler<E>
+where
+    E: Ext + 'static,
+{
     pub fn alloc(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {
             let ext = caller.data().ext.clone();
@@ -65,6 +120,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let page = ext
                 .with_fallible(|ext| {
                     ext.alloc(pages.into(), &mut get_caller_memory(&mut caller, &mem))
+                        .map_err(FuncError::Core)
                 })
                 .map_err(Trap::new)?;
             log::debug!("ALLOC PAGES: {} pages at {:?}", pages, page);
@@ -92,7 +148,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn exit_code(store: &mut Store<StoreData<E>>) -> Func {
         let f = move |caller: Caller<'_, StoreData<E>>| {
             let ext = &caller.data().ext;
-            let reply_tuple = ext.with(|ext: &mut E| ext.reply_to()).map_err(Trap::new)?;
+            let reply_tuple = ext
+                .with(|ext: &mut E| ext.reply_to())
+                .map_err(|e| e.to_string())
+                .map_err(Trap::new)?;
             if let Some((_, exit_code)) = reply_tuple {
                 Ok(exit_code)
             } else {
@@ -106,11 +165,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |caller: Caller<'_, StoreData<E>>, page: i32| {
             let ext = &caller.data().ext;
             let page = page as u32;
-            ext.with(|ext: &mut E| ext.free(page.into()))
-                .map_err(Trap::new)?
+            ext.with_fallible(|ext: &mut E| ext.free(page.into()).map_err(FuncError::Core))
+                .map_err(|e| e.to_string())
                 .map_err(Trap::new)?;
             if let Err(e) = ext
                 .with(|ext: &mut E| ext.free(page.into()))
+                .map_err(|e| e.to_string())
                 .map_err(Trap::new)?
             {
                 log::debug!("FREE PAGE ERROR: {:?}", e);
@@ -127,15 +187,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             let str_ptr = str_ptr as u32 as usize;
             let str_len = str_len as u32 as usize;
-            ext.with_fallible(|ext: &mut E| -> Result<(), &'static str> {
+            ext.with_fallible(|ext: &mut E| -> Result<(), FuncError<_>> {
                 let mut data = vec![0u8; str_len];
                 let mem = get_caller_memory(&mut caller, &mem);
-                mem.read(str_ptr, &mut data)
-                    .map_err(|_| "Cannot read memory")?;
-                match String::from_utf8(data) {
-                    Ok(s) => ext.debug(&s),
-                    Err(_) => Err("Failed to parse debug string"),
-                }
+                mem.read(str_ptr, &mut data)?;
+                let s = String::from_utf8(data).map_err(FuncError::DebugString)?;
+                ext.debug(&s).map_err(FuncError::Core)?;
+                Ok(())
             })
             .map_err(Trap::new)
         };
@@ -145,13 +203,14 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn gas(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |caller: Caller<'_, StoreData<E>>, val: i32| {
             let ext = &caller.data().ext;
-            ext.with_fallible(|ext| ext.charge_gas(val as _))
-                .map_err(|e| {
-                    if gear_backend_common::funcs::is_gas_allowance_trap(e) {
-                        Trap::new(e)
-                    } else {
-                        Trap::new("Trapping: unable to report about gas used")
+            ext.with_fallible(|ext| ext.charge_gas(val as _).map_err(FuncError::Core))
+                .map_err(|e| match e {
+                    FuncError::Core(e)
+                        if e.as_termination_reason() != Some(TerminationReason::GasAllowance) =>
+                    {
+                        Trap::new(FuncError::<E::Error>::GasUsageReport)
                     }
+                    err => Trap::new(err),
                 })
         };
         Func::wrap(store, func)
@@ -169,15 +228,15 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func =
             move |mut caller: Caller<'_, StoreData<E>>, program_id_ptr: i32| -> Result<(), Trap> {
                 let ext = caller.data().ext.clone();
-                ext.with(|ext: &mut E| {
+                ext.with_fallible(|ext: &mut E| -> Result<_, FuncError<_>> {
                     let value_dest: ProgramId = get_bytes32(
                         &get_caller_memory(&mut caller, &mem),
                         program_id_ptr as u32 as _,
                     )?
                     .into();
-                    ext.exit(value_dest)
+                    ext.exit(value_dest).map_err(FuncError::Core)?;
+                    Ok(())
                 })
-                .map_err(Trap::new)?
                 .map_err(Trap::new)?;
 
                 // Intentionally return an error to break the execution
@@ -189,11 +248,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn origin(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, origin_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 let id = ext.origin();
                 write_to_caller_memory(&mut caller, &mem, origin_ptr as _, id.as_ref())
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -202,7 +260,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn msg_id(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, msg_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 let message_id = ext.message_id();
                 write_to_caller_memory(
                     &mut caller,
@@ -211,7 +269,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     message_id.as_ref(),
                 )
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -222,11 +279,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             let at = at as u32 as usize;
             let len = len as u32 as usize;
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 let msg = ext.msg().to_vec();
                 write_to_caller_memory(&mut caller, &mem, dest as _, &msg[at..(at + len)])
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -239,11 +295,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 ext.reply(ReplyPacket::new(payload, value))
+                    .map_err(FuncError::Core)
                     .on_success_code(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
@@ -253,8 +310,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                         )
                     })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send reply message")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -264,10 +319,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func =
             move |mut caller: Caller<'_, StoreData<E>>, message_id_ptr: i32, value_ptr: i32| {
                 let ext = caller.data().ext.clone();
-                ext.with(|ext: &mut E| -> Result<i32, String> {
+                ext.with_fallible(|ext: &mut E| {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
                     let value = get_u128(&mem_wrap, value_ptr as usize)?;
                     ext.reply_commit(ReplyPacket::new(Default::default(), value))
+                        .map_err(FuncError::Core)
                         .on_success_code(|message_id| {
                             write_to_caller_memory(
                                 &mut caller,
@@ -277,8 +333,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                             )
                         })
                 })
-                .map_err(Trap::new)?
-                .map_err(|_| "Trapping: unable to send message")
                 .map_err(Trap::new)
             };
         Func::wrap(store, func)
@@ -288,13 +342,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func =
             move |mut caller: Caller<'_, StoreData<E>>, payload_ptr: i32, payload_len: i32| {
                 let ext = caller.data().ext.clone();
-                ext.with(|ext: &mut E| {
+                ext.with_fallible(|ext: &mut E| -> Result<i32, FuncError<E::Error>> {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
                     let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
-                    ext.reply_push(&payload).into_error_code()
+                    Ok(ext.reply_push(&payload).into_error_code())
                 })
-                .map_err(Trap::new)?
-                .map_err(|_| "Trapping: unable to push payload into reply")
                 .map_err(Trap::new)
             };
         Func::wrap(store, func)
@@ -302,13 +354,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
     pub fn reply_to(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, dest: i32| {
-            let ext = &caller.data().ext;
-            let message_id = match ext.with(|ext: &mut E| ext.reply_to()).map_err(Trap::new)? {
-                Some((m_id, _)) => m_id,
-                None => return Err(Trap::new("Not running in the reply context")),
-            };
-            write_to_caller_memory(&mut caller, &mem, dest as isize as _, message_id.as_ref())
-                .map_err(Trap::new)
+            let ext = caller.data().ext.clone();
+            ext.with_fallible(|ext: &mut E| {
+                let (message_id, _) = ext.reply_to().ok_or(FuncError::NoReplyContext)?;
+                write_to_caller_memory(&mut caller, &mem, dest as isize as _, message_id.as_ref())
+            })
+            .map_err(Trap::new)
         };
         Func::wrap(store, func)
     }
@@ -321,12 +372,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 ext.send(HandlePacket::new(dest, payload, value))
+                    .map_err(FuncError::Core)
                     .on_success_code(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
@@ -336,8 +388,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                         )
                     })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send message")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -352,7 +402,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
@@ -363,6 +413,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     gas_limit as _,
                     value,
                 ))
+                .map_err(FuncError::Core)
                 .on_success_code(|message_id| {
                     write_to_caller_memory(
                         &mut caller,
@@ -372,8 +423,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send message")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -386,7 +435,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          program_id_ptr: i32,
                          value_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
@@ -394,6 +443,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     handle_ptr as _,
                     HandlePacket::new(dest, Default::default(), value),
                 )
+                .map_err(FuncError::Core)
                 .on_success_code(|message_id| {
                     write_to_caller_memory(
                         &mut caller,
@@ -403,8 +453,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|e| format!("Trapping: unable to commit and send message: {}", e))
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -418,7 +466,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          gas_limit: i64,
                          value_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<i32, String> {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
@@ -426,6 +474,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     handle_ptr as _,
                     HandlePacket::new_with_gas(dest, Default::default(), gas_limit as _, value),
                 )
+                .map_err(FuncError::Core)
                 .on_success_code(|message_id| {
                     write_to_caller_memory(
                         &mut caller,
@@ -435,8 +484,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     )
                 })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to commit and send message")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -445,18 +492,18 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn send_init(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, handle_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
-                ext.send_init().on_success_code(|handle| {
-                    write_to_caller_memory(
-                        &mut caller,
-                        &mem,
-                        handle_ptr as _,
-                        &handle.to_le_bytes(),
-                    )
-                })
+            ext.with_fallible(|ext: &mut E| {
+                ext.send_init()
+                    .map_err(FuncError::Core)
+                    .on_success_code(|handle| {
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            handle_ptr as _,
+                            &handle.to_le_bytes(),
+                        )
+                    })
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to init message")
             .map_err(Trap::new)
             .map(|handle| handle as i32)
         };
@@ -469,13 +516,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          payload_ptr: i32,
                          payload_len: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| -> Result<i32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
-                ext.send_push(handle_ptr as _, &payload).into_error_code()
+                Ok(ext.send_push(handle_ptr as _, &payload).into_error_code())
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to push payload into message")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -492,19 +537,21 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          program_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with_fallible(|ext: &mut E| -> Result<(), FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let code_hash = get_bytes32(&mem_wrap, code_hash_ptr as usize)?;
                 let salt = get_vec(&mem_wrap, salt_ptr as usize, salt_len as usize)?;
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
-                let new_actor_id = ext.create_program(InitPacket::new_with_gas(
-                    code_hash.into(),
-                    salt,
-                    payload,
-                    gas_limit as _,
-                    value,
-                ))?;
+                let new_actor_id = ext
+                    .create_program(InitPacket::new_with_gas(
+                        code_hash.into(),
+                        salt,
+                        payload,
+                        gas_limit as _,
+                        value,
+                    ))
+                    .map_err(FuncError::Core)?;
                 write_to_caller_memory(
                     &mut caller,
                     &mem,
@@ -512,8 +559,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     new_actor_id.as_ref(),
                 )
             })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to create a new program")
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -530,11 +575,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn source(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, source_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 let source = ext.source();
                 write_to_caller_memory(&mut caller, &mem, source_ptr as _, source.as_ref())
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -543,11 +587,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn program_id(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, source_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 let actor_id = ext.program_id();
                 write_to_caller_memory(&mut caller, &mem, source_ptr as _, actor_id.as_ref())
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -556,12 +599,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn value(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, value_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with_fallible(|ext: &mut E| -> Result<(), FuncError<E::Error>> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
-                set_u128(&mut mem_wrap, value_ptr as usize, ext.value())
-                    .map_err(|e| format!("Cannot set u128: {:?}", e))
+                set_u128(&mut mem_wrap, value_ptr as usize, ext.value()).map_err(FuncError::SetU128)
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -570,12 +611,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn value_available(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, value_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with_fallible(|ext: &mut E| -> Result<(), FuncError<E::Error>> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
                 set_u128(&mut mem_wrap, value_ptr as usize, ext.value_available())
-                    .map_err(|e| format!("Cannot set u128: {:?}", e))
+                    .map_err(FuncError::SetU128)
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
@@ -584,7 +624,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn leave(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
             let ext = &caller.data().ext;
-            let _ = ext.with(|ext: &mut E| ext.leave()).map_err(Trap::new)?;
+            let _ = ext
+                .with_fallible(|ext: &mut E| ext.leave().map_err(FuncError::Core))
+                .map_err(Trap::new)?;
             // Intentionally return an error to break the execution
             Err(Trap::new(LEAVE_TRAP_STR))
         };
@@ -594,7 +636,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn wait(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
             let ext = &caller.data().ext;
-            let _ = ext.with(|ext: &mut E| ext.wait()).map_err(Trap::new)?;
+            let _ = ext
+                .with_fallible(|ext: &mut E| ext.wait().map_err(FuncError::Core))
+                .map_err(Trap::new)?;
             // Intentionally return an error to break the execution
             Err(Trap::new(WAIT_TRAP_STR))
         };
@@ -604,12 +648,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn wake(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, waker_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| {
+            ext.with_fallible(|ext: &mut E| {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let waker_id: MessageId = get_bytes32(&mem_wrap, waker_id_ptr as usize)?.into();
-                ext.wake(waker_id)
+                ext.wake(waker_id).map_err(FuncError::Core)
             })
-            .map_err(Trap::new)?
             .map_err(Trap::new)
         };
         Func::wrap(store, func)
