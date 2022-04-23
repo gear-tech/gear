@@ -108,7 +108,7 @@ pub struct HostFnWeights {
 
     /// Weight of calling `gr_create_program_wgas`.
     pub gr_create_program_wgas: u64,
-    
+
     /// Weight of calling `gas`.
     pub gas: u64,
 }

@@ -1871,7 +1871,7 @@ benchmarks! {
                 );
         log::debug!("journal: {:?}", &journal);
         core_processor::handle_journal(journal, &mut ext_manager);
-        
+
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly

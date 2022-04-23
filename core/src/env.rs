@@ -182,14 +182,11 @@ impl<E: Ext> LaterExt<E> {
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
         let mut brw = self.inner.borrow_mut();
-        let mut ext = brw
-            .take()
+        let ext = brw
+            .as_mut()
             .ok_or("with should be called only when inner is set")?;
-        let res = f(&mut ext);
 
-        *brw = Some(ext);
-
-        res
+        f(ext)
     }
 
     /// Unset inner ext
