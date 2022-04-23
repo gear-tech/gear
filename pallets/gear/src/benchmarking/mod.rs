@@ -1049,7 +1049,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_send_push {
@@ -1107,7 +1107,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_send_push_per_kb {
@@ -1165,7 +1165,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // Benchmark the `gr_send_commit` call.
@@ -1628,7 +1628,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // We cannot call `gr_leave` multiple times. Therefore our weight determination is not
@@ -1675,7 +1675,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // We cannot call `gr_wait` multiple times. Therefore our weight determination is not
@@ -1722,7 +1722,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_wake {
