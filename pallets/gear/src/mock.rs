@@ -122,7 +122,7 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockGasLimit: u64 = 5_000_000_000;
+    pub const BlockGasLimit: u64 = 50_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;
     pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
