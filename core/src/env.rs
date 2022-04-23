@@ -144,21 +144,23 @@ pub trait Ext {
 }
 
 /// Struct for interacting with Ext.
-pub struct ExtCarrier<E: Ext> {
-    inner: Rc<RefCell<Option<E>>>,
-}
+pub struct ExtCarrier<E: Ext>(Rc<RefCell<Option<E>>>);
 
 impl<E: Ext> ExtCarrier<E> {
     /// New ext carrier.
     pub fn new(e: E) -> Self {
-        Self {
-            inner: Rc::new(RefCell::new(Some(e))),
-        }
+        Self(Rc::new(RefCell::new(Some(e))))
     }
 
     /// Unwraps hidden `E` value.
+    ///
+    /// The `expect` call in the function is considered safe because:
+    /// 1. Type can be instantiated only once from `new`, inner value is set only once.
+    /// 2. No type clones are possible for external users
+    /// (so can't take ownership over the same data twice)
+    /// 3. Conversion to inner value can be done only once, method consumes value.
     pub fn into_inner(self) -> E {
-        self.inner
+        self.0
             .take()
             .expect("can be called only once during instance consumption; qed")
     }
@@ -173,7 +175,7 @@ impl<E: Ext> ExtCarrier<E> {
         &self,
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
-        let mut brw = self.inner.borrow_mut();
+        let mut brw = self.0.borrow_mut();
         let mut ext = brw
             .take()
             .ok_or("with should be called only when inner is set")?;
@@ -187,26 +189,24 @@ impl<E: Ext> ExtCarrier<E> {
     /// Creates clone for the current reference.
     ///
     /// Clone type differs from the [`ExtCarrier`]. For rationale see [`ExtCarrierClone`] docs.
-    pub fn create_carrier_clone(&self) -> ExtCarrierClone<E> {
-        let clone = Self {
-            inner: self.inner.clone(),
-        };
-        ExtCarrierClone(clone)
+    pub fn cloned(&self) -> ClonedExtCarrier<E> {
+        let clone = Self(Rc::clone(&self.0));
+        ClonedExtCarrier(clone)
     }
 }
 
 /// [`ExtCarrier`]'s clone.
 ///
-/// Could be instantiated only by calling [`ExtCarrier::clone`] method.
+/// Could be instantiated only by calling [`ExtCarrier::cloned`] method.
 ///
 /// Carriers of the [`crate::env`] module are actually wrappers over [`Rc`]. If we use [`Rc::clone`] we won't have a guarantee
 /// that [`ExtCarrier::into_inner`] can't be called twice and more on the same data, which potentially leads to panic.
 /// In order to give that guarantee, we mustn't provide an opportunity to unset `Ext` (by calling `into_inner`) on clones.
-/// So this idea is implemented with [`ExtCarrierClone`], which is the clone of [`ExtCarrier`], but with no ability to consume value
+/// So this idea is implemented with [`ClonedExtCarrier`], which is the clone of [`ExtCarrier`], but with no ability to consume value
 /// to get ownership over the wrapped [`Ext`].
-pub struct ExtCarrierClone<E: Ext>(ExtCarrier<E>);
+pub struct ClonedExtCarrier<E: Ext>(ExtCarrier<E>);
 
-impl<E: Ext> ExtCarrierClone<E> {
+impl<E: Ext> ClonedExtCarrier<E> {
     /// Calls infallible fn with inner ext
     pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         self.0.with(f)
@@ -221,12 +221,9 @@ impl<E: Ext> ExtCarrierClone<E> {
     }
 }
 
-impl<E: Ext> Clone for ExtCarrierClone<E> {
+impl<E: Ext> Clone for ClonedExtCarrier<E> {
     fn clone(&self) -> Self {
-        let ExtCarrier { inner } = &self.0;
-        Self(ExtCarrier {
-            inner: inner.clone(),
-        })
+        self.0.cloned()
     }
 }
 
@@ -340,7 +337,7 @@ mod tests {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
 
-        assert_eq!(ext.inner, Rc::new(RefCell::new(Some(ext_implementer))));
+        assert_eq!(ext.0, Rc::new(RefCell::new(Some(ext_implementer))));
 
         let inner = ext.into_inner();
 
@@ -351,7 +348,7 @@ mod tests {
     fn calling_fn_within_inner_ext() {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
-        let ext_clone = ext.create_carrier_clone();
+        let ext_clone = ext.cloned();
 
         assert!(ext.with(converter).is_ok());
         assert!(ext_clone.with(converter).is_ok());
@@ -360,7 +357,7 @@ mod tests {
     #[test]
     fn calling_fn_when_ext_unwrapped() {
         let ext = ExtCarrier::new(ExtImplementedStruct(0));
-        let ext_clone = ext.create_carrier_clone();
+        let ext_clone = ext.cloned();
 
         let _ = ext.into_inner();
         assert_eq!(
@@ -372,7 +369,7 @@ mod tests {
     #[test]
     fn calling_fn_when_dropped_ext() {
         let ext = ExtCarrier::new(ExtImplementedStruct(0));
-        let ext_clone = ext.create_carrier_clone();
+        let ext_clone = ext.cloned();
 
         drop(ext);
 
@@ -385,19 +382,16 @@ mod tests {
     fn ext_cloning() {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
-        let ext_clone = ext.create_carrier_clone();
+        let ext_clone = ext.cloned();
 
-        assert_eq!(
-            ext_clone.0.inner,
-            Rc::new(RefCell::new(Some(ext_implementer)))
-        );
+        assert_eq!(ext_clone.0 .0, Rc::new(RefCell::new(Some(ext_implementer))));
     }
 
     #[test]
     fn unwrap_ext_with_dropped_clones() {
         let ext_implementer = ExtImplementedStruct(0);
         let ext = ExtCarrier::new(ext_implementer);
-        let ext_clone1 = ext.create_carrier_clone();
+        let ext_clone1 = ext.cloned();
         let ext_clone2 = ext_clone1.clone();
 
         drop(ext_clone1);

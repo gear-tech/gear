@@ -134,10 +134,7 @@ impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
         F: FnMut(T) -> Result<(), E>,
     {
         match self {
-            Ok(t) => {
-                f(t)?;
-                Ok(0)
-            }
+            Ok(t) => f(t).map(|_| 0),
             Err(_) => Ok(1),
         }
     }

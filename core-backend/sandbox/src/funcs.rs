@@ -256,14 +256,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let Runtime { ext, memory, .. } = ctx;
 
-        if let Err(err) = ext.with_fallible(|ext: &mut E| {
-            let value_dest: ProgramId = funcs::get_bytes32(memory, value_dest_ptr)?.into();
-            ext.exit(value_dest)
-        }) {
-            ctx.trap = Some(err);
-        } else {
-            ctx.trap = Some(EXIT_TRAP_STR);
-        }
+        ctx.trap = ext
+            .with_fallible(|ext: &mut E| {
+                let value_dest: ProgramId = funcs::get_bytes32(memory, value_dest_ptr)?.into();
+                ext.exit(value_dest)
+            })
+            .err()
+            .or(Some(EXIT_TRAP_STR));
 
         Err(HostError)
     }
@@ -614,21 +613,20 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        if let Err(err) = ctx.ext.with_fallible(|ext| ext.leave()) {
-            ctx.trap = Some(err);
-        } else {
-            ctx.trap = Some(LEAVE_TRAP_STR);
-        }
-
+        ctx.trap = ctx
+            .ext
+            .with_fallible(|ext| ext.leave())
+            .err()
+            .or(Some(LEAVE_TRAP_STR));
         Err(HostError)
     }
 
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        if let Err(err) = ctx.ext.with_fallible(|ext| ext.wait()) {
-            ctx.trap = Some(err);
-        } else {
-            ctx.trap = Some(WAIT_TRAP_STR);
-        }
+        ctx.trap = ctx
+            .ext
+            .with_fallible(|ext| ext.wait())
+            .err()
+            .or(Some(WAIT_TRAP_STR));
 
         Err(HostError)
     }

@@ -30,7 +30,7 @@ use gear_backend_common::{
     IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    env::{Ext, ExtCarrier, ExtCarrierClone},
+    env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
@@ -40,7 +40,7 @@ use wasmtime::{
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
-    pub ext: ExtCarrierClone<E>,
+    pub ext: ClonedExtCarrier<E>,
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -105,7 +105,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         let engine = Engine::default();
         let store_data = StoreData {
-            ext: ext_carrier.create_carrier_clone(),
+            ext: ext_carrier.cloned(),
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
