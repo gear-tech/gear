@@ -188,7 +188,7 @@ impl<E: Ext> ExtCarrier<E> {
 
     /// Creates clone for the current reference.
     ///
-    /// Clone type differs from the [`ExtCarrier`]. For rationale see [`ExtCarrierClone`] docs.
+    /// Clone type differs from the [`ExtCarrier`]. For rationale see [`ClonedExtCarrier`] docs.
     pub fn cloned(&self) -> ClonedExtCarrier<E> {
         let clone = Self(Rc::clone(&self.0));
         ClonedExtCarrier(clone)
