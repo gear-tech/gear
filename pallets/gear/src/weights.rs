@@ -71,6 +71,7 @@ pub trait WeightInfo {
 	fn gr_leave(r: u32, ) -> Weight;
 	fn gr_wait(r: u32, ) -> Weight;
 	fn gr_wake(r: u32, ) -> Weight;
+	fn gr_create_program_wgas(r: u32, ) -> Weight;
 	fn instr_i64const(r: u32, ) -> Weight;
 	fn instr_i64load(r: u32, ) -> Weight;
 	fn instr_i64store(r: u32, ) -> Weight;
@@ -376,6 +377,15 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads((101 as Weight).saturating_mul(r as Weight)))
 			.saturating_add(T::DbWeight::get().writes(8 as Weight))
 			.saturating_add(T::DbWeight::get().writes((200 as Weight).saturating_mul(r as Weight)))
+	}
+	fn gr_create_program_wgas(r: u32, ) -> Weight {
+		(233_100_000 as Weight)
+			// Standard Error: 740_000
+			.saturating_add((98_400_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads(7 as Weight))
+			.saturating_add(T::DbWeight::get().reads((8 as Weight).saturating_mul(r as Weight)))
+			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+			.saturating_add(T::DbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(7_285_000 as Weight)
@@ -881,6 +891,15 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads((101 as Weight).saturating_mul(r as Weight)))
 			.saturating_add(RocksDbWeight::get().writes(8 as Weight))
 			.saturating_add(RocksDbWeight::get().writes((200 as Weight).saturating_mul(r as Weight)))
+	}
+	fn gr_create_program_wgas(r: u32, ) -> Weight {
+		(233_100_000 as Weight)
+			// Standard Error: 740_000
+			.saturating_add((98_400_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(RocksDbWeight::get().reads(7 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((8 as Weight).saturating_mul(r as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(7_285_000 as Weight)
