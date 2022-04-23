@@ -150,14 +150,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn gas(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |caller: Caller<'_, StoreData<E>>, val: i32| {
             let ext = &caller.data().ext;
-            ext.with_fallible(|ext| ext.charge_gas(val as _))
-                .map_err(|e| {
-                    if gear_backend_common::funcs::is_gas_allowance_trap(e) {
-                        Trap::new(e)
-                    } else {
-                        Trap::new("Trapping: unable to report about gas used")
-                    }
-                })
+            ext.with_fallible(|ext| ext.gas(val as _)).map_err(|e| {
+                if gear_backend_common::funcs::is_gas_allowance_trap(e) {
+                    Trap::new(e)
+                } else {
+                    Trap::new("Trapping: unable to report about gas used")
+                }
+            })
         };
         Func::wrap(store, func)
     }

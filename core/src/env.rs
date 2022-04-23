@@ -119,7 +119,10 @@ pub trait Ext {
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
-    /// Charge some gas.
+    /// Default gas host call.
+    fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
     /// Charge gas by `RuntimeCosts` token.
@@ -266,6 +269,9 @@ mod tests {
         }
         fn msg(&mut self) -> &[u8] {
             &[]
+        }
+        fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
         }
         fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())

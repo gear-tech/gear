@@ -423,7 +423,7 @@ impl EnvExt for Ext {
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
-        
+
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
         Ok(())
@@ -433,10 +433,12 @@ impl EnvExt for Ext {
         self.message_context.current().payload()
     }
 
+    fn gas(&mut self, val: u32) -> Result<(), &'static str> {
+        self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
+    }
+
     fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
         use ChargeResult::*;
-
-        self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))?;
 
         let common_charge = self.gas_counter.charge(val as u64);
         let allowance_charge = self.gas_allowance_counter.charge(val as u64);

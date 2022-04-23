@@ -136,7 +136,7 @@ impl Token for RuntimeToken {
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub enum RuntimeCosts {
     /// Charge the gas meter with the cost of a metering block. The charged costs are
     /// the supplied cost of the block plus the overhead of the metering itself.

@@ -309,6 +309,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.refund_gas(val)
     }
 
+    fn gas(&mut self, val: u32) -> Result<(), &'static str> {
+        self.inner.gas(val)
+    }
+
     fn gas_available(&mut self) -> Result<u64, &'static str> {
         self.inner.gas_available()
     }

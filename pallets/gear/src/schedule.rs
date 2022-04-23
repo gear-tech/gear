@@ -414,15 +414,15 @@ macro_rules! cost_batched {
 }
 
 macro_rules! cost_byte {
-	($name:ident) => {
-		cost_byte_args!($name, 1)
-	};
+    ($name:ident) => {
+        cost_byte_args!($name, 1)
+    };
 }
 
 macro_rules! cost_byte_batched {
-	($name:ident) => {
-		cost_byte_batched_args!($name, 1)
-	};
+    ($name:ident) => {
+        cost_byte_batched_args!($name, 1)
+    };
 }
 
 impl Default for Limits {

@@ -293,7 +293,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let val = pop_i32(&mut args)?;
 
         ctx.ext
-            .with_fallible(|ext| ext.charge_gas(val))
+            .with_fallible(|ext| ext.gas(val))
             .map(|_| ReturnValue::Unit)
             .map_err(|e| {
                 if gear_backend_common::funcs::is_gas_allowance_trap(e) {

@@ -180,11 +180,9 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
 	fn gas(r: u32, ) -> Weight {
-		(228_094_000 as Weight)
-			// Standard Error: 209_000
-			.saturating_add((77_430_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		(60_079_000 as Weight)
+			// Standard Error: 39_000
+			.saturating_add((77_334_000 as Weight).saturating_mul(r as Weight))
 	}
 	fn gr_gas_available(r: u32, ) -> Weight {
 		(215_258_000 as Weight)
@@ -687,11 +685,9 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
 	}
 	fn gas(r: u32, ) -> Weight {
-		(228_094_000 as Weight)
-			// Standard Error: 209_000
-			.saturating_add((77_430_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(RocksDbWeight::get().reads(7 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
+		(60_079_000 as Weight)
+			// Standard Error: 39_000
+			.saturating_add((77_334_000 as Weight).saturating_mul(r as Weight))
 	}
 	fn gr_gas_available(r: u32, ) -> Weight {
 		(215_258_000 as Weight)

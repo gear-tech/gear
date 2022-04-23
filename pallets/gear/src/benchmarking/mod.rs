@@ -404,7 +404,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -415,7 +415,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -429,7 +429,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -483,7 +482,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -494,7 +493,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -508,7 +507,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_gas_available {
@@ -529,7 +527,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -540,7 +538,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -554,7 +552,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_msg_id {
@@ -563,7 +560,7 @@ benchmarks! {
             "env", "gr_msg_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -574,7 +571,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -588,7 +585,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_origin {
@@ -597,7 +593,7 @@ benchmarks! {
             "env", "gr_origin", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -608,7 +604,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -622,7 +618,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_program_id {
@@ -631,7 +626,7 @@ benchmarks! {
             "env", "gr_program_id", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -642,7 +637,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -656,7 +651,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_source {
@@ -666,7 +660,7 @@ benchmarks! {
         ), vec![])?;
 
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -678,7 +672,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
 
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -692,7 +686,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_value {
@@ -701,7 +694,7 @@ benchmarks! {
             "env", "gr_value", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -712,7 +705,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -726,7 +719,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_value_available {
@@ -735,7 +727,7 @@ benchmarks! {
             "env", "gr_value_available", r * API_BENCHMARK_BATCH_SIZE
         ), vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -746,7 +738,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -760,7 +752,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_size {
@@ -781,7 +772,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -792,7 +783,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -806,7 +797,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_read {
@@ -838,7 +828,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -849,7 +839,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -863,7 +853,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_read_per_kb {
@@ -899,7 +888,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -910,7 +899,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -924,7 +913,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_block_height {
@@ -945,7 +933,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -956,7 +944,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -970,7 +958,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_block_timestamp {
@@ -991,7 +978,7 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
-            mut ext_manager,
+            ext_manager,
             maybe_actor,
             dispatch,
             block_info,
@@ -1002,7 +989,7 @@ benchmarks! {
             outgoing_limit,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
-        let journal = core_processor::process::<
+        core_processor::process::<
                     ext::LazyPagesExt,
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
@@ -1016,7 +1003,6 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     gr_send_init {
@@ -1288,7 +1274,7 @@ benchmarks! {
                 Instruction::I32Const((pid_len + value_len) as i32), // message_id_ptr
                 Instruction::Call(0),
                 Instruction::Drop,
-				Instruction::End,
+                Instruction::End,
             ])),
             .. Default::default()
         });
