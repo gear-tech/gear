@@ -2091,6 +2091,7 @@ version = "0.1.0"
 dependencies = [
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "parity-wasm 0.42.2",
  "sp-sandbox",

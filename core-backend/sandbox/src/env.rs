@@ -18,10 +18,12 @@
 
 //! sp-sandbox environment for running a module.
 
+use crate::funcs::FuncError;
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use core::fmt;
 use gear_backend_common::{
-    funcs as common_funcs, get_current_gas_state, BackendError, BackendReport, Environment,
+    get_current_gas_state, BackendError, BackendErrorReason, BackendReport, Environment,
     HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
@@ -29,6 +31,8 @@ use gear_core::{
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
+use gear_core_errors::CoreError;
+use gear_core_errors::TerminationReason as CoreTerminationReason;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -44,7 +48,7 @@ pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
 pub(crate) struct Runtime<E: Ext> {
     pub ext: LaterExt<E>,
     pub memory: MemoryWrap,
-    pub trap: Option<&'static str>,
+    pub trap: Option<FuncError<E::Error>>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -78,14 +82,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<'static>> {
+    ) -> Result<Self, BackendError> {
         let later_ext = LaterExt::new(ext);
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Create env memory fail",
+                    reason: BackendErrorReason::CreateEnvMemory,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: get_current_gas_state(later_ext)
                         .expect("method called only once with no clones around; qed"),
@@ -139,7 +143,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(inst) => inst,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Unable to instantiate module",
+                    reason: BackendErrorReason::ModuleInstantiation,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: get_current_gas_state(runtime.ext)
                         .expect("method called only once with no clones around; qed"),
@@ -151,7 +155,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(entries) => entries,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Unable to get wasm module exports",
+                    reason: BackendErrorReason::GetWasmExports,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: get_current_gas_state(runtime.ext)
                         .expect("method called only once with no clones around; qed"),
@@ -162,7 +166,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         // Set module memory.
         if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
             return Err(BackendError {
-                reason: "Unable to set module memory data",
+                reason: BackendErrorReason::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: get_current_gas_state(runtime.ext)
                     .expect("method called only once with no clones around; qed"),
@@ -194,13 +198,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
-    fn execute<F>(
+    fn execute<F, T>(
         mut self,
         entry_point: &str,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError>
     where
-        F: FnOnce(HostPointer) -> Result<(), &'static str>,
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)
@@ -217,29 +222,25 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         let info = ext
             .take()
             .expect("method called only once with no clones around; qed")
-            .into_ext_info(|ptr, buff| {
-                memory
-                    .read(ptr, buff)
-                    .map_err(|_err| "Cannot read sandbox mem")
-            })
+            .into_ext_info(|ptr, buff| memory.read(ptr, buff))
             .map_err(|(reason, gas_amount)| BackendError {
-                reason,
+                reason: BackendErrorReason::Specific(reason.to_string().into()),
                 description: None,
                 gas_amount,
             })?;
 
         let termination = if res.is_err() {
-            let reason = if let Some(trap) = trap {
+            let reason = if let Some(FuncError::Core(err)) = &trap {
                 if let Some(value_dest) = info.exit_argument {
                     Some(TerminationReason::Exit(value_dest))
-                } else if common_funcs::is_wait_trap(trap) {
-                    Some(TerminationReason::Wait)
-                } else if common_funcs::is_leave_trap(trap) {
-                    Some(TerminationReason::Leave)
-                } else if common_funcs::is_gas_allowance_trap(trap) {
-                    Some(TerminationReason::GasAllowanceExceed)
                 } else {
-                    None
+                    err.as_termination_reason().map(|reason| match reason {
+                        CoreTerminationReason::Wait => TerminationReason::Wait,
+                        CoreTerminationReason::Leave => TerminationReason::Leave,
+                        CoreTerminationReason::GasAllowance => {
+                            TerminationReason::GasAllowanceExceed
+                        }
+                    })
                 }
             } else {
                 None
@@ -247,7 +248,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,
-                description: trap.map(Into::into),
+                description: trap.map(|e| e.to_string()).map(Into::into),
             })
         } else {
             TerminationReason::Success
@@ -257,7 +258,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         post_execution_handler(wasm_memory_addr)
             .map(|_| BackendReport { termination, info })
             .map_err(|e| BackendError {
-                reason: e,
+                reason: BackendErrorReason::Specific(e.to_string().into()),
                 description: None,
                 gas_amount,
             })
