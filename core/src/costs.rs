@@ -106,6 +106,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_wake`.
     pub gr_wake: u64,
 
+    /// Weight of calling `gr_create_program_wgas`.
+    pub gr_create_program_wgas: u64,
+    
     /// Weight of calling `gas`.
     pub gas: u64,
 }
@@ -187,6 +190,8 @@ pub enum RuntimeCosts {
     Wait,
     /// Weight of calling `gr_wake`.
     Wake,
+    /// Weight of calling `gr_create_program_wgas`.
+    CreateProgram,
 }
 
 impl RuntimeCosts {
@@ -226,6 +231,7 @@ impl RuntimeCosts {
             Leave => s.gr_leave,
             Wait => s.gr_wait,
             Wake => s.gr_wake,
+            CreateProgram => s.gr_create_program_wgas,
         };
         RuntimeToken { weight }
     }

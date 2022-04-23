@@ -1116,7 +1116,7 @@ fn claim_value_from_mailbox_works() {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
         let claimer_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_sent = 20_000_000;
+        let gas_sent = 1_000_000_000;
         let value_sent = 1000;
 
         let prog_id = {
@@ -1455,7 +1455,7 @@ fn defer_program_initialization() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            400_000_000u64,
+            5_000_000_000u64,
             0u128
         ));
 
@@ -1473,7 +1473,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            200_000_000u64,
+            5_000_000_000u64,
             0,
         ));
 
@@ -1483,7 +1483,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1),
             program_id,
             vec![],
-            200_000_000u64,
+            5_000_000_000u64,
             0u128
         ));
 
@@ -1758,7 +1758,7 @@ fn test_create_program_simple() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            4_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -1768,7 +1768,7 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
-            200_000_000,
+            4_000_000_000,
             0,
         ));
         run_to_block(3, None);
@@ -1781,7 +1781,7 @@ fn test_create_program_simple() {
                 vec![(child_code_hash, b"some_data".to_vec(), 3000)] // too little gas
             )
             .encode(),
-            200_000_000,
+            4_000_000_000,
             0,
         ));
         run_to_block(4, None);
@@ -1803,7 +1803,7 @@ fn test_create_program_simple() {
                 (child_code_hash, b"salt2".to_vec(), 10_000),
             ])
             .encode(),
-            200_000_000,
+            4_000_000_000,
             0,
         ));
         run_to_block(5, None);
@@ -1817,7 +1817,7 @@ fn test_create_program_simple() {
                 (child_code_hash, b"salt4".to_vec(), 3000), // too little gas
             ])
             .encode(),
-            200_000_000,
+            4_000_000_000,
             0,
         ));
         run_to_block(6, None);
@@ -2548,7 +2548,7 @@ mod utils {
     };
     use common::Origin as _;
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 5_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 50_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
 

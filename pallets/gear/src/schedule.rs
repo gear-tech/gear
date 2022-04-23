@@ -336,6 +336,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_wake`.
     pub gr_wake: Weight,
 
+    /// Weight of calling `create_program_wgas`.
+    pub gr_create_program_wgas: Weight,
+
     /// Weight of calling `gas`.
     pub gas: Weight,
 
@@ -534,6 +537,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_leave: self.gr_leave,
             gr_wait: self.gr_wait,
             gr_wake: self.gr_wake,
+            gr_create_program_wgas: self.gr_create_program_wgas,
             gas: self.gas,
         }
     }
@@ -569,6 +573,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
             gr_wake: cost_batched!(gr_wake),
+            gr_create_program_wgas: cost!(gr_create_program_wgas),
             gas: cost_batched!(gas),
             _phantom: PhantomData,
         }

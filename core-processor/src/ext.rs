@@ -510,6 +510,7 @@ impl EnvExt for Ext {
     }
 
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str> {
+        self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
         let code_hash = packet.code_id();
 
         // Send a message for program creation

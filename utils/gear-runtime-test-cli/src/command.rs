@@ -249,7 +249,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let gas_limit = message
                     .gas_limit
-                    .unwrap_or(GearPallet::<Runtime>::gas_allowance());
+                    .unwrap_or_else(GearPallet::<Runtime>::gas_allowance);
 
                 let value = message.value.unwrap_or(0);
 
