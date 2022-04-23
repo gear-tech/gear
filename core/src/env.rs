@@ -26,6 +26,8 @@ use crate::{
 use alloc::rc::Rc;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
+use core::fmt;
+use gear_core_errors::CoreError;
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -41,7 +43,7 @@ pub enum PageAction {
 /// External api for managing memory, messages, allocations and gas-counting.
 pub trait Ext {
     /// An error issued in api
-    type Error;
+    type Error: CoreError;
 
     /// Allocate number of pages.
     ///
@@ -145,6 +147,16 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
 }
 
+/// An error occurred during [`LaterExt::with_fallible`] which should be called only when inner is set
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct LaterExtWithError;
+
+impl fmt::Display for LaterExtWithError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("with should be called only when inner is set")
+    }
+}
+
 /// Struct for interacting with Ext
 pub struct LaterExt<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
@@ -167,19 +179,17 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+    pub fn with<T>(&self, f: impl FnOnce(&mut E) -> T) -> Result<T, LaterExtWithError> {
         self.with_fallible(|e| Ok(f(e)))
     }
 
     /// Call fn with inner ext
-    pub fn with_fallible<R>(
-        &self,
-        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
-    ) -> Result<R, &'static str> {
+    pub fn with_fallible<T, U>(&self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U>
+    where
+        U: From<LaterExtWithError>,
+    {
         let mut brw = self.inner.borrow_mut();
-        let mut ext = brw
-            .take()
-            .ok_or("with should be called only when inner is set")?;
+        let mut ext = brw.take().ok_or(LaterExtWithError)?;
         let res = f(&mut ext);
 
         *brw = Some(ext);
@@ -199,8 +209,27 @@ mod tests {
     // todo #841 remove most of tests
 
     use super::*;
+    use core::fmt;
+    use gear_core_errors::TerminationReason;
 
+    #[derive(Debug)]
     struct AllocError;
+
+    impl fmt::Display for AllocError {
+        fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+            unreachable!()
+        }
+    }
+
+    impl CoreError for AllocError {
+        fn as_termination_reason(&self) -> Option<TerminationReason> {
+            unreachable!()
+        }
+
+        fn as_static_str(&self) -> &'static str {
+            unreachable!()
+        }
+    }
 
     /// Struct with internal value to interact with LaterExt
     #[derive(Debug, PartialEq)]
@@ -338,7 +367,7 @@ mod tests {
     fn calling_fn_with_inner_ext() {
         let ext = LaterExt::new(ExtImplementedStruct(0));
 
-        let converted_inner = ext.with(converter);
+        let converted_inner: Result<_, LaterExtWithError> = ext.with(converter);
 
         assert!(converted_inner.is_ok());
     }

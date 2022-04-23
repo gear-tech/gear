@@ -22,6 +22,12 @@ use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
 
+pub trait CoreError: fmt::Display + fmt::Debug {
+    fn as_termination_reason(&self) -> Option<TerminationReason>;
+
+    fn as_static_str(&self) -> &'static str;
+}
+
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub enum MessageContextError {
@@ -71,6 +77,12 @@ pub enum MemoryError {
     NotAllPagesInBegin,
 }
 
+impl fmt::Display for MemoryError {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReason {
     Exit,
@@ -97,6 +109,19 @@ impl fmt::Display for ExtError {
     fn fmt(&self, _fmt: &mut fmt::Formatter) -> fmt::Result {
         // TODO
         Ok(())
+    }
+}
+
+impl CoreError for ExtError {
+    fn as_termination_reason(&self) -> Option<TerminationReason> {
+        match self {
+            ExtError::TerminationReason(reason) => Some(*reason),
+            _ => None,
+        }
+    }
+
+    fn as_static_str(&self) -> &'static str {
+        todo!()
     }
 }
 
