@@ -61,7 +61,7 @@ demo-proxy = { path = "../../examples/binaries/proxy" }
 page_size = "0.4.2"
 
 [features]
-default = ['std', 'runtime-benchmarks']
+default = ['std']
 std = [
 	"codec/std",
 	"log/std",
