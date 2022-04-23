@@ -443,7 +443,7 @@ impl Default for Limits {
             subject_len: 32,
             call_depth: 32,
             payload_len: 64 * 1024,
-            code_len: 128 * 1024,
+            code_len: 512 * 1024,
         }
     }
 }
