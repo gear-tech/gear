@@ -23,6 +23,8 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 pub trait CoreError: fmt::Display + fmt::Debug {
+    fn from_termination_reason(reason: TerminationReason) -> Self;
+
     fn as_termination_reason(&self) -> Option<TerminationReason>;
 
     fn as_static_str(&self) -> &'static str;
@@ -83,9 +85,9 @@ impl fmt::Display for MemoryError {
     }
 }
 
+// TODO: get rid of
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReason {
-    Exit,
     Leave,
     Wait,
     GasAllowance,
@@ -113,6 +115,10 @@ impl fmt::Display for ExtError {
 }
 
 impl CoreError for ExtError {
+    fn from_termination_reason(reason: TerminationReason) -> Self {
+        Self::TerminationReason(reason)
+    }
+
     fn as_termination_reason(&self) -> Option<TerminationReason> {
         match self {
             ExtError::TerminationReason(reason) => Some(*reason),

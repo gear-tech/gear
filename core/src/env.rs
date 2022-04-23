@@ -222,6 +222,10 @@ mod tests {
     }
 
     impl CoreError for AllocError {
+        fn from_termination_reason(_reason: TerminationReason) -> Self {
+            unreachable!()
+        }
+
         fn as_termination_reason(&self) -> Option<TerminationReason> {
             unreachable!()
         }
