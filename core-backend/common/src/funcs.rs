@@ -16,22 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{GAS_ALLOWANCE_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use alloc::{vec, vec::Vec};
 use gear_core::memory::Memory;
 use gear_core_errors::MemoryError;
-
-pub fn is_wait_trap(trap: &str) -> bool {
-    trap.starts_with(WAIT_TRAP_STR)
-}
-
-pub fn is_leave_trap(trap: &str) -> bool {
-    trap.starts_with(LEAVE_TRAP_STR)
-}
-
-pub fn is_gas_allowance_trap(trap: &str) -> bool {
-    trap.starts_with(GAS_ALLOWANCE_STR)
-}
 
 pub fn get_bytes32(mem: &dyn Memory, ptr: usize) -> Result<[u8; 32], MemoryError> {
     let mut ret = [0u8; 32];

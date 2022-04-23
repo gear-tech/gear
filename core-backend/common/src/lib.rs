@@ -40,11 +40,6 @@ use gear_core::{
 };
 use gear_core_errors::ExtError;
 
-pub const EXIT_TRAP_STR: &str = "exit";
-pub const LEAVE_TRAP_STR: &str = "leave";
-pub const WAIT_TRAP_STR: &str = "wait";
-pub const GAS_ALLOWANCE_STR: &str = "allowance";
-
 pub type HostPointer = u64;
 
 // TODO Remove after #841
@@ -52,7 +47,7 @@ pub fn get_current_gas_state<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Op
     later_ext.take().map(IntoExtInfo::into_gas_amount)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TerminationReason<'a> {
     Exit(ProgramId),
     Leave,

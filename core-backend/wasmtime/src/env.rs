@@ -28,8 +28,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, get_current_gas_state, BackendError, BackendErrorReason, BackendReport,
-    Environment, ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
+    get_current_gas_state, BackendError, BackendErrorReason, BackendReport, Environment, ExtInfo,
+    HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::env::LaterExtWithError;
 use gear_core::{
@@ -44,6 +44,7 @@ use wasmtime::{
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
     pub ext: LaterExt<E>,
+    pub termination_reason: Option<TerminationReason<'static>>,
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -118,6 +119,7 @@ where
         let engine = Engine::default();
         let store_data = StoreData {
             ext: later_ext.clone(),
+            termination_reason: None,
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
@@ -319,6 +321,8 @@ where
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
+        let termination_reason = self.store.data().termination_reason.clone();
+
         let (info, wasm_memory_addr) =
             self.prepare_post_execution_data()
                 .map(|(maybe_info, mem_addr)| {
@@ -330,19 +334,11 @@ where
         let gas_amount = info.gas_amount.clone();
 
         let termination = if let Err(e) = &res {
-            let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
-                let trap = trap.to_string();
-
+            let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
                 if let Some(value_dest) = info.exit_argument {
                     Some(TerminationReason::Exit(value_dest))
-                } else if common_funcs::is_wait_trap(&trap) {
-                    Some(TerminationReason::Wait)
-                } else if common_funcs::is_leave_trap(&trap) {
-                    Some(TerminationReason::Leave)
-                } else if common_funcs::is_gas_allowance_trap(&trap) {
-                    Some(TerminationReason::GasAllowanceExceed)
                 } else {
-                    None
+                    termination_reason
                 }
             } else {
                 None

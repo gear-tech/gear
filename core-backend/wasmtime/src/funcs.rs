@@ -24,8 +24,7 @@ use alloc::string::{FromUtf8Error, ToString};
 use alloc::{string::String, vec};
 use core::fmt;
 use gear_backend_common::funcs::*;
-use gear_backend_common::{IntoErrorCode, OnSuccessCode};
-use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_backend_common::{IntoErrorCode, OnSuccessCode, TerminationReason};
 use gear_core::env::LaterExtWithError;
 use gear_core::{
     env::Ext,
@@ -33,7 +32,8 @@ use gear_core::{
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason};
+use gear_core_errors::TerminationReason as CoreTerminationReason;
+use gear_core_errors::{CoreError, MemoryError};
 use wasmtime::Memory as WasmtimeMemory;
 use wasmtime::{AsContextMut, Caller, Func, Store, Trap};
 
@@ -49,6 +49,9 @@ enum FuncError<E> {
     DebugString(FromUtf8Error),
     GasUsageReport,
     NoReplyContext,
+    Exit,
+    Leave,
+    Wait,
 }
 
 impl<E> From<LaterExtWithError> for FuncError<E> {
@@ -76,6 +79,9 @@ where
             FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
             FuncError::GasUsageReport => write!(f, "Unable to report about gas used"),
             FuncError::NoReplyContext => write!(f, "Not running in the reply context"),
+            FuncError::Exit => write!(f, "`gr_exit` has been called"),
+            FuncError::Leave => write!(f, "`gr_leave` has been called"),
+            FuncError::Wait => write!(f, "`gr_wait` has been called"),
         }
     }
 }
@@ -206,7 +212,8 @@ where
             ext.with_fallible(|ext| ext.charge_gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| match e {
                     FuncError::Core(e)
-                        if e.as_termination_reason() != Some(TerminationReason::GasAllowance) =>
+                        if e.as_termination_reason()
+                            != Some(CoreTerminationReason::GasAllowance) =>
                     {
                         Trap::new(FuncError::<E::Error>::GasUsageReport)
                     }
@@ -240,7 +247,7 @@ where
                 .map_err(Trap::new)?;
 
                 // Intentionally return an error to break the execution
-                Err(Trap::new(EXIT_TRAP_STR))
+                Err(Trap::new(FuncError::<E::Error>::Exit))
             };
         Func::wrap(store, func)
     }
@@ -622,25 +629,27 @@ where
     }
 
     pub fn leave(store: &mut Store<StoreData<E>>) -> Func {
-        let func = move |caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
+        let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
             let ext = &caller.data().ext;
             let _ = ext
                 .with_fallible(|ext: &mut E| ext.leave().map_err(FuncError::Core))
                 .map_err(Trap::new)?;
             // Intentionally return an error to break the execution
-            Err(Trap::new(LEAVE_TRAP_STR))
+            caller.data_mut().termination_reason = Some(TerminationReason::Leave);
+            Err(Trap::new(FuncError::<E::Error>::Leave))
         };
         Func::wrap(store, func)
     }
 
     pub fn wait(store: &mut Store<StoreData<E>>) -> Func {
-        let func = move |caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
+        let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
             let ext = &caller.data().ext;
             let _ = ext
                 .with_fallible(|ext: &mut E| ext.wait().map_err(FuncError::Core))
                 .map_err(Trap::new)?;
             // Intentionally return an error to break the execution
-            Err(Trap::new(WAIT_TRAP_STR))
+            caller.data_mut().termination_reason = Some(TerminationReason::Wait);
+            Err(Trap::new(FuncError::<E::Error>::Wait))
         };
         Func::wrap(store, func)
     }
