@@ -126,84 +126,113 @@ impl Code {
         self.static_pages
     }
 
-    /// Consumes this instance and returns the raw binary code.
-    pub fn into_raw_code(self) -> Vec<u8> {
-        self.raw_code
+    /// Consumes this instance and returns the instrumented and raw binary codes.
+    pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
+        (
+            InstrumentedCode {
+                code: self.code,
+                static_pages: self.static_pages,
+                version: self.instruction_weights_version,
+            },
+            self.raw_code,
+        )
     }
 }
 
 /// The newtype contains the Code instance and the corresponding id (hash).
 #[derive(Clone, Debug)]
-pub struct CodeAndId(Code, CodeId);
+pub struct CodeAndId {
+    code: Code,
+    code_id: CodeId,
+}
 
 impl CodeAndId {
     /// Calculates the id (hash) of the raw binary code and creates new instance.
     pub fn new(code: Code) -> Self {
         let code_id = CodeId::generate(code.raw_code());
-        Self(code, code_id)
+        Self { code, code_id }
     }
 
     /// Creates the instance from the precalculated hash without checks.
     pub fn from_parts_unchecked(code: Code, code_id: CodeId) -> Self {
         assert_eq!(code_id, CodeId::generate(code.raw_code()));
-        Self(code, code_id)
+        Self { code, code_id }
     }
 
     /// Returns corresponding id (hash) for the code.
     pub fn code_id(&self) -> CodeId {
-        self.1
+        self.code_id
     }
 
     /// Returns reference to Code.
     pub fn code(&self) -> &Code {
-        &self.0
+        &self.code
     }
 
     /// Decomposes this instance.
     pub fn into_parts(self) -> (Code, CodeId) {
-        (self.0, self.1)
+        (self.code, self.code_id)
+    }
+}
+
+/// The newtype contains the instrumented code and the corresponding id (hash).
+#[derive(Clone, Debug, Decode, Encode, TypeInfo)]
+pub struct InstrumentedCode {
+    code: Vec<u8>,
+    static_pages: WasmPageNumber,
+    version: u32,
+}
+
+impl InstrumentedCode {
+    /// Returns reference to the instrumented binary code.
+    pub fn code(&self) -> &[u8] {
+        &self.code
+    }
+
+    /// Returns instruction weights version.
+    pub fn instruction_weights_version(&self) -> u32 {
+        self.version
+    }
+
+    /// Returns initial memory size from memory import.
+    pub fn static_pages(&self) -> WasmPageNumber {
+        self.static_pages
+    }
+
+    /// Consumes the instance and returns the instrumented code.
+    pub fn into_code(self) -> Vec<u8> {
+        self.code
     }
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct InstrumentedCodeAndId(Vec<u8>, WasmPageNumber, u32, CodeId);
+pub struct InstrumentedCodeAndId {
+    code: InstrumentedCode,
+    code_id: CodeId,
+}
 
 impl InstrumentedCodeAndId {
-    /// Returns reference to the instrumented binary code.
-    pub fn code(&self) -> &[u8] {
-        &self.0
-    }
-
-    /// Returns instruction weights version.
-    pub fn instruction_weights_version(&self) -> u32 {
-        self.2
-    }
-
-    /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPageNumber {
-        self.1
+    /// Returns reference to the instrumented code.
+    pub fn code(&self) -> &InstrumentedCode {
+        &self.code
     }
 
     /// Returns corresponding id (hash) for the code.
     pub fn code_id(&self) -> CodeId {
-        self.3
+        self.code_id
     }
 
     /// Consumes the instance and returns the instrumented code.
-    pub fn into_code(self) -> Vec<u8> {
-        self.0
+    pub fn into_parts(self) -> (InstrumentedCode, CodeId) {
+        (self.code, self.code_id)
     }
 }
 
 impl From<CodeAndId> for InstrumentedCodeAndId {
     fn from(code_and_id: CodeAndId) -> Self {
-        let (code, hash) = code_and_id.into_parts();
-        Self(
-            code.code,
-            code.static_pages,
-            code.instruction_weights_version,
-            hash,
-        )
+        let (code, code_id) = code_and_id.into_parts();
+        let (code, _) = code.into_parts();
+        Self { code, code_id }
     }
 }

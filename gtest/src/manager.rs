@@ -23,7 +23,7 @@ use crate::{
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
@@ -535,7 +535,10 @@ impl JournalHandler for ExtManager {
                     })
                     .expect("Program can't be constructed with provided code");
 
-                    let candidate = CoreProgram::new(candidate_id, CodeAndId::new(code).into());
+                    let code_and_id: InstrumentedCodeAndId =
+                        CodeAndId::from_parts_unchecked(code, code_hash).into();
+                    let (code, _) = code_and_id.into_parts();
+                    let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
                         Program::new(candidate),

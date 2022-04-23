@@ -5,7 +5,7 @@ use crate::{
 };
 use codec::Codec;
 use gear_core::{
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
@@ -165,7 +165,9 @@ impl<'a> Program<'a> {
         })
         .expect("Failed to create Program from code");
 
-        let program = CoreProgram::new(program_id, CodeAndId::new(code).into());
+        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        let (code, _) = code_and_id.into_parts();
+        let program = CoreProgram::new(program_id, code);
 
         Self::program_with_id(system, id, InnerProgram::new(program))
     }

@@ -28,7 +28,6 @@ use colored::{ColoredString, Colorize};
 use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
-    code::CodeAndId,
     ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
@@ -376,7 +375,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                                 .expect("code should be in the storage");
                                 Some(CoreProgram::from_parts(
                                     *pid,
-                                    CodeAndId::new(code).into(),
+                                    code,
                                     info.persistent_pages.keys().cloned().collect(),
                                     true,
                                 ))

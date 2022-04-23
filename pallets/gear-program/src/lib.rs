@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use common::CodeMetadata;
-use gear_core::{code::Code, ids::CodeId};
+use gear_core::{code::InstrumentedCode, ids::CodeId};
 pub use pallet::*;
 use primitive_types::H256;
 use sp_std::collections::btree_map::BTreeMap;
@@ -97,7 +97,15 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, (Code, CodeMetadata)>;
+    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type OriginalCodeStorage<T: Config> = StorageMap<_, Identity, CodeId, Vec<u8>>;
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type MetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
 
     #[pallet::storage]
     #[pallet::unbounded]

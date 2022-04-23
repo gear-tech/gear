@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::code::CodeAndId;
+use gear_core::code::{CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 
 #[derive(Clone, Copy, Debug)]
 pub struct CodeStorageErrorAlreadyExists;
@@ -30,11 +30,12 @@ pub trait CodeStorageTrait {
         metadata: CodeMetadata,
     ) -> Result<(), CodeStorageErrorAlreadyExists>;
     /// Returns true if the corresponding code in the storage and it was updated successfully.
-    fn update_code(code_and_id: CodeAndId) -> bool;
+    fn update_code(code_and_id: InstrumentedCodeAndId) -> bool;
     fn exists(code_id: CodeId) -> bool;
     /// Returns true if the code associated with code_id was removed. If there is no code for the specified code_id
     /// then false is returned.
     fn remove_code(code_id: CodeId) -> bool;
-    fn get_code(code_id: CodeId) -> Option<Code>;
+    fn get_code(code_id: CodeId) -> Option<InstrumentedCode>;
+    fn get_original_code(code_id: CodeId) -> Option<Vec<u8>>;
     fn get_metadata(code_id: CodeId) -> Option<CodeMetadata>;
 }

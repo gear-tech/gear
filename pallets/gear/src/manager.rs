@@ -29,7 +29,6 @@ use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
 };
 use gear_core::{
-    code::CodeAndId,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageNumber, WasmPageNumber},
     message::{Dispatch, ExitCode, StoredDispatch},
@@ -81,7 +80,7 @@ where
                 T::CodeStorage::get_code(code_id).map(|c| {
                     NativeProgram::from_parts(
                         ProgramId::from_origin(id),
-                        CodeAndId::from_parts_unchecked(c, code_id).into(),
+                        c,
                         p.persistent_pages,
                         is_initialized,
                     )

@@ -22,6 +22,7 @@ use common::{CodeMetadata, CodeStorageTrait, Origin as _};
 use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
+use gear_core::code::InstrumentedCodeAndId;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::ProgramId,
@@ -286,7 +287,9 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
     let code_hash = code_and_id.code_id().into_origin();
     let _ = T::CodeStorage::add_code(code_and_id.clone(), CodeMetadata::new(who, bn));
 
-    let program = Program::new(program_id, code_and_id.into());
+    let code_and_id: InstrumentedCodeAndId = code_and_id.into();
+    let (code, _) = code_and_id.into_parts();
+    let program = Program::new(program_id, code);
 
     common::set_program(
         H256::from_slice(program.id().as_ref()),

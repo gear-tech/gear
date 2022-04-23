@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    code::InstrumentedCodeAndId,
+    code::InstrumentedCode,
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
@@ -32,7 +32,7 @@ use core::convert::TryFrom;
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
-    code: InstrumentedCodeAndId,
+    code: InstrumentedCode,
     /// Saved state of memory pages.
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Program is initialized.
@@ -40,8 +40,8 @@ pub struct Program {
 }
 
 impl Program {
-    /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: InstrumentedCodeAndId) -> Self {
+    /// New program with specific `id` and `code`.
+    pub fn new(id: ProgramId, code: InstrumentedCode) -> Self {
         Program {
             id,
             code,
@@ -53,7 +53,7 @@ impl Program {
     /// New program from stored data
     pub fn from_parts(
         id: ProgramId,
-        code: InstrumentedCodeAndId,
+        code: InstrumentedCode,
         persistent_pages_numbers: BTreeSet<PageNumber>,
         is_initialized: bool,
     ) -> Self {
@@ -68,8 +68,8 @@ impl Program {
         }
     }
 
-    /// Reference to [`Code`] of this program.
-    pub fn code(&self) -> &InstrumentedCodeAndId {
+    /// Reference to [`InstrumentedCode`] of this program.
+    pub fn code(&self) -> &InstrumentedCode {
         &self.code
     }
 
@@ -176,7 +176,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::code::{Code, CodeAndId};
+    use crate::code::Code;
     use crate::ids::ProgramId;
     use crate::memory::PageNumber;
     use alloc::{vec, vec::Vec};
@@ -227,8 +227,8 @@ mod tests {
             wasm_instrument::gas_metering::ConstantCostRules::default()
         })
         .unwrap();
-        let code_and_id = CodeAndId::new(code);
-        let mut program = Program::new(ProgramId::from(1), code_and_id.into());
+        let (code, _) = code.into_parts();
+        let mut program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());

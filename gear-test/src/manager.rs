@@ -19,7 +19,7 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
@@ -65,7 +65,9 @@ impl ExecutionContext for InMemoryExtManager {
 
         self.store_code(code_and_id.code_id(), code_and_id.code().clone());
 
-        let program = Program::new(id, code_and_id.into());
+        let code_and_id: InstrumentedCodeAndId = code_and_id.into();
+        let (code, _) = code_and_id.into_parts();
+        let program = Program::new(id, code);
 
         self.waiting_init.insert(program.id(), vec![]);
         self.actors.insert(

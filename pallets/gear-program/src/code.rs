@@ -19,7 +19,7 @@
 use super::*;
 
 use common::{CodeStorageErrorAlreadyExists, CodeStorageTrait};
-use gear_core::code::CodeAndId;
+use gear_core::code::{CodeAndId, InstrumentedCodeAndId};
 
 impl<T: Config> CodeStorageTrait for pallet::Pallet<T> {
     fn add_code(
@@ -27,21 +27,25 @@ impl<T: Config> CodeStorageTrait for pallet::Pallet<T> {
         metadata: CodeMetadata,
     ) -> Result<(), CodeStorageErrorAlreadyExists> {
         let (code, code_id) = code_and_id.into_parts();
+        let (code, original_code) = code.into_parts();
         CodeStorage::<T>::mutate(code_id, |maybe| {
             if maybe.is_some() {
                 return Err(CodeStorageErrorAlreadyExists);
             }
 
-            *maybe = Some((code, metadata));
+            OriginalCodeStorage::<T>::insert(code_id, original_code);
+            MetadataStorage::<T>::insert(code_id, metadata);
+
+            *maybe = Some(code);
             Ok(())
         })
     }
 
-    fn update_code(code_and_id: CodeAndId) -> bool {
+    fn update_code(code_and_id: InstrumentedCodeAndId) -> bool {
         let (code, code_id) = code_and_id.into_parts();
         CodeStorage::<T>::mutate(code_id, |maybe| match maybe.as_mut() {
             None => false,
-            Some((c, _)) => {
+            Some(c) => {
                 *c = code;
                 true
             }
@@ -63,11 +67,15 @@ impl<T: Config> CodeStorageTrait for pallet::Pallet<T> {
         })
     }
 
-    fn get_code(code_id: CodeId) -> Option<Code> {
-        CodeStorage::<T>::get(code_id).map(|(c, _)| c)
+    fn get_code(code_id: CodeId) -> Option<InstrumentedCode> {
+        CodeStorage::<T>::get(code_id)
+    }
+
+    fn get_original_code(code_id: CodeId) -> Option<Vec<u8>> {
+        OriginalCodeStorage::<T>::get(code_id)
     }
 
     fn get_metadata(code_id: CodeId) -> Option<CodeMetadata> {
-        CodeStorage::<T>::get(code_id).map(|(_, m)| m)
+        MetadataStorage::<T>::get(code_id)
     }
 }

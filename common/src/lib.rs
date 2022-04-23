@@ -44,7 +44,6 @@ use sp_std::{
 };
 
 use gear_core::{
-    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageNumber, WasmPageNumber},
     message::StoredDispatch,

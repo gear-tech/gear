@@ -86,7 +86,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
-        code::{Code, CodeAndId},
+        code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
         ids::{CodeId, MessageId, ProgramId},
         message::*,
         program::Program as NativeProgram,
@@ -215,6 +215,8 @@ pub mod pallet {
         ValueLessThanMinimal,
         /// Unable to intrument program code
         GasInstrumentationFailed,
+        /// No code could be found at the supplied code hash.
+        CodeNotFound,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -642,17 +644,15 @@ pub mod pallet {
                         if let Program::Active(prog) = maybe_active_program {
                             let schedule = T::Schedule::get();
                             let code_id = CodeId::from_origin(prog.code_hash);
-                            let code_and_id = if let Some(code) = T::CodeStorage::get_code(code_id)
-                            {
+                            let code = if let Some(code) = T::CodeStorage::get_code(code_id) {
                                 if code.instruction_weights_version()
                                     == schedule.instruction_weights.version
                                 {
-                                    CodeAndId::from_parts_unchecked(code, code_id)
-                                } else if let Ok(code_and_id) =
-                                    Self::reinstrument_code(code_id, code, &schedule)
+                                    code
+                                } else if let Ok(code) = Self::reinstrument_code(code_id, &schedule)
                                 {
                                     // todo: charge for code instrumenting
-                                    code_and_id
+                                    code
                                 } else {
                                     // todo: mark code as unable for instrument to skip next time
                                     continue;
@@ -687,7 +687,7 @@ pub mod pallet {
 
                             let native_program = NativeProgram::from_parts(
                                 program_id,
-                                code_and_id.into(),
+                                code,
                                 prog.persistent_pages,
                                 matches!(prog.state, ProgramState::Initialized),
                             );
@@ -774,11 +774,12 @@ pub mod pallet {
 
         fn reinstrument_code(
             code_id: CodeId,
-            code: Code,
             schedule: &Schedule<T>,
-        ) -> Result<CodeAndId, DispatchError> {
+        ) -> Result<InstrumentedCode, DispatchError> {
+            let original_code =
+                T::CodeStorage::get_original_code(code_id).ok_or(Error::<T>::CodeNotFound)?;
             let code = Code::try_new(
-                code.into_raw_code(),
+                original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
@@ -788,9 +789,10 @@ pub mod pallet {
             })?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
+            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
 
-            Ok(code_and_id)
+            Ok(code_and_id.into_parts().0)
         }
     }
 
