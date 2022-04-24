@@ -189,7 +189,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         dispatch.context().clone(),
     );
 
-    let (binary, mut initial_pages) = program.into_code_and_pages();
+    let (binary, mut initial_pages) = program.into_parts();
 
     // Creating externalities.
     let mut ext = A::new(

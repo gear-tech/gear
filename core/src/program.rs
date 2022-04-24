@@ -28,13 +28,16 @@ use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 
+/// Type alias for map of persistent pages.
+pub type PersistentPageMap = BTreeMap<PageNumber, Option<Box<PageBuf>>>;
+
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
     code: InstrumentedCode,
     /// Saved state of memory pages.
-    persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    persistent_pages: PersistentPageMap,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -138,12 +141,12 @@ impl Program {
     }
 
     /// Get reference to memory pages.
-    pub fn get_pages(&self) -> &BTreeMap<PageNumber, Option<Box<PageBuf>>> {
+    pub fn get_pages(&self) -> &PersistentPageMap {
         &self.persistent_pages
     }
 
     /// Get mut reference to memory pages.
-    pub fn get_pages_mut(&mut self) -> &mut BTreeMap<PageNumber, Option<Box<PageBuf>>> {
+    pub fn get_pages_mut(&mut self) -> &mut PersistentPageMap {
         &mut self.persistent_pages
     }
 
@@ -166,7 +169,7 @@ impl Program {
     }
 
     /// Decomposes this instance into tuple of binary code and persistent pages.
-    pub fn into_code_and_pages(self) -> (Vec<u8>, BTreeMap<PageNumber, Option<Box<PageBuf>>>) {
+    pub fn into_parts(self) -> (Vec<u8>, PersistentPageMap) {
         (self.code.into_code(), self.persistent_pages)
     }
 }
