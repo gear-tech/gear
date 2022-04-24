@@ -26,6 +26,7 @@ use gear_core::{
     program::Program,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
@@ -232,10 +233,8 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(code.clone(), 1, |_| {
-                        wasm_instrument::gas_metering::ConstantCostRules::default()
-                    })
-                    .unwrap();
+                    let code =
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
 
                     self.store_program(candidate_id, code, init_message_id);
                 } else {

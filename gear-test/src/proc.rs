@@ -33,6 +33,7 @@ use std::{
     io::ErrorKind as IoErrorKind,
     time::{SystemTime, UNIX_EPOCH},
 };
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
@@ -83,10 +84,8 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = Code::try_new(message.code.clone(), 1, |_| {
-        wasm_instrument::gas_metering::ConstantCostRules::default()
-    })
-    .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+    let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
+        .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
     if code.static_pages() > AllocationsConfig::default().max_pages {
         return Err(anyhow::anyhow!(
@@ -131,10 +130,8 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            let code = Code::try_new(code_bytes.clone(), 1, |_| {
-                wasm_instrument::gas_metering::ConstantCostRules::default()
-            })
-            .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+            let code = Code::try_new(code_bytes.clone(), 1, |_| ConstantCostRules::default())
+                .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
             let (code, code_id) = CodeAndId::new(code).into_parts();
 

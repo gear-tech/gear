@@ -33,6 +33,7 @@ use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     time::{SystemTime, UNIX_EPOCH},
 };
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub(crate) type Balance = u128;
 
@@ -530,10 +531,8 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(code.clone(), 1, |_| {
-                        wasm_instrument::gas_metering::ConstantCostRules::default()
-                    })
-                    .expect("Program can't be constructed with provided code");
+                    let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
+                        .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_hash).into();

@@ -180,6 +180,7 @@ mod tests {
     use crate::ids::ProgramId;
     use crate::memory::PageNumber;
     use alloc::{vec, vec::Vec};
+    use wasm_instrument::gas_metering::ConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -223,10 +224,7 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = Code::try_new(binary, 1, |_| {
-            wasm_instrument::gas_metering::ConstantCostRules::default()
-        })
-        .unwrap();
+        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default()).unwrap();
         let (code, _) = code.into_parts();
         let mut program = Program::new(ProgramId::from(1), code);
 

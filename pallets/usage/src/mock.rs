@@ -44,6 +44,7 @@ use sp_runtime::{
 };
 use sp_std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -278,7 +279,7 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
     let code = Code::try_new(
         hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
         1,
-        |_| wasm_instrument::gas_metering::ConstantCostRules::default(),
+        |_| ConstantCostRules::default(),
     )
     .expect("Error creating Code");
 

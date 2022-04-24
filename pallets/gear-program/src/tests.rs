@@ -31,15 +31,14 @@ use super::*;
 use crate::mock::*;
 
 use utils::CreateProgramResult;
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
         let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| {
-            wasm_instrument::gas_metering::ConstantCostRules::default()
-        })
-        .expect("Error creating Code");
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
@@ -142,10 +141,8 @@ fn pause_program_works() {
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
         let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| {
-            wasm_instrument::gas_metering::ConstantCostRules::default()
-        })
-        .expect("Error creating Code");
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
@@ -179,10 +176,8 @@ fn pause_program_twice_fails() {
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
         let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| {
-            wasm_instrument::gas_metering::ConstantCostRules::default()
-        })
-        .expect("Error creating Code");
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
@@ -442,10 +437,8 @@ mod utils {
         wasm_static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
         let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| {
-            wasm_instrument::gas_metering::ConstantCostRules::default()
-        })
-        .expect("Error creating Code");
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
