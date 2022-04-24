@@ -71,8 +71,7 @@ pub mod pallet {
 
     use alloc::format;
     use common::{
-        self, CodeMetadata, CodeStorageTrait, DAGBasedLedger, GasPrice, Origin, Program,
-        ProgramState,
+        self, CodeMetadata, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -135,7 +134,7 @@ pub mod pallet {
 
         type DebugInfo: DebugInfo;
 
-        type CodeStorage: CodeStorageTrait;
+        type CodeStorage: CodeStorage;
     }
 
     type BalanceOf<T> =

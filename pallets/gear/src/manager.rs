@@ -21,7 +21,7 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{ActiveProgram, CodeStorageTrait, DAGBasedLedger, GasPrice, Origin, Program};
+use common::{ActiveProgram, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };

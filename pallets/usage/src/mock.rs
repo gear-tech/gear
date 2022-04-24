@@ -18,7 +18,7 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use common::{CodeMetadata, CodeStorageTrait, Origin as _};
+use common::{CodeMetadata, CodeStorage, Origin as _};
 use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;

@@ -22,7 +22,7 @@ pub mod lazy_pages;
 pub mod storage_queue;
 
 pub mod code_storage;
-pub use code_storage::{CodeStorageErrorAlreadyExists, CodeStorageTrait};
+pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;

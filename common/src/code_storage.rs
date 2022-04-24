@@ -21,14 +21,14 @@ use super::*;
 use gear_core::code::{CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 
 #[derive(Clone, Copy, Debug)]
-pub struct CodeStorageErrorAlreadyExists;
+pub enum Error {
+    /// Code already exists in storage.
+    DuplicateItem,
+}
 
 /// Trait to work with program binary codes in a storage.
-pub trait CodeStorageTrait {
-    fn add_code(
-        code_and_id: CodeAndId,
-        metadata: CodeMetadata,
-    ) -> Result<(), CodeStorageErrorAlreadyExists>;
+pub trait CodeStorage {
+    fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), Error>;
     /// Returns true if the corresponding code in the storage and it was updated successfully.
     fn update_code(code_and_id: InstrumentedCodeAndId) -> bool;
     fn exists(code_id: CodeId) -> bool;

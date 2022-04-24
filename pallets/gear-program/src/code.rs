@@ -18,19 +18,16 @@
 
 use super::*;
 
-use common::{CodeStorageErrorAlreadyExists, CodeStorageTrait};
+use common::CodeStorageError;
 use gear_core::code::{CodeAndId, InstrumentedCodeAndId};
 
-impl<T: Config> CodeStorageTrait for pallet::Pallet<T> {
-    fn add_code(
-        code_and_id: CodeAndId,
-        metadata: CodeMetadata,
-    ) -> Result<(), CodeStorageErrorAlreadyExists> {
+impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
+    fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), CodeStorageError> {
         let (code, code_id) = code_and_id.into_parts();
         let (code, original_code) = code.into_parts();
         CodeStorage::<T>::mutate(code_id, |maybe| {
             if maybe.is_some() {
-                return Err(CodeStorageErrorAlreadyExists);
+                return Err(CodeStorageError::DuplicateItem);
             }
 
             OriginalCodeStorage::<T>::insert(code_id, original_code);

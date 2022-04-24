@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{ActiveProgram, CodeStorageTrait, Origin as _, ProgramState};
+use common::{ActiveProgram, CodeStorage, Origin as _, ProgramState};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},

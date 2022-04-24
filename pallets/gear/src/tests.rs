@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, CodeStorageTrait, DAGBasedLedger, GasPrice as _, Origin as _};
+use common::{self, CodeStorage, DAGBasedLedger, GasPrice as _, Origin as _};
 use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
