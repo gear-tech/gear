@@ -43,7 +43,7 @@ use wasmtime::{
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
     pub ext: LaterExt<E>,
-    pub termination_reason: Option<TerminationReason<'static>>,
+    pub termination_reason: Option<TerminationReason>,
 }
 
 /// Environment to run one module at a time providing Ext.

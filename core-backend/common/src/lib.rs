@@ -48,13 +48,13 @@ pub fn get_current_gas_state<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Op
 }
 
 #[derive(Debug, Clone)]
-pub enum TerminationReason<'a> {
+pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Trap {
         explanation: Option<ExtError>,
-        description: Option<Cow<'a, str>>,
+        description: Option<Cow<'static, str>>,
     },
     Wait,
     GasAllowanceExceed,
@@ -80,8 +80,8 @@ pub trait IntoExtInfo {
     fn into_gas_amount(self) -> GasAmount;
 }
 
-pub struct BackendReport<'a> {
-    pub termination: TerminationReason<'a>,
+pub struct BackendReport {
+    pub termination: TerminationReason,
     pub info: ExtInfo,
 }
 
