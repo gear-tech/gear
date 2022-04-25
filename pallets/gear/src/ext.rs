@@ -52,10 +52,6 @@ impl CoreError for Error {
             _ => None,
         }
     }
-
-    fn as_static_str(&self) -> &'static str {
-        todo!()
-    }
 }
 
 impl From<ExtError> for Error {

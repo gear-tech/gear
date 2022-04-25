@@ -2152,6 +2152,7 @@ dependencies = [
 name = "gear-core-errors"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "parity-scale-codec",
  "scale-info",
 ]

@@ -26,64 +26,85 @@ pub trait CoreError: fmt::Display + fmt::Debug {
     fn from_termination_reason(reason: TerminationReason) -> Self;
 
     fn as_termination_reason(&self) -> Option<TerminationReason>;
-
-    // TODO: remove
-    fn as_static_str(&self) -> &'static str;
 }
 
 /// Error using messages.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    derive_more::Display,
+)]
 pub enum MessageContextError {
     /// Message limit exceeded.
+    #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
     /// Duplicate reply message.
+    #[display(fmt = "Duplicate reply message")]
     DuplicateReply,
     /// Duplicate waiting message.
+    #[display(fmt = "Duplicate waiting message")]
     DuplicateWaiting,
     /// Duplicate waking message.
+    #[display(fmt = "Duplicate waking message")]
     DuplicateWaking,
     /// An attempt to commit or to push a payload into an already formed message.
+    #[display(fmt = "An attempt to commit or to push a payload into an already formed message")]
     LateAccess,
     /// No message found with given handle, or handle exceeds the maximum messages amount.
+    #[display(
+        fmt = "No message found with given handle, or handle exceeds the maximum messages amount"
+    )]
     OutOfBounds,
     /// An attempt to push a payload into reply that was not set
+    #[display(fmt = "An attempt to push a payload into reply that was not set")]
     NoReplyFound,
     /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
+    #[display(
+        fmt = "An attempt to interrupt execution with `wait(..)` while some messages weren't completed"
+    )]
     UncommittedPayloads,
     /// Duplicate init message
+    #[display(fmt = "Duplicate init message")]
     DuplicateInit,
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum MemoryError {
     /// Memory is over.
     ///
     /// All pages were previously allocated and there is nothing can be done.
+    #[display(fmt = "Memory is over")]
     OutOfMemory,
 
     /// Allocation is in use.
     ///
     /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
+    #[display(fmt = "Allocation is in use")]
     AllocationsInUse,
 
     /// Specified page cannot be freed by the current program.
     ///
     /// It was allocated by another program.
-    // TODO: WasmPageNumber
+    #[display(fmt = "Specified page cannot be freed by the current program")]
     InvalidFree(u32),
 
     /// Out of bounds memory access
+    #[display(fmt = "Out of bounds memory access")]
     MemoryAccessError,
 
     /// There is wasm page, which has not all gear pages in the begin
+    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
     NotAllPagesInBegin,
-}
-
-impl fmt::Display for MemoryError {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -93,25 +114,28 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExtError {
+    #[display(fmt = "{}", _0)]
     Alloc(MemoryError),
+    #[display(fmt = "{}", _0)]
     Free(MemoryError),
+    #[display(fmt = "{}", _0)]
     Send(SendError),
+    #[display(fmt = "{}", _0)]
     Reply(ReplyError),
+    #[display(fmt = "Cannot call `exit' twice")]
     ExitTwice,
+    #[display(fmt = "Gas limit exceeded")]
     GasLimitExceeded,
+    #[display(fmt = "Too many gas added")]
     TooManyGasAdded,
+    #[display(fmt = "Terminated: {:?}", _0)]
     TerminationReason(TerminationReason),
+    #[display(fmt = "{}", _0)]
     Wake(MessageContextError),
+    #[display(fmt = "{}", _0)]
     InitMessageNotDuplicated(MessageContextError),
-}
-
-impl fmt::Display for ExtError {
-    fn fmt(&self, _fmt: &mut fmt::Formatter) -> fmt::Result {
-        // TODO
-        Ok(())
-    }
 }
 
 impl CoreError for ExtError {
@@ -125,23 +149,26 @@ impl CoreError for ExtError {
             _ => None,
         }
     }
-
-    fn as_static_str(&self) -> &'static str {
-        todo!()
-    }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum SendError {
+    #[display(fmt = "{}", _0)]
     MessageContext(MessageContextError),
+    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
     InsufficientMessageValue,
+    #[display(fmt = "Gas limit exceeded")]
     GasLimitExceeded,
+    #[display(fmt = "No value left")]
     NotEnoughValue,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ReplyError {
+    #[display(fmt = "{}", _0)]
     MessageContext(MessageContextError),
+    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
     InsufficientMessageValue,
+    #[display(fmt = "No value left")]
     NotEnoughValue,
 }

@@ -229,10 +229,6 @@ mod tests {
         fn as_termination_reason(&self) -> Option<TerminationReason> {
             unreachable!()
         }
-
-        fn as_static_str(&self) -> &'static str {
-            unreachable!()
-        }
     }
 
     /// Struct with internal value to interact with LaterExt
