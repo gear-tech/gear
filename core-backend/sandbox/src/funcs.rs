@@ -18,7 +18,10 @@
 
 use crate::env::Runtime;
 use alloc::string::FromUtf8Error;
+#[cfg(not(feature = "std"))]
+use alloc::string::ToString;
 use alloc::{string::String, vec};
+use core::fmt;
 use core::{
     convert::{TryFrom, TryInto},
     marker::PhantomData,
@@ -35,7 +38,6 @@ use gear_core::{
 };
 use gear_core_errors::{CoreError, MemoryError, TerminationReason};
 use sp_sandbox::{HostError, ReturnValue, Value};
-use std::fmt;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 

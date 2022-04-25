@@ -20,7 +20,9 @@
 
 use crate::funcs::FuncError;
 use crate::memory::MemoryWrap;
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use alloc::{
+    boxed::Box, collections::BTreeMap, format, string::String, string::ToString, vec::Vec,
+};
 use core::fmt;
 use gear_backend_common::{
     get_current_gas_state, BackendError, BackendErrorReason, BackendReport, Environment,
