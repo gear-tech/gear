@@ -2080,6 +2080,7 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-core",
  "gear-core-errors",
  "log",
@@ -2163,6 +2164,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake2-rfc",
+ "derive_more",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",

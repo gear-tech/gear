@@ -253,6 +253,7 @@ pub trait JournalHandler {
 }
 
 /// Execution error.
+#[derive(Debug)]
 pub struct ExecutionError {
     /// Id of the program that generated execution error.
     pub program_id: ProgramId,
@@ -265,34 +266,38 @@ pub struct ExecutionError {
 }
 
 /// Reason of execution error
+#[derive(Debug, derive_more::Display)]
 pub enum ExecutionErrorReason {
     /// Memory error
+    #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     /// Backend error
+    #[display(fmt = "{}", _0)]
     Backend(BackendError),
     /// Processor error
+    #[display(fmt = "{}", _0)]
     Processor(String),
     /// Ext error
+    #[display(fmt = "{}", _0)]
     Ext(String),
     /// Program's max page is not last page in wasm page
+    #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,
     /// Not enough gas to load memory
+    #[display(fmt = "Not enough gas to load memory")]
     LoadMemoryGasExceeded,
     /// Not enough gas to grow memory size
+    #[display(fmt = "Not enough gas to grow memory size")]
     GrowMemoryGasExceeded,
     /// Not enough gas for initial memory
+    #[display(fmt = "Not enough gas for initial memory")]
     InitialMemoryGasExceeded,
     /// Mem size less then static pages num
+    #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
     /// Changed page has no data in initial pages
+    #[display(fmt = "Changed page has no data in initial pages")]
     PageNoData,
-}
-
-impl fmt::Display for ExecutionErrorReason {
-    fn fmt(&self, _fmt: &mut fmt::Formatter) -> fmt::Result {
-        // TODO
-        Ok(())
-    }
 }
 
 /// Executable actor.

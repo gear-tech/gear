@@ -92,16 +92,42 @@ pub struct BackendError {
     pub description: Option<Cow<'static, str>>,
 }
 
-#[derive(Debug)]
+impl fmt::Display for BackendError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(description) = &self.description {
+            write!(f, "{}: {}", self.reason, description)
+        } else {
+            write!(f, "{}", self.reason)
+        }
+    }
+}
+
+// TODO: move variants to their actual backends
+#[derive(Debug, derive_more::Display)]
 pub enum BackendErrorReason {
+    #[display(fmt = "{}", _0)]
     Specific(Cow<'static, str>),
+    #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
-    ModuleInstantiation,
-    GetWasmExports,
-    NonEnvImports,
-    MissingImport,
+    #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
+    // sandbox only
+    #[display(fmt = "Unable to instantiate module")]
+    ModuleInstantiation,
+    // sandbox only
+    #[display(fmt = "Unable to get wasm module exports")]
+    GetWasmExports,
+    // wasmtime only
+    #[display(fmt = "Non-env imports are not supported")]
+    NonEnvImports,
+    // wasmtime only
+    #[display(fmt = "Missing import")]
+    MissingImport,
+    // wasmtime only
+    #[display(fmt = "Unable to create module")]
     ModuleCreation,
+    // wasmtime only
+    #[display(fmt = "Unable to create instance")]
     InstanceCreation,
 }
 
