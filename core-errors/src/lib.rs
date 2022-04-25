@@ -86,12 +86,11 @@ impl fmt::Display for MemoryError {
     }
 }
 
-// TODO: get rid of
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReason {
     Leave,
     Wait,
-    GasAllowance,
+    GasAllowanceExceeded,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

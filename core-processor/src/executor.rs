@@ -307,7 +307,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             DispatchResultKind::Trap(explanation)
         }
         TerminationReason::Wait => DispatchResultKind::Wait,
-        TerminationReason::GasAllowanceExceed => DispatchResultKind::GasAllowanceExceed,
+        TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
     // changed and new pages will be updated in storage

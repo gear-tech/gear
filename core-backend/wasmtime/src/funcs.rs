@@ -218,11 +218,11 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.charge_gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| {
-                    if let Some(CoreTerminationReason::GasAllowance) =
+                    if let Some(CoreTerminationReason::GasAllowanceExceeded) =
                         e.as_core().and_then(E::Error::as_termination_reason)
                     {
                         caller.data_mut().termination_reason =
-                            Some(TerminationReason::GasAllowanceExceed);
+                            Some(TerminationReason::GasAllowanceExceeded);
                     }
 
                     Trap::new(e)

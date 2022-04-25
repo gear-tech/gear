@@ -239,8 +239,8 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                     err.as_termination_reason().map(|reason| match reason {
                         CoreTerminationReason::Wait => TerminationReason::Wait,
                         CoreTerminationReason::Leave => TerminationReason::Leave,
-                        CoreTerminationReason::GasAllowance => {
-                            TerminationReason::GasAllowanceExceed
+                        CoreTerminationReason::GasAllowanceExceeded => {
+                            TerminationReason::GasAllowanceExceeded
                         }
                     })
                 }

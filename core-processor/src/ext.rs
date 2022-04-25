@@ -413,9 +413,9 @@ impl EnvExt for Ext {
 
         let res = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExtError::GasLimitExceeded),
-            (Enough, NotEnough) => {
-                Err(ExtError::TerminationReason(TerminationReason::GasAllowance))
-            }
+            (Enough, NotEnough) => Err(ExtError::TerminationReason(
+                TerminationReason::GasAllowanceExceeded,
+            )),
             (Enough, Enough) => Ok(()),
         };
 

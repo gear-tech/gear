@@ -57,7 +57,7 @@ pub enum TerminationReason {
         description: Option<Cow<'static, str>>,
     },
     Wait,
-    GasAllowanceExceed,
+    GasAllowanceExceeded,
 }
 
 pub struct ExtInfo {
