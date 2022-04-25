@@ -385,6 +385,7 @@ impl pallet_gear::Config for Runtime {
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type Schedule = Schedule;
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = ConstU32<1024>;
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;

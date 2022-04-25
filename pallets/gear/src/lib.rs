@@ -21,9 +21,6 @@
 
 extern crate alloc;
 
-pub use pallet::*;
-pub use weights::WeightInfo;
-
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod ext;
@@ -39,11 +36,43 @@ mod mock;
 mod tests;
 
 pub use crate::{
+    manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{InstructionWeights, Limits, Schedule},
 };
+pub use weights::WeightInfo;
+
+use common::{
+    self, CodeMetadata, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+};
+use core_processor::{
+    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
+    configs::BlockInfo,
+};
+
+use alloc::format;
+use frame_support::{
+    dispatch::{DispatchError, DispatchResultWithPostInfo},
+    traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+};
+
+use gear_backend_sandbox::SandboxEnvironment;
+use gear_core::{
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    ids::{CodeId, MessageId, ProgramId},
+    message::*,
+    program::Program as NativeProgram,
+};
+use primitive_types::H256;
+use scale_info::TypeInfo;
+use sp_runtime::traits::UniqueSaturatedInto;
+use sp_std::convert::TryInto;
+use sp_std::{fmt::Debug, prelude::*};
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
+
+type BalanceOf<T> =
+    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
 
@@ -69,32 +98,8 @@ impl DebugInfo for () {
 pub mod pallet {
     use super::*;
 
-    use alloc::format;
-    use common::{
-        self, CodeMetadata, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
-    };
-    use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-        configs::BlockInfo,
-    };
-    use frame_support::{
-        dispatch::{DispatchError, DispatchResultWithPostInfo},
-        pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
-    };
+    use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
-    use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::{
-        code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-        ids::{CodeId, MessageId, ProgramId},
-        message::*,
-        program::Program as NativeProgram,
-    };
-    use primitive_types::H256;
-    use scale_info::TypeInfo;
-    use sp_runtime::traits::UniqueSaturatedInto;
-    use sp_std::convert::TryInto;
-    use sp_std::prelude::*;
 
     use crate::manager::{ExtManager, HandleKind};
 
@@ -128,6 +133,10 @@ pub mod pallet {
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
 
+        /// The maximum amount of messages that can be produced in single run.
+        #[pallet::constant]
+        type OutgoingLimit: Get<u32>;
+
         /// The cost for a message to spend one block in the wait list
         #[pallet::constant]
         type WaitListFeePerBlock: Get<u64>;
@@ -137,13 +146,10 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
     }
 
-    type BalanceOf<T> =
-        <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
     #[pallet::pallet]
     #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(_);
+    pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -208,6 +214,9 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
+        /// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
+        /// current schedule.
+        CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
         /// Value doesnt cover ExistenceDeposit
@@ -342,6 +351,89 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        /// Submit program for benchmarks which does not check nor instrument the code.
+        #[cfg(feature = "runtime-benchmarks")]
+        pub fn submit_program_raw(
+            origin: OriginFor<T>,
+            code: Vec<u8>,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let schedule = T::Schedule::get();
+
+            let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
+
+            let code = Code::new_raw(code, schedule.instruction_weights.version, Some(module))
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {:?}", e);
+                    Error::<T>::FailedToConstructProgram
+                })?;
+
+            let static_pages = code.static_pages();
+            let code_and_id = CodeAndId::new(code);
+            let code_id = code_and_id.code_id();
+
+            let packet = InitPacket::new_with_gas(
+                code_id,
+                salt,
+                init_payload,
+                gas_limit,
+                value.unique_saturated_into(),
+            );
+
+            let program_id = packet.destination();
+            let id = program_id.into_origin();
+            // Make sure there is no program with such id in program storage
+            ensure!(
+                !GearProgramPallet::<T>::program_exists(id),
+                Error::<T>::ProgramAlreadyExists
+            );
+
+            let reserve_fee = T::GasPrice::gas_price(gas_limit);
+
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            // and to transfer declared value.
+            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            let origin = who.into_origin();
+
+            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // if there's code in storage, there's also metadata for it.
+            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
+                Self::deposit_event(Event::CodeSaved(code_hash));
+            }
+
+            let message_id = Self::next_message_id(origin).into_origin();
+
+            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
+
+            let _ =
+                T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
+
+            let message = InitMessage::from_packet(MessageId::from_origin(message_id), packet);
+            let dispatch = message
+                .into_dispatch(ProgramId::from_origin(origin))
+                .into_stored();
+
+            common::queue_dispatch(dispatch);
+
+            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
+                message_id,
+                program_id: id,
+                origin,
+            }));
+
+            Ok(().into())
+        }
+
         // Messages have only two options to be inserted in mailbox:
         // 1. While message processing called `gr_wait`.
         // 2. While message addressed to program, that hadn't finished it's initialization.
@@ -389,6 +481,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
+            let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
 
             let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
@@ -499,6 +592,8 @@ pub mod pallet {
                     ProgramId::from_origin(source),
                     actor_id,
                     u64::MAX,
+                    T::OutgoingLimit::get(),
+                    schedule.host_fn_weights.clone().into_core(),
                 );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
@@ -632,6 +727,7 @@ pub mod pallet {
                         Self::gas_allowance(),
                     );
 
+                    let schedule = T::Schedule::get();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
@@ -724,6 +820,8 @@ pub mod pallet {
                         ProgramId::from_origin(origin),
                         program_id,
                         Self::gas_allowance(),
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.into_core(),
                     );
 
                     core_processor::handle_journal(journal, &mut ext_manager);
@@ -756,7 +854,10 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        fn set_code_with_metadata(code_and_id: CodeAndId, who: H256) -> Result<H256, Error<T>> {
+        pub(crate) fn set_code_with_metadata(
+            code_and_id: CodeAndId,
+            who: H256,
+        ) -> Result<H256, Error<T>> {
             let hash: H256 = code_and_id.code_id().into_origin();
 
             let metadata = {
@@ -771,7 +872,7 @@ pub mod pallet {
             Ok(hash)
         }
 
-        fn reinstrument_code(
+        pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCode, DispatchError> {
@@ -823,6 +924,12 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let schedule = T::Schedule::get();
+
+            ensure!(
+                code.len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
             let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
                 schedule.rules(module)
             })
@@ -830,6 +937,11 @@ pub mod pallet {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
+
+            ensure!(
+                code.code().len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
 
             let code_hash = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
@@ -877,7 +989,7 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::weight(
-            <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+            <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
         pub fn submit_program(
             origin: OriginFor<T>,
@@ -896,6 +1008,12 @@ pub mod pallet {
             );
 
             let schedule = T::Schedule::get();
+
+            ensure!(
+                code.len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
             let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
                 schedule.rules(module)
             })
@@ -903,6 +1021,11 @@ pub mod pallet {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
+
+            ensure!(
+                code.code().len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
 
             let code_and_id = CodeAndId::new(code);
 

@@ -36,6 +36,7 @@ use std::{
 use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
+pub const OUTGOING_LIMIT: u32 = 1024;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -108,6 +109,8 @@ where
         Default::default(),
         program_id,
         u64::MAX,
+        OUTGOING_LIMIT,
+        Default::default(),
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -288,6 +291,8 @@ where
                     Default::default(),
                     program_id,
                     u64::MAX,
+                    OUTGOING_LIMIT,
+                    Default::default(),
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -323,6 +328,8 @@ where
                 Default::default(),
                 program_id,
                 u64::MAX,
+                OUTGOING_LIMIT,
+                Default::default(),
             );
             counter += 1;
 

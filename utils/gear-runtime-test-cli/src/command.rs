@@ -151,7 +151,7 @@ fn init_fixture(
             code.clone(),
             program.id.to_program_id().as_ref().to_vec(),
             init_message,
-            program.init_gas_limit.unwrap_or(5_000_000_000),
+            program.init_gas_limit.unwrap_or(50_000_000_000),
             program.init_value.unwrap_or(0) as u128,
         ) {
             return Err(anyhow::format_err!("Submit program error: {:?}", e));
@@ -247,9 +247,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let dest = programs[&message.destination.to_program_id()];
 
-                let gas_limit = message.gas_limit.unwrap_or(
-                    GearPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64,
-                );
+                let gas_limit = message
+                    .gas_limit
+                    .unwrap_or_else(GearPallet::<Runtime>::gas_allowance);
 
                 let value = message.value.unwrap_or(0);
 
