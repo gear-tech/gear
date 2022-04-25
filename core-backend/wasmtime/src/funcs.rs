@@ -47,11 +47,19 @@ enum FuncError<E> {
     SetU128(MemoryError),
     LaterExtWith(LaterExtWithError),
     DebugString(FromUtf8Error),
-    GasUsageReport,
     NoReplyContext,
     Exit,
     Leave,
     Wait,
+}
+
+impl<E> FuncError<E> {
+    fn as_core(&self) -> Option<&E> {
+        match self {
+            Self::Core(err) => Some(err),
+            _ => None,
+        }
+    }
 }
 
 impl<E> From<LaterExtWithError> for FuncError<E> {
@@ -77,7 +85,6 @@ where
             FuncError::SetU128(err) => write!(f, "Cannot set u128: {}", err),
             FuncError::LaterExtWith(err) => fmt::Display::fmt(err, f),
             FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
-            FuncError::GasUsageReport => write!(f, "Unable to report about gas used"),
             FuncError::NoReplyContext => write!(f, "Not running in the reply context"),
             FuncError::Exit => write!(f, "`gr_exit` has been called"),
             FuncError::Leave => write!(f, "`gr_leave` has been called"),
@@ -207,17 +214,18 @@ where
     }
 
     pub fn gas(store: &mut Store<StoreData<E>>) -> Func {
-        let func = move |caller: Caller<'_, StoreData<E>>, val: i32| {
+        let func = move |mut caller: Caller<'_, StoreData<E>>, val: i32| {
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.charge_gas(val as _).map_err(FuncError::Core))
-                .map_err(|e| match e {
-                    FuncError::Core(e)
-                        if e.as_termination_reason()
-                            != Some(CoreTerminationReason::GasAllowance) =>
+                .map_err(|e| {
+                    if let Some(CoreTerminationReason::GasAllowance) =
+                        e.as_core().and_then(E::Error::as_termination_reason)
                     {
-                        Trap::new(FuncError::<E::Error>::GasUsageReport)
+                        caller.data_mut().termination_reason =
+                            Some(TerminationReason::GasAllowanceExceed);
                     }
-                    err => Trap::new(err),
+
+                    Trap::new(e)
                 })
         };
         Func::wrap(store, func)

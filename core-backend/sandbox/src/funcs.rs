@@ -78,7 +78,6 @@ pub enum FuncError<E> {
     SetU128(MemoryError),
     Exit,
     NonReplyExitCode,
-    GasUsageReport,
     NoReplyContext,
     DebugString(FromUtf8Error),
 }
@@ -107,7 +106,6 @@ where
             FuncError::SetU128(err) => write!(f, "Cannot set u128: {}", err),
             FuncError::Exit => write!(f, "`gr_exit` has been called"),
             FuncError::NonReplyExitCode => write!(f, "Exit code ran into non-reply scenario"),
-            FuncError::GasUsageReport => write!(f, "Unable to report about gas used"),
             FuncError::NoReplyContext => write!(f, "Not running in reply context"),
             FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
         }
@@ -336,16 +334,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.charge_gas(val).map_err(FuncError::Core))
             .map(|()| ReturnValue::Unit)
             .map_err(|e| {
-                ctx.trap = match e {
-                    FuncError::Core(e)
-                        // TODO: fix incorrect logic
-                        if e.as_termination_reason() != Some(TerminationReason::GasAllowance) =>
-                    {
-                        Some(FuncError::<E::Error>::GasUsageReport)
-                    }
-                    e => Some(e),
-                };
-
+                ctx.trap = Some(e);
                 HostError
             })
     }
