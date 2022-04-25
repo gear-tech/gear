@@ -1563,10 +1563,10 @@ fn wake_messages_after_program_inited() {
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
+        let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
         let program_id = submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("todo");
         let code_hash =
             generate_code_hash(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
-        let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
 
         // After running, first message will end up with init failure, so destination address won't exist.
         // However, message to that non existing address will be in message queue. So, we test that this message is not executed.
