@@ -28,7 +28,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-pub const OUTGOING_LIMIT: u32 = 2048;
+pub const OUTGOING_LIMIT: u32 = 1024;
 
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]

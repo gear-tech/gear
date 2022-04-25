@@ -83,7 +83,7 @@ fn derive_debug(
     tokens.into()
 }
 
-/// This is only used then the `full` feature is activated.
+/// This is only used when the `full` feature is activated.
 #[cfg(feature = "full")]
 fn iterate_fields(data: &DataStruct, fmt: impl Fn(&Ident) -> TokenStream) -> TokenStream {
     match &data.fields {
