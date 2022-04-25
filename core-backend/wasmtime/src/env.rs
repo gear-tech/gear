@@ -31,7 +31,6 @@ use gear_backend_common::{
     get_current_gas_state, BackendError, BackendErrorReason, BackendReport, Environment, ExtInfo,
     HostPointer, IntoExtInfo, TerminationReason,
 };
-use gear_core::env::LaterExtWithError;
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
@@ -77,7 +76,6 @@ fn set_pages<T: Ext>(
 impl<E> WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
-    <E as Ext>::Error: From<LaterExtWithError>,
 {
     fn prepare_post_execution_data(self) -> Result<(Option<ExtInfo>, HostPointer), BackendError> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
@@ -106,7 +104,6 @@ where
 impl<E> Environment<E> for WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
-    <E as Ext>::Error: From<LaterExtWithError>,
 {
     fn new(
         ext: E,
