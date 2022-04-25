@@ -4622,6 +4622,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
  "log",

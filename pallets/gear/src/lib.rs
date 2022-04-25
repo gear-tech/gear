@@ -21,6 +21,8 @@
 
 extern crate alloc;
 
+use alloc::string::ToString;
+
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -526,7 +528,7 @@ pub mod pallet {
                         }) => {
                             return Err(format!(
                                 "Program terminated with a trap: {}",
-                                trap.unwrap_or("No reason")
+                                trap.unwrap_or_else(|| "No reason".to_string())
                             )
                             .into_bytes());
                         }

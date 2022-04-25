@@ -214,7 +214,7 @@ where
                         origin,
                         program_id,
                     },
-                    Reason::Dispatch(reason.as_bytes().to_vec()),
+                    Reason::Dispatch(reason.unwrap_or_default().into_bytes()),
                 )
             }
             CoreDispatchOutcome::NoExecution(message_id) => {

@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use common::{lazy_pages, ExitCode};
+use core::fmt;
 use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
     Ext, ProcessorExt,
@@ -31,7 +32,52 @@ use gear_core::{
     },
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
+use gear_core_errors::{CoreError, ExtError, TerminationReason};
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Core(ExtError),
+    LazyPages(lazy_pages::Error),
+}
+
+impl CoreError for Error {
+    fn from_termination_reason(reason: TerminationReason) -> Self {
+        Self::Core(ExtError::from_termination_reason(reason))
+    }
+
+    fn as_termination_reason(&self) -> Option<TerminationReason> {
+        match self {
+            Self::Core(err) => err.as_termination_reason(),
+            _ => None,
+        }
+    }
+
+    fn as_static_str(&self) -> &'static str {
+        todo!()
+    }
+}
+
+impl From<ExtError> for Error {
+    fn from(err: ExtError) -> Self {
+        Self::Core(err)
+    }
+}
+
+impl From<lazy_pages::Error> for Error {
+    fn from(err: lazy_pages::Error) -> Self {
+        Self::LazyPages(err)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Core(err) => fmt::Display::fmt(err, f),
+            Error::LazyPages(err) => fmt::Display::fmt(err, f),
+        }
+    }
+}
 
 /// Ext with lazy pages support
 pub struct LazyPagesExt {
@@ -40,10 +86,10 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
-        self,
-        mut get_page_data: F,
-    ) -> Result<ExtInfo, (&'static str, GasAmount)> {
+    fn into_ext_info<F, T>(self, mut get_page_data: F) -> Result<ExtInfo, (T, GasAmount)>
+    where
+        F: FnMut(usize, &mut [u8]) -> Result<(), T>,
+    {
         // accessed pages are all pages except current lazy pages
         let pages = wasm_pages_to_pages_set(self.inner.allocations_context.allocations().iter());
         let mut accessed_pages = pages.clone();
@@ -87,6 +133,8 @@ impl IntoExtInfo for LazyPagesExt {
 }
 
 impl ProcessorExt for LazyPagesExt {
+    type Error = Error;
+
     fn new(
         gas_counter: GasCounter,
         gas_allowance_counter: GasAllowanceCounter,
@@ -96,7 +144,6 @@ impl ProcessorExt for LazyPagesExt {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
@@ -112,7 +159,7 @@ impl ProcessorExt for LazyPagesExt {
                 block_info,
                 config,
                 existential_deposit,
-                error_explanation,
+                error_explanation: None,
                 exit_argument,
                 origin,
                 program_id,
@@ -126,7 +173,7 @@ impl ProcessorExt for LazyPagesExt {
         &mut self,
         program_id: ProgramId,
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> Result<bool, &'static str> {
+    ) -> Result<bool, Self::Error> {
         self.lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages(program_id, memory_pages)?;
         Ok(self.lazy_pages_enabled)
     }
@@ -135,35 +182,40 @@ impl ProcessorExt for LazyPagesExt {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         prog_id: ProgramId,
         wasm_mem_begin_addr: u64,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Self::Error> {
         lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
+            .map_err(Error::LazyPages)
     }
 
     fn post_execution_actions(
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         wasm_mem_begin_addr: u64,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Self::Error> {
         lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
+            .map_err(Error::LazyPages)
     }
 
-    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), &'static str> {
-        lazy_pages::remove_lazy_pages_prot(mem_addr)
+    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), Self::Error> {
+        lazy_pages::remove_lazy_pages_prot(mem_addr).map_err(Error::LazyPages)
     }
 
     fn protect_lazy_pages_and_update_wasm_mem_addr(
         old_mem_addr: u64,
         new_mem_addr: u64,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Self::Error> {
         lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)
+            .map_err(Error::LazyPages)
     }
 }
 
 impl EnvExt for LazyPagesExt {
+    type Error = Error;
+
     fn alloc(
         &mut self,
         pages_num: WasmPageNumber,
         mem: &mut dyn Memory,
-    ) -> Result<WasmPageNumber, &'static str> {
+    ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
         self.charge_gas(pages_num.0 * self.inner.config.alloc_cost as u32)?;
         // Greedily charge gas for grow
@@ -187,7 +239,7 @@ impl EnvExt for LazyPagesExt {
             .inner
             .allocations_context
             .alloc(pages_num, mem)
-            .map_err(|_e| "Allocation error");
+            .map_err(ExtError::Alloc);
 
         let page_number = self.inner.return_and_store_err(result)?;
 
@@ -231,24 +283,24 @@ impl EnvExt for LazyPagesExt {
         self.inner.origin()
     }
 
-    fn send_init(&mut self) -> Result<usize, &'static str> {
-        self.inner.send_init()
+    fn send_init(&mut self) -> Result<usize, Self::Error> {
+        self.inner.send_init().map_err(Error::Core)
     }
 
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
-        self.inner.send_push(handle, buffer)
+    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
+        self.inner.send_push(handle, buffer).map_err(Error::Core)
     }
 
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
-        self.inner.reply_push(buffer)
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
+        self.inner.reply_push(buffer).map_err(Error::Core)
     }
 
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str> {
-        self.inner.send_commit(handle, msg)
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
+        self.inner.send_commit(handle, msg).map_err(Error::Core)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
-        self.inner.reply_commit(msg)
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
+        self.inner.reply_commit(msg).map_err(Error::Core)
     }
 
     fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
@@ -259,8 +311,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.source()
     }
 
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), &'static str> {
-        self.inner.exit(value_destination)
+    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
+        self.inner.exit(value_destination).map_err(Error::Core)
     }
 
     fn message_id(&mut self) -> MessageId {
@@ -271,24 +323,24 @@ impl EnvExt for LazyPagesExt {
         self.inner.program_id()
     }
 
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), &'static str> {
-        self.inner.free(page)
+    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+        self.inner.free(page).map_err(Error::Core)
     }
 
-    fn debug(&mut self, data: &str) -> Result<(), &'static str> {
-        self.inner.debug(data)
+    fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
+        self.inner.debug(data).map_err(Error::Core)
     }
 
     fn msg(&mut self) -> &[u8] {
         self.inner.msg()
     }
 
-    fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
-        self.inner.charge_gas(val)
+    fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+        self.inner.charge_gas(val).map_err(Error::Core)
     }
 
-    fn refund_gas(&mut self, val: u32) -> Result<(), &'static str> {
-        self.inner.refund_gas(val)
+    fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+        self.inner.refund_gas(val).map_err(Error::Core)
     }
 
     fn gas_available(&self) -> u64 {
@@ -299,16 +351,16 @@ impl EnvExt for LazyPagesExt {
         self.inner.value()
     }
 
-    fn leave(&mut self) -> Result<(), &'static str> {
-        self.inner.leave()
+    fn leave(&mut self) -> Result<(), Self::Error> {
+        self.inner.leave().map_err(Error::Core)
     }
 
-    fn wait(&mut self) -> Result<(), &'static str> {
-        self.inner.wait()
+    fn wait(&mut self) -> Result<(), Self::Error> {
+        self.inner.wait().map_err(Error::Core)
     }
 
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
-        self.inner.wake(waker_id)
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
+        self.inner.wake(waker_id).map_err(Error::Core)
     }
 
     fn value_available(&self) -> u128 {
@@ -318,7 +370,7 @@ impl EnvExt for LazyPagesExt {
     fn create_program(
         &mut self,
         packet: gear_core::message::InitPacket,
-    ) -> Result<ProgramId, &'static str> {
-        self.inner.create_program(packet)
+    ) -> Result<ProgramId, Self::Error> {
+        self.inner.create_program(packet).map_err(Error::Core)
     }
 }
