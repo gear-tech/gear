@@ -207,7 +207,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.config,
         settings.existential_deposit,
         None,
-        None,
         context.origin,
         program_id,
         Default::default(),
