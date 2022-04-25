@@ -124,7 +124,7 @@ impl ValueNode {
     }
 }
 
-pub type ConsumeOutcome<T> = Option<(NegativeImbalance<T>, H256)>;
+pub type ConsumeOutput<T> = Option<(NegativeImbalance<T>, H256)>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -180,7 +180,7 @@ pub mod pallet {
         /// Check if a node is consumed and does not have any child nodes so it can be deleted.
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
         /// Otherwise this function is called for the parent node to propagate the process furter.
-        pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutcome<T>, DispatchError> {
+        pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
             let mut delete_current_node = false;
             let maybe_node = Self::get_node(key);
             let outcome = if let Some(current_node) = maybe_node {
@@ -257,33 +257,6 @@ pub mod pallet {
 
             Ok(outcome)
         }
-
-        // /// Returns the AccountId (as Origin) of the value tree creator
-        // pub(crate) fn node_root_origin(node: &ValueNode) -> Result<H256, DispatchError> {
-        //     match node.inner {
-        //         ValueType::External { id, .. } => Ok(id),
-        //         ValueType::SpecifiedLocal { parent, .. }
-        //         | ValueType::UnspecifiedLocal { parent } => {
-        //             // The key identifes a node that must exist.
-        //             // If a node can't be found in storage, that invalidates the whole tree.
-        //             let parent_node = Self::get_node(parent).ok_or(<Error<T>>::GasTreeInvalidated)?;
-        //             Self::node_root_origin(&parent_node)
-        //         }
-        //     }
-        // }
-
-        // /// The first node from the node corresponding to `key` along the upstream path, including
-        // /// the node corresponding to `key`, that holds a concrete value. In case the `key` or any
-        // /// of the node's ancestors keys do not have an associated node in storage, returns `None`.
-        // pub(crate) fn node_with_value(key: H256) -> Option<(H256, ValueNode)> {
-        //     Self::get_node(key).and_then(|node| {
-        //         if let ValueType::UnspecifiedLocal { parent } = node.inner {
-        //             Self::node_with_value(parent)
-        //         } else {
-        //             Some((key, node))
-        //         }
-        //     })
-        // }
     }
 }
 
@@ -296,6 +269,7 @@ where
     type Balance = u64;
     type PositiveImbalance = PositiveImbalance<T>;
     type NegativeImbalance = NegativeImbalance<T>;
+    type Error = DispatchError;
 
     fn total_supply() -> u64 {
         Self::total_issuance()
@@ -326,7 +300,7 @@ where
         })
     }
 
-    fn get_limit(key: H256) -> Result<Option<(u64, H256)>, DispatchError> {
+    fn get_limit(key: H256) -> Result<Option<u64>, DispatchError> {
         if let Some(node) = Self::get_node(key) {
             Ok({
                 let node_with_value = node.node_with_value::<T>()?;
@@ -334,14 +308,14 @@ where
                 let v = node_with_value
                     .inner_value()
                     .expect("The node here is either external or specified, hence the inner value");
-                Some((v, node_with_value.id))
+                Some(v)
             })
         } else {
             Ok(None)
         }
     }
 
-    fn consume(key: H256) -> Result<ConsumeOutcome<T>, DispatchError> {
+    fn consume(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
         let mut delete_current_node = false;
         let mut consume_parent_node = false;
         let maybe_node = Self::get_node(key);

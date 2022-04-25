@@ -273,22 +273,22 @@ fn limit_vs_origin() {
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
         // Original 1000 less 600 that were `split_with_value`
-        assert_eq!(Gas::get_limit(root_node).unwrap(), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(400));
 
         // Parent's 400
-        assert_eq!(Gas::get_limit(split_1).unwrap(), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(400));
 
         // Parent's 400
-        assert_eq!(Gas::get_limit(split_2).unwrap(), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(400));
 
         // Propriatery 600
-        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some((600, split_1_1)));
+        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some(600));
 
         // Grand-parent's 400
-        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(400));
 
         // Parent's 600
-        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some((600, split_1_1)));
+        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some(600));
 
         // All nodes origin is `origin`
         assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
@@ -344,21 +344,21 @@ fn subtree_gas_limit_remains_intact() {
         assert_ok!(Gas::split_with_value(node_2, node_5, 250));
 
         // Check gas limits in the beginning
-        assert_eq!(Gas::get_limit(root).unwrap(), Some((200, root)));
-        assert_eq!(Gas::get_limit(node_1).unwrap(), Some((300, node_1)));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((250, node_2)));
-        assert_eq!(Gas::get_limit(node_3).unwrap(), Some((300, node_1))); // defined by parent
-        assert_eq!(Gas::get_limit(node_4).unwrap(), Some((250, node_2))); // defined by parent
-        assert_eq!(Gas::get_limit(node_5).unwrap(), Some((250, node_5)));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(250));
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300)); // defined by parent
+        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250)); // defined by parent
+        assert_eq!(Gas::get_limit(node_5).unwrap(), Some(250));
 
         // Consume node_1
         assert!(matches!(Gas::consume(node_1).unwrap(), None));
         // Expect gas limit of the node_3 to remain unchanged
-        assert_eq!(Gas::get_limit(node_3).unwrap(), Some((300, node_1)));
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300));
 
         // Consume node_2
         assert!(matches!(Gas::consume(node_2).unwrap(), None));
         // Expect gas limit of the node_4 to remain unchanged
-        assert_eq!(Gas::get_limit(node_4).unwrap(), Some((250, node_2)));
+        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
     });
 }

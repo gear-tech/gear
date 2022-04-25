@@ -58,7 +58,6 @@ pub mod pallet {
         ids::MessageId,
         message::{ReplyMessage, ReplyPacket},
     };
-    use primitive_types::H256;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -279,7 +278,7 @@ pub mod pallet {
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
                                 Ok(maybe_limit) => {
                                     match maybe_limit {
-                                        Some((msg_gas_balance, _)) => {
+                                        Some(msg_gas_balance) => {
                                             let usable_gas = msg_gas_balance
                                                 .saturating_sub(T::TrapReplyExistentialGasLimit::get());
 
@@ -317,19 +316,18 @@ pub mod pallet {
                         return;
                     };
                     let total_reward = T::GasPrice::gas_price(fee);
-                    let origin: H256;
-                    match <T as pallet_gear::Config>::GasHandler::get_origin(msg_id.into_origin()) {
+                    let origin = match <T as pallet_gear::Config>::GasHandler::get_origin(msg_id.into_origin()) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given the gas tree is valid, the node with this id is guaranteed to have an origin
-                            origin = maybe_origin
-                                .expect("Gas node is guaranteed to exist for the key due to earlier checks");
+                            maybe_origin
+                                .expect("Gas node is guaranteed to exist for the key due to earlier checks")
                         },
                         Err(_e) => {
                             // Can only be due to invalid gas tree
                             unreachable!("Can never happen unless gas tree corrupted");
                         }
-                    }
+                    };
 
                     // Counter-balance the created imbalance with a value transfer
                     match external_account {

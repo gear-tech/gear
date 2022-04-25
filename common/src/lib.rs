@@ -180,6 +180,9 @@ pub trait ValueTree {
     /// leading to a decrease in the total supply of the underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
 
+    /// Error type
+    type Error;
+
     /// The total amount of value currently in circulation.
     fn total_supply() -> Self::Balance;
 
@@ -190,19 +193,19 @@ pub trait ValueTree {
         origin: Self::ExternalOrigin,
         key: Self::Key,
         amount: Self::Balance,
-    ) -> Result<Self::PositiveImbalance, DispatchError>;
+    ) -> Result<Self::PositiveImbalance, Self::Error>;
 
     /// The external origin for a key, if the latter exists, `None` otherwise.
     ///
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
     /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, DispatchError>;
+    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
     ///
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
     /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_limit(key: Self::Key) -> Result<Option<(Self::Balance, Self::Key)>, DispatchError>;
+    fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error>;
 
     /// Consume underlying value.
     ///
@@ -214,17 +217,15 @@ pub trait ValueTree {
     /// the `key` belongs to a subtree originating at such "orphan" node.
     fn consume(
         key: Self::Key,
-    ) -> Result<Option<(Self::NegativeImbalance, Self::ExternalOrigin)>, DispatchError>;
+    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>;
 
     /// Burns underlying value.
     ///
     /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
     /// In case of a success, this indicates the entire value supply becomes over-collateralized,
     /// hence negative imbalance.
-    fn spend(
-        key: Self::Key,
-        amount: Self::Balance,
-    ) -> Result<Self::NegativeImbalance, DispatchError>;
+    fn spend(key: Self::Key, amount: Self::Balance)
+        -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///
@@ -243,6 +244,8 @@ pub trait ValueTree {
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
 }
+
+type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum Program {

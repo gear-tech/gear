@@ -133,7 +133,12 @@ pub mod pallet {
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
 
         /// Implementation of a ledger to account for gas creation and consumption
-        type GasHandler: ValueTree<ExternalOrigin = H256, Key = H256, Balance = u64>;
+        type GasHandler: ValueTree<
+            ExternalOrigin = H256,
+            Key = H256,
+            Balance = u64,
+            Error = DispatchError,
+        >;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -619,7 +624,7 @@ pub mod pallet {
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
-                let (remaining_gas, _) = T::GasHandler::get_limit(root_message_id)
+                let remaining_gas = T::GasHandler::get_limit(root_message_id)
                     .map_err(|_| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?
@@ -722,7 +727,7 @@ pub mod pallet {
                     let gas_limit: u64;
                     match T::GasHandler::get_limit(msg_id) {
                         Ok(maybe_limit) => {
-                            if let Some((limit, _)) = maybe_limit {
+                            if let Some(limit) = maybe_limit {
                                 gas_limit = limit;
                             } else {
                                 log::debug!(
@@ -850,21 +855,20 @@ pub mod pallet {
                         None
                     };
 
-                    let origin: H256;
-                    match <T as Config>::GasHandler::get_origin(msg_id) {
+                    let origin = match <T as Config>::GasHandler::get_origin(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given gas tree is valid, a node with such id exists and has origin
-                            origin = maybe_origin.expect(
+                            maybe_origin.expect(
                                 "Gas node is guaranteed to exist for the key due to earlier checks",
-                            );
+                            )
                         }
                         Err(_err) => {
                             // Error can only be due to invalid gas tree
                             // TODO: handle appropriately
                             unreachable!("Can never happen unless gas tree corrupted");
                         }
-                    }
+                    };
 
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
