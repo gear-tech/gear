@@ -110,7 +110,7 @@ impl GasCounter {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
                 self.left = new_left;
-                
+
                 ChargeResult::Enough
             }
         }
@@ -126,7 +126,7 @@ impl GasCounter {
             Some(new_left) => {
                 self.left = new_left;
                 self.burned -= amount;
-                
+
                 ChargeResult::Enough
             }
         }
@@ -192,7 +192,7 @@ impl ValueCounter {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
                 self.0 = new_left;
-                
+
                 ChargeResult::Enough
             }
         }
@@ -246,7 +246,7 @@ impl GasAllowanceCounter {
             None => ChargeResult::NotEnough,
             Some(new_left) => {
                 self.0 = new_left;
-                
+
                 ChargeResult::Enough
             }
         }
