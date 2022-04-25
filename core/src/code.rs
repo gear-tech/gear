@@ -119,6 +119,44 @@ impl Code {
         })
     }
 
+    /// Create the code without checks.
+    pub fn new_raw(
+        original_code: Vec<u8>,
+        version: u32,
+        module: Option<Module>,
+    ) -> Result<Self, CodeError> {
+        let module = module.unwrap_or(
+            wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
+                .map_err(|_| CodeError::Decode)?,
+        );
+
+        // get initial memory size from memory import.
+        let static_pages = WasmPageNumber(
+            module
+                .import_section()
+                .ok_or(CodeError::CheckError)?
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    parity_wasm::elements::External::Memory(mem_ty) => {
+                        Some(mem_ty.limits().initial())
+                    }
+                    _ => None,
+                })
+                .ok_or(CodeError::CheckError)?,
+        );
+
+        let code_hash = CodeId::generate(&original_code);
+
+        Ok(Self {
+            original_code: Some(original_code.clone()),
+            code: original_code,
+            static_pages,
+            instruction_weights_version: version,
+            code_hash,
+        })
+    }
+
     /// Returns the original code.
     pub fn original_code(&self) -> Option<&Vec<u8>> {
         self.original_code.as_ref()
