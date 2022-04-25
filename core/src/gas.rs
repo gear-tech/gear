@@ -69,14 +69,14 @@ impl GasCounter {
     /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
     #[inline]
     pub fn charge(&mut self, amount: u64) -> ChargeResult {
-        let new_value = self.left.checked_sub(amount);
-
-        self.left = new_value.unwrap_or(self.left);
-        self.burned = self.burned.checked_add(amount).unwrap_or(self.burned);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned += amount;
+
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -89,14 +89,15 @@ impl GasCounter {
     #[inline]
     pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
         let amount = token.weight();
-        let new_value = self.left.checked_sub(amount);
 
-        self.left = new_value.unwrap_or(self.left);
-        self.burned = self.burned.checked_add(amount).unwrap_or(self.burned);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned += amount;
+
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -105,13 +106,13 @@ impl GasCounter {
     /// Called when message is sent to another program, so the gas `amount` is sent to
     /// receiving program.
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
-        let new_value = self.left.checked_sub(amount);
-
-        self.left = new_value.unwrap_or(self.left);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.left.checked_sub(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -120,15 +121,14 @@ impl GasCounter {
         if amount > u64::MAX - self.left || amount > self.burned {
             return ChargeResult::NotEnough;
         }
-
-        let new_value = self.left.checked_add(amount);
-
-        self.left = new_value.unwrap_or(self.left);
-        self.burned = self.burned.checked_sub(amount).unwrap_or(self.burned);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.left.checked_add(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned -= amount;
+                
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -188,13 +188,13 @@ impl ValueCounter {
     /// Called when message is sent to another program, so the value `amount` is sent to
     /// receiving program.
     pub fn reduce(&mut self, amount: u128) -> ChargeResult {
-        let new_value = self.0.checked_sub(amount);
-
-        self.0 = new_value.unwrap_or(self.0);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.0.checked_sub(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.0 = new_left;
+                
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -219,13 +219,13 @@ impl GasAllowanceCounter {
     pub fn charge(&mut self, amount: u64) -> ChargeResult {
         let amount = amount as u128;
 
-        let new_value = self.0.checked_sub(amount);
-
-        self.0 = new_value.unwrap_or(self.0);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.0.checked_sub(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.0 = new_left;
+
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -240,14 +240,15 @@ impl GasAllowanceCounter {
     /// then the counter will be set to zero.
     #[inline]
     pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
-        let amount = token.weight();
-        let new_value = self.0.checked_sub(amount as u128);
+        let amount = token.weight() as u128;
 
-        self.0 = new_value.unwrap_or(self.0);
-
-        match new_value {
-            Some(_) => ChargeResult::Enough,
+        match self.0.checked_sub(amount) {
             None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.0 = new_left;
+                
+                ChargeResult::Enough
+            }
         }
     }
 
@@ -255,7 +256,6 @@ impl GasAllowanceCounter {
     pub fn refund(&mut self, amount: u64) {
         let new_value = self.0.checked_add(amount as u128);
 
-        // We always consume the gas even if there is not enough gas.
         self.0 = new_value.unwrap_or(u128::MAX);
     }
 }
