@@ -27,6 +27,7 @@ pub trait CoreError: fmt::Display + fmt::Debug {
 
     fn as_termination_reason(&self) -> Option<TerminationReason>;
 
+    // TODO: remove
     fn as_static_str(&self) -> &'static str;
 }
 
