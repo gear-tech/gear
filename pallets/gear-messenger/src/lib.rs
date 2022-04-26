@@ -1,0 +1,340 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
+pub use pallet::*;
+
+#[frame_support::pallet]
+pub mod pallet {
+    use super::*;
+    use common::storage::{
+        Callback as GearCallback, DeckError as GearDeckError, Messenger as GearMessenger, NextKey,
+        Node, StorageCounter as GearStorageCounter, StorageDeck as GearStorageDeck,
+        StorageFlag as GearStorageFlag, StorageMap as GearStorageMap,
+        StorageValue as GearStorageValue,
+    };
+    use frame_support::{pallet_prelude::*, traits::ConstBool};
+    use frame_system::pallet_prelude::*;
+    use gear_core::message::StoredDispatch;
+    use scale_info::TypeInfo;
+    use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
+
+    #[pallet::config]
+    pub trait Config: frame_system::Config {}
+
+    #[pallet::pallet]
+    #[pallet::without_storage_info]
+    #[pallet::generate_store(pub(super) trait Store)]
+    pub struct Pallet<T>(_);
+
+    #[pallet::error]
+    pub enum Error<T> {
+        MessageDeckFlagsCorrupted,
+        MessageDeckElementsCorrupted,
+    }
+
+    impl<T> From<GearDeckError> for Error<T> {
+        fn from(err: GearDeckError) -> Self {
+            use GearDeckError::*;
+
+            match err {
+                ElementNotFound | DuplicateElementKey | HeadNotFoundInElements => {
+                    Self::MessageDeckElementsCorrupted
+                }
+                _ => Self::MessageDeckFlagsCorrupted,
+            }
+        }
+    }
+
+    pub type LengthType = u128;
+
+    #[derive(TypeInfo, Encode, Decode, Debug, Clone)]
+    pub struct MessageKey(LengthType);
+
+    impl<V> NextKey<V> for MessageKey {
+        fn first(_target: &V) -> Self {
+            Self(Default::default())
+        }
+
+        fn next(&self, _target: &V) -> Self {
+            if self.0 == LengthType::MAX {
+                Self(0)
+            } else {
+                Self(self.0 + 1)
+            }
+        }
+    }
+
+    #[pallet::storage]
+    pub type Head<T> = StorageValue<_, MessageKey>;
+
+    pub struct HeadImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageValue for HeadImpl<T> {
+        type Value = MessageKey;
+
+        fn get() -> Option<Self::Value> {
+            Head::<T>::get()
+        }
+
+        /// Mutates value in storage with given function.
+        fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
+            Head::<T>::mutate(f)
+        }
+
+        /// Removes and returns value from storage.
+        fn remove() -> Option<Self::Value> {
+            Head::<T>::take()
+        }
+
+        /// Sets given value in storage and returns previous one.
+        fn set(value: Self::Value) -> Option<Self::Value> {
+            Head::<T>::mutate(|v| v.replace(value))
+        }
+    }
+
+    #[pallet::storage]
+    pub type Tail<T> = StorageValue<_, MessageKey>;
+
+    pub struct TailImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageValue for TailImpl<T> {
+        type Value = MessageKey;
+
+        fn get() -> Option<Self::Value> {
+            Tail::<T>::get()
+        }
+
+        /// Mutates value in storage with given function.
+        fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
+            Tail::<T>::mutate(f)
+        }
+
+        /// Removes and returns value from storage.
+        fn remove() -> Option<Self::Value> {
+            Tail::<T>::take()
+        }
+
+        /// Sets given value in storage and returns previous one.
+        fn set(value: Self::Value) -> Option<Self::Value> {
+            Tail::<T>::mutate(|v| v.replace(value))
+        }
+    }
+
+    #[pallet::storage]
+    pub type Length<T> = StorageValue<_, LengthType, ValueQuery>;
+
+    pub struct LengthImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageCounter for LengthImpl<T> {
+        type Value = LengthType;
+
+        fn get() -> Self::Value {
+            Length::<T>::get()
+        }
+
+        fn increase() {
+            Length::<T>::mutate(|v| *v = v.saturating_add(1))
+        }
+
+        fn decrease() {
+            Length::<T>::mutate(|v| *v = v.saturating_sub(1))
+        }
+
+        fn clear() {
+            let _prev = Length::<T>::take();
+        }
+    }
+
+    #[pallet::storage]
+    pub type Dispatches<T> = StorageMap<_, Identity, MessageKey, Node<MessageKey, StoredDispatch>>;
+
+    pub struct DispatchImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageMap for DispatchImpl<T> {
+        type Key = MessageKey;
+        type Value = Node<MessageKey, StoredDispatch>;
+
+        /// Checks if storage contains given key.
+        fn contains(key: &Self::Key) -> bool {
+            Dispatches::<T>::contains_key(key)
+        }
+
+        /// Gets value from storage by key.
+        fn get(key: &Self::Key) -> Option<Self::Value> {
+            Dispatches::<T>::get(key)
+        }
+
+        /// Mutates value in storage with given function by key.
+        fn mutate<R>(key: Self::Key, f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
+            Dispatches::<T>::mutate(key, f)
+        }
+
+        /// Removes and returns value from storage by key.
+        fn remove(key: Self::Key) -> Option<Self::Value> {
+            Dispatches::<T>::take(key)
+        }
+
+        /// Sets given value in storage and returns previous one by key.
+        fn set(key: Self::Key, value: Self::Value) -> Option<Self::Value> {
+            Dispatches::<T>::mutate(key, |v| v.replace(value))
+        }
+    }
+
+    pub struct DeckImpl<T>(PhantomData<T>);
+
+    pub struct OnPopFrontCallback<T>(PhantomData<T>);
+
+    impl<T: Config> GearCallback<<DeckImpl<T> as GearStorageDeck>::Value> for OnPopFrontCallback<T> {
+        fn call(_arg: &<DeckImpl<T> as GearStorageDeck>::Value) {
+            <Pallet<T> as GearMessenger>::Processed::increase();
+        }
+    }
+
+    pub struct OnPushFrontCallback<T>(PhantomData<T>);
+
+    impl<T: Config> GearCallback<<DeckImpl<T> as GearStorageDeck>::Value> for OnPushFrontCallback<T> {
+        fn call(_arg: &<DeckImpl<T> as GearStorageDeck>::Value) {
+            <Pallet<T> as GearMessenger>::Processed::decrease();
+            <Pallet<T> as GearMessenger>::QueueProcessing::deny();
+        }
+    }
+
+    impl<T: Config> GearStorageDeck for DeckImpl<T> {
+        type Key = MessageKey;
+        type Value = StoredDispatch;
+
+        type Error = Error<T>;
+
+        type HeadKey = HeadImpl<T>;
+        type TailKey = TailImpl<T>;
+        type Elements = DispatchImpl<T>;
+        type Length = LengthImpl<T>;
+
+        type OnPopFront = OnPopFrontCallback<T>;
+        type OnPushFront = OnPushFrontCallback<T>;
+        type OnPushBack = ();
+    }
+
+    pub type MessengerCapacity = u32;
+
+    #[pallet::storage]
+    pub type Sent<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+
+    pub struct SentImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageCounter for SentImpl<T> {
+        type Value = MessengerCapacity;
+
+        fn get() -> Self::Value {
+            Sent::<T>::get()
+        }
+
+        fn increase() {
+            Sent::<T>::mutate(|v| *v = v.saturating_add(1))
+        }
+
+        fn decrease() {
+            Sent::<T>::mutate(|v| *v = v.saturating_sub(1))
+        }
+
+        fn clear() {
+            let _prev = Sent::<T>::take();
+        }
+    }
+
+    #[pallet::storage]
+    pub type Processed<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+
+    pub struct ProcessedImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageCounter for ProcessedImpl<T> {
+        type Value = MessengerCapacity;
+
+        fn get() -> Self::Value {
+            Processed::<T>::get()
+        }
+
+        fn increase() {
+            Processed::<T>::mutate(|v| *v = v.saturating_add(1))
+        }
+
+        fn decrease() {
+            Processed::<T>::mutate(|v| *v = v.saturating_sub(1))
+        }
+
+        fn clear() {
+            let _prev = Processed::<T>::take();
+        }
+    }
+
+    #[pallet::storage]
+    pub type QueueProcessing<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+
+    pub struct QueueProcessingImpl<T>(PhantomData<T>);
+
+    impl<T: Config> GearStorageFlag for QueueProcessingImpl<T> {
+        fn allow() {
+            QueueProcessing::<T>::put(true);
+        }
+
+        fn deny() {
+            QueueProcessing::<T>::put(false);
+        }
+
+        fn allowed() -> bool {
+            QueueProcessing::<T>::get()
+        }
+    }
+
+    impl<T: Config> GearMessenger for Pallet<T> {
+        type Sent = SentImpl<T>;
+        type Processed = ProcessedImpl<T>;
+        type QueueProcessing = QueueProcessingImpl<T>;
+        type Queue = DeckImpl<T>;
+    }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        /// Initialization
+        fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
+            let mut weight = 0;
+
+            // Removes value from storage. Single DB write.
+            <Self as GearMessenger>::Sent::clear();
+            weight += T::DbWeight::get().writes(1);
+
+            // Removes value from storage. Single DB write.
+            <Self as GearMessenger>::Processed::clear();
+            weight += T::DbWeight::get().writes(1);
+
+            // Puts value in storage. Single DB write.
+            <Self as GearMessenger>::QueueProcessing::allow();
+            weight += T::DbWeight::get().writes(1);
+
+            weight
+        }
+    }
+}

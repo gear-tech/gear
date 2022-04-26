@@ -1,0 +1,46 @@
+[package]
+name = "pallet-gear-messenger"
+version = "1.0.0"
+authors = ['Gear Technologies']
+edition = '2018'
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+description = "Gear pallet to work with messages"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
+
+# Internal deps
+common = { package = "gear-common", path = "../../common", default-features = false }
+gear-core = { path = "../../core", default-features = false }
+
+# Substrate deps
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+
+[features]
+default = ['std']
+std = [
+	"codec/std",
+	"common/std",
+	"frame-support/std",
+	"frame-system/std",
+	"scale-info/std",
+	"sp-std/std",
+	"primitive-types/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-system/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"common/runtime-benchmarks"
+]
