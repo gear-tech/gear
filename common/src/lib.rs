@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod storage;
 pub mod lazy_pages;
 pub mod storage_queue;
 
