@@ -27,7 +27,6 @@ use crate::{
 use alloc::rc::Rc;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
-use core::fmt;
 use gear_core_errors::CoreError;
 
 /// Page access rights.
@@ -155,14 +154,9 @@ pub trait Ext {
 }
 
 /// An error occurred during [`LaterExt::with_fallible`] which should be called only when inner is set
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+#[display(fmt = "With should be called only when inner is set")]
 pub struct LaterExtWithError;
-
-impl fmt::Display for LaterExtWithError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("with should be called only when inner is set")
-    }
-}
 
 /// Struct for interacting with Ext.
 pub struct ExtCarrier<E: Ext>(Rc<RefCell<Option<E>>>);
