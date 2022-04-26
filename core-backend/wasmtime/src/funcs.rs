@@ -22,7 +22,6 @@ use crate::env::StoreData;
 use crate::memory::MemoryWrap;
 use alloc::string::{FromUtf8Error, ToString};
 use alloc::{string::String, vec};
-use core::fmt;
 use gear_backend_common::funcs::*;
 use gear_backend_common::{IntoErrorCode, OnSuccessCode, TerminationReason};
 use gear_core::env::LaterExtWithError;
@@ -41,15 +40,25 @@ pub struct FuncsHandler<E: Ext + 'static> {
     _panthom: PhantomData<E>,
 }
 
+#[derive(Debug, derive_more::Display)]
 enum FuncError<E> {
+    #[display(fmt = "{}", _0)]
     Core(E),
+    #[display(fmt = "{}", _0)]
     Memory(MemoryError),
+    #[display(fmt = "{}", _0)]
     SetU128(MemoryError),
+    #[display(fmt = "{}", _0)]
     LaterExtWith(LaterExtWithError),
+    #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
+    #[display(fmt = "Not running in the reply context")]
     NoReplyContext,
+    #[display(fmt = "`gr_exit` has been called")]
     Exit,
+    #[display(fmt = "`gr_leave` has been called")]
     Leave,
+    #[display(fmt = "`gr_wait` has been called")]
     Wait,
 }
 
@@ -71,25 +80,6 @@ impl<E> From<LaterExtWithError> for FuncError<E> {
 impl<E> From<MemoryError> for FuncError<E> {
     fn from(err: MemoryError) -> Self {
         Self::Memory(err)
-    }
-}
-
-impl<E> fmt::Display for FuncError<E>
-where
-    E: CoreError,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            FuncError::Core(err) => fmt::Display::fmt(err, f),
-            FuncError::Memory(err) => fmt::Display::fmt(err, f),
-            FuncError::SetU128(err) => write!(f, "Cannot set u128: {}", err),
-            FuncError::LaterExtWith(err) => fmt::Display::fmt(err, f),
-            FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
-            FuncError::NoReplyContext => write!(f, "Not running in the reply context"),
-            FuncError::Exit => write!(f, "`gr_exit` has been called"),
-            FuncError::Leave => write!(f, "`gr_leave` has been called"),
-            FuncError::Wait => write!(f, "`gr_wait` has been called"),
-        }
     }
 }
 

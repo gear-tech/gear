@@ -21,7 +21,6 @@ use alloc::string::FromUtf8Error;
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use alloc::{string::String, vec};
-use core::fmt;
 use core::{
     convert::{TryFrom, TryInto},
     marker::PhantomData,
@@ -71,13 +70,21 @@ fn wto<E>(memory: &mut dyn Memory, ptr: usize, buff: &[u8]) -> Result<(), FuncEr
     memory.write(ptr, buff).map_err(FuncError::Memory)
 }
 
+#[derive(Debug, derive_more::Display)]
 pub enum FuncError<E> {
+    #[display(fmt = "{}", _0)]
     Core(E),
+    #[display(fmt = "{}", _0)]
     LaterExtWith(LaterExtWithError),
+    #[display(fmt = "{}", _0)]
     Memory(MemoryError),
+    #[display(fmt = "Cannot set u128: {}", _0)]
     SetU128(MemoryError),
+    #[display(fmt = "Exit code ran into non-reply scenario")]
     NonReplyExitCode,
+    #[display(fmt = "Not running in reply context")]
     NoReplyContext,
+    #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
 }
 
@@ -90,23 +97,6 @@ impl<E> From<LaterExtWithError> for FuncError<E> {
 impl<E> From<MemoryError> for FuncError<E> {
     fn from(err: MemoryError) -> Self {
         Self::Memory(err)
-    }
-}
-
-impl<E> fmt::Display for FuncError<E>
-where
-    E: CoreError,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            FuncError::Core(err) => fmt::Display::fmt(err, f),
-            FuncError::LaterExtWith(err) => fmt::Display::fmt(err, f),
-            FuncError::Memory(err) => fmt::Display::fmt(err, f),
-            FuncError::SetU128(err) => write!(f, "Cannot set u128: {}", err),
-            FuncError::NonReplyExitCode => write!(f, "Exit code ran into non-reply scenario"),
-            FuncError::NoReplyContext => write!(f, "Not running in reply context"),
-            FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
-        }
     }
 }
 
