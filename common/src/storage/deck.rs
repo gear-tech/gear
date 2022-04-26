@@ -12,18 +12,27 @@ pub enum DeckError {
     TailWasNotRemoved,
 }
 
+pub trait NextKey<V> {
+    fn first(target: &V) -> Self;
+    fn next(&self, target: &V) -> Self;
+}
+
+pub struct Node<K, V> {
+    pub next: Option<K>,
+    pub value: V,
+}
+
 /// Stripped deck implementation based on map-storage.
 pub trait StorageDeck: Sized {
     type Key: Clone + NextKey<Self::Value>;
     type Value;
 
-    type Size: Counter;
     type Error: From<DeckError>;
 
     type HeadKey: StorageValue<Value = Self::Key>;
     type TailKey: StorageValue<Value = Self::Key>;
     type Elements: StorageMap<Key = Self::Key, Value = Node<Self::Key, Self::Value>>;
-    type Length: StorageValue<Value = Self::Size>;
+    type Length: StorageCounter;
 
     type OnPopFront: Callback<Self::Value>;
     type OnPushFront: Callback<Self::Value>;
@@ -46,7 +55,7 @@ pub trait StorageDeck: Sized {
                     return Err(DeckError::TailWasEmptyWhileHeadNot.into());
                 }
 
-                Self::Length::mutate(Counter::decrease);
+                Self::Length::decrease();
                 Ok(Some(head))
             } else {
                 Err(DeckError::HeadNotFoundInElements.into())
@@ -97,7 +106,7 @@ pub trait StorageDeck: Sized {
             }
         }
 
-        Self::Length::mutate(Counter::increase);
+        Self::Length::increase();
         Ok(())
     }
 
@@ -160,7 +169,7 @@ pub trait StorageDeck: Sized {
             }
         }
 
-        Self::Length::mutate(Counter::increase);
+        Self::Length::increase();
         Ok(())
     }
 
