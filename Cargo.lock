@@ -4635,6 +4635,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
+ "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -4679,6 +4680,25 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-messenger"
+version = "1.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "pallet-balances",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
