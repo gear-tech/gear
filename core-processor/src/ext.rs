@@ -424,6 +424,9 @@ impl EnvExt for Ext {
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
+        if data.starts_with("panic occurred") {
+            self.error_explanation = Some("Panic occurred");
+        }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
         Ok(())
