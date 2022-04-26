@@ -139,6 +139,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}

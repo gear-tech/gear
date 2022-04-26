@@ -43,8 +43,8 @@ use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
-use common::{benchmarking, Origin};
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use common::{benchmarking, CodeStorage, Origin};
+use gear_core::ids::{MessageId, ProgramId};
 
 use sp_core::H256;
 use sp_runtime::{
@@ -153,25 +153,27 @@ where
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
-            let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
-
             let schedule = T::Schedule::get();
-
-            let module = wasm_instrument::parity_wasm::deserialize_buffer(code).unwrap_or_default();
-
-            let gas_rules = schedule.rules(&module);
-
             let code = Code::try_new(
                 code.clone(),
                 schedule.instruction_weights.version,
-                Some(module),
-                gas_rules,
+                |module| schedule.rules(module),
             )
             .map_err(|_| "Code failed to load: {}")?;
 
-            let _ = Gear::<T>::set_code_with_metadata(&code, source)?;
+            let static_pages = code.static_pages();
+            let code_and_id = CodeAndId::new(code);
+            let code_id = code_and_id.code_id();
 
-            ExtManager::<T>::default().set_program(program_id, code, root_message_id);
+            let _ = Gear::<T>::set_code_with_metadata(code_and_id, source)?;
+
+            let program_id = ProgramId::generate(code_id, b"salt");
+            ExtManager::<T>::default().set_program(
+                program_id,
+                code_id,
+                static_pages,
+                root_message_id,
+            );
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -268,11 +270,11 @@ benchmarks! {
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c, Location::Handle);
         let origin = RawOrigin::Signed(caller);
     }: _(origin, code)
     verify {
-        assert!(common::code_exists(hash.into_origin()));
+        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.
@@ -374,15 +376,21 @@ benchmarks! {
         let c in 0 .. T::Schedule::get().limits.code_len;
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
         let code = Code::new_raw(code, 1, None).unwrap();
+        let code_and_id = CodeAndId::new(code);
+        let code_id = code_and_id.code_id();
 
-        common::set_code(code.code_hash().into_origin(), &code);
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
+        let metadata = {
+            let block_number =
+                <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            CodeMetadata::new(caller.into_origin(), block_number)
+        };
 
-        if let Some(original_code) = code.original_code() {
-            common::set_original_code(code.code_hash().into_origin(), original_code);
-        }
+        T::CodeStorage::add_code(code_and_id, metadata).unwrap();
+
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code.code_hash().into_origin(), &schedule)?;
+        Gear::<T>::reinstrument_code(code_id, &schedule)?;
     }
 
     alloc {

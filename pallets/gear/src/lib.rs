@@ -36,13 +36,15 @@ mod mock;
 mod tests;
 
 pub use crate::{
+    manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{InstructionWeights, Limits, Schedule},
 };
 pub use weights::WeightInfo;
 
-use crate::manager::{ExtManager, HandleKind};
-use common::{self, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState};
+use common::{
+    self, CodeMetadata, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+};
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
     configs::BlockInfo,
@@ -56,9 +58,10 @@ use frame_support::{
 
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::*,
+    program::Program as NativeProgram,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -94,8 +97,11 @@ impl DebugInfo for () {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
+
+    use crate::manager::{ExtManager, HandleKind};
 
     #[pallet::config]
     pub trait Config:
@@ -136,6 +142,8 @@ pub mod pallet {
         type WaitListFeePerBlock: Get<u64>;
 
         type DebugInfo: DebugInfo;
+
+        type CodeStorage: CodeStorage;
     }
 
     #[pallet::pallet]
@@ -368,8 +376,12 @@ pub mod pallet {
                     Error::<T>::FailedToConstructProgram
                 })?;
 
+            let static_pages = code.static_pages();
+            let code_and_id = CodeAndId::new(code);
+            let code_id = code_and_id.code_id();
+
             let packet = InitPacket::new_with_gas(
-                code.code_hash(),
+                code_id,
                 salt,
                 init_payload,
                 gas_limit,
@@ -395,13 +407,13 @@ pub mod pallet {
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(program_id, code, message_id);
+            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
@@ -479,22 +491,26 @@ pub mod pallet {
                 HandleKind::Init(ref code) => {
                     let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
 
-                    let module =
-                        wasm_instrument::parity_wasm::deserialize_buffer(code).unwrap_or_default();
-
-                    let gas_rules = schedule.rules(&module);
-
+                    let schedule = T::Schedule::get();
                     let code = Code::try_new(
                         code.clone(),
                         schedule.instruction_weights.version,
-                        Some(module),
-                        gas_rules,
+                        |module| schedule.rules(module),
                     )
                     .map_err(|_| b"Code failed to load: {}".to_vec())?;
 
-                    let _ = Self::set_code_with_metadata(&code, source);
+                    let code_and_id = CodeAndId::new(code);
+                    let code_id = code_and_id.code_id();
+                    let static_pages = code_and_id.code().static_pages();
 
-                    ExtManager::<T>::default().set_program(program_id, code, root_message_id);
+                    let _ = Self::set_code_with_metadata(code_and_id, source);
+
+                    ExtManager::<T>::default().set_program(
+                        program_id,
+                        code_id,
+                        static_pages,
+                        root_message_id,
+                    );
 
                     Dispatch::new(
                         DispatchKind::Init,
@@ -713,30 +729,39 @@ pub mod pallet {
 
                     let schedule = T::Schedule::get();
                     let program_id = dispatch.destination();
+                    let current_message_id = dispatch.id();
+                    let maybe_message_reply = dispatch.reply();
+
                     let maybe_active_actor = if let Some(maybe_active_program) =
                         common::get_program(program_id.into_origin())
                     {
-                        let current_message_id = dispatch.id();
-                        let maybe_message_reply = dispatch.reply();
-
                         // Check whether message should be added to the wait list
-                        if let Program::Active(ref prog) = maybe_active_program {
-                            if let Some(code) = common::get_code(prog.code_hash) {
+                        if let Program::Active(prog) = maybe_active_program {
+                            let schedule = T::Schedule::get();
+                            let code_id = CodeId::from_origin(prog.code_hash);
+                            let code = if let Some(code) = T::CodeStorage::get_code(code_id) {
                                 if code.instruction_weights_version()
-                                    < schedule.instruction_weights.version
+                                    == schedule.instruction_weights.version
                                 {
-                                    // The instruction weights have changed.
-                                    // We need to re-instrument the code with the new instruction weights.
-                                    if let Ok(_code_size) =
-                                        Self::reinstrument_code(prog.code_hash, &schedule)
-                                    {
-                                        // todo: charge for code instrumenting
-                                    } else {
-                                        // todo: mark code as unable for instrument to skip next time
-                                        continue;
-                                    }
+                                    code
+                                } else if let Ok(code) = Self::reinstrument_code(code_id, &schedule)
+                                {
+                                    // todo: charge for code instrumenting
+                                    code
+                                } else {
+                                    // todo: mark code as unable for instrument to skip next time
+                                    continue;
                                 }
-                            }
+                            } else {
+                                log::debug!(
+                                    "Code '{:?}' not found for program '{:?}'",
+                                    code_id,
+                                    program_id
+                                );
+
+                                continue;
+                            };
+
                             let is_for_wait_list = maybe_message_reply.is_none()
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id.into_origin());
                             if is_for_wait_list {
@@ -754,26 +779,32 @@ pub mod pallet {
 
                                 continue;
                             }
-                        }
 
-                        maybe_active_program
-                            .try_into_native(program_id.into_origin())
-                            .ok()
-                            .map(|program| {
-                                let balance = <T as Config>::Currency::free_balance(
-                                    &<T::AccountId as Origin>::from_origin(
-                                        program_id.into_origin(),
-                                    ),
-                                )
-                                .unique_saturated_into();
+                            let native_program = NativeProgram::from_parts(
+                                program_id,
+                                code,
+                                prog.persistent_pages,
+                                matches!(prog.state, ProgramState::Initialized),
+                            );
 
-                                ExecutableActor { program, balance }
+                            let balance = <T as Config>::Currency::free_balance(
+                                &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                            )
+                            .unique_saturated_into();
+
+                            Some(ExecutableActor {
+                                program: native_program,
+                                balance,
                             })
+                        } else {
+                            log::debug!("Program '{:?}' is not active", program_id,);
+
+                            None
+                        }
                     } else {
                         None
                     };
 
-                    let program_id = dispatch.destination();
                     let origin = <T as Config>::GasHandler::get_origin(msg_id).expect(
                         "Gas node is guaranteed to exist for the key due to earlier checks",
                     );
@@ -823,57 +854,45 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        pub fn set_code_with_metadata(code: &Code, who: H256) -> Result<H256, Error<T>> {
-            let hash: H256 = code.code_hash().into_origin();
-
-            ensure!(!common::code_exists(hash), Error::<T>::CodeAlreadyExists);
-
-            common::set_code(hash, code);
-
-            if let Some(original_code) = code.original_code() {
-                common::set_original_code(hash, original_code);
-            }
+        pub(crate) fn set_code_with_metadata(
+            code_and_id: CodeAndId,
+            who: H256,
+        ) -> Result<H256, Error<T>> {
+            let hash: H256 = code_and_id.code_id().into_origin();
 
             let metadata = {
                 let block_number =
                     <frame_system::Pallet<T>>::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
-            common::set_code_metadata(hash, metadata);
+
+            T::CodeStorage::add_code(code_and_id, metadata)
+                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Ok(hash)
         }
 
-        pub fn reinstrument_code(
-            code_hash: H256,
+        pub(crate) fn reinstrument_code(
+            code_id: CodeId,
             schedule: &Schedule<T>,
-        ) -> Result<u32, DispatchError> {
+        ) -> Result<InstrumentedCode, DispatchError> {
             let original_code =
-                common::get_original_code(code_hash).ok_or(Error::<T>::CodeNotFound)?;
-
-            let original_code_len = original_code.len();
-
-            let module =
-                wasm_instrument::parity_wasm::deserialize_buffer(&original_code).map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
-                })?;
-
-            let gas_rules = schedule.rules(&module);
-
+                T::CodeStorage::get_original_code(code_id).ok_or(Error::<T>::CodeNotFound)?;
             let code = Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
-                Some(module),
-                gas_rules,
+                |module| schedule.rules(module),
             )
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            common::set_code(code_hash, &code);
-            Ok(original_code_len as u32)
+            let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
+            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+            T::CodeStorage::update_code(code_and_id.clone());
+
+            Ok(code_and_id.into_parts().0)
         }
     }
 
@@ -911,17 +930,9 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let module =
-                wasm_instrument::parity_wasm::deserialize_buffer(&code).unwrap_or_default();
-
-            let gas_rules = schedule.rules(&module);
-
-            let code = Code::try_new(
-                code,
-                schedule.instruction_weights.version,
-                Some(module),
-                gas_rules,
-            )
+            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+                schedule.rules(module)
+            })
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
@@ -932,7 +943,7 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let code_hash = Self::set_code_with_metadata(&code, who.into_origin())?;
+            let code_hash = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 
@@ -1003,19 +1014,9 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
-
-            let gas_rules = schedule.rules(&module);
-
-            let code = Code::try_new(
-                code,
-                schedule.instruction_weights.version,
-                Some(module),
-                gas_rules,
-            )
+            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+                schedule.rules(module)
+            })
             .map_err(|e| {
                 log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
@@ -1026,8 +1027,10 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
+            let code_and_id = CodeAndId::new(code);
+
             let packet = InitPacket::new_with_gas(
-                code.code_hash(),
+                code_and_id.code_id(),
                 salt,
                 init_payload,
                 gas_limit,
@@ -1051,15 +1054,18 @@ pub mod pallet {
 
             let origin = who.into_origin();
 
+            let code_id = code_and_id.code_id();
+            let static_pages = code_and_id.code().static_pages();
+
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(program_id, code, message_id);
+            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));

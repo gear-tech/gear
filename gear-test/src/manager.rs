@@ -19,13 +19,14 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
@@ -61,10 +62,12 @@ impl ExecutionContext for InMemoryExtManager {
             .insert(CodeId::generate(code), code.to_vec());
     }
     fn store_program(&mut self, id: ProgramId, code: Code, _init_message_id: MessageId) -> Program {
-        let code_hash = code.code_hash();
+        let code_and_id = CodeAndId::new(code);
 
-        self.store_code(code_hash, code.clone());
+        self.store_code(code_and_id.code_id(), code_and_id.code().clone());
 
+        let code_and_id: InstrumentedCodeAndId = code_and_id.into();
+        let (code, _) = code_and_id.into_parts();
         let program = Program::new(id, code);
 
         self.waiting_init.insert(program.id(), vec![]);
@@ -230,13 +233,8 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = Code::try_new(
-                        code.clone(),
-                        1,
-                        None,
-                        wasm_instrument::gas_metering::ConstantCostRules::default(),
-                    )
-                    .unwrap();
+                    let code =
+                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
 
                     self.store_program(candidate_id, code, init_message_id);
                 } else {

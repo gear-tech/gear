@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{ActiveProgram, Origin as _, ProgramState};
+use common::{ActiveProgram, CodeStorage, Origin as _, ProgramState};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
@@ -31,22 +31,20 @@ use super::*;
 use crate::mock::*;
 
 use utils::CreateProgramResult;
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
-        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeId::generate(&code).into_origin();
+        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
-        .expect("Error creating Code");
+        let code_and_id = CodeAndId::new(code);
+        let code_id = code_and_id.code_id();
+        let code_hash = code_id.into_origin();
 
-        common::set_code(code_hash, &code);
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let wasm_static_pages = WasmPageNumber(16);
         let static_pages = wasm_static_pages.to_gear_pages();
@@ -126,7 +124,7 @@ fn pause_program_works() {
 
         assert!(GearProgram::program_paused(program_id));
 
-        assert!(common::get_code(code_hash).is_some());
+        assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
         assert_eq!(
@@ -142,17 +140,14 @@ fn pause_program_works() {
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeId::generate(&code).into_origin();
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
-        .expect("Error creating Code");
+        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
-        common::set_code(code_hash, &code);
+        let code_and_id = CodeAndId::new(code);
+        let code_hash = code_and_id.code_id().into_origin();
+
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
         let static_pages = 256;
@@ -180,18 +175,14 @@ fn pause_program_twice_fails() {
 #[test]
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
-        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeId::generate(&code).into_origin();
+        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
-        .expect("Error creating Code");
+        let code_and_id = CodeAndId::new(code);
+        let code_hash = code_and_id.code_id().into_origin();
 
-        common::set_code(code_hash, &code);
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
         let static_pages = 256;
@@ -223,7 +214,7 @@ fn pause_uninitialized_program_works() {
         let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
             program_id,
-            code_hash,
+            code_id,
             init_msg,
             msg_1,
             msg_2,
@@ -237,7 +228,7 @@ fn pause_uninitialized_program_works() {
         assert!(GearProgram::program_paused(program_id));
         assert!(common::get_program(program_id).is_none());
 
-        assert!(common::get_code(code_hash).is_some());
+        assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
         assert_eq!(
@@ -435,7 +426,7 @@ mod utils {
 
     pub struct CreateProgramResult {
         pub program_id: H256,
-        pub code_hash: H256,
+        pub code_id: CodeId,
         pub init_msg: StoredDispatch,
         pub msg_1: StoredDispatch,
         pub msg_2: StoredDispatch,
@@ -445,18 +436,14 @@ mod utils {
     pub fn create_uninitialized_program_messages(
         wasm_static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
-        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeId::generate(&code).into_origin();
+        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+            .expect("Error creating Code");
 
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
-        .expect("Error creating Code");
+        let code_and_id = CodeAndId::new(code);
+        let code_id = code_and_id.code_id();
 
-        common::set_code(code_hash, &code);
+        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let static_pages = wasm_static_pages.to_gear_pages();
         let memory_pages = {
@@ -485,7 +472,7 @@ mod utils {
             ActiveProgram {
                 static_pages: wasm_static_pages,
                 persistent_pages: memory_pages.clone().into_keys().collect(),
-                code_hash,
+                code_hash: code_id.into_origin(),
                 state: ProgramState::Uninitialized {
                     message_id: init_msg_id,
                 },
@@ -542,7 +529,7 @@ mod utils {
 
         CreateProgramResult {
             program_id,
-            code_hash,
+            code_id,
             init_msg,
             msg_1,
             msg_2,

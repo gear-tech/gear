@@ -18,11 +18,15 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use common::CodeMetadata;
+use gear_core::{code::InstrumentedCode, ids::CodeId};
 pub use pallet::*;
 use primitive_types::H256;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_std::convert::TryInto;
 use sp_std::prelude::*;
+
+mod code;
 
 mod pause;
 pub use pause::PauseError;
@@ -90,6 +94,18 @@ pub mod pallet {
         ResumeProgramNotEnoughValue,
         WrongWaitList,
     }
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type OriginalCodeStorage<T: Config> = StorageMap<_, Identity, CodeId, Vec<u8>>;
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type MetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
 
     #[pallet::storage]
     #[pallet::unbounded]

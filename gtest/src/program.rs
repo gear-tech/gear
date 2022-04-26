@@ -5,7 +5,7 @@ use crate::{
 };
 use codec::Codec;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
@@ -18,6 +18,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
@@ -160,14 +161,11 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        let code = Code::try_new(
-            code,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
-        .expect("Failed to create Program from code");
+        let code = Code::try_new(code, 1, |_| ConstantCostRules::default())
+            .expect("Failed to create Program from code");
 
+        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        let (code, _) = code_and_id.into_parts();
         let program = CoreProgram::new(program_id, code);
 
         Self::program_with_id(system, id, InnerProgram::new(program))

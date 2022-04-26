@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
+use common::{self, CodeStorage, DAGBasedLedger, GasPrice as _, Origin as _};
 use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::code::Code;
+use gear_core::{code::Code, ids::CodeId};
 use pallet_balances::{self, Pallet as BalancesPallet};
 
 use super::{
@@ -1238,29 +1238,24 @@ fn test_code_submission_pass() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
         let code_hash = generate_code_hash(&code).into();
+        let code_id = CodeId::from_origin(code_hash);
 
         assert_ok!(GearPallet::<Test>::submit_code(
             Origin::signed(USER_1),
             code.clone()
         ));
 
-        let saved_code = common::get_code(code_hash);
+        let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
 
-        let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).unwrap_or_default();
         let schedule = <Test as Config>::Schedule::get();
-        let gas_rules = schedule.rules(&module);
-
-        let code = Code::try_new(
-            code,
-            schedule.instruction_weights.version,
-            Some(module),
-            gas_rules,
-        )
+        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+            schedule.rules(module)
+        })
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
-        let actual_meta = common::get_code_metadata(code_hash);
+        let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         assert_eq!(expected_meta, actual_meta);
 
         SystemPallet::<Test>::assert_last_event(Event::CodeSaved(code_hash).into());
@@ -1307,7 +1302,9 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             0
         ));
         SystemPallet::<Test>::assert_has_event(Event::CodeSaved(code_hash).into());
-        assert!(common::code_exists(code_hash));
+        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
+            code_hash
+        )));
 
         // Trying to set the same code twice.
         assert_noop!(
@@ -1323,6 +1320,7 @@ fn test_code_is_not_resetted_within_program_submission() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
         let code_hash = generate_code_hash(&code).into();
+        let code_id = CodeId::from_origin(code_hash);
 
         // First submit code
         assert_ok!(GearPallet::<Test>::submit_code(
@@ -1330,7 +1328,7 @@ fn test_code_is_not_resetted_within_program_submission() {
             code.clone()
         ));
         let expected_code_saved_events = 1;
-        let expected_meta = common::get_code_metadata(code_hash);
+        let expected_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         assert!(expected_meta.is_some());
 
         // Submit program from another origin. Should not change meta or code.
@@ -1342,7 +1340,7 @@ fn test_code_is_not_resetted_within_program_submission() {
             DEFAULT_GAS_LIMIT,
             0
         ));
-        let actual_meta = common::get_code_metadata(code_hash);
+        let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         let actual_code_saved_events = SystemPallet::<Test>::events()
             .iter()
             .filter(|e| matches!(e.event, MockEvent::Gear(Event::CodeSaved(_))))
@@ -1592,7 +1590,9 @@ fn test_message_processing_for_non_existing_destination() {
         );
 
         assert!(Gear::is_terminated(program_id));
-        assert!(common::code_exists(code_hash))
+        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
+            code_hash
+        )));
     })
 }
 
@@ -2134,7 +2134,9 @@ fn exit_handle() {
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_terminated(program_id));
 
-        assert!(common::code_exists(code_hash));
+        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
+            code_hash
+        )));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
