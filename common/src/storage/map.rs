@@ -3,9 +3,6 @@ pub trait StorageMap {
     type Key;
     type Value;
 
-    /// Removes all elements from storage.
-    fn clear();
-
     /// Checks if storage contains given key.
     fn contains(key: &Self::Key) -> bool;
 
@@ -26,9 +23,6 @@ pub trait StorageMap {
 pub trait TargetedStorageMap {
     type Key;
     type Value;
-
-    /// Removes all elements from storage.
-    fn clear(&mut self);
 
     /// Checks if storage contains given key.
     fn contains(&self, key: &Self::Key) -> bool;

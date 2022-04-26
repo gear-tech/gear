@@ -1,11 +1,15 @@
 mod counter;
 mod deck;
+mod flag;
 mod map;
+mod messenger;
 mod value;
 
 pub use counter::{StorageCounter, TargetedStorageCounter};
-pub use deck::{StorageDeck, NextKey, Node};
+pub use deck::{DeckError, NextKey, Node, StorageDeck};
+pub use flag::{StorageFlag, TargetedStorageFlag};
 pub use map::{StorageMap, TargetedStorageMap};
+pub use messenger::Messenger;
 pub use value::{StorageValue, TargetedStorageValue};
 
 /// Callback trait for running some logic depent on conditions.

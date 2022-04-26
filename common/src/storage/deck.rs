@@ -1,5 +1,7 @@
 use super::*;
+use codec::{Decode, Encode};
 use core::{iter::Iterator, marker::PhantomData};
+use scale_info::TypeInfo;
 
 pub enum DeckError {
     HeadNotFoundInElements,
@@ -17,6 +19,7 @@ pub trait NextKey<V> {
     fn next(&self, target: &V) -> Self;
 }
 
+#[derive(Decode, Encode, TypeInfo)]
 pub struct Node<K, V> {
     pub next: Option<K>,
     pub value: V,
@@ -69,7 +72,11 @@ pub trait StorageDeck: Sized {
         Self::OnPushBack::call(&value);
 
         if let Some(tail_key) = Self::TailKey::remove() {
-            let new_tail_key = tail_key.next(&value);
+            let mut new_tail_key = tail_key.next(&value);
+
+            while Self::Elements::contains(&new_tail_key) {
+                new_tail_key = new_tail_key.next(&value);
+            }
 
             if Self::TailKey::set(new_tail_key.clone()).is_some() {
                 return Err(DeckError::TailWasNotRemoved.into());
@@ -114,7 +121,11 @@ pub trait StorageDeck: Sized {
         Self::OnPushFront::call(&value);
 
         if let Some(head_key) = Self::HeadKey::remove() {
-            let new_head_key = head_key.next(&value);
+            let mut new_head_key = head_key.next(&value);
+
+            while Self::Elements::contains(&new_head_key) {
+                new_head_key = new_head_key.next(&value);
+            }
 
             if Self::HeadKey::set(new_head_key.clone()).is_some() {
                 return Err(DeckError::HeadWasNotRemoved.into());
@@ -132,7 +143,11 @@ pub trait StorageDeck: Sized {
                 return Err(DeckError::DuplicateElementKey.into());
             }
         } else if let Some(tail_key) = Self::TailKey::remove() {
-            let new_tail_key = tail_key.next(&value);
+            let mut new_tail_key = tail_key.next(&value);
+
+            while Self::Elements::contains(&new_tail_key) {
+                new_tail_key = new_tail_key.next(&value);
+            }
 
             if Self::TailKey::set(new_tail_key.clone()).is_some() {
                 return Err(DeckError::TailWasNotRemoved.into());
