@@ -25,20 +25,34 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    get_current_gas_state, BackendError, BackendErrorReason, BackendReport, Environment,
-    HostPointer, IntoExtInfo, TerminationReason,
+    get_current_gas_state, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
+    TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_core_errors::CoreError;
 use gear_core_errors::TerminationReason as CoreTerminationReason;
+use gear_core_errors::{CoreError, MemoryError};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
+
+#[derive(Debug, derive_more::Display)]
+pub enum SandboxEnvironmentError {
+    #[display(fmt = "Unable to instantiate module")]
+    ModuleInstantiation,
+    #[display(fmt = "Unable to get wasm module exports")]
+    GetWasmExports,
+    #[display(fmt = "Unable to set module memory data")]
+    SetModuleMemoryData,
+    #[display(fmt = "Failed to create env memory")]
+    CreateEnvMemory,
+    Memory(MemoryError),
+    PostExecutionHandler(String),
+}
 
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
@@ -79,19 +93,21 @@ fn set_pages(
 }
 
 impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
+    type Error = SandboxEnvironmentError;
+
     fn new(
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError> {
+    ) -> Result<Self, BackendError<Self::Error>> {
         let later_ext = LaterExt::new(ext);
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: BackendErrorReason::CreateEnvMemory,
+                    reason: SandboxEnvironmentError::CreateEnvMemory,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: get_current_gas_state(later_ext)
                         .expect("method called only once with no clones around; qed"),
@@ -145,7 +161,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(inst) => inst,
             Err(e) => {
                 return Err(BackendError {
-                    reason: BackendErrorReason::ModuleInstantiation,
+                    reason: SandboxEnvironmentError::ModuleInstantiation,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: get_current_gas_state(runtime.ext)
                         .expect("method called only once with no clones around; qed"),
@@ -157,7 +173,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(entries) => entries,
             Err(e) => {
                 return Err(BackendError {
-                    reason: BackendErrorReason::GetWasmExports,
+                    reason: SandboxEnvironmentError::GetWasmExports,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: get_current_gas_state(runtime.ext)
                         .expect("method called only once with no clones around; qed"),
@@ -168,7 +184,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         // Set module memory.
         if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
             return Err(BackendError {
-                reason: BackendErrorReason::SetModuleMemoryData,
+                reason: SandboxEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: get_current_gas_state(runtime.ext)
                     .expect("method called only once with no clones around; qed"),
@@ -204,7 +220,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         mut self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError>
+    ) -> Result<BackendReport, BackendError<Self::Error>>
     where
         F: FnOnce(HostPointer) -> Result<(), T>,
         T: fmt::Display,
@@ -226,7 +242,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             .expect("method called only once with no clones around; qed")
             .into_ext_info(|ptr, buff| memory.read(ptr, buff))
             .map_err(|(reason, gas_amount)| BackendError {
-                reason: BackendErrorReason::Specific(reason.to_string().into()),
+                reason: SandboxEnvironmentError::Memory(reason),
                 description: None,
                 gas_amount,
             })?;
@@ -260,7 +276,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         post_execution_handler(wasm_memory_addr)
             .map(|_| BackendReport { termination, info })
             .map_err(|e| BackendError {
-                reason: BackendErrorReason::Specific(e.to_string().into()),
+                reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
                 description: None,
                 gas_amount,
             })

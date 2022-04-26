@@ -25,7 +25,6 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_backend_common::BackendError;
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
@@ -273,7 +272,7 @@ pub enum ExecutionErrorReason {
     Memory(MemoryError),
     /// Backend error
     #[display(fmt = "{}", _0)]
-    Backend(BackendError),
+    Backend(String),
     /// Processor error
     #[display(fmt = "{}", _0)]
     Processor(String),

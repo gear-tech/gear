@@ -2090,6 +2090,7 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
@@ -2102,6 +2103,7 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",

@@ -86,13 +86,16 @@ pub struct BackendReport {
 }
 
 #[derive(Debug)]
-pub struct BackendError {
+pub struct BackendError<T> {
     pub gas_amount: GasAmount,
-    pub reason: BackendErrorReason,
+    pub reason: T,
     pub description: Option<Cow<'static, str>>,
 }
 
-impl fmt::Display for BackendError {
+impl<T> fmt::Display for BackendError<T>
+where
+    T: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(description) = &self.description {
             write!(f, "{}: {}", self.reason, description)
@@ -102,36 +105,10 @@ impl fmt::Display for BackendError {
     }
 }
 
-// TODO: move variants to their actual backends
-#[derive(Debug, derive_more::Display)]
-pub enum BackendErrorReason {
-    #[display(fmt = "{}", _0)]
-    Specific(Cow<'static, str>),
-    #[display(fmt = "Failed to create env memory")]
-    CreateEnvMemory,
-    #[display(fmt = "Unable to set module memory data")]
-    SetModuleMemoryData,
-    // sandbox only
-    #[display(fmt = "Unable to instantiate module")]
-    ModuleInstantiation,
-    // sandbox only
-    #[display(fmt = "Unable to get wasm module exports")]
-    GetWasmExports,
-    // wasmtime only
-    #[display(fmt = "Non-env imports are not supported")]
-    NonEnvImports,
-    // wasmtime only
-    #[display(fmt = "Missing import")]
-    MissingImport,
-    // wasmtime only
-    #[display(fmt = "Unable to create module")]
-    ModuleCreation,
-    // wasmtime only
-    #[display(fmt = "Unable to create instance")]
-    InstanceCreation,
-}
-
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
+    /// An error issues in environment
+    type Error: fmt::Display;
+
     /// Creates new external environment to execute wasm binary:
     /// 1) instatiates wasm binary.
     /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
@@ -141,7 +118,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError>;
+    ) -> Result<Self, BackendError<Self::Error>>;
 
     /// Returns addr to the stack end if it can be identified
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
@@ -155,7 +132,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError>
+    ) -> Result<BackendReport, BackendError<Self::Error>>
     where
         F: FnOnce(HostPointer) -> Result<(), T>,
         T: fmt::Display;

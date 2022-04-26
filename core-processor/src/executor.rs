@@ -225,11 +225,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     };
 
     let mut env = E::new(ext, &code, initial_pages, mem_size).map_err(|err| {
-        log::error!("Setup instance err = {:?}", err);
+        log::error!("Setup instance err = {}", err);
         ExecutionError {
             program_id,
             gas_amount: err.gas_amount.clone(),
-            reason: Some(ExecutionErrorReason::Backend(err)),
+            reason: Some(ExecutionErrorReason::Backend(err.to_string())),
             allowance_exceed: false,
         }
     })?;
@@ -279,7 +279,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 return Err(ExecutionError {
                     program_id,
                     gas_amount: e.gas_amount.clone(),
-                    reason: Some(ExecutionErrorReason::Backend(e)),
+                    reason: Some(ExecutionErrorReason::Backend(e.to_string())),
                     allowance_exceed: false,
                 })
             }
