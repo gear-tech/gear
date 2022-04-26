@@ -154,6 +154,16 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
 }
 
+/// An error occurred during [`LaterExt::with_fallible`] which should be called only when inner is set
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct LaterExtWithError;
+
+impl fmt::Display for LaterExtWithError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("with should be called only when inner is set")
+    }
+}
+
 /// Struct for interacting with Ext.
 pub struct ExtCarrier<E: Ext>(Rc<RefCell<Option<E>>>);
 
@@ -214,15 +224,15 @@ pub struct ClonedExtCarrier<E: Ext>(ExtCarrier<E>);
 
 impl<E: Ext> ClonedExtCarrier<E> {
     /// Calls infallible fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, LaterExtWithError> {
         self.0.with(f)
     }
 
     /// Calls fallible fn with inner ext
-    pub fn with_fallible<R>(
-        &self,
-        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
-    ) -> Result<R, &'static str> {
+    pub fn with_fallible<T, U>(&self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U>
+    where
+        U: From<LaterExtWithError>,
+    {
         self.0.with_fallible(f)
     }
 }
@@ -332,13 +342,13 @@ mod tests {
         fn msg(&mut self) -> &[u8] {
             &[]
         }
-        fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+        fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
         fn charge_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), &'static str> {
+        fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
             Ok(())
         }
         fn refund_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
@@ -395,10 +405,7 @@ mod tests {
         let ext_clone = ext.cloned();
 
         let _ = ext.into_inner();
-        assert_eq!(
-            ext_clone.with(converter).unwrap_err(),
-            "with should be called only when inner is set"
-        );
+        assert_eq!(ext_clone.with(converter).unwrap_err(), LaterExtWithError);
     }
 
     #[test]

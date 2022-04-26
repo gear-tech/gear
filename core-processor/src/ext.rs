@@ -428,7 +428,7 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
         if data.starts_with("panic occurred") {
-            self.error_explanation = Some("Panic occurred");
+            self.error_explanation = Some(ExtError::PanicOccurred);
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
@@ -439,7 +439,7 @@ impl EnvExt for Ext {
         self.message_context.current().payload()
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), &'static str> {
+    fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
     }
 
@@ -460,7 +460,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(res)
     }
 
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), &'static str> {
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
         use ChargeResult::*;
         let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
 
@@ -489,7 +489,7 @@ impl EnvExt for Ext {
         Ok(self.gas_counter.left())
     }
 
-    fn value(&mut self) -> Result<u128, &'static str> {
+    fn value(&mut self) -> Result<u128, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Value)?;
         Ok(self.message_context.current().value())
     }

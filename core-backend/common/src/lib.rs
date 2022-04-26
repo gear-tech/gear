@@ -142,7 +142,7 @@ pub trait OnSuccessCode<T, E> {
         F: FnMut(T) -> Result<(), E>;
 }
 
-impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
+impl<T, E, E2> OnSuccessCode<T, E> for Result<T, E2> {
     fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
     where
         F: FnMut(T) -> Result<(), E>,

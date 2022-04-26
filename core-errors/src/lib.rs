@@ -102,9 +102,9 @@ pub enum MemoryError {
     #[display(fmt = "Out of bounds memory access")]
     MemoryAccessError,
 
-    /// There is wasm page, which has not all gear pages in the begin
-    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
-    NotAllPagesInBegin,
+    /// There is wasm page, which has not all gear pages in the end
+    #[display(fmt = "There is wasm page, which has not all gear pages in the end")]
+    NotAllPagesInEnd,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -137,6 +137,8 @@ pub enum ExtError {
     Wake(MessageContextError),
     #[display(fmt = "{}", _0)]
     InitMessageNotDuplicated(MessageContextError),
+    #[display(fmt = "Panic occurred")]
+    PanicOccurred,
 }
 
 impl CoreError for ExtError {
