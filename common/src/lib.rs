@@ -534,6 +534,7 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
 
+    // TODO (871) remove next lines after runtime upgraded
     pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
     pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
