@@ -76,7 +76,6 @@ pub enum FuncError<E> {
     LaterExtWith(LaterExtWithError),
     Memory(MemoryError),
     SetU128(MemoryError),
-    Exit,
     NonReplyExitCode,
     NoReplyContext,
     DebugString(FromUtf8Error),
@@ -104,7 +103,6 @@ where
             FuncError::LaterExtWith(err) => fmt::Display::fmt(err, f),
             FuncError::Memory(err) => fmt::Display::fmt(err, f),
             FuncError::SetU128(err) => write!(f, "Cannot set u128: {}", err),
-            FuncError::Exit => write!(f, "`gr_exit` has been called"),
             FuncError::NonReplyExitCode => write!(f, "Exit code ran into non-reply scenario"),
             FuncError::NoReplyContext => write!(f, "Not running in reply context"),
             FuncError::DebugString(err) => write!(f, "Failed to parse debug string: {}", err),
@@ -307,7 +305,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 HostError
             })?;
 
-        ctx.trap = Some(FuncError::Exit);
+        ctx.trap = Some(FuncError::Core(E::Error::from_termination_reason(
+            TerminationReason::Exit,
+        )));
         Err(HostError)
     }
 

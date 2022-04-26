@@ -109,6 +109,7 @@ pub enum MemoryError {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReason {
+    Exit,
     Leave,
     Wait,
     GasAllowanceExceeded,

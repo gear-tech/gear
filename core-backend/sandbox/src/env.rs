@@ -233,16 +233,16 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
         let termination = if res.is_err() {
             let reason = if let Some(FuncError::Core(err)) = &trap {
-                if let Some(value_dest) = info.exit_argument {
-                    Some(TerminationReason::Exit(value_dest))
-                } else {
-                    err.as_termination_reason().map(|reason| match reason {
-                        CoreTerminationReason::Wait => TerminationReason::Wait,
-                        CoreTerminationReason::Leave => TerminationReason::Leave,
-                        CoreTerminationReason::GasAllowanceExceeded => {
-                            TerminationReason::GasAllowanceExceeded
-                        }
-                    })
+                match err.as_termination_reason() {
+                    Some(CoreTerminationReason::Exit) => {
+                        info.exit_argument.map(TerminationReason::Exit)
+                    }
+                    Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
+                    Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
+                    Some(CoreTerminationReason::GasAllowanceExceeded) => {
+                        Some(TerminationReason::GasAllowanceExceeded)
+                    }
+                    None => None,
                 }
             } else {
                 None
