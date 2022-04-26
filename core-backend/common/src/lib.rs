@@ -28,11 +28,10 @@ use alloc::{
     borrow::Cow,
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
@@ -45,11 +44,6 @@ pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
 pub type HostPointer = u64;
-
-// TODO Remove after #841
-pub fn get_current_gas_state<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Option<GasAmount> {
-    later_ext.take().map(IntoExtInfo::into_gas_amount)
-}
 
 #[derive(Debug)]
 pub enum TerminationReason<'a> {
@@ -129,24 +123,18 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 }
 
 pub trait OnSuccessCode<T, E> {
-    fn on_success_code<F>(self, f: F) -> Result<i32, String>
+    fn on_success_code<F>(self, f: F) -> Result<i32, E>
     where
         F: FnMut(T) -> Result<(), E>;
 }
 
-impl<T, E, E2> OnSuccessCode<T, E2> for Result<T, E>
-where
-    E2: Into<String>,
-{
-    fn on_success_code<F>(self, mut f: F) -> Result<i32, String>
+impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
+    fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
     where
-        F: FnMut(T) -> Result<(), E2>,
+        F: FnMut(T) -> Result<(), E>,
     {
         match self {
-            Ok(t) => {
-                f(t).map_err(Into::into)?;
-                Ok(0)
-            }
+            Ok(t) => f(t).map(|_| 0),
             Err(_) => Ok(1),
         }
     }
