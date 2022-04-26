@@ -49,7 +49,9 @@ pub enum SandboxEnvironmentError {
     SetModuleMemoryData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
+    #[display(fmt = "{}", _0)]
     Memory(MemoryError),
+    #[display(fmt = "{}", _0)]
     PostExecutionHandler(String),
 }
 
