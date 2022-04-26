@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{pages_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
-    message::{IncomingDispatch, MessageContext},
+    message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
 /// Execute wasm with dispatch and return dispatch result.
@@ -41,6 +41,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     dispatch: IncomingDispatch,
     context: ExecutionContext,
     settings: ExecutionSettings,
+    msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     let ExecutableActor {
         mut program,
@@ -186,10 +187,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         AllocationsContext::new(allocations, program.static_pages(), settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new(
+    let message_context = MessageContext::new_with_settings(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),
+        msg_ctx_settings,
     );
 
     let initial_pages = program.get_pages_mut();
@@ -209,6 +211,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         context.origin,
         program_id,
         Default::default(),
+        settings.host_fn_weights,
     );
 
     let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, initial_pages) {

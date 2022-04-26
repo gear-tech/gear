@@ -34,6 +34,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+const OUTGOING_LIMIT: u32 = 1024;
+
 pub(crate) type Balance = u128;
 
 #[derive(Debug)]
@@ -421,6 +423,8 @@ impl ExtManager {
             self.origin,
             dest,
             u64::MAX,
+            OUTGOING_LIMIT,
+            Default::default(),
         );
 
         core_processor::handle_journal(journal, self);

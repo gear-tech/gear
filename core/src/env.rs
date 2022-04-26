@@ -18,6 +18,7 @@
 
 //! Environment for running a module.
 
+use crate::costs::RuntimeCosts;
 use crate::memory::{Memory, WasmPageNumber};
 use crate::{
     ids::{MessageId, ProgramId},
@@ -51,14 +52,14 @@ pub trait Ext {
     ) -> Result<WasmPageNumber, &'static str>;
 
     /// Get the current block height.
-    fn block_height(&self) -> u32;
+    fn block_height(&mut self) -> Result<u32, &'static str>;
 
     /// Get the current block timestamp.
-    fn block_timestamp(&self) -> u64;
+    fn block_timestamp(&mut self) -> Result<u64, &'static str>;
 
     /// Get the id of the user who initiated communication with blockchain,
     /// during which, currently processing message was created.
-    fn origin(&self) -> ProgramId;
+    fn origin(&mut self) -> Result<ProgramId, &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
@@ -87,19 +88,19 @@ pub trait Ext {
     }
 
     /// Read the message id, if current message is a reply.
-    fn reply_to(&self) -> Option<(MessageId, ExitCode)>;
+    fn reply_to(&mut self) -> Result<Option<(MessageId, ExitCode)>, &'static str>;
 
     /// Get the source of the message currently being handled.
-    fn source(&mut self) -> ProgramId;
+    fn source(&mut self) -> Result<ProgramId, &'static str>;
 
     /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self, value_destination: ProgramId) -> Result<(), &'static str>;
 
     /// Get the id of the message currently being handled.
-    fn message_id(&mut self) -> MessageId;
+    fn message_id(&mut self) -> Result<MessageId, &'static str>;
 
     /// Get the id of program itself
-    fn program_id(&self) -> ProgramId;
+    fn program_id(&mut self) -> Result<ProgramId, &'static str>;
 
     /// Free specific memory page.
     ///
@@ -118,20 +119,26 @@ pub trait Ext {
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
-    /// Charge some gas.
+    /// Default gas host call.
+    fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Charge gas by `RuntimeCosts` token.
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), &'static str>;
 
     /// Refund some gas.
     fn refund_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
     /// Tell how much gas is left in running context.
-    fn gas_available(&self) -> u64;
+    fn gas_available(&mut self) -> Result<u64, &'static str>;
 
     /// Value associated with message.
-    fn value(&self) -> u128;
+    fn value(&mut self) -> Result<u128, &'static str>;
 
     /// Tell how much value is left in running context.
-    fn value_available(&self) -> u128;
+    fn value_available(&mut self) -> Result<u128, &'static str>;
 
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
@@ -176,14 +183,11 @@ impl<E: Ext> ExtCarrier<E> {
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
         let mut brw = self.0.borrow_mut();
-        let mut ext = brw
-            .take()
+        let ext = brw
+            .as_mut()
             .ok_or("with should be called only when inner is set")?;
-        let res = f(&mut ext);
 
-        *brw = Some(ext);
-
-        res
+        f(ext)
     }
 
     /// Creates clone for the current reference.
@@ -251,14 +255,14 @@ mod tests {
         ) -> Result<WasmPageNumber, &'static str> {
             Err("")
         }
-        fn block_height(&self) -> u32 {
-            0
+        fn block_height(&mut self) -> Result<u32, &'static str> {
+            Ok(0)
         }
-        fn block_timestamp(&self) -> u64 {
-            0
+        fn block_timestamp(&mut self) -> Result<u64, &'static str> {
+            Ok(0)
         }
-        fn origin(&self) -> ProgramId {
-            ProgramId::from(0)
+        fn origin(&mut self) -> Result<ProgramId, &'static str> {
+            Ok(ProgramId::from(0))
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {
             Ok(0)
@@ -279,20 +283,20 @@ mod tests {
         ) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
         }
-        fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-            None
+        fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, &'static str> {
+            Ok(None)
         }
-        fn source(&mut self) -> ProgramId {
-            ProgramId::from(0)
+        fn source(&mut self) -> Result<ProgramId, &'static str> {
+            Ok(ProgramId::from(0))
         }
         fn exit(&mut self, _value_destination: ProgramId) -> Result<(), &'static str> {
             Ok(())
         }
-        fn message_id(&mut self) -> MessageId {
-            0.into()
+        fn message_id(&mut self) -> Result<MessageId, &'static str> {
+            Ok(0.into())
         }
-        fn program_id(&self) -> ProgramId {
-            0.into()
+        fn program_id(&mut self) -> Result<ProgramId, &'static str> {
+            Ok(0.into())
         }
         fn free(&mut self, _page: WasmPageNumber) -> Result<(), &'static str> {
             Ok(())
@@ -303,20 +307,26 @@ mod tests {
         fn msg(&mut self) -> &[u8] {
             &[]
         }
+        fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
+        }
         fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), &'static str> {
             Ok(())
         }
         fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
-        fn gas_available(&self) -> u64 {
-            1_000_000
+        fn gas_available(&mut self) -> Result<u64, &'static str> {
+            Ok(1_000_000)
         }
-        fn value(&self) -> u128 {
-            0
+        fn value(&mut self) -> Result<u128, &'static str> {
+            Ok(0)
         }
-        fn value_available(&self) -> u128 {
-            1_000_000
+        fn value_available(&mut self) -> Result<u128, &'static str> {
+            Ok(1_000_000)
         }
         fn leave(&mut self) -> Result<(), &'static str> {
             Ok(())

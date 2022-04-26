@@ -268,7 +268,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let reply_tuple = ctx.ext.with(|ext| ext.reply_to()).map_err(|_| HostError)?;
+        let reply_tuple = ctx.ext.with_fallible(|ext| ext.reply_to()).map_err(|e| {
+            ctx.trap = Some(e);
+            HostError
+        })?;
 
         if let Some((_, exit_code)) = reply_tuple {
             return_i32(exit_code)
@@ -284,7 +287,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let val = pop_i32(&mut args)?;
 
         ctx.ext
-            .with_fallible(|ext| ext.charge_gas(val))
+            .with_fallible(|ext| ext.gas(val))
             .map(|_| ReturnValue::Unit)
             .map_err(|e| {
                 if gear_backend_common::funcs::is_gas_allowance_trap(e) {
@@ -332,7 +335,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn block_height(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let block_height = ctx
             .ext
-            .with(|ext| ext.block_height())
+            .with_fallible(|ext| ext.block_height())
             .map_err(|_| HostError)?;
 
         return_i32(block_height)
@@ -341,7 +344,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn block_timestamp(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let block_timestamp = ctx
             .ext
-            .with(|ext| ext.block_timestamp())
+            .with_fallible(|ext| ext.block_timestamp())
             .map_err(|_| HostError)?;
 
         return_i64(block_timestamp)
@@ -355,7 +358,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
-            let origin = ext.origin();
+            let origin = ext.origin()?;
             wto(memory, origin_ptr, origin.as_ref())
         })
         .map(|_| ReturnValue::Unit)
@@ -462,7 +465,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let dest = pop_i32(&mut args)?;
 
-        let maybe_message_id = ctx.ext.with(|ext| ext.reply_to()).map_err(|_| HostError)?;
+        let maybe_message_id = ctx.ext.with_fallible(|ext| ext.reply_to()).map_err(|e| {
+            ctx.trap = Some(e);
+            HostError
+        })?;
 
         if let Some((message_id, _)) = maybe_message_id {
             let _ = wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
@@ -522,7 +528,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let gas_available = ctx
             .ext
-            .with(|ext| ext.gas_available())
+            .with_fallible(|ext| ext.gas_available())
             .map_err(|_| HostError)?;
 
         return_i64(gas_available)
@@ -536,7 +542,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
-            let message_id = ext.message_id();
+            let message_id = ext.message_id()?;
             wto(memory, msg_id_ptr, message_id.as_ref())
         })
         .map(|_| ReturnValue::Unit)
@@ -549,13 +555,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
-        let source_ptr = pop_i32(&mut args)?;
+        let program_id_ptr = pop_i32(&mut args)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
-            let source = ext.program_id();
-            wto(memory, source_ptr, source.as_ref())
+            let program_id = ext.program_id()?;
+            wto(memory, program_id_ptr, program_id.as_ref())
         })
         .map(|_| ReturnValue::Unit)
         .map_err(|err| {
@@ -572,7 +578,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
-            let source = ext.source();
+            let source = ext.source()?;
             wto(memory, source_ptr, source.as_ref())
         })
         .map(|_| ReturnValue::Unit)
@@ -589,12 +595,15 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let Runtime { ext, memory, .. } = ctx;
 
-        ext.with_fallible(|ext| funcs::set_u128(memory, value_ptr, ext.value()))
-            .map(|_| ReturnValue::Unit)
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })
+        ext.with_fallible(|ext| {
+            let value = ext.value()?;
+            funcs::set_u128(memory, value_ptr, value)
+        })
+        .map(|_| ReturnValue::Unit)
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
     }
 
     pub fn value_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
@@ -604,12 +613,15 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let Runtime { ext, memory, .. } = ctx;
 
-        ext.with_fallible(|ext| funcs::set_u128(memory, value_ptr, ext.value_available()))
-            .map(|_| ReturnValue::Unit)
-            .map_err(|err| {
-                ctx.trap = Some(err);
-                HostError
-            })
+        ext.with_fallible(|ext| {
+            let value_available = ext.value_available()?;
+            funcs::set_u128(memory, value_ptr, value_available)
+        })
+        .map(|_| ReturnValue::Unit)
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
     }
 
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {

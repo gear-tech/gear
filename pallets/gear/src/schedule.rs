@@ -25,12 +25,19 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use frame_support::{weights::Weight, DefaultNoBound};
+use gear_core::costs::HostFnWeights as CoreHostFnWeights;
+use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
 use wasm_instrument::{gas_metering, parity_wasm::elements};
+
+/// How many API calls are executed in a single batch. The reason for increasing the amount
+/// of API calls in batches (per benchmark component increase) is so that the linear regression
+/// has an easier time determining the contribution of that component.
+pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
 
 /// How many instructions are executed in a single batch.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
@@ -69,7 +76,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 /// changes are made to its values.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(bound(serialize = "", deserialize = "")))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, DefaultNoBound, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, DefaultNoBound, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct Schedule<T: Config> {
     /// Describes the upper limits on various metrics.
@@ -77,8 +84,9 @@ pub struct Schedule<T: Config> {
 
     /// The weights for individual wasm instructions.
     pub instruction_weights: InstructionWeights<T>,
-    // / The weights for each imported function a contract is allowed to call.
-    // pub host_fn_weights: HostFnWeights<T>,
+
+    /// The weights for each imported function a program is allowed to call.
+    pub host_fn_weights: HostFnWeights<T>,
 }
 
 /// Describes the upper limits on various metrics.
@@ -86,7 +94,7 @@ pub struct Schedule<T: Config> {
 /// # Note
 ///
 /// The values in this struct should never be decreased. The reason is that decreasing those
-/// values will break existing contracts which are above the new limits when a
+/// values will break existing programs which are above the new limits when a
 /// re-instrumentation is triggered.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -117,7 +125,7 @@ pub struct Limits {
     /// the costs of the instructions that cause them (call, call_indirect).
     pub parameters: u32,
 
-    /// Maximum number of memory pages allowed for a contract.
+    /// Maximum number of memory pages allowed for a program.
     pub memory_pages: u32,
 
     /// Maximum number of elements allowed in a table.
@@ -134,17 +142,17 @@ pub struct Limits {
     /// The maximum nesting level of the call stack.
     pub call_depth: u32,
 
-    /// The maximum size of a storage value and event payload in bytes.
+    /// The maximum size of a message payload in bytes.
     pub payload_len: u32,
 
-    /// The maximum length of a contract code in bytes. This limit applies to the instrumented
+    /// The maximum length of a program code in bytes. This limit applies to the instrumented
     /// version of the code. Therefore `instantiate_with_code` can fail even when supplying
     /// a wasm binary below this maximum size.
     pub code_len: u32,
 }
 
 impl Limits {
-    /// The maximum memory size in bytes that a contract can occupy.
+    /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
         self.memory_pages * 64 * 1024
     }
@@ -171,7 +179,7 @@ impl Limits {
 ///    that use them as supporting instructions. Supporting means mainly pushing arguments
 ///    and dropping return values in order to maintain a valid module.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct InstructionWeights<T: Config> {
     /// Version of the instruction weights.
@@ -242,6 +250,103 @@ pub struct InstructionWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
+/// Describes the weight for each imported function that a program is allowed to call.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct HostFnWeights<T: Config> {
+    /// Weight of calling `alloc`.
+    pub alloc: Weight,
+
+    /// Weight of calling `gr_gas_available`.
+    pub gr_gas_available: Weight,
+
+    /// Weight of calling `gr_msg_id`.
+    pub gr_msg_id: Weight,
+
+    /// Weight of calling `gr_origin`.
+    pub gr_origin: Weight,
+
+    /// Weight of calling `gr_program_id`.
+    pub gr_program_id: Weight,
+
+    /// Weight of calling `gr_source`.
+    pub gr_source: Weight,
+
+    /// Weight of calling `gr_value`.
+    pub gr_value: Weight,
+
+    /// Weight of calling `gr_value_available`.
+    pub gr_value_available: Weight,
+
+    /// Weight of calling `gr_size`.
+    pub gr_size: Weight,
+
+    /// Weight of calling `gr_read`.
+    pub gr_read: Weight,
+
+    /// Weight per payload byte by `gr_read`.
+    pub gr_read_per_byte: Weight,
+
+    /// Weight of calling `gr_block_height`.
+    pub gr_block_height: Weight,
+
+    /// Weight of calling `gr_block_timestamp`.
+    pub gr_block_timestamp: Weight,
+
+    /// Weight of calling `gr_value_available`.
+    pub gr_send_init: Weight,
+
+    /// Weight of calling `gr_send_push`.
+    pub gr_send_push: Weight,
+
+    /// Weight per payload byte by `gr_send_push`.
+    pub gr_send_push_per_byte: Weight,
+
+    /// Weight of calling `gr_send_commit`.
+    pub gr_send_commit: Weight,
+
+    /// Weight per payload byte by `gr_send_commit`.
+    pub gr_send_commit_per_byte: Weight,
+
+    /// Weight of calling `gr_reply`.
+    pub gr_reply: Weight,
+
+    /// Weight per payload byte by `gr_reply`.
+    pub gr_reply_per_byte: Weight,
+
+    /// Weight of calling `gr_reply_to`.
+    pub gr_reply_to: Weight,
+
+    /// Weight of calling `gr_debug`.
+    pub gr_debug: Weight,
+
+    /// Weight of calling `gr_exit_code`.
+    pub gr_exit_code: Weight,
+
+    /// Weight of calling `gr_exit`.
+    pub gr_exit: Weight,
+
+    /// Weight of calling `gr_leave`.
+    pub gr_leave: Weight,
+
+    /// Weight of calling `gr_wait`.
+    pub gr_wait: Weight,
+
+    /// Weight of calling `gr_wake`.
+    pub gr_wake: Weight,
+
+    /// Weight of calling `create_program_wgas`.
+    pub gr_create_program_wgas: Weight,
+
+    /// Weight of calling `gas`.
+    pub gas: Weight,
+
+    /// The type parameter is used in the default implementation.
+    #[codec(skip)]
+    pub _phantom: PhantomData<T>,
+}
+
 macro_rules! replace_token {
     ($_in:tt $replacement:tt) => {
         $replacement
@@ -249,15 +354,21 @@ macro_rules! replace_token {
 }
 
 macro_rules! call_zero {
-    ($name:ident, $( $arg:expr ),*) => {
+	($name:ident, $( $arg:expr ),*) => {
         <T as super::pallet::Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
     };
 }
 
 macro_rules! cost_args {
-    ($name:ident, $( $arg: expr ),+) => {
-        (<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
-    }
+	($name:ident, $( $arg: expr ),+) => {
+		(<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
+	}
+}
+
+macro_rules! cost_batched_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_args!($name, $( $arg ),+) / Weight::from(API_BENCHMARK_BATCH_SIZE)
+	}
 }
 
 macro_rules! cost_instr_no_params_with_batch_size {
@@ -281,6 +392,42 @@ macro_rules! cost_instr {
     };
 }
 
+macro_rules! cost_byte_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_args!($name, $( $arg ),+) / 1024
+	}
+}
+
+macro_rules! cost_byte_batched_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_batched_args!($name, $( $arg ),+) / 1024
+	}
+}
+
+macro_rules! cost {
+    ($name:ident) => {
+        cost_args!($name, 1)
+    };
+}
+
+macro_rules! cost_batched {
+    ($name:ident) => {
+        cost_batched_args!($name, 1)
+    };
+}
+
+macro_rules! cost_byte {
+    ($name:ident) => {
+        cost_byte_args!($name, 1)
+    };
+}
+
+macro_rules! cost_byte_batched {
+    ($name:ident) => {
+        cost_byte_batched_args!($name, 1)
+    };
+}
+
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -295,8 +442,8 @@ impl Default for Limits {
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
-            payload_len: 16 * 1024,
-            code_len: 128 * 1024,
+            payload_len: 64 * 1024,
+            code_len: 512 * 1024,
         }
     }
 }
@@ -304,7 +451,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 2),
             i64store: cost_instr!(instr_i64store, 2),
@@ -355,6 +502,79 @@ impl<T: Config> Default for InstructionWeights<T> {
             i64shru: cost_instr!(instr_i64shru, 3),
             i64rotl: cost_instr!(instr_i64rotl, 3),
             i64rotr: cost_instr!(instr_i64rotr, 3),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> HostFnWeights<T> {
+    pub fn into_core(self) -> CoreHostFnWeights {
+        CoreHostFnWeights {
+            alloc: self.alloc,
+            gr_gas_available: self.gr_gas_available,
+            gr_msg_id: self.gr_msg_id,
+            gr_origin: self.gr_origin,
+            gr_program_id: self.gr_program_id,
+            gr_source: self.gr_source,
+            gr_value: self.gr_value,
+            gr_value_available: self.gr_value_available,
+            gr_size: self.gr_size,
+            gr_read: self.gr_read,
+            gr_read_per_byte: self.gr_read_per_byte,
+            gr_block_height: self.gr_block_height,
+            gr_block_timestamp: self.gr_block_timestamp,
+            gr_send_init: self.gr_send_init,
+            gr_send_push: self.gr_send_push,
+            gr_send_push_per_byte: self.gr_send_push_per_byte,
+            gr_send_commit: self.gr_send_commit,
+            gr_send_commit_per_byte: self.gr_send_commit_per_byte,
+            gr_reply: self.gr_reply,
+            gr_reply_per_byte: self.gr_reply_per_byte,
+            gr_debug: self.gr_debug,
+            gr_reply_to: self.gr_reply_to,
+            gr_exit_code: self.gr_exit_code,
+            gr_exit: self.gr_exit,
+            gr_leave: self.gr_leave,
+            gr_wait: self.gr_wait,
+            gr_wake: self.gr_wake,
+            gr_create_program_wgas: self.gr_create_program_wgas,
+            gas: self.gas,
+        }
+    }
+}
+
+impl<T: Config> Default for HostFnWeights<T> {
+    fn default() -> Self {
+        Self {
+            alloc: cost_batched!(alloc),
+            gr_gas_available: cost_batched!(gr_gas_available),
+            gr_msg_id: cost_batched!(gr_msg_id),
+            gr_origin: cost_batched!(gr_origin),
+            gr_program_id: cost_batched!(gr_program_id),
+            gr_source: cost_batched!(gr_source),
+            gr_value: cost_batched!(gr_value),
+            gr_value_available: cost_batched!(gr_value_available),
+            gr_size: cost_batched!(gr_size),
+            gr_read: cost_batched!(gr_read),
+            gr_read_per_byte: cost_byte_batched!(gr_read_per_kb),
+            gr_block_height: cost_batched!(gr_block_height),
+            gr_block_timestamp: cost_batched!(gr_block_timestamp),
+            gr_send_init: cost_batched!(gr_send_init),
+            gr_send_push: cost_batched!(gr_send_push),
+            gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
+            gr_send_commit: cost!(gr_send_commit) - cost_batched!(gr_send_init),
+            gr_send_commit_per_byte: cost_byte!(gr_send_commit_per_kb),
+            gr_reply: cost_batched!(gr_reply),
+            gr_reply_per_byte: cost_byte_batched!(gr_reply_per_kb),
+            gr_debug: cost_batched!(gr_debug),
+            gr_reply_to: cost_batched!(gr_reply_to),
+            gr_exit_code: cost_batched!(gr_exit_code),
+            gr_exit: cost!(gr_exit),
+            gr_leave: cost!(gr_leave),
+            gr_wait: cost!(gr_wait),
+            gr_wake: cost_batched!(gr_wake),
+            gr_create_program_wgas: cost!(gr_create_program_wgas),
+            gas: cost_batched!(gas),
             _phantom: PhantomData,
         }
     }
@@ -467,5 +687,17 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
 
     fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
         gas_metering::MemoryGrowCost::Free
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::mock::Test;
+
+    #[test]
+    fn print_test_schedule() {
+        let schedule = Schedule::<Test>::default();
+        println!("{:#?}", schedule);
     }
 }

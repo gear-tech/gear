@@ -27,6 +27,7 @@ gear-backend-common = { path = "../../core-backend/common", default-features = f
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 pallet-gas = { path = "../gas", default-features = false }
+pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -78,6 +79,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",
+	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
 	"gear-runtime-interface/std",
@@ -91,3 +93,4 @@ runtime-benchmarks = [
 	"rand",
 	"rand_pcg",
 ]
+try-runtime = ["frame-support/try-runtime"]

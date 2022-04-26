@@ -93,9 +93,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.56"
+version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4361135be9122e0870de935d7c439aef945b9f9ddd4199a553b5270b49c82a27"
+checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
 
 [[package]]
 name = "approx"
@@ -767,9 +767,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.10"
+version = "3.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3124f3f75ce09e22d1410043e1e24f2ecc44fad3afe4f08408f1f7663d68da2b"
+checksum = "7c167e37342afc5f33fd87bbc870cedd020d2a6dffa05d45ccd9241fbdd146db"
 dependencies = [
  "atty",
  "bitflags",
@@ -2174,7 +2174,7 @@ dependencies = [
  "gear-core",
  "libc",
  "log",
- "nix",
+ "nix 0.23.1",
  "page_size",
  "sp-io",
  "sp-std",
@@ -2194,7 +2194,7 @@ dependencies = [
  "hex-literal",
  "jsonrpc-core",
  "libc",
- "nix",
+ "nix 0.24.1",
  "page_size",
  "pallet-gear-rpc",
  "pallet-transaction-payment-rpc",
@@ -4340,6 +4340,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
+dependencies = [
+ "bitflags",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4623,6 +4635,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
+ "pallet-gear-proc-macro",
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -4667,6 +4680,15 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-proc-macro"
+version = "2.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
