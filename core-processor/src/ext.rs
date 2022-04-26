@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::configs::{AllocationsConfig, BlockInfo};
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt;
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     charge_gas_token,
@@ -26,9 +29,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{
-        wasm_pages_to_pages_set, AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber,
-    },
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{ExtError, TerminationReason};
@@ -57,33 +58,24 @@ pub trait ProcessorExt {
         host_fn_weights: HostFnWeights,
     ) -> Self;
 
-    /// Try to enable and initialize lazy pages env
-    fn try_to_enable_lazy_pages(
-        &mut self,
-        program_id: ProgramId,
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> Result<bool, Self::Error>;
+    /// Returns whether this extention works with lazy pages
+    fn is_lazy_pages_enabled() -> bool;
+
+    /// If extention support lazy pages, then checks that
+    /// environment for lazy pages is initialized.
+    fn check_lazy_pages_consistent_state() -> bool;
 
     /// Protect and save storage keys for pages which has no data
-    fn protect_pages_and_init_info(
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn lazy_pages_protect_and_init_info(
+        lazy_pages: &BTreeSet<PageNumber>,
         prog_id: ProgramId,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
-    fn post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn lazy_pages_post_execution_actions(
+        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
         wasm_mem_begin_addr: u64,
-    ) -> Result<(), Self::Error>;
-
-    /// Remove lazy-pages protection, returns wasm memory begin addr
-    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), Self::Error>;
-
-    /// Protect lazy-pages and set new wasm mem addr if it has been changed
-    fn protect_lazy_pages_and_update_wasm_mem_addr(
-        old_mem_addr: u64,
-        new_mem_addr: u64,
     ) -> Result<(), Self::Error>;
 }
 
@@ -157,38 +149,27 @@ impl ProcessorExt for Ext {
         }
     }
 
-    fn try_to_enable_lazy_pages(
-        &mut self,
-        _program_id: ProgramId,
-        _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> Result<bool, Self::Error> {
-        Ok(false)
+    fn is_lazy_pages_enabled() -> bool {
+        false
     }
 
-    fn protect_pages_and_init_info(
-        _memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn check_lazy_pages_consistent_state() -> bool {
+        true
+    }
+
+    fn lazy_pages_protect_and_init_info(
+        _memory_pages: &BTreeSet<PageNumber>,
         _prog_id: ProgramId,
         _wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
-        Ok(())
+        unreachable!()
     }
 
-    fn post_execution_actions(
-        _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn lazy_pages_post_execution_actions(
+        _memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
         _wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn remove_lazy_pages_prot(_mem_addr: u64) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn protect_lazy_pages_and_update_wasm_mem_addr(
-        _old_mem_addr: u64,
-        _new_mem_addr: u64,
-    ) -> Result<(), Self::Error> {
-        Ok(())
+        unreachable!()
     }
 }
 
@@ -197,14 +178,14 @@ impl IntoExtInfo for Ext {
         self,
         mut get_page_data: F,
     ) -> Result<ExtInfo, (T, GasAmount)> {
-        let pages = wasm_pages_to_pages_set(self.allocations_context.allocations().iter());
+        let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
-        for page in pages.iter() {
+        for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
             if let Err(err) = get_page_data(page.offset(), &mut buf) {
                 return Err((err, self.gas_counter.into()));
             }
-            pages_data.insert(*page, buf);
+            pages_data.insert(page, buf);
         }
 
         let (outcome, context_store) = self.message_context.drain();
@@ -212,7 +193,7 @@ impl IntoExtInfo for Ext {
 
         Ok(ExtInfo {
             gas_amount: self.gas_counter.into(),
-            pages,
+            allocations: wasm_pages,
             pages_data,
             generated_dispatches,
             awakening,

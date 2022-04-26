@@ -49,7 +49,7 @@ use gear_core::{
     message::StoredDispatch,
 };
 
-pub use storage_queue::Iterator;
+pub use storage_queue::Iterator as QueueIter;
 pub use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
@@ -289,8 +289,10 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
-    pub static_pages: WasmPageNumber,
-    pub persistent_pages: BTreeSet<PageNumber>,
+    /// Set of wasm pages numbers, which is allocated by the program.
+    pub allocations: BTreeSet<WasmPageNumber>,
+    /// Set of gear pages numbers, which has data in storage.
+    pub pages_with_data: BTreeSet<PageNumber>,
     pub code_hash: H256,
     pub state: ProgramState,
 }
@@ -400,29 +402,41 @@ pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
-pub fn get_program_pages(
-    id: H256,
-    pages: BTreeSet<PageNumber>,
-) -> Option<BTreeMap<PageNumber, Vec<u8>>> {
-    let mut persistent_pages = BTreeMap::new();
-    for page_num in pages {
-        let key = page_key(id, page_num);
-
-        persistent_pages.insert(page_num, sp_io::storage::get(&key)?);
-    }
-    Some(persistent_pages)
+pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<PageNumber, Vec<u8>> {
+    get_program_data_for_pages(id, program.pages_with_data.iter())
 }
 
-pub fn set_program(
+/// Returns data for all pages from `pages` arg, which has data in storage.
+pub fn get_program_data_for_pages<'a>(
+    id: H256,
+    pages: impl Iterator<Item = &'a PageNumber>,
+) -> BTreeMap<PageNumber, Vec<u8>> {
+    pages
+        .map(|p| {
+            let key = page_key(id, *p);
+            (*p, sp_io::storage::get(&key))
+        })
+        .filter_map(|(page, data)| data.map(|data| (page, data)))
+        .collect()
+}
+
+pub fn set_program(id: H256, program: ActiveProgram) {
+    log::debug!("set program with id = {}", id);
+    sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
+}
+
+pub fn set_program_and_pages_data(
     id: H256,
     program: ActiveProgram,
     persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
 ) {
     for (page_num, page_buf) in persistent_pages {
+        // TODO: remove this panic and make result (issue 883)
+        assert!(program.allocations.contains(&page_num.to_wasm_page()));
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
-    sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
+    set_program(id, program);
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -450,26 +464,24 @@ pub fn queue_dispatch_first(dispatch: StoredDispatch) {
     dispatch_queue.queue_first(dispatch, id.into_origin());
 }
 
-pub fn dispatch_iter() -> Iterator<StoredDispatch> {
+pub fn dispatch_iter() -> QueueIter<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
-pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<PageNumber>) {
+pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) {
     if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.persistent_pages = persistent_pages;
+        prog.allocations = allocations;
         sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 
-pub fn set_program_page(program_id: H256, page_num: PageNumber, page_buf: Vec<u8>) {
-    let page_key = page_key(program_id, page_num);
-
+pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: Vec<u8>) {
+    let page_key = page_key(program_id, page);
     sp_io::storage::set(&page_key, &page_buf);
 }
 
-pub fn remove_program_page(program_id: H256, page_num: PageNumber) {
+pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
     let page_key = page_key(program_id, page_num);
-
     sp_io::storage::clear(&page_key);
 }
 

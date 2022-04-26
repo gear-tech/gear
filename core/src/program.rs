@@ -43,8 +43,8 @@ pub type PersistentPageMap = BTreeMap<PageNumber, Option<Box<PageBuf>>>;
 pub struct Program {
     id: ProgramId,
     code: InstrumentedCode,
-    /// Saved state of memory pages.
-    persistent_pages: PersistentPageMap,
+    /// Wasm pages allocated by program.
+    allocations: BTreeSet<WasmPageNumber>,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -55,7 +55,7 @@ impl Program {
         Program {
             id,
             code,
-            persistent_pages: Default::default(),
+            allocations: Default::default(),
             is_initialized: false,
         }
     }
@@ -64,16 +64,13 @@ impl Program {
     pub fn from_parts(
         id: ProgramId,
         code: InstrumentedCode,
-        persistent_pages_numbers: BTreeSet<PageNumber>,
+        allocations: BTreeSet<WasmPageNumber>,
         is_initialized: bool,
     ) -> Self {
         Self {
             id,
             code,
-            persistent_pages: persistent_pages_numbers
-                .into_iter()
-                .map(|k| (k, None))
-                .collect(),
+            allocations,
             is_initialized,
         }
     }
@@ -111,72 +108,30 @@ impl Program {
         self.is_initialized = true;
     }
 
-    /// Set memory from buffer.
-    pub fn set_memory(&mut self, buffer: &[u8]) -> Result<(), Error> {
-        self.persistent_pages.clear();
-        let boxed_slice: Box<[u8]> = buffer.into();
-        // TODO: also alloc remainder.
-        for (num, buf) in boxed_slice.chunks_exact(PageNumber::size()).enumerate() {
-            self.set_page((num as u32 + 1).into(), buf)?;
-        }
-        Ok(())
-    }
-
-    /// Setting multiple pages
-    pub fn set_pages(&mut self, pages: BTreeMap<PageNumber, Vec<u8>>) -> Result<(), Error> {
-        for (page_num, page_data) in pages {
-            self.set_page(page_num, &page_data)?;
-        }
-        Ok(())
-    }
-
     /// Set memory page from buffer.
-    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<(), Error> {
-        self.persistent_pages.insert(
-            page,
-            Option::from(Box::new(
-                PageBuf::try_from(buf).map_err(Error::TryFromSlice)?,
-            )),
-        );
+    pub fn add_allocation(&mut self, page: WasmPageNumber) -> Result<()> {
+        self.allocations.insert(page);
         Ok(())
     }
 
     /// Remove memory page from buffer.
-    pub fn remove_page(&mut self, page: PageNumber) {
-        self.persistent_pages.remove(&page);
+    pub fn remove_allocation(&mut self, page: WasmPageNumber) {
+        self.allocations.remove(&page);
     }
 
     /// Get reference to memory pages.
-    pub fn get_pages(&self) -> &PersistentPageMap {
-        &self.persistent_pages
+    pub fn get_allocations(&self) -> &BTreeSet<WasmPageNumber> {
+        &self.allocations
     }
 
     /// Get mut reference to memory pages.
-    pub fn get_pages_mut(&mut self) -> &mut PersistentPageMap {
-        &mut self.persistent_pages
-    }
-
-    /// Get reference to memory page.
-    #[allow(clippy::borrowed_box)]
-    pub fn get_page_data(&self, page: PageNumber) -> Option<&Box<PageBuf>> {
-        let res = self.persistent_pages.get(&page);
-        res.expect("Page must be in persistent_pages").as_ref()
-    }
-
-    /// Get mut reference to memory page.
-    pub fn get_page_mut(&mut self, page: PageNumber) -> Option<&mut Box<PageBuf>> {
-        let res = self.persistent_pages.get_mut(&page);
-        res.expect("Page must be in persistent_pages; mut").as_mut()
+    pub fn get_allocations_mut(&mut self) -> &mut BTreeSet<WasmPageNumber> {
+        &mut self.allocations
     }
 
     /// Clear static area of this program.
     pub fn clear_memory(&mut self) {
-        self.persistent_pages.clear();
-    }
-
-    /// Decomposes this instance into tuple of binary code and persistent pages.
-    pub fn into_parts(self) -> (Vec<u8>, PersistentPageMap) {
-        (self.code.into_code(), self.persistent_pages)
+        self.allocations.clear();
     }
 }
 
@@ -187,8 +142,7 @@ mod tests {
     use super::Program;
     use crate::code::Code;
     use crate::ids::ProgramId;
-    use crate::memory::PageNumber;
-    use alloc::{vec, vec::Vec};
+    use alloc::vec::Vec;
     use wasm_instrument::gas_metering::ConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -240,11 +194,7 @@ mod tests {
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());
 
-        assert!(program.set_page(1.into(), &[0; 123]).is_err());
-
-        assert!(program
-            .set_page(1.into(), &vec![0; PageNumber::size()])
-            .is_ok());
-        assert_eq!(program.get_pages().len(), 1);
+        assert!(program.add_allocation(1.into()).is_ok());
+        assert_eq!(program.get_allocations().len(), 1);
     }
 }

@@ -100,7 +100,7 @@ clippy-release: clippy-gear-release clippy-examples
 
 .PHONY: clippy-gear
 clippy-gear:
-	@ ./scripts/gear.sh clippy gear
+	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
 .PHONY: clippy-gear-release
 clippy-gear-release:

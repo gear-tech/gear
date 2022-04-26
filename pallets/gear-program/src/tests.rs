@@ -47,33 +47,30 @@ fn pause_program_works() {
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let wasm_static_pages = WasmPageNumber(16);
-        let static_pages = wasm_static_pages.to_gear_pages();
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            for i in 0..PageNumber::num_in_one_wasm_page() {
-                pages.insert(
-                    static_pages + PageNumber(i),
-                    vec![wasm_static_pages.0 as u8],
-                );
-                pages.insert(
-                    static_pages + PageNumber(i + 2 * PageNumber::num_in_one_wasm_page()),
-                    vec![wasm_static_pages.0 as u8 + 2],
-                );
+            for page in wasm_static_pages.to_gear_pages_iter() {
+                pages.insert(page, vec![wasm_static_pages.0 as u8]);
             }
-            for i in 0..static_pages.0 {
+            for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
+                pages.insert(page, vec![wasm_static_pages.0 as u8 + 2]);
+            }
+            for i in 0..wasm_static_pages.to_gear_page().0 {
                 pages.insert(i.into(), vec![i as u8]);
             }
 
             pages
         };
+        let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
+        let pages_with_data = memory_pages.keys().copied().collect();
 
         let program_id = H256::from_low_u64_be(1);
 
-        common::set_program(
+        common::set_program_and_pages_data(
             program_id,
             ActiveProgram {
-                static_pages: static_pages.to_wasm_page(),
-                persistent_pages: memory_pages.clone().into_keys().collect(),
+                allocations,
+                pages_with_data,
                 code_hash,
                 state: ProgramState::Initialized,
             },
@@ -127,10 +124,7 @@ fn pause_program_works() {
         assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
-        assert_eq!(
-            common::get_program_pages(program_id, memory_pages.into_keys().collect()),
-            None
-        );
+        assert!(common::get_program_data_for_pages(program_id, memory_pages.keys()).is_empty());
 
         assert!(common::remove_waiting_message(program_id, msg_id_1).is_none());
         assert!(common::remove_waiting_message(program_id, msg_id_2).is_none());
@@ -150,12 +144,11 @@ fn pause_program_twice_fails() {
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
-        let static_pages = 256;
-        common::set_program(
+        common::set_program_and_pages_data(
             program_id,
             ActiveProgram {
-                static_pages: static_pages.into(),
-                persistent_pages: Default::default(),
+                allocations: Default::default(),
+                pages_with_data: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
             },
@@ -185,12 +178,11 @@ fn pause_terminated_program_fails() {
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
-        let static_pages = 256;
-        common::set_program(
+        common::set_program_and_pages_data(
             program_id,
             ActiveProgram {
-                static_pages: static_pages.into(),
-                persistent_pages: Default::default(),
+                allocations: Default::default(),
+                pages_with_data: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
             },
@@ -231,10 +223,7 @@ fn pause_uninitialized_program_works() {
         assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
-        assert_eq!(
-            common::get_program_pages(program_id, memory_pages.into_keys().collect()),
-            None
-        );
+        assert!(common::get_program_data_for_pages(program_id, memory_pages.keys()).is_empty());
 
         assert!(common::remove_waiting_message(program_id, msg_1.id().into_origin()).is_none());
         assert!(common::remove_waiting_message(program_id, msg_2.id().into_origin()).is_none());
@@ -246,6 +235,10 @@ fn pause_uninitialized_program_works() {
 
 #[test]
 fn resume_uninitialized_program_works() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
     new_test_ext().execute_with(|| {
         let static_pages = WasmPageNumber(16);
         let CreateProgramResult {
@@ -274,9 +267,7 @@ fn resume_uninitialized_program_works() {
         ));
         assert!(!GearProgram::program_paused(program_id));
 
-        let new_memory_pages =
-            common::get_program_pages(program_id, memory_pages.clone().into_keys().collect())
-                .unwrap();
+        let new_memory_pages = common::get_program_data_for_pages(program_id, memory_pages.keys());
         assert_eq!(memory_pages, new_memory_pages);
 
         let waiting_init = common::waiting_init_take_messages(program_id);
@@ -445,33 +436,30 @@ mod utils {
 
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
-        let static_pages = wasm_static_pages.to_gear_pages();
         let memory_pages = {
             let mut pages = BTreeMap::new();
-            for i in 0..PageNumber::num_in_one_wasm_page() {
-                pages.insert(
-                    static_pages + PageNumber(i),
-                    vec![wasm_static_pages.0 as u8],
-                );
-                pages.insert(
-                    static_pages + PageNumber(i + 2 * PageNumber::num_in_one_wasm_page()),
-                    vec![wasm_static_pages.0 as u8 + 2],
-                );
+            for page in wasm_static_pages.to_gear_pages_iter() {
+                pages.insert(page, vec![wasm_static_pages.0 as u8]);
             }
-            for i in 0..static_pages.0 {
+            for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
+                pages.insert(page, vec![wasm_static_pages.0 as u8 + 2]);
+            }
+            for i in 0..wasm_static_pages.to_gear_page().0 {
                 pages.insert(i.into(), vec![i as u8]);
             }
 
             pages
         };
+        let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
+        let pages_with_data = memory_pages.keys().copied().collect();
 
         let init_msg_id = H256::from_low_u64_be(3);
         let program_id = H256::from_low_u64_be(1);
-        common::set_program(
+        common::set_program_and_pages_data(
             program_id,
             ActiveProgram {
-                static_pages: wasm_static_pages,
-                persistent_pages: memory_pages.clone().into_keys().collect(),
+                allocations,
+                pages_with_data,
                 code_hash: code_id.into_origin(),
                 state: ProgramState::Uninitialized {
                     message_id: init_msg_id,

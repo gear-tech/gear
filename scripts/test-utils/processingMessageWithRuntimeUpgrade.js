@@ -89,7 +89,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
   // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
-  const message = api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0);
+  const message = api.tx.gear.sendMessage(programId, 'PING', 500_000_000, 0);
 
   let codeUpdatedBlock = undefined;
   let messages = [undefined, undefined];

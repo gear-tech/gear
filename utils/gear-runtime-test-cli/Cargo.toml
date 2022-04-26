@@ -31,3 +31,4 @@ gear-runtime = { path = "../../runtime", features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }
 pallet-gear = { path = "../../pallets/gear" }
 pallet-gear-debug = { path = "../../pallets/gear-debug" }
+gear-core-processor = { path = "../../core-processor" }

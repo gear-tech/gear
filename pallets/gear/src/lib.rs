@@ -45,19 +45,10 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{
-    self, CodeMetadata, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
-};
-use core_processor::{
-    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-    configs::BlockInfo,
-};
-
-use alloc::format;
+use common::{self, CodeStorage};
 
 use frame_support::{
-    dispatch::{DispatchError, DispatchResultWithPostInfo},
-    traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency, StorageVersion},
+    traits::{Currency, StorageVersion},
     weights::Weight,
 };
 
@@ -106,9 +97,23 @@ impl DebugInfo for () {
 pub mod pallet {
     use super::*;
 
-    use frame_support::pallet_prelude::*;
+    use alloc::format;
+    use common::{
+        self, lazy_pages, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+    };
+    use core_processor::{
+        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
+        configs::BlockInfo,
+        Ext,
+    };
+    use frame_support::{
+        dispatch::{DispatchError, DispatchResultWithPostInfo},
+        pallet_prelude::*,
+        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+    };
     use frame_system::pallet_prelude::*;
 
+    use crate::ext::LazyPagesExt;
     use crate::manager::{ExtManager, HandleKind};
 
     #[pallet::config]
@@ -385,7 +390,6 @@ pub mod pallet {
                     Error::<T>::FailedToConstructProgram
                 })?;
 
-            let static_pages = code.static_pages();
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
@@ -422,7 +426,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
+            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
@@ -498,7 +502,7 @@ pub mod pallet {
 
             let dispatch = match kind {
                 HandleKind::Init(ref code) => {
-                    let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
+                    let program_id = ProgramId::generate(CodeId::generate(code), b"gas_spent_salt");
 
                     let schedule = T::Schedule::get();
                     let code = Code::try_new(
@@ -510,16 +514,10 @@ pub mod pallet {
 
                     let code_and_id = CodeAndId::new(code);
                     let code_id = code_and_id.code_id();
-                    let static_pages = code_and_id.code().static_pages();
 
                     let _ = Self::set_code_with_metadata(code_and_id, source);
 
-                    ExtManager::<T>::default().set_program(
-                        program_id,
-                        code_id,
-                        static_pages,
-                        root_message_id,
-                    );
+                    ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
                     Dispatch::new(
                         DispatchKind::Init,
@@ -586,24 +584,38 @@ pub mod pallet {
 
             while let Some(queued_dispatch) = common::dequeue_dispatch() {
                 let actor_id = queued_dispatch.destination();
+
+                let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
+
                 let actor = ext_manager
-                    .get_executable_actor(actor_id.into_origin())
+                    .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-                let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    Some(actor),
-                    queued_dispatch.into_incoming(initial_gas),
-                    block_info,
-                    existential_deposit,
-                    ProgramId::from_origin(source),
-                    actor_id,
-                    u64::MAX,
-                    T::OutgoingLimit::get(),
-                    schedule.host_fn_weights.clone().into_core(),
-                );
+                let journal = if lazy_pages_enabled {
+                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(initial_gas),
+                        block_info,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                    )
+                } else {
+                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(initial_gas),
+                        block_info,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                    )
+                };
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
@@ -737,6 +749,7 @@ pub mod pallet {
                     );
 
                     let schedule = T::Schedule::get();
+                    let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
@@ -789,10 +802,10 @@ pub mod pallet {
                                 continue;
                             }
 
-                            let native_program = NativeProgram::from_parts(
+                            let program = NativeProgram::from_parts(
                                 program_id,
                                 code,
-                                prog.persistent_pages,
+                                prog.allocations,
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
@@ -801,13 +814,22 @@ pub mod pallet {
                             )
                             .unique_saturated_into();
 
+                            let pages_data = if lazy_pages_enabled {
+                                Default::default()
+                            } else {
+                                common::get_program_data_for_pages(
+                                    program_id.into_origin(),
+                                    prog.pages_with_data.iter(),
+                                )
+                            };
+
                             Some(ExecutableActor {
-                                program: native_program,
+                                program,
                                 balance,
+                                pages_data,
                             })
                         } else {
                             log::debug!("Program '{:?}' is not active", program_id,);
-
                             None
                         }
                     } else {
@@ -818,20 +840,31 @@ pub mod pallet {
                         "Gas node is guaranteed to exist for the key due to earlier checks",
                     );
 
-                    let journal = core_processor::process::<
-                        ext::LazyPagesExt,
-                        SandboxEnvironment<ext::LazyPagesExt>,
-                    >(
-                        maybe_active_actor,
-                        dispatch.into_incoming(gas_limit),
-                        block_info,
-                        existential_deposit,
-                        ProgramId::from_origin(origin),
-                        program_id,
-                        Self::gas_allowance(),
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.into_core(),
-                    );
+                    let journal = if lazy_pages_enabled {
+                        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                            maybe_active_actor,
+                            dispatch.into_incoming(gas_limit),
+                            block_info,
+                            existential_deposit,
+                            ProgramId::from_origin(origin),
+                            program_id,
+                            Self::gas_allowance(),
+                            T::OutgoingLimit::get(),
+                            schedule.host_fn_weights.into_core(),
+                        )
+                    } else {
+                        core_processor::process::<Ext, SandboxEnvironment<_>>(
+                            maybe_active_actor,
+                            dispatch.into_incoming(gas_limit),
+                            block_info,
+                            existential_deposit,
+                            ProgramId::from_origin(origin),
+                            program_id,
+                            Self::gas_allowance(),
+                            T::OutgoingLimit::get(),
+                            schedule.host_fn_weights.into_core(),
+                        )
+                    };
 
                     core_processor::handle_journal(journal, &mut ext_manager);
 
@@ -1064,7 +1097,6 @@ pub mod pallet {
             let origin = who.into_origin();
 
             let code_id = code_and_id.code_id();
-            let static_pages = code_and_id.code().static_pages();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
@@ -1074,7 +1106,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
+            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));

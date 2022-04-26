@@ -60,12 +60,11 @@ impl<T: Config> pallet::Pallet<T> {
         let prefix = common::wait_prefix(program_id);
         let previous_key = prefix.clone();
 
+        let pages_data = common::get_program_pages_data(program_id, &program);
+
         let paused_program = PausedProgram {
             program_id,
-            pages_hash: memory_pages_hash(
-                &common::get_program_pages(program_id, program.persistent_pages.clone())
-                    .expect("pause_program: active program exists, therefore pages do"),
-            ),
+            pages_hash: memory_pages_hash(&pages_data),
             program,
             wait_list_hash: wait_list_hash(
                 &PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
@@ -111,7 +110,7 @@ impl<T: Config> pallet::Pallet<T> {
 
         PausedPrograms::<T>::remove(program_id);
 
-        common::set_program(program_id, paused_program.program, memory_pages);
+        common::set_program_and_pages_data(program_id, paused_program.program, memory_pages);
 
         wait_list.into_iter().for_each(|(msg_id, d)| {
             common::insert_waiting_message(program_id, msg_id, d, block_number)

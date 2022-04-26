@@ -26,6 +26,7 @@ pub fn handle_journal(
 ) {
     let mut page_updates = BTreeMap::new();
     let mut exit_list = vec![];
+    let mut allocations_update = BTreeMap::new();
 
     for note in journal.into_iter() {
         match note {
@@ -54,6 +55,12 @@ pub fn handle_journal(
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
                 entry.insert(page_number, data);
             }
+            JournalNote::UpdateAllocations {
+                program_id,
+                allocations,
+            } => {
+                allocations_update.insert(program_id, allocations);
+            }
             JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
             JournalNote::StoreNewPrograms {
                 code_hash,
@@ -66,10 +73,12 @@ pub fn handle_journal(
         }
     }
 
-    for (program_id, pages) in page_updates {
-        for (page_number, data) in pages {
-            handler.update_page(program_id, page_number, data);
-        }
+    for (program_id, pages_data) in page_updates {
+        handler.update_pages_data(program_id, pages_data);
+    }
+
+    for (program_id, allocations) in allocations_update {
+        handler.update_allocations(program_id, allocations);
     }
 
     for (id_exited, value_destination) in exit_list {

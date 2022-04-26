@@ -20,8 +20,9 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
     MessageInfo, Pallet,
 };
+use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
-use common::{ActiveProgram, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program};
+use common::{ActiveProgram, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -30,7 +31,7 @@ use frame_support::traits::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::PageNumber,
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
@@ -72,50 +73,50 @@ where
 {
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
-        let program = common::get_program(id).and_then(|p| {
-            let is_initialized = p.is_initialized();
-            p.try_into().ok().and_then(|p: ActiveProgram| {
-                let code_id = CodeId::from_origin(p.code_hash);
-                T::CodeStorage::get_code(code_id).map(|c| {
-                    NativeProgram::from_parts(
-                        ProgramId::from_origin(id),
-                        c,
-                        p.persistent_pages,
-                        is_initialized,
-                    )
-                })
-            })
-        })?;
+    pub fn get_executable_actor(&self, id: H256, with_pages: bool) -> Option<ExecutableActor> {
+        let active: ActiveProgram = common::get_program(id)?.try_into().ok()?;
+        let program = {
+            let code_id = CodeId::from_origin(active.code_hash);
+            let code = T::CodeStorage::get_code(code_id)?;
+            NativeProgram::from_parts(
+                ProgramId::from_origin(id),
+                code,
+                active.allocations,
+                matches!(active.state, ProgramState::Initialized),
+            )
+        };
 
         let balance =
             <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
                 .unique_saturated_into();
+        let pages_data = if with_pages {
+            common::get_program_data_for_pages(id, active.pages_with_data.iter())
+        } else {
+            Default::default()
+        };
 
-        Some(ExecutableActor { program, balance })
+        Some(ExecutableActor {
+            program,
+            balance,
+            pages_data,
+        })
     }
 
-    pub fn set_program(
-        &self,
-        program_id: ProgramId,
-        code_id: CodeId,
-        static_pages: WasmPageNumber,
-        message_id: H256,
-    ) {
+    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: H256) {
         assert!(
             T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",
         );
 
-        // An empty program has been just constructed: it contains no persistent pages.
+        // An empty program has been just constructed: it contains no mem allocations.
         let program = common::ActiveProgram {
-            static_pages,
-            persistent_pages: Default::default(),
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
             code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
         };
 
-        common::set_program(program_id.into_origin(), program, Default::default());
+        common::set_program_and_pages_data(program_id.into_origin(), program, Default::default());
     }
 }
 
@@ -437,29 +438,40 @@ where
         }
     }
 
-    fn update_page(
+    fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        page_number: PageNumber,
-        data: Option<Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, Vec<u8>>,
     ) {
         let program_id = program_id.into_origin();
-
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");
-
-        if let Program::Active(prog) = program {
-            let mut persistent_pages = prog.persistent_pages;
-
-            if let Some(data) = data {
-                persistent_pages.insert(page_number);
-                common::set_program_page(program_id, page_number, data);
-            } else {
-                persistent_pages.remove(&page_number);
-                common::remove_program_page(program_id, page_number);
+        if let Program::Active(mut program) = program {
+            for (page, data) in pages_data {
+                common::set_program_page_data(program_id, page, data);
+                program.pages_with_data.insert(page);
             }
+            common::set_program(program_id, program);
+        };
+    }
 
-            common::set_program_persistent_pages(program_id, persistent_pages);
+    fn update_allocations(
+        &mut self,
+        program_id: ProgramId,
+        allocations: BTreeSet<gear_core::memory::WasmPageNumber>,
+    ) {
+        let program_id = program_id.into_origin();
+        let program = common::get_program(program_id)
+            .expect("page update guaranteed to be called only for existing and active program");
+        if let Program::Active(mut program) = program {
+            let removed_pages = program.allocations.difference(&allocations);
+            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
+                if program.pages_with_data.remove(&page) {
+                    common::remove_program_page_data(program_id, page);
+                }
+            }
+            program.allocations = allocations;
+            common::set_program(program_id, program);
         };
     }
 
@@ -501,15 +513,10 @@ where
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = T::CodeStorage::get_code(code_id) {
+        if T::CodeStorage::get_code(code_id).is_some() {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    self.set_program(
-                        candidate_id,
-                        code_id,
-                        code.static_pages(),
-                        init_message.into_origin(),
-                    );
+                    self.set_program(candidate_id, code_id, init_message.into_origin());
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

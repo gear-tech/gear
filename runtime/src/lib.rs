@@ -395,6 +395,7 @@ impl pallet_gear::Config for Runtime {
 impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_usage::Config for Runtime {
