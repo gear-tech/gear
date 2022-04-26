@@ -30,6 +30,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
+    costs::HostFnWeights,
     env::Ext as EnvExt,
     ids::{MessageId, ProgramId},
     message::{
@@ -43,6 +44,7 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     maybe_actor: Option<ExecutableActor>,
@@ -53,6 +55,8 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
     program_id: ProgramId,
     gas_allowance: u64,
+    outgoing_limit: u32,
+    host_fn_weights: HostFnWeights,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -63,6 +67,8 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             existential_deposit,
             origin,
             gas_allowance,
+            outgoing_limit,
+            host_fn_weights,
         ),
     }
 }
@@ -240,6 +246,7 @@ fn process_success(
     journal
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
@@ -247,14 +254,18 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     existential_deposit: u128,
     origin: ProgramId,
     gas_allowance: u64,
+    outgoing_limit: u32,
+    host_fn_weights: HostFnWeights,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
-    let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
+    let execution_settings =
+        ExecutionSettings::new(block_info, existential_deposit, host_fn_weights);
     let execution_context = ExecutionContext {
         origin,
         gas_allowance,
     };
+    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
 
     let program_id = actor.program.id();
 
@@ -263,6 +274,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         dispatch.clone(),
         execution_context,
         execution_settings,
+        msg_ctx_settings,
     ) {
         Ok(res) => match res.kind {
             DispatchResultKind::Trap(reason) => process_error(

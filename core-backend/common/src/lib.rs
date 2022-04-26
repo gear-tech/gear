@@ -32,7 +32,7 @@ use alloc::{
 };
 use core::fmt;
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
@@ -41,11 +41,6 @@ use gear_core::{
 use gear_core_errors::ExtError;
 
 pub type HostPointer = u64;
-
-// TODO Remove after #841
-pub fn get_current_gas_state<E: Ext + IntoExtInfo>(later_ext: LaterExt<E>) -> Option<GasAmount> {
-    later_ext.take().map(IntoExtInfo::into_gas_amount)
-}
 
 #[derive(Debug, Clone)]
 pub enum TerminationReason {
@@ -153,10 +148,7 @@ impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
         F: FnMut(T) -> Result<(), E>,
     {
         match self {
-            Ok(t) => {
-                f(t)?;
-                Ok(0)
-            }
+            Ok(t) => f(t).map(|_| 0),
             Err(_) => Ok(1),
         }
     }

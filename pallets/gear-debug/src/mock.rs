@@ -104,6 +104,7 @@ impl pallet_authorship::Config for Test {
 
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
+    pub const OutgoingLimit: u32 = 1024;
     pub const BlockGasLimit: u64 = 100_000_000;
 }
 
@@ -132,9 +133,11 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
     type WaitListFeePerBlock = ();
     type Schedule = ();
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}

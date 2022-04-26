@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    code::Code,
+    code::InstrumentedCode,
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
@@ -35,20 +35,23 @@ pub enum Error {
     TryFromSlice(TryFromSliceError),
 }
 
+/// Type alias for map of persistent pages.
+pub type PersistentPageMap = BTreeMap<PageNumber, Option<Box<PageBuf>>>;
+
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
-    code: Code,
+    code: InstrumentedCode,
     /// Saved state of memory pages.
-    persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    persistent_pages: PersistentPageMap,
     /// Program is initialized.
     is_initialized: bool,
 }
 
 impl Program {
-    /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: Code) -> Self {
+    /// New program with specific `id` and `code`.
+    pub fn new(id: ProgramId, code: InstrumentedCode) -> Self {
         Program {
             id,
             code,
@@ -60,7 +63,7 @@ impl Program {
     /// New program from stored data
     pub fn from_parts(
         id: ProgramId,
-        code: Code,
+        code: InstrumentedCode,
         persistent_pages_numbers: BTreeSet<PageNumber>,
         is_initialized: bool,
     ) -> Self {
@@ -75,8 +78,8 @@ impl Program {
         }
     }
 
-    /// Reference to [`Code`] of this program.
-    pub fn code(&self) -> &Code {
+    /// Reference to [`InstrumentedCode`] of this program.
+    pub fn code(&self) -> &InstrumentedCode {
         &self.code
     }
 
@@ -144,12 +147,12 @@ impl Program {
     }
 
     /// Get reference to memory pages.
-    pub fn get_pages(&self) -> &BTreeMap<PageNumber, Option<Box<PageBuf>>> {
+    pub fn get_pages(&self) -> &PersistentPageMap {
         &self.persistent_pages
     }
 
     /// Get mut reference to memory pages.
-    pub fn get_pages_mut(&mut self) -> &mut BTreeMap<PageNumber, Option<Box<PageBuf>>> {
+    pub fn get_pages_mut(&mut self) -> &mut PersistentPageMap {
         &mut self.persistent_pages
     }
 
@@ -170,6 +173,11 @@ impl Program {
     pub fn clear_memory(&mut self) {
         self.persistent_pages.clear();
     }
+
+    /// Decomposes this instance into tuple of binary code and persistent pages.
+    pub fn into_parts(self) -> (Vec<u8>, PersistentPageMap) {
+        (self.code.into_code(), self.persistent_pages)
+    }
 }
 
 #[cfg(test)]
@@ -181,6 +189,7 @@ mod tests {
     use crate::ids::ProgramId;
     use crate::memory::PageNumber;
     use alloc::{vec, vec::Vec};
+    use wasm_instrument::gas_metering::ConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -224,13 +233,8 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = Code::try_new(
-            binary,
-            1,
-            None,
-            wasm_instrument::gas_metering::ConstantCostRules::default(),
-        )
-        .unwrap();
+        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default()).unwrap();
+        let (code, _) = code.into_parts();
         let mut program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages

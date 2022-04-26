@@ -25,11 +25,10 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    get_current_gas_state, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
-    TerminationReason,
+    BackendError, BackendReport, Environment, HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
@@ -62,7 +61,7 @@ pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
 }
 
 pub(crate) struct Runtime<E: Ext> {
-    pub ext: LaterExt<E>,
+    pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
 }
@@ -101,7 +100,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
-        let later_ext = LaterExt::new(ext);
+        let ext_carrier = ExtCarrier::new(ext);
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
@@ -109,8 +108,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::CreateEnvMemory,
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: get_current_gas_state(later_ext)
-                        .expect("method called only once with no clones around; qed"),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -141,8 +139,10 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_value_available", funcs::value_available);
         env_builder.add_host_func("env", "gr_reply", funcs::reply);
         env_builder.add_host_func("env", "gr_reply_commit", funcs::reply_commit);
+        env_builder.add_host_func("env", "gr_reply_commit_wgas", funcs::reply_commit_wgas);
         env_builder.add_host_func("env", "gr_reply_to", funcs::reply_to);
         env_builder.add_host_func("env", "gr_reply_push", funcs::reply_push);
+        env_builder.add_host_func("env", "gr_reply_wgas", funcs::reply_wgas);
         env_builder.add_host_func("env", "gr_debug", funcs::debug);
         env_builder.add_host_func("env", "gr_gas_available", funcs::gas_available);
         env_builder.add_host_func("env", "gr_msg_id", funcs::msg_id);
@@ -152,7 +152,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gas", funcs::gas);
 
         let mut runtime = Runtime {
-            ext: later_ext,
+            ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
         };
@@ -163,8 +163,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::ModuleInstantiation,
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: get_current_gas_state(runtime.ext)
-                        .expect("method called only once with no clones around; qed"),
+                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -175,8 +174,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::GetWasmExports,
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: get_current_gas_state(runtime.ext)
-                        .expect("method called only once with no clones around; qed"),
+                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -186,8 +184,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             return Err(BackendError {
                 reason: SandboxEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: get_current_gas_state(runtime.ext)
-                    .expect("method called only once with no clones around; qed"),
+                gas_amount: runtime.ext.into_inner().into_gas_amount(),
             });
         }
 
@@ -238,8 +235,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         log::debug!("execution res = {:?}", res);
 
         let info = ext
-            .take()
-            .expect("method called only once with no clones around; qed")
+            .into_inner()
             .into_ext_info(|ptr, buff| memory.read(ptr, buff))
             .map_err(|(reason, gas_amount)| BackendError {
                 reason: SandboxEnvironmentError::Memory(reason),
@@ -272,18 +268,17 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             TerminationReason::Success
         };
 
-        let gas_amount = info.gas_amount.clone();
-        post_execution_handler(wasm_memory_addr)
-            .map(|_| BackendReport { termination, info })
-            .map_err(|e| BackendError {
+        match post_execution_handler(wasm_memory_addr) {
+            Ok(_) => Ok(BackendReport { termination, info }),
+            Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
                 description: None,
-                gas_amount,
-            })
+                gas_amount: info.gas_amount,
+            }),
+        }
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        get_current_gas_state(self.runtime.ext)
-            .expect("method called only once with no clones around; qed")
+        self.runtime.ext.into_inner().into_gas_amount()
     }
 }

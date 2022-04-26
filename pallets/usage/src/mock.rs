@@ -18,11 +18,17 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use common::Origin as _;
+use common::{CodeMetadata, CodeStorage, Origin as _};
 use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
-use gear_core::{ids::CodeId, program::Program};
+use gear_core::code::InstrumentedCodeAndId;
+use gear_core::{
+    code::{Code, CodeAndId},
+    ids::ProgramId,
+    program::Program,
+};
+use hex_literal::hex;
 use parking_lot::RwLock;
 use primitive_types::H256;
 use sp_core::offchain::{
@@ -38,6 +44,7 @@ use sp_runtime::{
 };
 use sp_std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -129,9 +136,11 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = ();
+    type OutgoingLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type Schedule = ();
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}
@@ -263,11 +272,27 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     storage_value_ref.get::<T>().ok().flatten()
 }
 
-pub(crate) fn set_program(program: Program) {
-    let code_hash = CodeId::generate(program.raw_code()).into_origin();
-    if !common::code_exists(code_hash) {
-        common::set_code(code_hash, program.code());
-    }
+pub(crate) fn set_program<T: pallet_gear::Config>(
+    program_id: ProgramId,
+    who: H256,
+    bn: u32,
+) -> Program {
+    let code = Code::try_new(
+        hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+        1,
+        |_| ConstantCostRules::default(),
+    )
+    .expect("Error creating Code");
+
+    let code_and_id = CodeAndId::new(code);
+
+    let code_hash = code_and_id.code_id().into_origin();
+    let _ = T::CodeStorage::add_code(code_and_id.clone(), CodeMetadata::new(who, bn));
+
+    let code_and_id: InstrumentedCodeAndId = code_and_id.into();
+    let (code, _) = code_and_id.into_parts();
+    let program = Program::new(program_id, code);
+
     common::set_program(
         H256::from_slice(program.id().as_ref()),
         common::ActiveProgram {
@@ -287,6 +312,8 @@ pub(crate) fn set_program(program: Program) {
             })
             .collect(),
     );
+
+    program
 }
 
 pub(crate) fn decode_txs(pool: Arc<RwLock<PoolState>>) -> Vec<Extrinsic> {

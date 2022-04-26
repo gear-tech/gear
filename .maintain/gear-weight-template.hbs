@@ -52,9 +52,6 @@ impl<T: crate::Config> WeightInfo for GearWeight<T> {
 impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 {{/if}}
 	{{#each benchmarks as |benchmark|}}
-	{{#each benchmark.comments as |comment|}}
-	// {{comment}}
-	{{/each}}
 	fn {{benchmark.name~}}
 	(
 		{{~#each benchmark.components as |c| ~}}
@@ -84,9 +81,6 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 // For backwards compatibility and tests
 impl WeightInfo for () {
 	{{#each benchmarks as |benchmark|}}
-	{{#each benchmark.comments as |comment|}}
-	// {{comment}}
-	{{/each}}
 	fn {{benchmark.name~}}
 	(
 		{{~#each benchmark.components as |c| ~}}

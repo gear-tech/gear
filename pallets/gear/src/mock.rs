@@ -122,7 +122,8 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockGasLimit: u64 = 500_000_000;
+    pub const BlockGasLimit: u64 = 50_000_000_000;
+    pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;
     pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
@@ -135,8 +136,10 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type Schedule = MySchedule;
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}
@@ -178,9 +181,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (USER_1, 1_000_000_000_u128),
-            (USER_2, 500_000_000_u128),
-            (USER_3, 1_000_000_000_u128),
+            (USER_1, 100_000_000_000_u128),
+            (USER_2, 50_000_000_000_u128),
+            (USER_3, 100_000_000_000_u128),
             (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],
@@ -239,6 +242,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         timestamp: Timestamp::get(),
     };
 
+    let schedule = <Test as pallet_gear::Config>::Schedule::get();
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
 
@@ -250,6 +254,8 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         ProgramId::from_origin(source),
         ProgramId::from_origin(dest),
         u64::MAX,
+        <Test as pallet_gear::Config>::OutgoingLimit::get(),
+        schedule.host_fn_weights.into_core(),
     );
 
     let mut gas_burned: u64 = 0;

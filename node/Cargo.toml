@@ -21,8 +21,8 @@ clap = { version = "3.1", features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 hex-literal = "0.3.4"
 page_size = "0.4.2"
-libc = { version = "0.2.123", default-features = false }
-nix = "0.23.1"
+libc = { version = "0.2.124", default-features = false }
+nix = "0.24.1"
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [

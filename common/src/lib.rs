@@ -21,6 +21,9 @@
 pub mod lazy_pages;
 pub mod storage_queue;
 
+pub mod code_storage;
+pub use code_storage::{CodeStorage, Error as CodeStorageError};
+
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
@@ -37,16 +40,13 @@ use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
     prelude::*,
 };
 
 use gear_core::{
-    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageNumber, WasmPageNumber},
     message::StoredDispatch,
-    program::Program as NativeProgram,
 };
 
 pub use storage_queue::Iterator;
@@ -57,8 +57,6 @@ pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
-pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
-pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
@@ -249,19 +247,6 @@ pub enum ProgramError {
 }
 
 impl Program {
-    pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
-        let is_initialized = self.is_initialized();
-        let program: ActiveProgram = self.try_into()?;
-        let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
-        let native_program = NativeProgram::from_parts(
-            ProgramId::from_origin(id),
-            code,
-            program.persistent_pages,
-            is_initialized,
-        );
-        Ok(native_program)
-    }
-
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
@@ -338,34 +323,10 @@ impl CodeMetadata {
     }
 }
 
-// Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
-enum CodeKeyPrefixKind {
-    // "g::code::orig"
-    OriginalCode,
-    // "g::code::"
-    Code,
-    // "g::code::metadata::"
-    CodeMetadata,
-}
-
 pub fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PREFIX);
     id.encode_to(&mut key);
-    key
-}
-
-fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
-    let prefix = match kind {
-        CodeKeyPrefixKind::OriginalCode => STORAGE_ORIGINAL_CODE_PREFIX,
-        CodeKeyPrefixKind::Code => STORAGE_CODE_PREFIX,
-        CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
-    };
-    // key's length is N bytes of code hash + M bytes of prefix
-    // currently code hash is 32 bytes
-    let mut key = Vec::with_capacity(prefix.len() + code_hash.as_bytes().len());
-    key.extend(prefix);
-    code_hash.encode_to(&mut key);
     key
 }
 
@@ -396,38 +357,6 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     let mut key = wait_prefix(prog_id);
     msg_id.encode_to(&mut key);
     key
-}
-
-pub fn get_code(code_hash: H256) -> Option<Code> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::Code))
-        .map(|bytes| Code::decode(&mut &bytes[..]).expect("Code encoded correctly; qed"))
-}
-
-pub fn set_code(code_hash: H256, code: &Code) {
-    sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::Code),
-        &code.encode(),
-    )
-}
-
-pub fn get_original_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode))
-}
-
-pub fn set_original_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode), code)
-}
-
-pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
-    sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::CodeMetadata),
-        &metadata.encode(),
-    )
-}
-
-pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeMetadata))
-        .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
 }
 
 pub fn set_program_initialized(id: H256) {
@@ -598,56 +527,16 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     messages.unwrap_or_default()
 }
 
-pub fn code_exists(code_hash: H256) -> bool {
-    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::Code))
-}
-
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn get_active_program(id: H256) -> Option<ActiveProgram> {
-        get_program(id).and_then(|p| p.try_into().ok())
-    }
-
-    #[test]
-    fn program_decoded() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code =
-                hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-            let code_id = CodeId::generate(&code).into_origin();
-            let code = Code::try_new(
-                code,
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
-            .unwrap();
-
-            let program_id = H256::from_low_u64_be(1);
-            let program = ActiveProgram {
-                static_pages: 256.into(),
-                persistent_pages: Default::default(),
-                code_hash: code_id,
-                state: ProgramState::Initialized,
-            };
-            set_code(code_id, &code);
-            assert!(get_program(program_id).is_none());
-            set_program(program_id, program.clone(), Default::default());
-            assert_eq!(get_active_program(program_id).unwrap(), program);
-
-            // Structs can't be equal because original_code is skipped. So we asserting binary code.
-            assert_eq!(get_code(program.code_hash).unwrap().code(), code.code());
-        });
-    }
+    // TODO (871) remove next lines after runtime upgraded
+    pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
+    pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
+    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
 }

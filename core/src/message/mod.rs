@@ -31,7 +31,7 @@ mod reply;
 mod stored;
 
 pub use common::{Dispatch, Message};
-pub use context::{ContextOutcome, ContextStore, MessageContext};
+pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};

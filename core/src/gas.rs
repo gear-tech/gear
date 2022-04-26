@@ -18,7 +18,22 @@
 
 //! Gas module.
 
-use alloc::vec::Vec;
+/// This trait represents a token that can be used for charging `GasCounter`.
+///
+/// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
+/// for consistency). If inlined there should be no observable difference compared
+/// to a hand-written code.
+pub trait Token: Copy + Clone {
+    /// Return the amount of gas that should be taken by this token.
+    ///
+    /// This function should be really lightweight and must not fail. It is not
+    /// expected that implementors will query the storage or do any kinds of heavy operations.
+    ///
+    /// That said, implementors of this function still can run into overflows
+    /// while calculating the amount. In this case it is ok to use saturating operations
+    /// since on overflow they will return `max_value` which should consume all gas.
+    fn weight(&self) -> u64;
+}
 
 /// The result of charging gas.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,25 +42,6 @@ pub enum ChargeResult {
     Enough,
     /// There was not enough gas and it hasn't been charged.
     NotEnough,
-}
-
-/// Instrumentation error.
-#[derive(Debug)]
-pub enum InstrumentError {
-    /// Error occurred during decoding original program code.
-    ///
-    /// The provided code was a malformed Wasm bytecode or contained unsupported features
-    /// (atomics, simd instructions, etc.).
-    Decode,
-    /// Error occurred during injecting gas metering instructions.
-    ///
-    /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, manual memory grow, etc.).
-    GasInjection,
-    /// Error occurred during encoding instrumented program.
-    ///
-    /// The only possible reason for that might be OOM.
-    Encode,
 }
 
 /// Gas counter with some predefined maximum gas.
@@ -67,16 +63,42 @@ impl GasCounter {
         }
     }
 
-    /// Charge `amount` of gas.
+    /// Account for used gas.
+    ///
+    /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
+    /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
+    #[inline]
     pub fn charge(&mut self, amount: u64) -> ChargeResult {
-        if self.left < amount {
-            return ChargeResult::NotEnough;
+        match self.left.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned += amount;
+
+                ChargeResult::Enough
+            }
         }
+    }
 
-        self.left -= amount;
-        self.burned += amount;
+    /// Account for used gas.
+    ///
+    /// Amount is calculated by the given `token`.
+    ///
+    /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
+    /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
+    #[inline]
+    pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
+        let amount = token.weight();
 
-        ChargeResult::Enough
+        match self.left.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned += amount;
+
+                ChargeResult::Enough
+            }
+        }
     }
 
     /// Reduce gas by `amount`.
@@ -84,13 +106,14 @@ impl GasCounter {
     /// Called when message is sent to another program, so the gas `amount` is sent to
     /// receiving program.
     pub fn reduce(&mut self, amount: u64) -> ChargeResult {
-        if self.left < amount {
-            return ChargeResult::NotEnough;
+        match self.left.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+
+                ChargeResult::Enough
+            }
         }
-
-        self.left -= amount;
-
-        ChargeResult::Enough
     }
 
     /// Refund `amount` of gas.
@@ -98,11 +121,15 @@ impl GasCounter {
         if amount > u64::MAX - self.left || amount > self.burned {
             return ChargeResult::NotEnough;
         }
+        match self.left.checked_add(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.left = new_left;
+                self.burned -= amount;
 
-        self.left += amount;
-        self.burned -= amount;
-
-        ChargeResult::Enough
+                ChargeResult::Enough
+            }
+        }
     }
 
     /// Report how much gas is left.
@@ -161,13 +188,14 @@ impl ValueCounter {
     /// Called when message is sent to another program, so the value `amount` is sent to
     /// receiving program.
     pub fn reduce(&mut self, amount: u128) -> ChargeResult {
-        if self.0 < amount {
-            return ChargeResult::NotEnough;
+        match self.0.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.0 = new_left;
+
+                ChargeResult::Enough
+            }
         }
-
-        self.0 -= amount;
-
-        ChargeResult::Enough
     }
 
     /// Report how much value is left.
@@ -187,67 +215,49 @@ impl GasAllowanceCounter {
     }
 
     /// Charge `amount` of gas.
+    #[inline]
     pub fn charge(&mut self, amount: u64) -> ChargeResult {
         let amount = amount as u128;
 
-        if self.0 < amount {
-            return ChargeResult::NotEnough;
+        match self.0.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.0 = new_left;
+
+                ChargeResult::Enough
+            }
         }
+    }
 
-        self.0 -= amount;
+    /// Account for used gas.
+    ///
+    /// Amount is calculated by the given `token`.
+    ///
+    /// Returns `ChargeResult::NotEnough` if there is not enough gas or addition of the specified
+    /// amount of gas has lead to overflow. On success returns `ChargeResult::Enough`.
+    ///
+    /// NOTE that amount is always consumed, i.e. if there is not enough gas
+    /// then the counter will be set to zero.
+    #[inline]
+    pub fn charge_token<Tok: Token>(&mut self, token: Tok) -> ChargeResult {
+        let amount = token.weight() as u128;
 
-        ChargeResult::Enough
+        match self.0.checked_sub(amount) {
+            None => ChargeResult::NotEnough,
+            Some(new_left) => {
+                self.0 = new_left;
+
+                ChargeResult::Enough
+            }
+        }
     }
 
     /// Refund `amount` of gas.
     pub fn refund(&mut self, amount: u64) {
-        self.0 += amount as u128
+        let new_value = self.0.checked_add(amount as u128);
+
+        self.0 = new_value.unwrap_or(u128::MAX);
     }
-}
-
-/// Instrument code with gas-counting instructions.
-pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
-    use pwasm_utils::rules::{InstructionType, Metering};
-
-    let module = parity_wasm::elements::Module::from_bytes(code).map_err(|e| {
-        log::debug!(
-            target: "essential",
-            "Error decoding module: {}",
-            e,
-        );
-        InstrumentError::Decode
-    })?;
-
-    let instrumented_module = pwasm_utils::inject_gas_counter(
-        module,
-        &pwasm_utils::rules::Set::new(
-            // TODO: put into config/processing
-            1000,
-            // Memory.grow is forbidden
-            [(InstructionType::GrowMemory, Metering::Forbidden)]
-                .iter()
-                .cloned()
-                .collect(),
-        )
-        .with_forbidden_floats(),
-        "env",
-    )
-    .map_err(|_module| {
-        log::debug!(
-            target: "essential",
-            "Error injecting gas counter",
-        );
-        InstrumentError::GasInjection
-    })?;
-
-    parity_wasm::elements::serialize(instrumented_module).map_err(|e| {
-        log::debug!(
-            target: "essential",
-            "Error encoding module: {}",
-            e,
-        );
-        InstrumentError::Encode
-    })
 }
 
 #[cfg(test)]
