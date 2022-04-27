@@ -25,7 +25,7 @@ use crate::{
 use colored::{ColoredString, Colorize};
 use gear_common::{
     storage::{Messenger, StorageDeck},
-    DAGBasedLedger, Origin as _,
+    CodeStorage, DAGBasedLedger, Origin as _,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -152,7 +152,7 @@ fn init_fixture(
             code.clone(),
             program.id.to_program_id().as_ref().to_vec(),
             init_message,
-            program.init_gas_limit.unwrap_or(5_000_000_000),
+            program.init_gas_limit.unwrap_or(50_000_000_000),
             program.init_value.unwrap_or(0) as u128,
         ) {
             return Err(anyhow::format_err!("Submit program error: {:?}", e));
@@ -248,9 +248,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let dest = programs[&message.destination.to_program_id()];
 
-                let gas_limit = message.gas_limit.unwrap_or(
-                    pallet_gas::Pallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64,
-                );
+                let gas_limit = message
+                    .gas_limit
+                    .unwrap_or_else(pallet_gas::Pallet::<Runtime>::gas_allowance);
 
                 let value = message.value.unwrap_or(0);
 
@@ -375,8 +375,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .filter_map(|p| {
                         if let ProgramState::Active(info) = &p.state {
                             if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
-                                let code = gear_common::get_code(info.code_hash)
-                                    .expect("code should be in the storage");
+                                let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(
+                                    CodeId::from_origin(info.code_hash),
+                                )
+                                .expect("code should be in the storage");
                                 Some(CoreProgram::from_parts(
                                     *pid,
                                     code,

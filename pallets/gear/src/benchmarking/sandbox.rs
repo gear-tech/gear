@@ -21,6 +21,7 @@
 /// ! environment that provides the seal interface as imported functions.
 use super::{code::WasmModule, Config};
 
+use common::Origin;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory},
     SandboxEnvironmentBuilder, SandboxInstance,
@@ -33,7 +34,7 @@ pub struct Sandbox {
 }
 
 impl Sandbox {
-    /// Invoke the `handle` function of a contract code and panic on any execution error.
+    /// Invoke the `handle` function of a program code and panic on any execution error.
     pub fn invoke(&mut self) {
         self.instance.invoke("handle", &[], &mut ()).unwrap();
     }
@@ -42,6 +43,7 @@ impl Sandbox {
 impl<T: Config> From<&WasmModule<T>> for Sandbox
 where
     T: Config,
+    T::AccountId: Origin,
 {
     /// Creates an instance from the supplied module and supplies as much memory
     /// to the instance as the module declares as imported.

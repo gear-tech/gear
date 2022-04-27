@@ -32,7 +32,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{pages_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
-    message::{IncomingDispatch, MessageContext},
+    message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
 /// Execute wasm with dispatch and return dispatch result.
@@ -41,11 +41,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     dispatch: IncomingDispatch,
     context: ExecutionContext,
     settings: ExecutionSettings,
+    msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    let ExecutableActor {
-        mut program,
-        balance,
-    } = actor;
+    let ExecutableActor { program, balance } = actor;
 
     let program_id = program.id();
     let kind = dispatch.kind();
@@ -60,7 +58,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
-    let code = program.raw_code().to_vec();
+    let static_pages = program.static_pages();
 
     let mem_size = if let Some((max_page, _)) = program.get_pages().iter().next_back() {
         if (max_page.0 + 1) % PageNumber::num_in_one_wasm_page() != 0 {
@@ -100,8 +98,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         };
 
         // Charging gas for mem size
-        let amount = settings.mem_grow_cost()
-            * (max_wasm_page.0 as u64 + 1 - program.static_pages().0 as u64);
+        let amount =
+            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
@@ -125,7 +123,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         max_wasm_page + 1.into()
     } else {
         // Charging gas for initial pages
-        let amount = settings.init_cost() * program.static_pages().0 as u64;
+        let amount = settings.init_cost() * static_pages.0 as u64;
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
@@ -145,14 +143,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             });
         };
 
-        program.static_pages()
+        static_pages
     };
 
-    if mem_size < program.static_pages() {
+    if mem_size < static_pages {
         log::error!(
             "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
             mem_size,
-            program.static_pages()
+            static_pages
         );
         return Err(ExecutionError {
             program_id,
@@ -178,21 +176,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             Ok(res) => res,
         }
     } else {
-        (0..program.static_pages().0).map(WasmPageNumber).collect()
+        (0..static_pages.0).map(WasmPageNumber).collect()
     };
 
     // Creating allocations context.
     let allocations_context =
-        AllocationsContext::new(allocations, program.static_pages(), settings.max_pages());
+        AllocationsContext::new(allocations, static_pages, settings.max_pages());
 
     // Creating message context.
-    let message_context = MessageContext::new(
+    let message_context = MessageContext::new_with_settings(
         dispatch.message().clone(),
         program_id,
         dispatch.context().clone(),
+        msg_ctx_settings,
     );
 
-    let initial_pages = program.get_pages_mut();
+    let (binary, mut initial_pages) = program.into_parts();
 
     // Creating externalities.
     let mut ext = A::new(
@@ -209,9 +208,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         context.origin,
         program_id,
         Default::default(),
+        settings.host_fn_weights,
     );
 
-    let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, initial_pages) {
+    let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, &mut initial_pages) {
         Ok(enabled) => enabled,
         Err(e) => {
             return Err(ExecutionError {
@@ -223,7 +223,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    let mut env = E::new(ext, &code, initial_pages, mem_size).map_err(|err| {
+    let mut env = E::new(ext, &binary, &initial_pages, mem_size).map_err(|err| {
         log::error!("Setup instance err = {:?}", err);
         ExecutionError {
             program_id,
@@ -243,7 +243,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     if lazy_pages_enabled {
         if let Err(e) = A::protect_pages_and_init_info(
-            initial_pages,
+            &initial_pages,
             program_id,
             env.get_wasm_memory_begin_addr(),
         ) {
@@ -268,7 +268,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             // then we should panic here, because protected pages may cause UB later, during err handling,
             // if somebody will try to access this pages.
             if lazy_pages_enabled {
-                A::post_execution_actions(initial_pages, wasm_memory_addr)
+                A::post_execution_actions(&mut initial_pages, wasm_memory_addr)
             } else {
                 Ok(())
             }

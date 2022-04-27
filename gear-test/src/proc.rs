@@ -23,7 +23,7 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    code::Code,
+    code::{Code, CodeAndId},
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
@@ -33,8 +33,10 @@ use std::{
     io::ErrorKind as IoErrorKind,
     time::{SystemTime, UNIX_EPOCH},
 };
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
+pub const OUTGOING_LIMIT: u32 = 1024;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -83,13 +85,8 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = Code::try_new(
-        message.code.clone(),
-        1,
-        None,
-        wasm_instrument::gas_metering::ConstantCostRules::default(),
-    )
-    .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+    let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
+        .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
     if code.static_pages() > AllocationsConfig::default().max_pages {
         return Err(anyhow::anyhow!(
@@ -112,6 +109,8 @@ where
         Default::default(),
         program_id,
         u64::MAX,
+        OUTGOING_LIMIT,
+        Default::default(),
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -134,15 +133,12 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            let code = Code::try_new(
-                code_bytes.clone(),
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
-            .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+            let code = Code::try_new(code_bytes.clone(), 1, |_| ConstantCostRules::default())
+                .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
-            journal_handler.store_code(code.code_hash(), code);
+            let (code, code_id) = CodeAndId::new(code).into_parts();
+
+            journal_handler.store_code(code_id, code);
             journal_handler.store_original_code(&code_bytes);
         }
     }
@@ -295,6 +291,8 @@ where
                     Default::default(),
                     program_id,
                     u64::MAX,
+                    OUTGOING_LIMIT,
+                    Default::default(),
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -330,6 +328,8 @@ where
                 Default::default(),
                 program_id,
                 u64::MAX,
+                OUTGOING_LIMIT,
+                Default::default(),
             );
             counter += 1;
 

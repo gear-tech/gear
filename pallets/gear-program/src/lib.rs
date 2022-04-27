@@ -18,12 +18,19 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use common::CodeMetadata;
+use gear_core::{code::InstrumentedCode, ids::CodeId};
 pub use pallet::*;
 use primitive_types::H256;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_std::convert::TryInto;
 use sp_std::prelude::*;
 
+use frame_support::{
+    dispatch::DispatchResultWithPostInfo, traits::StorageVersion, weights::Weight,
+};
+
+mod code;
 mod pause;
 pub use pause::PauseError;
 
@@ -35,10 +42,14 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migration;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+/// The current storage version.
+const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -71,6 +82,7 @@ pub mod pallet {
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
+    #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
@@ -90,6 +102,18 @@ pub mod pallet {
         ResumeProgramNotEnoughValue,
         WrongWaitList,
     }
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type OriginalCodeStorage<T: Config> = StorageMap<_, Identity, CodeId, Vec<u8>>;
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type MetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
 
     #[pallet::storage]
     #[pallet::unbounded]

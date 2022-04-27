@@ -18,20 +18,21 @@
 
 //! Module for checked code.
 
-use crate::ids::CodeId;
+use crate::{ids::CodeId, memory::WasmPageNumber};
 use alloc::vec::Vec;
 use anyhow::Result;
 use codec::{Decode, Encode};
 use parity_wasm::elements::Module;
+use scale_info::TypeInfo;
 use wasm_instrument::gas_metering::Rules;
 
 /// Instrumentation error.
 #[derive(Debug)]
 pub enum CodeError {
-    /// Error occurred during checking original program code.
-    ///
-    /// The provided code doesn't contains needed imports or contains forbidden instructions.
-    CheckError,
+    /// The provided code doesn't contain required import section.
+    ImportSectionNotFound,
+    /// The provided code doesn't contain memory entry section.
+    MemoryEntryNotFound,
     /// Error occurred during decoding original program code.
     ///
     /// The provided code was a malformed Wasm bytecode or contained unsupported features
@@ -48,26 +49,13 @@ pub enum CodeError {
     Encode,
 }
 
-use crate::memory::WasmPageNumber;
-
 /// Contains instrumented binary code of a program and initial memory size from memory import.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct Code {
     /// Code instrumented with the latest schedule.
     code: Vec<u8>,
     /// The uninstrumented, original version of the code.
-    ///
-    /// It is not stored because the original code has its own storage item. The value
-    /// is only `Some` when this module was created from an `original_code` and `None` if
-    /// it was loaded from storage.
-    #[codec(skip)]
-    original_code: Option<Vec<u8>>,
-    /// The code hash of the stored code which is defined as the hash over the `original_code`.
-    ///
-    /// As the map key there is no need to store the hash in the value, too. It is set manually
-    /// when loading the code from storage.
-    #[codec(skip)]
-    code_hash: CodeId,
+    raw_code: Vec<u8>,
     static_pages: WasmPageNumber,
     #[codec(compact)]
     instruction_weights_version: u32,
@@ -75,11 +63,54 @@ pub struct Code {
 
 impl Code {
     /// Create the code by checking and instrumenting `original_code`.
-    pub fn try_new(
+    pub fn try_new<R, GetRulesFn>(
+        raw_code: Vec<u8>,
+        version: u32,
+        mut get_gas_rules: GetRulesFn,
+    ) -> Result<Self, CodeError>
+    where
+        R: Rules,
+        GetRulesFn: FnMut(&Module) -> R,
+    {
+        let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&raw_code)
+            .map_err(|_| CodeError::Decode)?;
+
+        // get initial memory size from memory import.
+        let static_pages = WasmPageNumber(
+            module
+                .import_section()
+                .ok_or(CodeError::ImportSectionNotFound)?
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    parity_wasm::elements::External::Memory(mem_ty) => {
+                        Some(mem_ty.limits().initial())
+                    }
+                    _ => None,
+                })
+                .ok_or(CodeError::MemoryEntryNotFound)?,
+        );
+
+        let gas_rules = get_gas_rules(&module);
+        let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
+            .map_err(|_| CodeError::GasInjection)?;
+
+        let instrumented = wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+            .map_err(|_| CodeError::Encode)?;
+
+        Ok(Self {
+            code: instrumented,
+            raw_code,
+            static_pages,
+            instruction_weights_version: version,
+        })
+    }
+
+    /// Create the code without checks.
+    pub fn new_raw(
         original_code: Vec<u8>,
         version: u32,
         module: Option<Module>,
-        gas_rules: impl Rules,
     ) -> Result<Self, CodeError> {
         let module = module.unwrap_or(
             wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
@@ -90,7 +121,7 @@ impl Code {
         let static_pages = WasmPageNumber(
             module
                 .import_section()
-                .ok_or(CodeError::CheckError)?
+                .ok_or(CodeError::ImportSectionNotFound)?
                 .entries()
                 .iter()
                 .find_map(|entry| match entry.external() {
@@ -99,44 +130,25 @@ impl Code {
                     }
                     _ => None,
                 })
-                .ok_or(CodeError::CheckError)?,
+                .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-            .map_err(|_| CodeError::GasInjection)?;
-
-        let instrumented = wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-            .map_err(|_| CodeError::Encode)?;
-
-        let code_hash = CodeId::generate(&original_code);
-
         Ok(Self {
-            original_code: Some(original_code),
-            code: instrumented,
+            raw_code: original_code.clone(),
+            code: original_code,
             static_pages,
             instruction_weights_version: version,
-            code_hash,
         })
     }
 
     /// Returns the original code.
-    pub fn original_code(&self) -> Option<&Vec<u8>> {
-        self.original_code.as_ref()
+    pub fn raw_code(&self) -> &[u8] {
+        &self.raw_code
     }
 
     /// Returns reference to the instrumented binary code.
     pub fn code(&self) -> &[u8] {
         &self.code
-    }
-
-    /// Returns code hash.
-    pub fn code_hash(&self) -> CodeId {
-        self.code_hash
-    }
-
-    /// Set code hash.
-    pub fn set_code_hash(&mut self, code_hash: CodeId) {
-        self.code_hash = code_hash;
     }
 
     /// Returns instruction weights version.
@@ -147,5 +159,115 @@ impl Code {
     /// Returns initial memory size from memory import.
     pub fn static_pages(&self) -> WasmPageNumber {
         self.static_pages
+    }
+
+    /// Consumes this instance and returns the instrumented and raw binary codes.
+    pub fn into_parts(self) -> (InstrumentedCode, Vec<u8>) {
+        (
+            InstrumentedCode {
+                code: self.code,
+                static_pages: self.static_pages,
+                version: self.instruction_weights_version,
+            },
+            self.raw_code,
+        )
+    }
+}
+
+/// The newtype contains the Code instance and the corresponding id (hash).
+#[derive(Clone, Debug)]
+pub struct CodeAndId {
+    code: Code,
+    code_id: CodeId,
+}
+
+impl CodeAndId {
+    /// Calculates the id (hash) of the raw binary code and creates new instance.
+    pub fn new(code: Code) -> Self {
+        let code_id = CodeId::generate(code.raw_code());
+        Self { code, code_id }
+    }
+
+    /// Creates the instance from the precalculated hash without checks.
+    pub fn from_parts_unchecked(code: Code, code_id: CodeId) -> Self {
+        assert_eq!(code_id, CodeId::generate(code.raw_code()));
+        Self { code, code_id }
+    }
+
+    /// Returns corresponding id (hash) for the code.
+    pub fn code_id(&self) -> CodeId {
+        self.code_id
+    }
+
+    /// Returns reference to Code.
+    pub fn code(&self) -> &Code {
+        &self.code
+    }
+
+    /// Decomposes this instance.
+    pub fn into_parts(self) -> (Code, CodeId) {
+        (self.code, self.code_id)
+    }
+}
+
+/// The newtype contains the instrumented code and the corresponding id (hash).
+#[derive(Clone, Debug, Decode, Encode, TypeInfo)]
+pub struct InstrumentedCode {
+    code: Vec<u8>,
+    static_pages: WasmPageNumber,
+    version: u32,
+}
+
+impl InstrumentedCode {
+    /// Returns reference to the instrumented binary code.
+    pub fn code(&self) -> &[u8] {
+        &self.code
+    }
+
+    /// Returns instruction weights version.
+    pub fn instruction_weights_version(&self) -> u32 {
+        self.version
+    }
+
+    /// Returns initial memory size from memory import.
+    pub fn static_pages(&self) -> WasmPageNumber {
+        self.static_pages
+    }
+
+    /// Consumes the instance and returns the instrumented code.
+    pub fn into_code(self) -> Vec<u8> {
+        self.code
+    }
+}
+
+/// The newtype contains the instrumented code and the corresponding id (hash).
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct InstrumentedCodeAndId {
+    code: InstrumentedCode,
+    code_id: CodeId,
+}
+
+impl InstrumentedCodeAndId {
+    /// Returns reference to the instrumented code.
+    pub fn code(&self) -> &InstrumentedCode {
+        &self.code
+    }
+
+    /// Returns corresponding id (hash) for the code.
+    pub fn code_id(&self) -> CodeId {
+        self.code_id
+    }
+
+    /// Consumes the instance and returns the instrumented code.
+    pub fn into_parts(self) -> (InstrumentedCode, CodeId) {
+        (self.code, self.code_id)
+    }
+}
+
+impl From<CodeAndId> for InstrumentedCodeAndId {
+    fn from(code_and_id: CodeAndId) -> Self {
+        let (code, code_id) = code_and_id.into_parts();
+        let (code, _) = code.into_parts();
+        Self { code, code_id }
     }
 }

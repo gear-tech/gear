@@ -18,6 +18,7 @@
 
 //! Environment for running a module.
 
+use crate::costs::RuntimeCosts;
 use crate::memory::{Memory, WasmPageNumber};
 use crate::{
     ids::{MessageId, ProgramId},
@@ -51,14 +52,14 @@ pub trait Ext {
     ) -> Result<WasmPageNumber, &'static str>;
 
     /// Get the current block height.
-    fn block_height(&self) -> u32;
+    fn block_height(&mut self) -> Result<u32, &'static str>;
 
     /// Get the current block timestamp.
-    fn block_timestamp(&self) -> u64;
+    fn block_timestamp(&mut self) -> Result<u64, &'static str>;
 
     /// Get the id of the user who initiated communication with blockchain,
     /// during which, currently processing message was created.
-    fn origin(&self) -> ProgramId;
+    fn origin(&mut self) -> Result<ProgramId, &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
@@ -87,19 +88,19 @@ pub trait Ext {
     }
 
     /// Read the message id, if current message is a reply.
-    fn reply_to(&self) -> Option<(MessageId, ExitCode)>;
+    fn reply_to(&mut self) -> Result<Option<(MessageId, ExitCode)>, &'static str>;
 
     /// Get the source of the message currently being handled.
-    fn source(&mut self) -> ProgramId;
+    fn source(&mut self) -> Result<ProgramId, &'static str>;
 
     /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self, value_destination: ProgramId) -> Result<(), &'static str>;
 
     /// Get the id of the message currently being handled.
-    fn message_id(&mut self) -> MessageId;
+    fn message_id(&mut self) -> Result<MessageId, &'static str>;
 
     /// Get the id of program itself
-    fn program_id(&self) -> ProgramId;
+    fn program_id(&mut self) -> Result<ProgramId, &'static str>;
 
     /// Free specific memory page.
     ///
@@ -118,20 +119,26 @@ pub trait Ext {
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
-    /// Charge some gas.
+    /// Default gas host call.
+    fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Charge some extra gas.
     fn charge_gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Charge gas by `RuntimeCosts` token.
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), &'static str>;
 
     /// Refund some gas.
     fn refund_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
     /// Tell how much gas is left in running context.
-    fn gas_available(&self) -> u64;
+    fn gas_available(&mut self) -> Result<u64, &'static str>;
 
     /// Value associated with message.
-    fn value(&self) -> u128;
+    fn value(&mut self) -> Result<u128, &'static str>;
 
     /// Tell how much value is left in running context.
-    fn value_available(&self) -> u128;
+    fn value_available(&mut self) -> Result<u128, &'static str>;
 
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
@@ -143,63 +150,100 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str>;
 }
 
-/// Struct for interacting with Ext
-pub struct LaterExt<E: Ext> {
-    inner: Rc<RefCell<Option<E>>>,
-}
+/// Struct for interacting with Ext.
+pub struct ExtCarrier<E: Ext>(Rc<RefCell<Option<E>>>);
 
-impl<E: Ext> Clone for LaterExt<E> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: Rc::clone(&self.inner),
-        }
-    }
-}
-
-impl<E: Ext> LaterExt<E> {
-    /// New ext
+impl<E: Ext> ExtCarrier<E> {
+    /// New ext carrier.
     pub fn new(e: E) -> Self {
-        Self {
-            inner: Rc::new(RefCell::new(Some(e))),
-        }
+        Self(Rc::new(RefCell::new(Some(e))))
     }
 
-    /// Call fn with inner ext
+    /// Unwraps hidden `E` value.
+    ///
+    /// The `expect` call in the function is considered safe because:
+    /// 1. Type can be instantiated only once from `new`, inner value is set only once.
+    /// 2. No type clones are possible for external users
+    /// (so can't take ownership over the same data twice)
+    /// 3. Conversion to inner value can be done only once, method consumes value.
+    pub fn into_inner(self) -> E {
+        self.0
+            .take()
+            .expect("can be called only once during instance consumption; qed")
+    }
+
+    /// Calls infallible fn with inner ext.
     pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         self.with_fallible(|e| Ok(f(e)))
     }
 
-    /// Call fn with inner ext
+    /// Calls fallible fn with inner ext.
     pub fn with_fallible<R>(
         &self,
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
-        let mut brw = self.inner.borrow_mut();
-        let mut ext = brw
-            .take()
+        let mut brw = self.0.borrow_mut();
+        let ext = brw
+            .as_mut()
             .ok_or("with should be called only when inner is set")?;
-        let res = f(&mut ext);
 
-        *brw = Some(ext);
-
-        res
+        f(ext)
     }
 
-    /// Unset inner ext
-    pub fn take(self) -> Option<E> {
-        self.inner.borrow_mut().take()
+    /// Creates clone for the current reference.
+    ///
+    /// Clone type differs from the [`ExtCarrier`]. For rationale see [`ClonedExtCarrier`] docs.
+    pub fn cloned(&self) -> ClonedExtCarrier<E> {
+        let clone = Self(Rc::clone(&self.0));
+        ClonedExtCarrier(clone)
+    }
+}
+
+/// [`ExtCarrier`]'s clone.
+///
+/// Could be instantiated only by calling [`ExtCarrier::cloned`] method.
+///
+/// Carriers of the [`crate::env`] module are actually wrappers over [`Rc`]. If we use [`Rc::clone`] we won't have a guarantee
+/// that [`ExtCarrier::into_inner`] can't be called twice and more on the same data, which potentially leads to panic.
+/// In order to give that guarantee, we mustn't provide an opportunity to unset `Ext` (by calling `into_inner`) on clones.
+/// So this idea is implemented with [`ClonedExtCarrier`], which is the clone of [`ExtCarrier`], but with no ability to consume value
+/// to get ownership over the wrapped [`Ext`].
+pub struct ClonedExtCarrier<E: Ext>(ExtCarrier<E>);
+
+impl<E: Ext> ClonedExtCarrier<E> {
+    /// Calls infallible fn with inner ext
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+        self.0.with(f)
+    }
+
+    /// Calls fallible fn with inner ext
+    pub fn with_fallible<R>(
+        &self,
+        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
+    ) -> Result<R, &'static str> {
+        self.0.with_fallible(f)
+    }
+}
+
+impl<E: Ext> Clone for ClonedExtCarrier<E> {
+    fn clone(&self) -> Self {
+        self.0.cloned()
     }
 }
 
 #[cfg(test)]
-/// This module contains tests of interacting with LaterExt
 mod tests {
-    // todo #841 remove most of tests
-
     use super::*;
 
-    /// Struct with internal value to interact with LaterExt
-    #[derive(Debug, PartialEq)]
+    // Test function of format `Fn(&mut E: Ext) -> R`
+    // to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
+    // For example, returns the field of ext's inner value.
+    fn converter(e: &mut ExtImplementedStruct) -> u8 {
+        e.0
+    }
+
+    /// Struct with internal value to interact with ExtCarrier
+    #[derive(Debug, PartialEq, Clone, Copy)]
     struct ExtImplementedStruct(u8);
 
     /// Empty Ext implementation for test struct
@@ -211,14 +255,14 @@ mod tests {
         ) -> Result<WasmPageNumber, &'static str> {
             Err("")
         }
-        fn block_height(&self) -> u32 {
-            0
+        fn block_height(&mut self) -> Result<u32, &'static str> {
+            Ok(0)
         }
-        fn block_timestamp(&self) -> u64 {
-            0
+        fn block_timestamp(&mut self) -> Result<u64, &'static str> {
+            Ok(0)
         }
-        fn origin(&self) -> ProgramId {
-            ProgramId::from(0)
+        fn origin(&mut self) -> Result<ProgramId, &'static str> {
+            Ok(ProgramId::from(0))
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {
             Ok(0)
@@ -239,20 +283,20 @@ mod tests {
         ) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
         }
-        fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-            None
+        fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, &'static str> {
+            Ok(None)
         }
-        fn source(&mut self) -> ProgramId {
-            ProgramId::from(0)
+        fn source(&mut self) -> Result<ProgramId, &'static str> {
+            Ok(ProgramId::from(0))
         }
         fn exit(&mut self, _value_destination: ProgramId) -> Result<(), &'static str> {
             Ok(())
         }
-        fn message_id(&mut self) -> MessageId {
-            0.into()
+        fn message_id(&mut self) -> Result<MessageId, &'static str> {
+            Ok(0.into())
         }
-        fn program_id(&self) -> ProgramId {
-            0.into()
+        fn program_id(&mut self) -> Result<ProgramId, &'static str> {
+            Ok(0.into())
         }
         fn free(&mut self, _page: WasmPageNumber) -> Result<(), &'static str> {
             Ok(())
@@ -263,20 +307,26 @@ mod tests {
         fn msg(&mut self) -> &[u8] {
             &[]
         }
+        fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
+        }
         fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), &'static str> {
             Ok(())
         }
         fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
-        fn gas_available(&self) -> u64 {
-            1_000_000
+        fn gas_available(&mut self) -> Result<u64, &'static str> {
+            Ok(1_000_000)
         }
-        fn value(&self) -> u128 {
-            0
+        fn value(&mut self) -> Result<u128, &'static str> {
+            Ok(0)
         }
-        fn value_available(&self) -> u128 {
-            1_000_000
+        fn value_available(&mut self) -> Result<u128, &'static str> {
+            Ok(1_000_000)
         }
         fn leave(&mut self) -> Result<(), &'static str> {
             Ok(())
@@ -293,57 +343,74 @@ mod tests {
     }
 
     #[test]
-    /// Test that we are able to set and unset LaterExt value
-    fn setting_and_unsetting_inner_ext() {
-        let ext = LaterExt::new(ExtImplementedStruct(0));
+    fn create_and_unwrap_ext_carrier() {
+        let ext_implementer = ExtImplementedStruct(0);
+        let ext = ExtCarrier::new(ext_implementer);
 
+        assert_eq!(ext.0, Rc::new(RefCell::new(Some(ext_implementer))));
+
+        let inner = ext.into_inner();
+
+        assert_eq!(inner, ext_implementer);
+    }
+
+    #[test]
+    fn calling_fn_within_inner_ext() {
+        let ext_implementer = ExtImplementedStruct(0);
+        let ext = ExtCarrier::new(ext_implementer);
+        let ext_clone = ext.cloned();
+
+        assert!(ext.with(converter).is_ok());
+        assert!(ext_clone.with(converter).is_ok());
+    }
+
+    #[test]
+    fn calling_fn_when_ext_unwrapped() {
+        let ext = ExtCarrier::new(ExtImplementedStruct(0));
+        let ext_clone = ext.cloned();
+
+        let _ = ext.into_inner();
         assert_eq!(
-            ext.inner,
-            Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
+            ext_clone.with(converter).unwrap_err(),
+            "with should be called only when inner is set"
         );
+    }
 
-        let inner = ext.take();
+    #[test]
+    fn calling_fn_when_dropped_ext() {
+        let ext = ExtCarrier::new(ExtImplementedStruct(0));
+        let ext_clone = ext.cloned();
 
-        assert_eq!(inner, Some(ExtImplementedStruct(0)));
+        drop(ext);
+
+        assert!(ext_clone.with(converter).is_ok());
     }
 
     #[test]
     #[allow(clippy::redundant_clone)]
     /// Test that ext's clone still refers to the same inner object as the original one
     fn ext_cloning() {
-        let ext_source = LaterExt::new(ExtImplementedStruct(0));
-        let ext_clone = ext_source.clone();
+        let ext_implementer = ExtImplementedStruct(0);
+        let ext = ExtCarrier::new(ext_implementer);
+        let ext_clone = ext.cloned();
 
-        // ext_clone refers the same inner as ext_source,
-        let inner = ext_clone.take();
-
-        assert_eq!(inner, Some(ExtImplementedStruct(0)));
-    }
-
-    /// Test function of format `Fn(&mut E: Ext) -> R`
-    /// to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
-    /// For example, returns the field of ext's inner value.
-    fn converter(e: &mut ExtImplementedStruct) -> u8 {
-        e.0
+        assert_eq!(ext_clone.0 .0, Rc::new(RefCell::new(Some(ext_implementer))));
     }
 
     #[test]
-    /// Test that ext's `with<R>(...)` works correct when the inner is set
-    fn calling_fn_with_inner_ext() {
-        let ext = LaterExt::new(ExtImplementedStruct(0));
+    fn unwrap_ext_with_dropped_clones() {
+        let ext_implementer = ExtImplementedStruct(0);
+        let ext = ExtCarrier::new(ext_implementer);
+        let ext_clone1 = ext.cloned();
+        let ext_clone2 = ext_clone1.clone();
 
-        let converted_inner = ext.with(converter);
+        drop(ext_clone1);
 
-        assert!(converted_inner.is_ok());
-    }
+        assert!(ext_clone2.with(converter).is_ok());
 
-    #[test]
-    // TODO #841 Change to `should_panic` test
-    fn taking_ext_clone() {
-        let original_ext = LaterExt::new(ExtImplementedStruct(0));
-        let cloned_ext = original_ext.clone();
+        drop(ext_clone2);
 
-        assert!(original_ext.take().is_some());
-        assert!(cloned_ext.take().is_none());
+        let inner = ext.into_inner();
+        assert_eq!(ext_implementer, inner);
     }
 }
