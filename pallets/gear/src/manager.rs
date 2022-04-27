@@ -21,7 +21,7 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program};
+use common::{ActiveProgram, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -29,9 +29,8 @@ use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
 };
 use gear_core::{
-    code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageNumber, WasmPageNumber},
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
@@ -40,7 +39,7 @@ use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
+use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config> {
     // Messages with these destinations will be forcibly pushed to the queue.
@@ -71,35 +70,48 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn get_actor_balance(id: H256) -> u128 {
-        <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-            .unique_saturated_into()
-    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
-        let program = common::get_program(id)
-            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
+        let program = common::get_program(id).and_then(|p| {
+            let is_initialized = p.is_initialized();
+            p.try_into().ok().and_then(|p: ActiveProgram| {
+                let code_id = CodeId::from_origin(p.code_hash);
+                T::CodeStorage::get_code(code_id).map(|c| {
+                    NativeProgram::from_parts(
+                        ProgramId::from_origin(id),
+                        c,
+                        p.persistent_pages,
+                        is_initialized,
+                    )
+                })
+            })
+        })?;
 
-        let balance = Self::get_actor_balance(id);
+        let balance =
+            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+                .unique_saturated_into();
 
         Some(ExecutableActor { program, balance })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code: Code, message_id: H256) {
-        let code_hash: H256 = code.code_hash().into_origin();
+    pub fn set_program(
+        &self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        static_pages: WasmPageNumber,
+        message_id: H256,
+    ) {
         assert!(
-            common::code_exists(code_hash),
+            T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",
         );
 
-        let program = NativeProgram::new(program_id, code);
-
         // An empty program has been just constructed: it contains no persistent pages.
         let program = common::ActiveProgram {
-            static_pages: program.static_pages(),
+            static_pages,
             persistent_pages: Default::default(),
-            code_hash,
+            code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
         };
 
@@ -489,13 +501,15 @@ where
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        let code_hash = <[u8; 32]>::from(code_id).into();
-
-        if let Some(mut code) = common::get_code(code_hash) {
-            code.set_code_hash(code_id);
+        if let Some(code) = T::CodeStorage::get_code(code_id) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    self.set_program(candidate_id, code.clone(), init_message.into_origin());
+                    self.set_program(
+                        candidate_id,
+                        code_id,
+                        code.static_pages(),
+                        init_message.into_origin(),
+                    );
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -503,7 +517,7 @@ where
         } else {
             log::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
             for (candidate, _) in candidates {
                 self.marked_destinations.insert(candidate);

@@ -23,11 +23,9 @@ use common::{self, DAGBasedLedger, Origin as _};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::{
-    code::Code,
     ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
-use hex_literal::hex;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
     Duration,
@@ -506,29 +504,8 @@ fn trap_reply_message_is_sent() {
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
-        let program_1 = gear_core::program::Program::new(
-            1.into(),
-            Code::try_new(
-                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
-            .expect("Error creating Code"),
-        );
-        crate::mock::set_program(program_1);
-
-        let program_2 = gear_core::program::Program::new(
-            2.into(),
-            Code::try_new(
-                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
-            .expect("Error creating Code"),
-        );
-        crate::mock::set_program(program_2);
+        let _program_1 = crate::mock::set_program::<Test>(1.into(), [0; 32].into(), 10);
+        let _program_2 = crate::mock::set_program::<Test>(2.into(), [0; 32].into(), 10);
 
         run_to_block(15);
 
@@ -687,29 +664,8 @@ fn gas_properly_handled_for_trap_replies() {
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
-        let program_1 = gear_core::program::Program::new(
-            1.into(),
-            Code::try_new(
-                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
-            .expect("Error creating Code"),
-        );
-        crate::mock::set_program(program_1);
-
-        let program_2 = gear_core::program::Program::new(
-            2.into(),
-            Code::try_new(
-                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-                1,
-                None,
-                wasm_instrument::gas_metering::ConstantCostRules::default(),
-            )
-            .expect("Error creating Code"),
-        );
-        crate::mock::set_program(program_2);
+        let _program_1 = crate::mock::set_program::<Test>(1.into(), [0; 32].into(), 10);
+        let _program_2 = crate::mock::set_program::<Test>(2.into(), [0; 32].into(), 10);
 
         run_to_block(15);
 

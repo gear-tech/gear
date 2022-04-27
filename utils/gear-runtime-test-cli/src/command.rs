@@ -33,7 +33,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 
-use gear_common::{DAGBasedLedger, Origin as _};
+use gear_common::{CodeStorage, DAGBasedLedger, Origin as _};
 use gear_test::sample::ChainProgram;
 use gear_test::{
     check::read_test_from_file,
@@ -369,8 +369,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .filter_map(|p| {
                         if let ProgramState::Active(info) = &p.state {
                             if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
-                                let code = gear_common::get_code(info.code_hash)
-                                    .expect("code should be in the storage");
+                                let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(
+                                    CodeId::from_origin(info.code_hash),
+                                )
+                                .expect("code should be in the storage");
                                 Some(CoreProgram::from_parts(
                                     *pid,
                                     code,
