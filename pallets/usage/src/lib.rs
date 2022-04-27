@@ -25,6 +25,9 @@ use common::DAGBasedLedger;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+use frame_support::{traits::StorageVersion, weights::Weight};
+
+pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -36,6 +39,9 @@ mod tests;
 mod offchain;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
+
+/// The current storage version.
+const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -108,6 +114,7 @@ pub mod pallet {
     >>::Balance;
 
     #[pallet::pallet]
+    #[pallet::storage_version(USAGE_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 

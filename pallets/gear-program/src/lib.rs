@@ -26,8 +26,11 @@ use sp_std::collections::btree_map::BTreeMap;
 use sp_std::convert::TryInto;
 use sp_std::prelude::*;
 
-mod code;
+use frame_support::{
+    dispatch::DispatchResultWithPostInfo, traits::StorageVersion, weights::Weight,
+};
 
+mod code;
 mod pause;
 pub use pause::PauseError;
 
@@ -39,10 +42,14 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migration;
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+/// The current storage version.
+const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -75,6 +82,7 @@ pub mod pallet {
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
+    #[pallet::storage_version(PROGRAM_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
