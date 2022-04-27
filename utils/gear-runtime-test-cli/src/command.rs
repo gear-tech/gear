@@ -18,38 +18,39 @@
 
 #![allow(unused_must_use)]
 
-use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use crate::util::{get_dispatch_queue, new_test_ext, process_queue};
-use crate::GearRuntimeTestCmd;
+use crate::{
+    util::{get_dispatch_queue, new_test_ext, process_queue},
+    GearRuntimeTestCmd,
+};
 use colored::{ColoredString, Colorize};
-
-use gear_runtime::{Origin, Runtime};
-
+use gear_common::{
+    storage::{Messenger, StorageDeck},
+    DAGBasedLedger, Origin as _,
+};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
-
-use gear_common::{DAGBasedLedger, Origin as _};
-use gear_test::sample::ChainProgram;
+use gear_runtime::{Origin, Runtime};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
     proc::*,
-    sample,
-    sample::PayloadVariant,
+    sample::{self, ChainProgram, PayloadVariant},
 };
 use pallet_gear::Pallet as GearPallet;
 use pallet_gear_debug::{DebugData, ProgramState};
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
-use sp_runtime::app_crypto::UncheckedFrom;
-use sp_runtime::AccountId32;
+use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
+use std::{
+    collections::BTreeMap,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -269,11 +270,16 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         value,
                         None,
                     );
-                    gear_common::queue_dispatch(StoredDispatch::new(
+
+                    <MessengerPallet<Runtime> as Messenger>::Queue::push_back(StoredDispatch::new(
                         DispatchKind::Handle,
                         msg,
                         None,
-                    ));
+                    ))
+                    .unwrap_or_else(|_| {
+                        // Can be called only in case of storage corruption
+                        unreachable!();
+                    });
                 } else {
                     GearPallet::<Runtime>::send_message(
                         Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),

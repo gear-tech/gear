@@ -18,14 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[macro_use]
-extern crate alloc;
-
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
 pub mod weights;
 
 #[cfg(test)]
@@ -37,7 +32,11 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Origin, Program};
+    use common::{
+        self,
+        storage::{Messenger, StorageDeck},
+        Origin, Program,
+    };
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
@@ -48,12 +47,13 @@ pub mod pallet {
         memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
+    use pallet_gear_messenger::Pallet as MessengerPallet;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_gear_messenger::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::Event>
@@ -149,24 +149,14 @@ pub mod pallet {
 
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-            let mut dispatch_queue = vec![];
-
-            if let Some(head) = sp_io::storage::get(&mq_head_key) {
-                let mut next_id = H256::from_slice(&head[..]);
-                loop {
-                    let next_node_key =
-                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                        let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        dispatch_queue.push(current_node.value);
-                        match current_node.next {
-                            Some(h) => next_id = h,
-                            None => break,
-                        }
-                    }
-                }
-            }
+            let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
+                .map(|v| {
+                    v.unwrap_or_else(|_| {
+                        // Can be called only in case of storage corruption
+                        unreachable!();
+                    })
+                })
+                .collect();
 
             let programs = PrefixIterator::<(H256, Program)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
@@ -209,58 +199,52 @@ pub mod pallet {
 
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
-            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
 
-            if let Some(head) = sp_io::storage::get(&mq_head_key) {
-                let mut next_id = H256::from_slice(&head[..]);
-                loop {
-                    let next_node_key =
-                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                        let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        for (k, v) in programs_map.iter() {
-                            if *k == current_node.value.destination().into_origin() {
-                                current_node.value = StoredDispatch::new(
-                                    current_node.value.kind(),
-                                    StoredMessage::new(
-                                        current_node.value.id(),
-                                        current_node.value.source(),
-                                        ProgramId::from_origin(*v),
-                                        (*current_node.value.payload()).to_vec(),
-                                        current_node.value.value(),
-                                        current_node.value.reply(),
-                                    ),
-                                    current_node.value.context().clone(),
-                                );
+            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|dispatch| {
+                let mut dispatch = dispatch;
 
-                                sp_io::storage::set(&next_node_key, &current_node.encode());
-                            }
+                for (k, v) in programs_map.iter() {
+                    dispatch = if *k == dispatch.destination().into_origin() {
+                        StoredDispatch::new(
+                            dispatch.kind(),
+                            StoredMessage::new(
+                                dispatch.id(),
+                                dispatch.source(),
+                                ProgramId::from_origin(*v),
+                                (*dispatch.payload()).to_vec(),
+                                dispatch.value(),
+                                dispatch.reply(),
+                            ),
+                            dispatch.context().clone(),
+                        )
+                    } else {
+                        dispatch
+                    };
 
-                            if *v == current_node.value.source().into_origin() {
-                                current_node.value = StoredDispatch::new(
-                                    current_node.value.kind(),
-                                    StoredMessage::new(
-                                        current_node.value.id(),
-                                        ProgramId::from_origin(*k),
-                                        current_node.value.destination(),
-                                        (*current_node.value.payload()).to_vec(),
-                                        current_node.value.value(),
-                                        current_node.value.reply(),
-                                    ),
-                                    current_node.value.context().clone(),
-                                );
-
-                                sp_io::storage::set(&next_node_key, &current_node.encode());
-                            }
-                        }
-
-                        match current_node.next {
-                            Some(h) => next_id = h,
-                            None => break,
-                        }
-                    }
+                    dispatch = if *v == dispatch.source().into_origin() {
+                        StoredDispatch::new(
+                            dispatch.kind(),
+                            StoredMessage::new(
+                                dispatch.id(),
+                                ProgramId::from_origin(*k),
+                                dispatch.destination(),
+                                (*dispatch.payload()).to_vec(),
+                                dispatch.value(),
+                                dispatch.reply(),
+                            ),
+                            dispatch.context().clone(),
+                        )
+                    } else {
+                        dispatch
+                    };
                 }
-            }
+
+                dispatch
+            })
+            .unwrap_or_else(|_| {
+                // Can be called only in case of storage corruption
+                unreachable!();
+            });
         }
     }
 

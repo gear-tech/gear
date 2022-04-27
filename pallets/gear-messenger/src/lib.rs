@@ -55,9 +55,7 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::event]
-    pub enum Event<T> {
-        EmptyForNow,
-    }
+    pub enum Event<T> {}
 
     #[pallet::error]
     pub enum Error<T> {

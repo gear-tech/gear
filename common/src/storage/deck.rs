@@ -191,6 +191,53 @@ pub trait StorageDeck: Sized {
     fn iter() -> StorageDeckIterator<Self, Self::Error> {
         StorageDeckIterator(Self::HeadKey::get(), Default::default())
     }
+
+    fn clear() -> Result<(), Self::Error> {
+        let _ = Self::TailKey::remove();
+        let mut next_opt = Self::HeadKey::remove();
+
+        while let Some(next) = next_opt {
+            if let Some(node) = Self::Elements::remove(next) {
+                next_opt = node.next;
+            } else {
+                return Err(DeckError::ElementNotFound.into());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn mutate_all(
+        mutator: impl FnOnce(Self::Value) -> Self::Value + Copy,
+    ) -> Result<(), Self::Error> {
+        let mut next_opt = Self::HeadKey::get();
+
+        while let Some(next) = next_opt {
+            if let Some(mut node) = Self::Elements::remove(next.clone()) {
+                next_opt = node.next.clone();
+
+                node.value = mutator(node.value);
+
+                Self::Elements::set(next, node);
+            } else {
+                return Err(DeckError::ElementNotFound.into());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn is_empty() -> Result<bool, Self::Error> {
+        let head = Self::HeadKey::get();
+        let tail = Self::TailKey::get();
+
+        match (head, tail) {
+            (Some(_), Some(_)) => Ok(false),
+            (None, None) => Ok(true),
+            (Some(_), None) => Err(DeckError::TailWasEmptyWhileHeadNot.into()),
+            (None, Some(_)) => Err(DeckError::HeadWasEmptyWhileTailNot.into()),
+        }
+    }
 }
 
 /// Iterator over given StorageDeck implementation.

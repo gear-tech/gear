@@ -213,6 +213,8 @@ pub mod pallet {
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
+        /// Messages storage corrupted.
+        MessagesStorageCorrupted,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -289,10 +291,10 @@ pub mod pallet {
 
             // Adjust the block gas allowance based on actual remaining weight
             GasPallet::<T>::update_gas_allowance(
-                remaining_weight.saturating_sub(T::DbWeight::get().writes(4)),
+                remaining_weight.saturating_sub(T::DbWeight::get().writes(1)),
             );
 
-            let weight = T::DbWeight::get().writes(4);
+            let weight = T::DbWeight::get().writes(1);
             weight.saturating_add(Self::process_queue())
         }
     }
@@ -426,8 +428,11 @@ pub mod pallet {
 
             let dispatch = dispatch.into_stored();
 
-            common::clear_dispatch_queue();
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::clear()
+                .map_err(|_| b"Failed to clear MQ".to_vec())?;
+
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .map_err(|_| b"Messages storage corrupted".to_vec())?;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -439,7 +444,9 @@ pub mod pallet {
 
             let mut max_gas_spent = 0;
 
-            while let Some(queued_dispatch) = common::dequeue_dispatch() {
+            while let Some(queued_dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+                .map_err(|_| b"MQ storage corrupted".to_vec())?
+            {
                 let actor_id = queued_dispatch.destination();
                 let actor = ext_manager
                     .get_executable_actor(actor_id.into_origin())
@@ -543,7 +550,12 @@ pub mod pallet {
             }
 
             while <MessengerPallet<T> as Messenger>::QueueProcessing::allowed() {
-                if let Some(dispatch) = common::dequeue_dispatch() {
+                if let Some(dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+                    .unwrap_or_else(|_| {
+                        // Can be called only in case of storage corruption
+                        unreachable!();
+                    })
+                {
                     let msg_id = dispatch.id().into_origin();
                     let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
                         limit
@@ -555,7 +567,11 @@ pub mod pallet {
                             dispatch.destination(),
                         );
 
-                        common::queue_dispatch(dispatch);
+                        <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                            .unwrap_or_else(|_| {
+                                // Can be called only in case of storage corruption
+                                unreachable!();
+                            });
 
                         // Since we requeue the message without GasHandler we have to take
                         // into account that there can left only such messages in the queue.
@@ -913,7 +929,8 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id,
@@ -999,9 +1016,10 @@ pub mod pallet {
                 let origin = who.into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
-                common::queue_dispatch(
+                <MessengerPallet<T> as Messenger>::Queue::push_back(
                     message.into_stored_dispatch(ProgramId::from_origin(origin)),
-                );
+                )
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id: message_id.into_origin(),
@@ -1083,11 +1101,12 @@ pub mod pallet {
                 let origin = who.into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
-                common::queue_dispatch(message.into_stored_dispatch(
+                <MessengerPallet<T> as Messenger>::Queue::push_back(message.into_stored_dispatch(
                     ProgramId::from_origin(origin),
                     destination,
                     original_message.id(),
-                ));
+                ))
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id: message_id.into_origin(),
