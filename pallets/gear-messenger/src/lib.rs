@@ -109,17 +109,14 @@ pub mod pallet {
             Head::<T>::get()
         }
 
-        /// Mutates value in storage with given function.
         fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
             Head::<T>::mutate(f)
         }
 
-        /// Removes and returns value from storage.
         fn remove() -> Option<Self::Value> {
             Head::<T>::take()
         }
 
-        /// Sets given value in storage and returns previous one.
         fn set(value: Self::Value) -> Option<Self::Value> {
             Head::<T>::mutate(|v| v.replace(value))
         }
@@ -137,17 +134,14 @@ pub mod pallet {
             Tail::<T>::get()
         }
 
-        /// Mutates value in storage with given function.
         fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
             Tail::<T>::mutate(f)
         }
 
-        /// Removes and returns value from storage.
         fn remove() -> Option<Self::Value> {
             Tail::<T>::take()
         }
 
-        /// Sets given value in storage and returns previous one.
         fn set(value: Self::Value) -> Option<Self::Value> {
             Tail::<T>::mutate(|v| v.replace(value))
         }
@@ -187,27 +181,22 @@ pub mod pallet {
         type Key = MessageKey;
         type Value = Node<MessageKey, StoredDispatch>;
 
-        /// Checks if storage contains given key.
         fn contains(key: &Self::Key) -> bool {
             Dispatches::<T>::contains_key(key)
         }
 
-        /// Gets value from storage by key.
         fn get(key: &Self::Key) -> Option<Self::Value> {
             Dispatches::<T>::get(key)
         }
 
-        /// Mutates value in storage with given function by key.
         fn mutate<R>(key: Self::Key, f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
             Dispatches::<T>::mutate(key, f)
         }
 
-        /// Removes and returns value from storage by key.
         fn remove(key: Self::Key) -> Option<Self::Value> {
             Dispatches::<T>::take(key)
         }
 
-        /// Sets given value in storage and returns previous one by key.
         fn set(key: Self::Key, value: Self::Value) -> Option<Self::Value> {
             Dispatches::<T>::mutate(key, |v| v.replace(value))
         }
