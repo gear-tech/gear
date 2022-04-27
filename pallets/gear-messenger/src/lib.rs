@@ -42,12 +42,22 @@ pub mod pallet {
     use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// Because this pallet emits events, it depends on the runtime's definition of an event.
+        type Event: From<Event<Self>>
+            + IsType<<Self as frame_system::Config>::Event>
+            + TryInto<Event<Self>>;
+    }
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
+
+    #[pallet::event]
+    pub enum Event<T> {
+        EmptyForNow,
+    }
 
     #[pallet::error]
     pub enum Error<T> {

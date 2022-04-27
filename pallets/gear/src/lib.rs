@@ -70,7 +70,9 @@ pub mod pallet {
     use super::*;
 
     use alloc::format;
-    use common::{self, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState};
+    use common::{
+        self, storage::*, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+    };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
@@ -87,6 +89,8 @@ pub mod pallet {
         ids::{CodeId, MessageId, ProgramId},
         message::*,
     };
+    use pallet_gas::Pallet as GasPallet;
+    use pallet_gear_messenger::Pallet as MessengerPallet;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::traits::UniqueSaturatedInto;
@@ -101,6 +105,8 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_timestamp::Config
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
+        + pallet_gas::Config
+        + pallet_gear_messenger::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -120,10 +126,6 @@ pub mod pallet {
         /// Cost schedule and limits.
         #[pallet::constant]
         type Schedule: Get<Schedule<Self>>;
-
-        /// The maximum amount of gas that can be used within a single block.
-        #[pallet::constant]
-        type BlockGasLimit: Get<u64>;
 
         /// The cost for a message to spend one block in the wait list
         #[pallet::constant]
@@ -239,42 +241,6 @@ pub mod pallet {
         pub origin: H256,
     }
 
-    #[pallet::type_value]
-    pub fn DefaultForGasLimit<T: Config>() -> u64 {
-        T::BlockGasLimit::get()
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn gas_allowance)]
-    pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
-
-    #[pallet::type_value]
-    pub fn ZeroU128() -> u128 {
-        0
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn messages_sent)]
-    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery, ZeroU128>;
-
-    #[pallet::type_value]
-    pub fn ZeroU32() -> u32 {
-        0
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn total_handled)]
-    pub type TotalHandled<T: Config> = StorageValue<_, u32, ValueQuery, ZeroU32>;
-
-    #[pallet::type_value]
-    pub fn True() -> bool {
-        true
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn can_process_queue)]
-    pub type CanProcessQueue<T: Config> = StorageValue<_, bool, ValueQuery, True>;
-
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
@@ -295,9 +261,7 @@ pub mod pallet {
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             log::debug!(target: "runtime::gear::hooks", "🚧 Initialization of block #{:?}", bn);
 
-            // Reset block gas allowance
-            GasAllowance::<T>::put(T::BlockGasLimit::get());
-            T::DbWeight::get().writes(1)
+            0
         }
 
         /// Finalization
@@ -324,10 +288,10 @@ pub mod pallet {
             );
 
             // Adjust the block gas allowance based on actual remaining weight
-            MessagesSent::<T>::put(0);
-            TotalHandled::<T>::put(0);
-            CanProcessQueue::<T>::put(true);
-            GasAllowance::<T>::put(remaining_weight.saturating_sub(T::DbWeight::get().writes(3)));
+            GasPallet::<T>::update_gas_allowance(
+                remaining_weight.saturating_sub(T::DbWeight::get().writes(4)),
+            );
+
             let weight = T::DbWeight::get().writes(4);
             weight.saturating_add(Self::process_queue())
         }
@@ -456,7 +420,7 @@ pub mod pallet {
                 }
             };
 
-            let initial_gas = T::BlockGasLimit::get();
+            let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
                 .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
 
@@ -530,18 +494,6 @@ pub mod pallet {
             Ok(max_gas_spent)
         }
 
-        pub(crate) fn decrease_gas_allowance(gas_charge: u64) {
-            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
-        }
-
-        pub(crate) fn message_handled() {
-            TotalHandled::<T>::mutate(|x| *x = x.saturating_add(1));
-        }
-
-        pub(crate) fn stop_processing() {
-            CanProcessQueue::<T>::mutate(|x| *x = false);
-        }
-
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: H256) -> bool {
             common::get_program(program_id)
@@ -558,12 +510,12 @@ pub mod pallet {
 
         /// Returns MessageId for newly created user message.
         pub fn next_message_id(user_id: H256) -> H256 {
-            let nonce = Self::messages_sent();
-            MessagesSent::<T>::mutate(|x| *x = x.saturating_add(1));
+            let nonce = <MessengerPallet<T> as Messenger>::Sent::get();
+            <MessengerPallet<T> as Messenger>::Sent::increase();
             let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
             let user_id = ProgramId::from_origin(user_id);
 
-            MessageId::generate_from_user(block_number, user_id, nonce).into_origin()
+            MessageId::generate_from_user(block_number, user_id, nonce.into()).into_origin()
         }
 
         /// Message Queue processing.
@@ -576,7 +528,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let weight = Self::gas_allowance() as Weight;
+            let weight = GasPallet::<T>::gas_allowance() as Weight;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -590,7 +542,7 @@ pub mod pallet {
                 T::DebugInfo::remap_id();
             }
 
-            while Self::can_process_queue() {
+            while <MessengerPallet<T> as Messenger>::QueueProcessing::allowed() {
                 if let Some(dispatch) = common::dequeue_dispatch() {
                     let msg_id = dispatch.id().into_origin();
                     let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
@@ -609,8 +561,8 @@ pub mod pallet {
                         // into account that there can left only such messages in the queue.
                         // So stop processing when there is not enough gas/weight.
                         let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
-                        Self::decrease_gas_allowance(consumed);
-                        if Self::gas_allowance() < consumed {
+                        GasPallet::<T>::decrease_gas_allowance(consumed);
+                        if GasPallet::<T>::gas_allowance() < consumed {
                             break;
                         }
 
@@ -618,11 +570,11 @@ pub mod pallet {
                     };
 
                     log::debug!(
-                        "Processing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
+                        "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
                         dispatch.id(),
                         dispatch.destination(),
                         gas_limit,
-                        Self::gas_allowance(),
+                        GasPallet::<T>::gas_allowance(),
                     );
 
                     let program_id = dispatch.destination();
@@ -702,7 +654,7 @@ pub mod pallet {
                         existential_deposit,
                         ProgramId::from_origin(origin),
                         program_id,
-                        Self::gas_allowance(),
+                        GasPallet::<T>::gas_allowance(),
                     );
 
                     core_processor::handle_journal(journal, &mut ext_manager);
@@ -719,13 +671,13 @@ pub mod pallet {
                 }
             }
 
-            let total_handled = Self::total_handled();
+            let total_handled = <MessengerPallet<T> as Messenger>::Processed::get();
 
             if total_handled > 0 {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));
             }
 
-            weight.saturating_sub(Self::gas_allowance())
+            weight.saturating_sub(GasPallet::<T>::gas_allowance())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -894,7 +846,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= T::BlockGasLimit::get(),
+                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1005,7 +957,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= T::BlockGasLimit::get(),
+                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1096,7 +1048,7 @@ pub mod pallet {
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
-                gas_limit <= T::BlockGasLimit::get(),
+                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 

@@ -248,7 +248,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 let dest = programs[&message.destination.to_program_id()];
 
                 let gas_limit = message.gas_limit.unwrap_or(
-                    GearPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64,
+                    pallet_gas::Pallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64,
                 );
 
                 let value = message.value.unwrap_or(0);

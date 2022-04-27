@@ -21,7 +21,7 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program};
+use common::{storage::*, DAGBasedLedger, GasPrice, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -35,6 +35,8 @@ use gear_core::{
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
+use pallet_gas::Pallet as GasPallet;
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
@@ -112,7 +114,7 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
-        Pallet::<T>::message_handled();
+        <MessengerPallet<T> as Messenger>::Processed::increase();
 
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
@@ -230,7 +232,7 @@ where
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
-        Pallet::<T>::decrease_gas_allowance(amount);
+        GasPallet::<T>::decrease_gas_allowance(amount);
 
         match T::GasHandler::spend(message_id, amount) {
             Ok(_) => {
@@ -354,7 +356,7 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        Pallet::<T>::message_handled();
+        <MessengerPallet<T> as Messenger>::Processed::increase();
 
         common::insert_waiting_message(
             dispatch.destination().into_origin(),
@@ -515,12 +517,13 @@ where
         log::debug!(
             "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
-            Pallet::<T>::gas_allowance(),
+            GasPallet::<T>::gas_allowance(),
             gas_burned,
         );
 
-        Pallet::<T>::stop_processing();
-        Pallet::<T>::decrease_gas_allowance(gas_burned);
+        <MessengerPallet<T> as Messenger>::Sent::increase();
+        <MessengerPallet<T> as Messenger>::QueueProcessing::deny();
+        GasPallet::<T>::decrease_gas_allowance(gas_burned);
         common::queue_dispatch_first(dispatch);
     }
 }

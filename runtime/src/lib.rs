@@ -384,7 +384,6 @@ impl pallet_gear::Config for Runtime {
     type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type Schedule = Schedule;
-    type BlockGasLimit = BlockGasLimit;
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
 }
@@ -406,7 +405,13 @@ impl pallet_usage::Config for Runtime {
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
 }
 
-impl pallet_gas::Config for Runtime {}
+impl pallet_gas::Config for Runtime {
+    type BlockGasLimit = BlockGasLimit;
+}
+
+impl pallet_gear_messenger::Config for Runtime {
+    type Event = Event;
+}
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
@@ -435,6 +440,7 @@ construct_runtime!(
         Utility: pallet_utility,
         Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
@@ -462,6 +468,7 @@ construct_runtime!(
         Utility: pallet_utility,
         Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,

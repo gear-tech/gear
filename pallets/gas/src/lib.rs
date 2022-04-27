@@ -105,7 +105,11 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// The maximum amount of gas that can be used within a single block.
+        #[pallet::constant]
+        type BlockGasLimit: Get<u64>;
+    }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
@@ -125,6 +129,10 @@ pub mod pallet {
     }
 
     #[pallet::storage]
+    #[pallet::getter(fn gas_allowance)]
+    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, <T as Config>::BlockGasLimit>;
+
+    #[pallet::storage]
     #[pallet::getter(fn total_issuance)]
     pub type TotalIssuance<T> = StorageValue<_, u64, ValueQuery, GetDefault>;
 
@@ -136,7 +144,10 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            0_u64
+            // Reset block gas allowance
+            Allowance::<T>::put(T::BlockGasLimit::get());
+
+            T::DbWeight::get().writes(1)
         }
 
         /// Finalization
@@ -147,6 +158,14 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        pub fn update_gas_allowance(gas: u64) {
+            Allowance::<T>::put(gas);
+        }
+
+        pub fn decrease_gas_allowance(gas: u64) {
+            Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
+        }
+
         pub fn check_consumed(key: H256) -> ConsumeResult<T> {
             let mut delete_current_node = false;
             let res = Self::value_view(key).and_then(|current_node| match current_node.inner {

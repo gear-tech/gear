@@ -53,6 +53,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
@@ -128,13 +129,18 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = ();
-    type BlockGasLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type Schedule = ();
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = ();
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
+}
 
 parameter_types! {
     pub const WaitListTraversalInterval: u32 = 5;
