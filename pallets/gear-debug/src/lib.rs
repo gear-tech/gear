@@ -147,6 +147,36 @@ pub mod pallet {
         next: Option<H256>,
     }
 
+    fn remap_with(dispatch: StoredDispatch, progs: &BTreeMap<H256, H256>) -> StoredDispatch {
+        let (kind, msg, context) = dispatch.into_parts();
+        let mut source = msg.source().into_origin();
+        let mut destination = msg.destination().into_origin();
+
+        for (k, v) in progs.iter() {
+            let k = *k;
+            let v = *v;
+
+            if k == destination {
+                destination = v;
+            }
+
+            if v == source {
+                source = k;
+            }
+        }
+
+        let message = StoredMessage::new(
+            msg.id(),
+            ProgramId::from_origin(source),
+            ProgramId::from_origin(destination),
+            (*msg.payload()).to_vec(),
+            msg.value(),
+            msg.reply(),
+        );
+
+        StoredDispatch::new(kind, message, context)
+    }
+
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
             let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
@@ -200,51 +230,11 @@ pub mod pallet {
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
 
-            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|dispatch| {
-                let mut dispatch = dispatch;
-
-                for (k, v) in programs_map.iter() {
-                    dispatch = if *k == dispatch.destination().into_origin() {
-                        StoredDispatch::new(
-                            dispatch.kind(),
-                            StoredMessage::new(
-                                dispatch.id(),
-                                dispatch.source(),
-                                ProgramId::from_origin(*v),
-                                (*dispatch.payload()).to_vec(),
-                                dispatch.value(),
-                                dispatch.reply(),
-                            ),
-                            dispatch.context().clone(),
-                        )
-                    } else {
-                        dispatch
-                    };
-
-                    dispatch = if *v == dispatch.source().into_origin() {
-                        StoredDispatch::new(
-                            dispatch.kind(),
-                            StoredMessage::new(
-                                dispatch.id(),
-                                ProgramId::from_origin(*k),
-                                dispatch.destination(),
-                                (*dispatch.payload()).to_vec(),
-                                dispatch.value(),
-                                dispatch.reply(),
-                            ),
-                            dispatch.context().clone(),
-                        )
-                    } else {
-                        dispatch
-                    };
-                }
-
-                dispatch
-            })
-            .unwrap_or_else(|_| {
-                // Can be called only in case of storage corruption
-                unreachable!();
-            });
+            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|d| remap_with(d, &programs_map))
+                .unwrap_or_else(|_| {
+                    // Can be called only in case of storage corruption
+                    unreachable!();
+                });
         }
     }
 
