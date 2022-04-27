@@ -80,7 +80,7 @@ type BalanceOf<T> =
 use pallet_gear_program::Pallet as GearProgramPallet;
 
 /// The current storage version.
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 pub trait DebugInfo {
     fn is_remap_id_enabled() -> bool;
@@ -153,7 +153,7 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
-    #[pallet::storage_version(STORAGE_VERSION)]
+    #[pallet::storage_version(GEAR_STORAGE_VERSION)]
     #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);

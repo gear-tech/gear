@@ -41,7 +41,7 @@ mod offchain;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
 /// The current storage version.
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -114,7 +114,7 @@ pub mod pallet {
     >>::Balance;
 
     #[pallet::pallet]
-    #[pallet::storage_version(STORAGE_VERSION)]
+    #[pallet::storage_version(USAGE_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
