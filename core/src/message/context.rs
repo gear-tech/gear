@@ -36,14 +36,13 @@ pub const OUTGOING_LIMIT: u32 = 1024;
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
+    /// Amount of gas needed for send a message.
     sending_fee: u64,
-    /// Number of inited programs before LimitExceeded, 1024 by default.
+    /// Limit of outgoung messages that we can send before LimitExceeded.
     outgoing_limit: u32,
 }
 
 impl ContextSettings {
-    pub const DEFAULT_OUTGOING_LIMIT: u32 = 1024;
-
     /// Create new ContextSettings.
     pub fn new(sending_fee: u64, outgoing_limit: u32) -> Self {
         Self {
@@ -311,7 +310,7 @@ mod tests {
 
         assert_eq!(
             message_context.settings.outgoing_limit,
-            ContextSettings::DEFAULT_OUTGOING_LIMIT
+            OUTGOING_LIMIT
         );
 
         let result = message_context.init_program(Default::default());
