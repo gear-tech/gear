@@ -152,9 +152,9 @@ Let's do the upgrade step by step:
 
 2. Make required changes in code and don't forget to increment `spec_version` in `RuntimeVersion`.
 
-3. Build your `gear-runtime` node with
+3. Build your new node with
     ```bash
-    cargo build --release
+    cargo build --release -p gear-runtime
     ``` 
     It will be node state that we will be upgrading to.
 
@@ -166,7 +166,7 @@ to automatically configure the UI to connect to the local node:
 (Some ad blockers and browser restrictions (e.g. the built-in Shield in Brave browser, 
 and https requirement for socket connection in Firefox) interfere with connecting to a local node. 
 Make sure to check them and, if needed, turn them off.
-You may not get connecting from a remote IP (like ```polkadot.js.org/apps/```) to a local node working. 
+You may not get connecting from a remote IP (like `polkadot.js.org/apps/`) to a local node working. 
 If you are unable to solve this, we encourage you to host your app locally, like [the apps UI](https://github.com/polkadot-js/apps#development))
 
 Use related account to invoke the `sudoUncheckedWeight` function and use the `setCode` function from the
