@@ -175,7 +175,7 @@ toggle the "file upload" switch on the right-hand side of the "code" input field
 to the `setCode` function. Click the "code" input field, and select one of the Wasm binaries that defines the upgraded runtime:
 
 ```bash
-target/release/wbuild/gear-runtime/gear_runtime.wasm
+target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
 ```
 Leave the value for the `_weight` parameter at the default of `0`. Click "Submit Transaction" and then "Sign and Submit".
     
