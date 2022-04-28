@@ -29,6 +29,7 @@ mod ext;
 mod schedule;
 
 pub mod manager;
+pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -40,7 +41,7 @@ mod tests;
 pub use crate::{
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{InstructionWeights, Limits, Schedule},
+    schedule::{HostFnWeights, InstructionWeights, Limits, Schedule},
 };
 pub use weights::WeightInfo;
 
@@ -53,9 +54,11 @@ use core_processor::{
 };
 
 use alloc::format;
+
 use frame_support::{
     dispatch::{DispatchError, DispatchResultWithPostInfo},
-    traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+    traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency, StorageVersion},
+    weights::Weight,
 };
 
 use gear_backend_sandbox::SandboxEnvironment;
@@ -77,6 +80,9 @@ type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
+
+/// The current storage version.
+const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 pub trait DebugInfo {
     fn is_remap_id_enabled() -> bool;
@@ -149,6 +155,7 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
+    #[pallet::storage_version(GEAR_STORAGE_VERSION)]
     #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);
