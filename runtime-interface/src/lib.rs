@@ -21,7 +21,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use core::fmt;
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
@@ -29,29 +28,17 @@ use gear_core::memory::PageNumber;
 
 pub use sp_std::{result::Result, vec::Vec};
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 pub enum MprotectError {
+    #[display(fmt = "Page error")]
     PageError,
+    #[display(fmt = "OS error")]
     OsError,
 }
 
-impl fmt::Display for MprotectError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MprotectError::PageError => write!(f, "Page error"),
-            MprotectError::OsError => write!(f, "OS error"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
+#[display(fmt = "Failed to get released page")]
 pub struct GetReleasedPageError;
-
-impl fmt::Display for GetReleasedPageError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Failed to get released page")
-    }
-}
 
 /// TODO: deprecated remove before release
 #[cfg(feature = "std")]
