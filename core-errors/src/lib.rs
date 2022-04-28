@@ -95,7 +95,7 @@ pub enum MemoryError {
     /// Specified page cannot be freed by the current program.
     ///
     /// It was allocated by another program.
-    #[display(fmt = "Specified page cannot be freed by the current program")]
+    #[display(fmt = "Page {} cannot be freed by the current program", _0)]
     InvalidFree(u32),
 
     /// Out of bounds memory access
