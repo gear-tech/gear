@@ -133,7 +133,7 @@ pub enum ExtError {
     TooManyGasAdded,
     #[display(fmt = "Terminated: {:?}", _0)]
     TerminationReason(TerminationReason),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Failed to wake the message: {}", _0)]
     Wake(MessageContextError),
     #[display(fmt = "{}", _0)]
     InitMessageNotDuplicated(MessageContextError),
