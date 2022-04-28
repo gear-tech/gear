@@ -117,9 +117,9 @@ pub enum TerminationReason {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExtError {
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Allocation error: {}", _0)]
     Alloc(MemoryError),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Free error: {}", _0)]
     Free(MemoryError),
     #[display(fmt = "{}", _0)]
     Send(SendError),
