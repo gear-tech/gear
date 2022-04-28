@@ -31,7 +31,7 @@ use gear_core::{
     },
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{ExtError, ReplyError, SendError, TerminationReason};
+use gear_core_errors::{ExtError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -307,11 +307,7 @@ impl EnvExt for Ext {
 
     fn send_init(&mut self) -> Result<usize, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendInit)?;
-        let result = self
-            .message_context
-            .send_init()
-            .map_err(SendError::MessageContext)
-            .map_err(ExtError::Send);
+        let result = self.message_context.send_init().map_err(ExtError::Message);
 
         self.return_and_store_err(result.map(|v| v as usize))
     }
@@ -321,8 +317,7 @@ impl EnvExt for Ext {
         let result = self
             .message_context
             .send_push(handle as u32, buffer)
-            .map_err(SendError::MessageContext)
-            .map_err(ExtError::Send);
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
@@ -332,33 +327,30 @@ impl EnvExt for Ext {
         let result = self
             .message_context
             .reply_push(buffer)
-            .map_err(ReplyError::MessageContext)
-            .map_err(ExtError::Reply);
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
 
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self
-                .return_and_store_err(Err(ExtError::Send(SendError::InsufficientMessageValue)));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };
 
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::Send(SendError::GasLimitExceeded)));
+            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
 
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::Send(SendError::NotEnoughValue)));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
         };
 
         let result = self
             .message_context
             .send_commit(handle as u32, msg)
-            .map_err(SendError::MessageContext)
-            .map_err(ExtError::Send);
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
@@ -366,19 +358,17 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
         if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self
-                .return_and_store_err(Err(ExtError::Reply(ReplyError::InsufficientMessageValue)));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };
 
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::Reply(ReplyError::NotEnoughValue)));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
         };
 
         let result = self
             .message_context
             .reply_commit(msg)
-            .map_err(ReplyError::MessageContext)
-            .map_err(ExtError::Reply);
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }

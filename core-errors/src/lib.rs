@@ -121,10 +121,6 @@ pub enum ExtError {
     Alloc(MemoryError),
     #[display(fmt = "Free error: {}", _0)]
     Free(MemoryError),
-    #[display(fmt = "{}", _0)]
-    Send(SendError),
-    #[display(fmt = "{}", _0)]
-    Reply(ReplyError),
     #[display(fmt = "Cannot call `exit' twice")]
     ExitTwice,
     #[display(fmt = "Gas limit exceeded")]
@@ -139,6 +135,12 @@ pub enum ExtError {
     InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred")]
     PanicOccurred,
+    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
+    InsufficientMessageValue,
+    #[display(fmt = "No value left")]
+    NotEnoughValue,
+    #[display(fmt = "{}", _0)]
+    Message(MessageError),
 }
 
 impl CoreError for ExtError {
@@ -152,26 +154,4 @@ impl CoreError for ExtError {
             _ => None,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
-pub enum SendError {
-    #[display(fmt = "{}", _0)]
-    MessageContext(MessageError),
-    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
-    InsufficientMessageValue,
-    #[display(fmt = "Gas limit exceeded")]
-    GasLimitExceeded,
-    #[display(fmt = "No value left")]
-    NotEnoughValue,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
-pub enum ReplyError {
-    #[display(fmt = "{}", _0)]
-    MessageContext(MessageError),
-    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
-    InsufficientMessageValue,
-    #[display(fmt = "No value left")]
-    NotEnoughValue,
 }
