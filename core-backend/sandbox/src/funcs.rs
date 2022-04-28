@@ -28,7 +28,7 @@ use core::{
 };
 use gear_backend_common::funcs;
 use gear_backend_common::{IntoErrorCode, OnSuccessCode};
-use gear_core::env::LaterExtWithError;
+use gear_core::env::ExtCarrierWithError;
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
@@ -75,7 +75,7 @@ pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     Core(E),
     #[display(fmt = "{}", _0)]
-    LaterExtWith(LaterExtWithError),
+    LaterExtWith(ExtCarrierWithError),
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "Cannot set u128: {}", _0)]
@@ -88,8 +88,8 @@ pub enum FuncError<E> {
     DebugString(FromUtf8Error),
 }
 
-impl<E> From<LaterExtWithError> for FuncError<E> {
-    fn from(err: LaterExtWithError) -> Self {
+impl<E> From<ExtCarrierWithError> for FuncError<E> {
+    fn from(err: ExtCarrierWithError) -> Self {
         Self::LaterExtWith(err)
     }
 }

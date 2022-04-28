@@ -24,7 +24,7 @@ use alloc::string::{FromUtf8Error, ToString};
 use alloc::{string::String, vec};
 use gear_backend_common::funcs::*;
 use gear_backend_common::{IntoErrorCode, OnSuccessCode, TerminationReason};
-use gear_core::env::LaterExtWithError;
+use gear_core::env::ExtCarrierWithError;
 use gear_core::{
     env::Ext,
     ids::{MessageId, ProgramId},
@@ -49,7 +49,7 @@ enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     SetU128(MemoryError),
     #[display(fmt = "{}", _0)]
-    LaterExtWith(LaterExtWithError),
+    LaterExtWith(ExtCarrierWithError),
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
     #[display(fmt = "Not running in the reply context")]
@@ -71,8 +71,8 @@ impl<E> FuncError<E> {
     }
 }
 
-impl<E> From<LaterExtWithError> for FuncError<E> {
-    fn from(err: LaterExtWithError) -> Self {
+impl<E> From<ExtCarrierWithError> for FuncError<E> {
+    fn from(err: ExtCarrierWithError) -> Self {
         Self::LaterExtWith(err)
     }
 }

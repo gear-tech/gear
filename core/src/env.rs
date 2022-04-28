@@ -153,10 +153,10 @@ pub trait Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
 }
 
-/// An error occurred during [`LaterExt::with_fallible`] which should be called only when inner is set
+/// An error occurred during [`ExtCarrier::with_fallible`] which should be called only when inner is set
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 #[display(fmt = "With should be called only when inner is set")]
-pub struct LaterExtWithError;
+pub struct ExtCarrierWithError;
 
 /// Struct for interacting with Ext.
 pub struct ExtCarrier<E: Ext>(Rc<RefCell<Option<E>>>);
@@ -181,17 +181,17 @@ impl<E: Ext> ExtCarrier<E> {
     }
 
     /// Calls infallible fn with inner ext.
-    pub fn with<T>(&self, f: impl FnOnce(&mut E) -> T) -> Result<T, LaterExtWithError> {
+    pub fn with<T>(&self, f: impl FnOnce(&mut E) -> T) -> Result<T, ExtCarrierWithError> {
         self.with_fallible(|e| Ok(f(e)))
     }
 
     /// Calls fallible fn with inner ext.
     pub fn with_fallible<T, U>(&self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U>
     where
-        U: From<LaterExtWithError>,
+        U: From<ExtCarrierWithError>,
     {
         let mut brw = self.0.borrow_mut();
-        let ext = brw.as_mut().ok_or(LaterExtWithError)?;
+        let ext = brw.as_mut().ok_or(ExtCarrierWithError)?;
 
         f(ext)
     }
@@ -218,14 +218,14 @@ pub struct ClonedExtCarrier<E: Ext>(ExtCarrier<E>);
 
 impl<E: Ext> ClonedExtCarrier<E> {
     /// Calls infallible fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, LaterExtWithError> {
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, ExtCarrierWithError> {
         self.0.with(f)
     }
 
     /// Calls fallible fn with inner ext
     pub fn with_fallible<T, U>(&self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U>
     where
-        U: From<LaterExtWithError>,
+        U: From<ExtCarrierWithError>,
     {
         self.0.with_fallible(f)
     }
@@ -399,7 +399,7 @@ mod tests {
         let ext_clone = ext.cloned();
 
         let _ = ext.into_inner();
-        assert_eq!(ext_clone.with(converter).unwrap_err(), LaterExtWithError);
+        assert_eq!(ext_clone.with(converter).unwrap_err(), ExtCarrierWithError);
     }
 
     #[test]
