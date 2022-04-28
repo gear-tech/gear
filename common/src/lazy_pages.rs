@@ -20,29 +20,21 @@
 
 use crate::Origin;
 use core::convert::TryFrom;
-use core::fmt;
 use gear_core::ids::ProgramId;
 use gear_core::memory::{PageBuf, PageNumber};
 use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
+    #[display(fmt = "{}", _0)]
     Mprotect(MprotectError),
+    #[display(fmt = "{}", _0)]
     GetReleasedPage(GetReleasedPageError),
+    #[display(fmt = "Cannot convert vec to page data")]
     VecToPageData,
+    #[display(fmt = "Cannot find page data in storage")]
     NoPageDataInStorage,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Mprotect(err) => fmt::Display::fmt(err, f),
-            Error::GetReleasedPage(err) => fmt::Display::fmt(err, f),
-            Error::VecToPageData => write!(f, "Cannot convert vec to page data"),
-            Error::NoPageDataInStorage => write!(f, "Cannot find page data in storage"),
-        }
-    }
 }
 
 impl From<MprotectError> for Error {
