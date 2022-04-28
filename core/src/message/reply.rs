@@ -26,7 +26,6 @@ use crate::{
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-
 /// Message for Reply entry point.
 /// Contains result of exectuted program as exit code.
 /// We may not store destination because it is source of message we reply to.

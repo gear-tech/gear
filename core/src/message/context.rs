@@ -389,7 +389,6 @@ mod tests {
         assert!(matches!(result, Err(Error::DuplicateReply)));
     }
 
-
     // Set of constants for clarity of a part of the test
     const INCOMING_MESSAGE_ID: u64 = 3;
     const INCOMING_MESSAGE_SOURCE: u64 = 4;
@@ -408,7 +407,11 @@ mod tests {
         );
 
         // Creating a message context
-        let mut context = MessageContext::new(incoming_message, ids::ProgramId::from(INCOMING_MESSAGE_ID), None);
+        let mut context = MessageContext::new(
+            incoming_message,
+            ids::ProgramId::from(INCOMING_MESSAGE_ID),
+            None,
+        );
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
