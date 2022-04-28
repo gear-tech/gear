@@ -43,7 +43,7 @@ pub trait CoreError: fmt::Display + fmt::Debug {
     TypeInfo,
     derive_more::Display,
 )]
-pub enum MessageContextError {
+pub enum MessageError {
     /// Message limit exceeded.
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
@@ -134,9 +134,9 @@ pub enum ExtError {
     #[display(fmt = "Terminated: {:?}", _0)]
     TerminationReason(TerminationReason),
     #[display(fmt = "Failed to wake the message: {}", _0)]
-    Wake(MessageContextError),
+    Wake(MessageError),
     #[display(fmt = "{}", _0)]
-    InitMessageNotDuplicated(MessageContextError),
+    InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred")]
     PanicOccurred,
 }
@@ -157,7 +157,7 @@ impl CoreError for ExtError {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum SendError {
     #[display(fmt = "{}", _0)]
-    MessageContext(MessageContextError),
+    MessageContext(MessageError),
     #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
     InsufficientMessageValue,
     #[display(fmt = "Gas limit exceeded")]
@@ -169,7 +169,7 @@ pub enum SendError {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ReplyError {
     #[display(fmt = "{}", _0)]
-    MessageContext(MessageContextError),
+    MessageContext(MessageError),
     #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
     InsufficientMessageValue,
     #[display(fmt = "No value left")]

@@ -26,7 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_core_errors::MessageContextError as Error;
+use gear_core_errors::MessageError as Error;
 use scale_info::TypeInfo;
 
 pub const OUTGOING_LIMIT: u32 = 1024;
