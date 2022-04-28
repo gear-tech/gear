@@ -389,7 +389,8 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .map_err(|_| "Unable to push message")?;
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id,
