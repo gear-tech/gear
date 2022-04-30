@@ -396,7 +396,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2].into(),
+            vec![1, 2],
             0,
             0,
             None,
@@ -437,7 +437,7 @@ mod tests {
         );
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
-        assert!(context.reply_commit(reply_packet.clone()).is_err());
+        assert!(context.reply_commit(reply_packet).is_err());
 
         // Checking that at this point vector of outgoing messages is empty
         assert!(context.outcome.handle.is_empty());
