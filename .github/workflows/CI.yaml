@@ -51,7 +51,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake binaryen
 
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -121,7 +121,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake binaryen
 
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -246,7 +246,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake binaryen
 
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
