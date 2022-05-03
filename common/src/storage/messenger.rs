@@ -8,7 +8,7 @@ pub trait Messenger {
     /// Amount of messages processed.
     type Processed: StorageCounter;
 
-    /// Allowation of queue processing.
+    /// Allowance of queue processing.
     type QueueProcessing: StorageFlag;
 
     /// Message queue store.
