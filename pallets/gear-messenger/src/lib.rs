@@ -222,7 +222,7 @@ pub mod pallet {
 
     impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPopFrontCallback<T> {
         fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
-            <Pallet<T> as GearMessenger>::Processed::increase();
+            <Pallet<T> as GearMessenger>::Dequeued::increase();
         }
     }
 
@@ -231,7 +231,7 @@ pub mod pallet {
 
     impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPushFrontCallback<T> {
         fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
-            <Pallet<T> as GearMessenger>::Processed::decrease();
+            <Pallet<T> as GearMessenger>::Dequeued::decrease();
             <Pallet<T> as GearMessenger>::QueueProcessing::deny();
         }
     }
@@ -286,29 +286,29 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type Processed<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    pub type Dequeued<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
 
     /// Accessor type for amount for messages dequeued and appropriately
     /// processed (executed, skipped, etc.) during the block.
-    pub struct ProcessedImpl<T>(PhantomData<T>);
+    pub struct DequeuedImpl<T>(PhantomData<T>);
 
-    impl<T: Config> GearStorageCounter for ProcessedImpl<T> {
+    impl<T: Config> GearStorageCounter for DequeuedImpl<T> {
         type Value = MessengerCapacity;
 
         fn get() -> Self::Value {
-            Processed::<T>::get()
+            Dequeued::<T>::get()
         }
 
         fn increase() {
-            Processed::<T>::mutate(|v| *v = v.saturating_add(1))
+            Dequeued::<T>::mutate(|v| *v = v.saturating_add(1))
         }
 
         fn decrease() {
-            Processed::<T>::mutate(|v| *v = v.saturating_sub(1))
+            Dequeued::<T>::mutate(|v| *v = v.saturating_sub(1))
         }
 
         fn clear() {
-            let _prev = Processed::<T>::take();
+            let _prev = Dequeued::<T>::take();
         }
     }
 
@@ -334,7 +334,7 @@ pub mod pallet {
 
     impl<T: Config> GearMessenger for Pallet<T> {
         type Sent = SentImpl<T>;
-        type Processed = ProcessedImpl<T>;
+        type Dequeued = DequeuedImpl<T>;
         type QueueProcessing = QueueProcessingImpl<T>;
         type Queue = DequeImpl<T>;
     }
@@ -350,7 +350,7 @@ pub mod pallet {
             weight += T::DbWeight::get().writes(1);
 
             // Removes value from storage. Single DB write.
-            <Self as GearMessenger>::Processed::clear();
+            <Self as GearMessenger>::Dequeued::clear();
             weight += T::DbWeight::get().writes(1);
 
             // Puts value in storage. Single DB write.

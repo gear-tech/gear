@@ -801,7 +801,7 @@ pub mod pallet {
                 }
             }
 
-            let total_handled = <MessengerPallet<T> as Messenger>::Processed::get();
+            let total_handled = <MessengerPallet<T> as Messenger>::Dequeued::get();
 
             if total_handled > 0 {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));
