@@ -37,7 +37,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::OptimizerFailed => write!(f, "Optimizer failed"),
-            Error::WasmOptFailed => write!(f, "wasm-opt failed"),
+            Self::WasmOptFailed => write!(f, "wasm-opt failed"),
             Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
             Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
             Self::InvalidSkip => write!(f, "Multiple skipping functional"),
