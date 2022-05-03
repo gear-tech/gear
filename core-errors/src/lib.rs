@@ -102,9 +102,9 @@ pub enum MemoryError {
     #[display(fmt = "Out of bounds memory access")]
     MemoryAccessError,
 
-    /// There is wasm page, which has not all gear pages in the end
-    #[display(fmt = "There is wasm page, which has not all gear pages in the end")]
-    NotAllPagesInEnd,
+    /// There is wasm page, which has not all gear pages in the begin
+    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
+    NotAllPagesInBegin,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

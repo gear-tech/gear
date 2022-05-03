@@ -20,7 +20,6 @@
 
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -165,7 +164,7 @@ impl core::ops::Sub for WasmPageNumber {
 /// ```
 pub fn pages_to_wasm_pages_set<'a>(
     pages_iter: impl Iterator<Item = &'a PageNumber>,
-) -> Result<BTreeSet<WasmPageNumber>, MemoryError> {
+) -> Result<BTreeSet<WasmPageNumber>, Error> {
     let mut wasm_pages = BTreeSet::new();
     pages_iter
         .step_by(PageNumber::num_in_one_wasm_page() as _)
@@ -174,7 +173,7 @@ pub fn pages_to_wasm_pages_set<'a>(
                 wasm_pages.insert(WasmPageNumber(gp.0 / PageNumber::num_in_one_wasm_page()));
                 Ok(())
             } else {
-                Err(MemoryError::NotAllPagesInEnd)
+                Err(Error::NotAllPagesInBegin)
             }
         })?;
     Ok(wasm_pages)

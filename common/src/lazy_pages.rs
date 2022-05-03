@@ -125,7 +125,7 @@ pub fn post_execution_actions(
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
 pub fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), Error> {
-    mprotect_lazy_pages(mem_addr, false).map_err(Into::into)
+    mprotect_lazy_pages(mem_addr, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
