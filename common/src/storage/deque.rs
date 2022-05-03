@@ -3,7 +3,7 @@ use codec::{Decode, Encode};
 use core::{iter::Iterator, marker::PhantomData};
 use scale_info::TypeInfo;
 
-pub enum DeckError {
+pub enum DequeError {
     HeadNotFoundInElements,
     HeadWasNotRemoved,
     TailWasEmptyWhileHeadNot,
@@ -25,12 +25,12 @@ pub struct Node<K, V> {
     pub value: V,
 }
 
-/// Stripped deck implementation based on map-storage.
-pub trait StorageDeck: Sized {
+/// Stripped double-ended queue implementation based on map-storage.
+pub trait StorageDeque: Sized {
     type Key: Clone + NextKey<Self::Value>;
     type Value;
 
-    type Error: From<DeckError>;
+    type Error: From<DequeError>;
 
     type HeadKey: StorageValue<Value = Self::Key>;
     type TailKey: StorageValue<Value = Self::Key>;
@@ -52,16 +52,16 @@ pub trait StorageDeck: Sized {
 
                 if let Some(next) = next_opt {
                     if Self::HeadKey::set(next).is_some() {
-                        return Err(DeckError::HeadWasNotRemoved.into());
+                        return Err(DequeError::HeadWasNotRemoved.into());
                     }
                 } else if Self::TailKey::remove().is_none() {
-                    return Err(DeckError::TailWasEmptyWhileHeadNot.into());
+                    return Err(DequeError::TailWasEmptyWhileHeadNot.into());
                 }
 
                 Self::Length::decrease();
                 Ok(Some(head))
             } else {
-                Err(DeckError::HeadNotFoundInElements.into())
+                Err(DequeError::HeadNotFoundInElements.into())
             }
         } else {
             Ok(None)
@@ -79,25 +79,25 @@ pub trait StorageDeck: Sized {
             }
 
             if Self::TailKey::set(new_tail_key.clone()).is_some() {
-                return Err(DeckError::TailWasNotRemoved.into());
+                return Err(DequeError::TailWasNotRemoved.into());
             }
 
             Self::Elements::mutate(tail_key, |n| {
                 if let Some(n) = n {
                     if n.next.is_some() {
-                        Err(DeckError::TailHadNextPointer)
+                        Err(DequeError::TailHadNextPointer)
                     } else {
                         n.next = Some(new_tail_key.clone());
                         Ok(())
                     }
                 } else {
-                    Err(DeckError::ElementNotFound)
+                    Err(DequeError::ElementNotFound)
                 }
             })
             .map_err(Into::into)?;
 
             if Self::Elements::set(new_tail_key, Node { next: None, value }).is_some() {
-                return Err(DeckError::DuplicateElementKey.into());
+                return Err(DequeError::DuplicateElementKey.into());
             }
         } else {
             let first_key = Self::Key::first(&value);
@@ -105,11 +105,11 @@ pub trait StorageDeck: Sized {
             let _ = Self::TailKey::set(first_key.clone());
 
             if Self::HeadKey::set(first_key.clone()).is_some() {
-                return Err(DeckError::HeadWasEmptyWhileTailNot.into());
+                return Err(DequeError::HeadWasEmptyWhileTailNot.into());
             }
 
             if Self::Elements::set(first_key, Node { next: None, value }).is_some() {
-                return Err(DeckError::DuplicateElementKey.into());
+                return Err(DequeError::DuplicateElementKey.into());
             }
         }
 
@@ -128,7 +128,7 @@ pub trait StorageDeck: Sized {
             }
 
             if Self::HeadKey::set(new_head_key.clone()).is_some() {
-                return Err(DeckError::HeadWasNotRemoved.into());
+                return Err(DequeError::HeadWasNotRemoved.into());
             }
 
             if Self::Elements::set(
@@ -140,7 +140,7 @@ pub trait StorageDeck: Sized {
             )
             .is_some()
             {
-                return Err(DeckError::DuplicateElementKey.into());
+                return Err(DequeError::DuplicateElementKey.into());
             }
         } else if let Some(tail_key) = Self::TailKey::remove() {
             let mut new_tail_key = tail_key.next(&value);
@@ -150,25 +150,25 @@ pub trait StorageDeck: Sized {
             }
 
             if Self::TailKey::set(new_tail_key.clone()).is_some() {
-                return Err(DeckError::TailWasNotRemoved.into());
+                return Err(DequeError::TailWasNotRemoved.into());
             }
 
             Self::Elements::mutate(tail_key, |n| {
                 if let Some(n) = n {
                     if n.next.is_some() {
-                        Err(DeckError::TailHadNextPointer)
+                        Err(DequeError::TailHadNextPointer)
                     } else {
                         n.next = Some(new_tail_key.clone());
                         Ok(())
                     }
                 } else {
-                    Err(DeckError::ElementNotFound)
+                    Err(DequeError::ElementNotFound)
                 }
             })
             .map_err(Into::into)?;
 
             if Self::Elements::set(new_tail_key, Node { next: None, value }).is_some() {
-                return Err(DeckError::DuplicateElementKey.into());
+                return Err(DequeError::DuplicateElementKey.into());
             }
         } else {
             let first_key = Self::Key::first(&value);
@@ -176,11 +176,11 @@ pub trait StorageDeck: Sized {
             let _ = Self::TailKey::set(first_key.clone());
 
             if Self::HeadKey::set(first_key.clone()).is_some() {
-                return Err(DeckError::HeadWasEmptyWhileTailNot.into());
+                return Err(DequeError::HeadWasEmptyWhileTailNot.into());
             }
 
             if Self::Elements::set(first_key, Node { next: None, value }).is_some() {
-                return Err(DeckError::DuplicateElementKey.into());
+                return Err(DequeError::DuplicateElementKey.into());
             }
         }
 
@@ -188,8 +188,8 @@ pub trait StorageDeck: Sized {
         Ok(())
     }
 
-    fn iter() -> StorageDeckIterator<Self, Self::Error> {
-        StorageDeckIterator(Self::HeadKey::get(), Default::default())
+    fn iter() -> StorageDequeIterator<Self, Self::Error> {
+        StorageDequeIterator(Self::HeadKey::get(), Default::default())
     }
 
     fn clear() -> Result<(), Self::Error> {
@@ -200,7 +200,7 @@ pub trait StorageDeck: Sized {
             if let Some(node) = Self::Elements::remove(next) {
                 next_opt = node.next;
             } else {
-                return Err(DeckError::ElementNotFound.into());
+                return Err(DequeError::ElementNotFound.into());
             }
         }
 
@@ -220,7 +220,7 @@ pub trait StorageDeck: Sized {
 
                 Self::Elements::set(next, node);
             } else {
-                return Err(DeckError::ElementNotFound.into());
+                return Err(DequeError::ElementNotFound.into());
             }
         }
 
@@ -234,33 +234,33 @@ pub trait StorageDeck: Sized {
         match (head, tail) {
             (Some(_), Some(_)) => Ok(false),
             (None, None) => Ok(true),
-            (Some(_), None) => Err(DeckError::TailWasEmptyWhileHeadNot.into()),
-            (None, Some(_)) => Err(DeckError::HeadWasEmptyWhileTailNot.into()),
+            (Some(_), None) => Err(DequeError::TailWasEmptyWhileHeadNot.into()),
+            (None, Some(_)) => Err(DequeError::HeadWasEmptyWhileTailNot.into()),
         }
     }
 }
 
-/// Iterator over given StorageDeck implementation.
+/// Iterator over given StorageDeque implementation.
 #[derive(Debug, Clone)]
-pub struct StorageDeckIterator<Deck, E>(Option<Deck::Key>, PhantomData<E>)
+pub struct StorageDequeIterator<Deque, E>(Option<Deque::Key>, PhantomData<E>)
 where
-    Deck: StorageDeck,
-    E: From<DeckError>;
+    Deque: StorageDeque,
+    E: From<DequeError>;
 
-impl<Deck: StorageDeck, E: From<DeckError>> Iterator for StorageDeckIterator<Deck, E> {
-    type Item = Result<Deck::Value, E>;
+impl<Deque: StorageDeque, E: From<DequeError>> Iterator for StorageDequeIterator<Deque, E> {
+    type Item = Result<Deque::Value, E>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.0.clone()?;
 
-        if let Some(node) = Deck::Elements::get(&next) {
+        if let Some(node) = Deque::Elements::get(&next) {
             self.0 = node.next;
 
             Some(Ok(node.value))
         } else {
             self.0 = None;
 
-            Some(Err(DeckError::ElementNotFound.into()))
+            Some(Err(DequeError::ElementNotFound.into()))
         }
     }
 }

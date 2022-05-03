@@ -24,7 +24,7 @@ use crate::{
 };
 use colored::{ColoredString, Colorize};
 use gear_common::{
-    storage::{Messenger, StorageDeck},
+    storage::{Messenger, StorageDeque},
     CodeStorage, DAGBasedLedger, Origin as _,
 };
 use gear_core::{

@@ -1,12 +1,12 @@
 mod counter;
-mod deck;
+mod deque;
 mod flag;
 mod map;
 mod messenger;
 mod value;
 
 pub use counter::{StorageCounter, TargetedStorageCounter};
-pub use deck::{DeckError, NextKey, Node, StorageDeck};
+pub use deque::{DequeError, NextKey, Node, StorageDeque};
 pub use flag::{StorageFlag, TargetedStorageFlag};
 pub use map::{StorageMap, TargetedStorageMap};
 pub use messenger::Messenger;

@@ -12,5 +12,5 @@ pub trait Messenger {
     type QueueProcessing: StorageFlag;
 
     /// Message queue store.
-    type Queue: StorageDeck;
+    type Queue: StorageDeque;
 }

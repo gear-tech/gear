@@ -21,7 +21,7 @@ use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
 use common::{
     self,
-    storage::{Messenger, StorageDeck},
+    storage::{Messenger, StorageDeque},
     DAGBasedLedger, Origin as _,
 };
 use core::convert::TryInto;

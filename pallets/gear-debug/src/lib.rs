@@ -34,7 +34,7 @@ pub mod pallet {
     use super::*;
     use common::{
         self,
-        storage::{Messenger, StorageDeck},
+        storage::{Messenger, StorageDeque},
         Origin, Program,
     };
     use core::fmt;

@@ -30,8 +30,8 @@ pub use pallet::*;
 pub mod pallet {
     use super::*;
     use common::storage::{
-        Callback as GearCallback, DeckError as GearDeckError, Messenger as GearMessenger, NextKey,
-        Node, StorageCounter as GearStorageCounter, StorageDeck as GearStorageDeck,
+        Callback as GearCallback, DequeError as GearDequeError, Messenger as GearMessenger, NextKey,
+        Node, StorageCounter as GearStorageCounter, StorageDeque as GearStorageDeque,
         StorageFlag as GearStorageFlag, StorageMap as GearStorageMap,
         StorageValue as GearStorageValue,
     };
@@ -59,19 +59,19 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-        MessageDeckFlagsCorrupted,
-        MessageDeckElementsCorrupted,
+        MessageDequeFlagsCorrupted,
+        MessageDequeElementsCorrupted,
     }
 
-    impl<T> From<GearDeckError> for Error<T> {
-        fn from(err: GearDeckError) -> Self {
-            use GearDeckError::*;
+    impl<T> From<GearDequeError> for Error<T> {
+        fn from(err: GearDequeError) -> Self {
+            use GearDequeError::*;
 
             match err {
                 ElementNotFound | DuplicateElementKey | HeadNotFoundInElements => {
-                    Self::MessageDeckElementsCorrupted
+                    Self::MessageDequeElementsCorrupted
                 }
-                _ => Self::MessageDeckFlagsCorrupted,
+                _ => Self::MessageDequeFlagsCorrupted,
             }
         }
     }
@@ -200,26 +200,26 @@ pub mod pallet {
         }
     }
 
-    pub struct DeckImpl<T>(PhantomData<T>);
+    pub struct DequeImpl<T>(PhantomData<T>);
 
     pub struct OnPopFrontCallback<T>(PhantomData<T>);
 
-    impl<T: Config> GearCallback<<DeckImpl<T> as GearStorageDeck>::Value> for OnPopFrontCallback<T> {
-        fn call(_arg: &<DeckImpl<T> as GearStorageDeck>::Value) {
+    impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPopFrontCallback<T> {
+        fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
             <Pallet<T> as GearMessenger>::Processed::increase();
         }
     }
 
     pub struct OnPushFrontCallback<T>(PhantomData<T>);
 
-    impl<T: Config> GearCallback<<DeckImpl<T> as GearStorageDeck>::Value> for OnPushFrontCallback<T> {
-        fn call(_arg: &<DeckImpl<T> as GearStorageDeck>::Value) {
+    impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPushFrontCallback<T> {
+        fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
             <Pallet<T> as GearMessenger>::Processed::decrease();
             <Pallet<T> as GearMessenger>::QueueProcessing::deny();
         }
     }
 
-    impl<T: Config> GearStorageDeck for DeckImpl<T> {
+    impl<T: Config> GearStorageDeque for DequeImpl<T> {
         type Key = MessageKey;
         type Value = StoredDispatch;
 
@@ -310,7 +310,7 @@ pub mod pallet {
         type Sent = SentImpl<T>;
         type Processed = ProcessedImpl<T>;
         type QueueProcessing = QueueProcessingImpl<T>;
-        type Queue = DeckImpl<T>;
+        type Queue = DequeImpl<T>;
     }
 
     #[pallet::hooks]
