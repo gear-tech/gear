@@ -141,9 +141,7 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
         );
         gear_ri::set_wasm_mem_begin_addr(new_mem_addr);
     }
-    mprotect_lazy_pages(new_mem_addr, true)?;
-
-    Ok(())
+    mprotect_lazy_pages(new_mem_addr, true)
 }
 
 /// Returns list of current lazy pages numbers
