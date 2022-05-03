@@ -105,7 +105,7 @@ pub trait StorageDeque: Sized {
             let _ = Self::TailKey::set(first_key.clone());
 
             if Self::HeadKey::set(first_key.clone()).is_some() {
-                return Err(DequeError::HeadWasEmptyWhileTailNot.into());
+                return Err(DequeError::TailWasEmptyWhileHeadNot.into());
             }
 
             if Self::Elements::set(first_key, Node { next: None, value }).is_some() {
