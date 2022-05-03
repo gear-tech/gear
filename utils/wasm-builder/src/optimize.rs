@@ -79,7 +79,8 @@ pub fn do_optimization(
             * Debian/Ubuntu: apt-get install binaryen\n\
             * Homebrew: brew install binaryen\n\
             * Arch Linux: pacman -S binaryen\n\
-            * Windows: binary releases at https://github.com/WebAssembly/binaryen/releases".bright_yellow()
+            * Windows: binary releases at https://github.com/WebAssembly/binaryen/releases"
+                .bright_yellow()
         ));
     }
     let wasm_opt_path = which
