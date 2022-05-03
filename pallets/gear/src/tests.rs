@@ -679,9 +679,7 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1.into_origin(),
-                outcome: ExecutionResult::Failure(
-                    b"Gas limit exceeded while trying to send message".to_vec(),
-                ),
+                outcome: ExecutionResult::Failure(b"Gas limit exceeded".to_vec()),
             })
             .into(),
         );

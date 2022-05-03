@@ -2089,7 +2089,9 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-core",
+ "gear-core-errors",
  "log",
 ]
 
@@ -2097,8 +2099,10 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "parity-wasm 0.42.2",
  "sp-sandbox",
@@ -2108,8 +2112,10 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "wasmtime 0.35.1",
 ]
@@ -2118,6 +2124,7 @@ dependencies = [
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -2141,9 +2148,9 @@ dependencies = [
 name = "gear-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "blake2-rfc",
  "derive_more",
+ "gear-core-errors",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2155,13 +2162,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-core-errors"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake2-rfc",
+ "derive_more",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "parity-scale-codec",
 ]
@@ -2280,6 +2298,7 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "errno",
  "gear-core",
  "gear-lazy-pages",
@@ -4628,6 +4647,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
  "log",

@@ -26,6 +26,7 @@ frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/subs
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 gear-runtime-interface = { path = "../runtime-interface", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
+derive_more = "0.99.17"
 
 [dev-dependencies]
 hex-literal = "0.3.3"

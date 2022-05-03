@@ -367,13 +367,13 @@ impl ExtManager {
                         message_id,
                         program_id,
                         origin: dispatch.source(),
-                        reason: expl,
+                        reason: Some(expl.to_string()),
                     });
                 } else {
                     self.message_dispatched(DispatchOutcome::MessageTrap {
                         message_id,
                         program_id,
-                        trap: Some(expl),
+                        trap: Some(expl.to_string()),
                     })
                 }
 

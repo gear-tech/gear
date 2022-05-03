@@ -7,7 +7,9 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../../core" }
+gear-core-errors = { path = "../../core-errors" }
 gear-backend-common = { path = "../common" }
 
 wasmtime = { version = "0.35.1", default-features = false, features = ["parallel-compilation", "cranelift"] }
 log = "0.4.16"
+derive_more = "0.99.17"

@@ -16,44 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{GAS_ALLOWANCE_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use alloc::{vec, vec::Vec};
 use gear_core::memory::Memory;
+use gear_core_errors::MemoryError;
 
-pub fn is_wait_trap(trap: &str) -> bool {
-    trap.starts_with(WAIT_TRAP_STR)
-}
-
-pub fn is_leave_trap(trap: &str) -> bool {
-    trap.starts_with(LEAVE_TRAP_STR)
-}
-
-pub fn is_gas_allowance_trap(trap: &str) -> bool {
-    trap.starts_with(GAS_ALLOWANCE_STR)
-}
-
-pub fn get_bytes32(mem: &dyn Memory, ptr: usize) -> Result<[u8; 32], &'static str> {
+pub fn get_bytes32(mem: &dyn Memory, ptr: usize) -> Result<[u8; 32], MemoryError> {
     let mut ret = [0u8; 32];
-    mem.read(ptr, &mut ret)
-        .map_err(|_| "Cannot read 32 bytes from mem")?;
+    mem.read(ptr, &mut ret)?;
     Ok(ret)
 }
 
-pub fn get_u128(mem: &dyn Memory, ptr: usize) -> Result<u128, &'static str> {
+pub fn get_u128(mem: &dyn Memory, ptr: usize) -> Result<u128, MemoryError> {
     let mut u128_le = [0u8; 16];
-    mem.read(ptr, &mut u128_le)
-        .map_err(|_| "Cannot read 16 bytes from mem")?;
+    mem.read(ptr, &mut u128_le)?;
     Ok(u128::from_le_bytes(u128_le))
 }
 
-pub fn get_vec(mem: &dyn Memory, ptr: usize, len: usize) -> Result<Vec<u8>, &'static str> {
+pub fn get_vec(mem: &dyn Memory, ptr: usize, len: usize) -> Result<Vec<u8>, MemoryError> {
     let mut vec = vec![0u8; len];
-    mem.read(ptr, &mut vec)
-        .map_err(|_| "Cannot read bytes from mem")?;
+    mem.read(ptr, &mut vec)?;
     Ok(vec)
 }
 
-pub fn set_u128(mem: &mut dyn Memory, ptr: usize, val: u128) -> Result<(), &'static str> {
+pub fn set_u128(mem: &mut dyn Memory, ptr: usize, val: u128) -> Result<(), MemoryError> {
     mem.write(ptr, &val.to_le_bytes())
-        .map_err(|_| "Cannot set u128 in memory")
 }

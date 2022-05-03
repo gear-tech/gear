@@ -21,6 +21,8 @@
 
 extern crate alloc;
 
+use alloc::string::ToString;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod ext;
@@ -627,7 +629,7 @@ pub mod pallet {
                         }) => {
                             return Err(format!(
                                 "Program terminated with a trap: {}",
-                                trap.unwrap_or("No reason")
+                                trap.unwrap_or_else(|| "No reason".to_string())
                             )
                             .into_bytes());
                         }

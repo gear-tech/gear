@@ -36,39 +36,7 @@ const GEAR_PAGE_SIZE: usize = 0x1000;
 /// Number of gear pages in one wasm page
 const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
-/// Memory error.
-#[derive(Clone, Debug)]
-pub enum Error {
-    /// Memory is over.
-    ///
-    /// All pages were previously allocated and there is nothing can be done.
-    OutOfMemory,
-
-    /// Allocation is in use.
-    ///
-    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
-    AllocationsInUse,
-
-    /// Specified page cannot be freed by the current program.
-    ///
-    /// It was allocated by another program.
-    InvalidFree(WasmPageNumber),
-
-    /// Out of bounds memory access
-    MemoryAccessError,
-}
-
-impl Error {
-    /// Converts error type to `str` message.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Error::OutOfMemory => "Memory is over",
-            Error::AllocationsInUse => "Allocation is in use",
-            Error::InvalidFree(_) => "Program cannot free the page",
-            Error::MemoryAccessError => "Out of bounds memory access",
-        }
-    }
-}
+pub use gear_core_errors::MemoryError as Error;
 
 /// Page buffer.
 pub type PageBuf = [u8; GEAR_PAGE_SIZE];
@@ -196,7 +164,7 @@ impl core::ops::Sub for WasmPageNumber {
 /// ```
 pub fn pages_to_wasm_pages_set<'a>(
     pages_iter: impl Iterator<Item = &'a PageNumber>,
-) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
+) -> Result<BTreeSet<WasmPageNumber>, Error> {
     let mut wasm_pages = BTreeSet::new();
     pages_iter
         .step_by(PageNumber::num_in_one_wasm_page() as _)
@@ -205,7 +173,7 @@ pub fn pages_to_wasm_pages_set<'a>(
                 wasm_pages.insert(WasmPageNumber(gp.0 / PageNumber::num_in_one_wasm_page()));
                 Ok(())
             } else {
-                Err("There is wasm page, which has not all gear pages in the begin")
+                Err(Error::NotAllPagesInBegin)
             }
         })?;
     Ok(wasm_pages)
@@ -349,7 +317,7 @@ impl AllocationsContext {
     /// Currently running program should own this page.
     pub fn free(&mut self, page: WasmPageNumber) -> Result<(), Error> {
         if page < self.static_pages || page > self.max_pages {
-            return Err(Error::InvalidFree(page));
+            return Err(Error::InvalidFree(page.0));
         }
         self.allocations.remove(&page);
 

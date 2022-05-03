@@ -28,13 +28,16 @@ use gear_core::memory::PageNumber;
 
 pub use sp_std::{result::Result, vec::Vec};
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 pub enum MprotectError {
+    #[display(fmt = "Page error")]
     PageError,
+    #[display(fmt = "OS error")]
     OsError,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
+#[display(fmt = "Failed to get released page")]
 pub struct GetReleasedPageError;
 
 /// TODO: deprecated remove before release
