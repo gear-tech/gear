@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod migration;
+
 #[cfg(test)]
 mod mock;
 
@@ -30,16 +32,22 @@ pub use pallet::*;
 pub mod pallet {
     use super::*;
     use common::storage::{
-        Callback as GearCallback, DequeError as GearDequeError, Messenger as GearMessenger, NextKey,
-        Node, StorageCounter as GearStorageCounter, StorageDeque as GearStorageDeque,
+        Callback as GearCallback, DequeError as GearDequeError, Messenger as GearMessenger,
+        NextKey, Node, StorageCounter as GearStorageCounter, StorageDeque as GearStorageDeque,
         StorageFlag as GearStorageFlag, StorageMap as GearStorageMap,
         StorageValue as GearStorageValue,
     };
-    use frame_support::{pallet_prelude::*, traits::ConstBool};
+    use frame_support::{
+        pallet_prelude::*,
+        traits::{ConstBool, StorageVersion},
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::message::StoredDispatch;
     use scale_info::TypeInfo;
     use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
+
+    /// The current storage version.
+    const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -51,6 +59,7 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
+    #[pallet::storage_version(MESSENGER_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
