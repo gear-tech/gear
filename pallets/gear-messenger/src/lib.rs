@@ -60,7 +60,6 @@ pub mod pallet {
     #[pallet::pallet]
     #[pallet::without_storage_info]
     #[pallet::storage_version(MESSENGER_STORAGE_VERSION)]
-    #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
     #[pallet::event]
@@ -109,7 +108,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type Head<T> = StorageValue<_, MessageKey>;
+    type Head<T> = StorageValue<_, MessageKey>;
 
     /// Accessor type for head of the deque.
     pub struct HeadImpl<T>(PhantomData<T>);
@@ -135,7 +134,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type Tail<T> = StorageValue<_, MessageKey>;
+    type Tail<T> = StorageValue<_, MessageKey>;
 
     /// Accessor type for tail of the deque.
     pub struct TailImpl<T>(PhantomData<T>);
@@ -161,7 +160,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type Length<T> = StorageValue<_, LengthType, ValueQuery>;
+    type Length<T> = StorageValue<_, LengthType, ValueQuery>;
 
     /// Accessor type for length of the deque.
     pub struct LengthImpl<T>(PhantomData<T>);
@@ -187,7 +186,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type Dispatches<T> = StorageMap<_, Identity, MessageKey, Node<MessageKey, StoredDispatch>>;
+    type Dispatches<T> = StorageMap<_, Identity, MessageKey, Node<MessageKey, StoredDispatch>>;
 
     /// Accessor type for elements of the deque.
     pub struct DispatchImpl<T>(PhantomData<T>);
@@ -260,7 +259,7 @@ pub mod pallet {
     pub type MessengerCapacity = u32;
 
     #[pallet::storage]
-    pub type Sent<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    type Sent<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
 
     /// Accessor type for amount for messages sent from outside during the block.
     pub struct SentImpl<T>(PhantomData<T>);
@@ -286,7 +285,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type Dequeued<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    type Dequeued<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
 
     /// Accessor type for amount for messages dequeued and appropriately
     /// processed (executed, skipped, etc.) during the block.
@@ -313,7 +312,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub type QueueProcessing<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+    type QueueProcessing<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     /// Accessor type for flag showing may the queue processing be continued during the block.
     pub struct QueueProcessingImpl<T>(PhantomData<T>);
