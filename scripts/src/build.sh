@@ -73,9 +73,9 @@ examples_build() {
   if [ -z "$YAMLS" ]
   then
     cd "$ROOT_DIR"
-    cargo +nightly build --release -p "demo-*"
+    cargo "+$WASM_BUILD_TOOLCHAIN" build --release -p "demo-*"
     cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly-2022-04-28 hack build --release --workspace "$@"
+    CARGO_TARGET_DIR="$TARGET_DIR" cargo "+$WASM_BUILD_TOOLCHAIN" hack build --release --workspace "$@"
     cd "$ROOT_DIR"
   else
     # If there is specified yaml list, then parses yaml files and build
@@ -90,7 +90,7 @@ examples_build() {
         path=$(echo "$path" | tail -1 )
         path=$(echo $path | perl -ne 'print $1 if /(.*)Cargo\.toml/s')
         cd $path
-        CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly-2022-04-28 hack build --release "$@"
+        CARGO_TARGET_DIR="$TARGET_DIR" cargo "+$WASM_BUILD_TOOLCHAIN" hack build --release "$@"
         cd -
       done
     done
