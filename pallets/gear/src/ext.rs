@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::fmt;
 use ::common::Origin;
 use alloc::collections::BTreeSet;
 use common::{lazy_pages, save_page_lazy_info};
+use core::fmt;
 use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
     Ext, ProcessorExt,

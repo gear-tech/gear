@@ -201,7 +201,7 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest
+test: test-gear test-js gtest rtest
 
 .PHONY: test-release
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade

@@ -23,10 +23,9 @@ use crate::{
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
-use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet};
 use codec::{Decode, Encode};
 use core::array::TryFromSliceError;
-use core::convert::TryFrom;
 
 /// A program error
 #[derive(Debug, Clone, Copy)]
@@ -108,17 +107,6 @@ impl Program {
         self.is_initialized = true;
     }
 
-    /// Set memory page from buffer.
-    pub fn add_allocation(&mut self, page: WasmPageNumber) -> Result<()> {
-        self.allocations.insert(page);
-        Ok(())
-    }
-
-    /// Remove memory page from buffer.
-    pub fn remove_allocation(&mut self, page: WasmPageNumber) {
-        self.allocations.remove(&page);
-    }
-
     /// Get reference to memory pages.
     pub fn get_allocations(&self) -> &BTreeSet<WasmPageNumber> {
         &self.allocations
@@ -189,12 +177,12 @@ mod tests {
 
         let code = Code::try_new(binary, 1, |_| ConstantCostRules::default()).unwrap();
         let (code, _) = code.into_parts();
-        let mut program = Program::new(ProgramId::from(1), code);
+        let program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());
 
-        assert!(program.add_allocation(1.into()).is_ok());
-        assert_eq!(program.get_allocations().len(), 1);
+        // no allocations because we do not set them in new
+        assert_eq!(program.get_allocations().len(), 0);
     }
 }

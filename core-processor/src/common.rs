@@ -294,18 +294,30 @@ pub enum ExecutionErrorReason {
     /// Not enough gas to load memory
     #[display(fmt = "Not enough gas to load memory")]
     LoadMemoryGasExceeded,
+    /// Not enough gas in block to load memory
+    #[display(fmt = "Not enough gas in block to load memory")]
+    LoadMemoryBlockGasExceeded,
     /// Not enough gas to grow memory size
     #[display(fmt = "Not enough gas to grow memory size")]
     GrowMemoryGasExceeded,
-    /// Not enough gas for initial memory
-    #[display(fmt = "Not enough gas for initial memory")]
+    /// Not enough gas in block to grow memory size
+    #[display(fmt = "Not enough gas in block to grow memory size")]
+    GrowMemoryBlockGasExceeded,
+    /// Not enough gas for initial memory handling
+    #[display(fmt = "Not enough gas for initial memory handling")]
     InitialMemoryGasExceeded,
+    /// Not enough gas in block for initial memory handling
+    #[display(fmt = "Not enough gas in block for initial memory handling")]
+    InitialMemoryBlockGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
     /// Changed page has no data in initial pages
     #[display(fmt = "Changed page has no data in initial pages")]
     PageNoData,
+    /// Ext works with lazy pages, but lazy pages env is not enabled
+    #[display(fmt = "Ext works with lazy pages, but lazy pages env is not enabled")]
+    LazyPagesInconsistentState,
 }
 
 /// Executable actor.

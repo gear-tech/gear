@@ -25,11 +25,7 @@ use crate::{
     ext::ProcessorExt,
 };
 use alloc::string::ToString;
-use alloc::{
-    boxed::Box,
-    collections::{BTreeMap, BTreeSet},
-    vec::Vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
@@ -66,7 +62,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         return Err(ExecutionError {
             program_id,
             gas_amount: gas_counter.into(),
-            reason: "Ext works with lazy pages, but lazy pages env is not enabled",
+            reason: Some(ExecutionErrorReason::LazyPagesInconsistentState),
             allowance_exceed: true,
         });
     }
@@ -84,7 +80,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enought gas in block to load memory",
+                reason: Some(ExecutionErrorReason::LoadMemoryBlockGasExceeded),
                 allowance_exceed: true,
             });
         };
@@ -106,7 +102,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enought gas in block for memory size allocation.",
+                reason: Some(ExecutionErrorReason::GrowMemoryBlockGasExceeded),
                 allowance_exceed: true,
             });
         }
@@ -130,7 +126,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enought gas in block for initial mem pages allocation.",
+                reason: Some(ExecutionErrorReason::GrowMemoryBlockGasExceeded),
                 allowance_exceed: true,
             });
         };
@@ -205,7 +201,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     let mut env =
         E::new(ext, program.raw_code(), &pages_initial_data, mem_size).map_err(|err| {
-            log::error!("Setup instance err = {:?}", err);
+            log::error!("Setup instance err = {}", err);
             ExecutionError {
                 program_id,
                 gas_amount: err.gas_amount.clone(),

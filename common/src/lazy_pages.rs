@@ -27,6 +27,7 @@ use sp_std::{
     boxed::Box,
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
@@ -38,6 +39,11 @@ pub enum Error {
     VecToPageData,
     #[display(fmt = "Cannot find page data in storage")]
     NoPageDataInStorage,
+    #[display(
+        fmt = "RUNTIME ERROR: released page {:?} already has data in provided page map to core processor",
+        _0
+    )]
+    ReleasedPageHasData(PageNumber),
 }
 
 impl From<MprotectError> for Error {
@@ -107,7 +113,7 @@ pub fn post_execution_actions(
             .insert(page.into(), Box::new(page_data))
             .is_some()
         {
-            return Err("RUNTIME ERROR: all released pages must have no data in @memory_pages arg");
+            return Err(Error::ReleasedPageHasData(page.into()));
         };
     }
 

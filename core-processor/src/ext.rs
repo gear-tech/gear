@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::configs::{AllocationsConfig, BlockInfo};
-use core::fmt;
 use alloc::{
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
+};
+use core::fmt;
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     charge_gas_token,
