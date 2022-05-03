@@ -235,6 +235,6 @@ test-pallet:
 test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
-.PHONE: test-runtime-upgrade
+.PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade

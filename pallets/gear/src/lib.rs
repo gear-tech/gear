@@ -654,10 +654,7 @@ pub mod pallet {
 
             while <MessengerPallet<T> as Messenger>::QueueProcessing::allowed() {
                 if let Some(dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
-                    .unwrap_or_else(|_| {
-                        // Can be called only in case of storage corruption
-                        unreachable!();
-                    })
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
                     let msg_id = dispatch.id().into_origin();
                     let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
@@ -671,10 +668,7 @@ pub mod pallet {
                         );
 
                         <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-                            .unwrap_or_else(|_| {
-                                // Can be called only in case of storage corruption
-                                unreachable!();
-                            });
+                            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
                         // Since we requeue the message without GasHandler we have to take
                         // into account that there can left only such messages in the queue.

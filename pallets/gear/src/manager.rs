@@ -126,122 +126,117 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
-        let event =
-            match outcome {
-                CoreDispatchOutcome::Success(message_id) => {
-                    log::trace!("Dispatch outcome success: {:?}", message_id);
+        let event = match outcome {
+            CoreDispatchOutcome::Success(message_id) => {
+                log::trace!("Dispatch outcome success: {:?}", message_id);
 
-                    Event::MessageDispatched(DispatchOutcome {
-                        message_id: message_id.into_origin(),
-                        outcome: ExecutionResult::Success,
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: message_id.into_origin(),
+                    outcome: ExecutionResult::Success,
+                })
+            }
+            CoreDispatchOutcome::MessageTrap {
+                message_id,
+                program_id,
+                trap,
+            } => {
+                let reason = trap
+                    .map(|v| {
+                        log::info!(
+                            target: "runtime::gear",
+                            "🪤 Program {} terminated with a trap: {}",
+                            program_id.into_origin(),
+                            v
+                        );
+                        v.as_bytes().to_vec()
                     })
-                }
-                CoreDispatchOutcome::MessageTrap {
-                    message_id,
+                    .unwrap_or_default();
+
+                log::trace!("Dispatch outcome trap: {:?}", message_id);
+
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: message_id.into_origin(),
+                    outcome: ExecutionResult::Failure(reason),
+                })
+            }
+            CoreDispatchOutcome::InitSuccess {
+                message_id,
+                origin,
+                program_id,
+            } => {
+                let program_id = program_id.into_origin();
+                let event = Event::InitSuccess(MessageInfo {
+                    message_id: message_id.into_origin(),
+                    origin: origin.into_origin(),
                     program_id,
-                    trap,
-                } => {
-                    let reason = trap
-                        .map(|v| {
-                            log::info!(
-                                target: "runtime::gear",
-                                "🪤 Program {} terminated with a trap: {}",
-                                program_id.into_origin(),
-                                v
+                });
+
+                common::waiting_init_take_messages(program_id)
+                    .into_iter()
+                    .for_each(|m_id| {
+                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
+                                |e| unreachable!("Message queue corrupted! {:?}", e),
                             );
-                            v.as_bytes().to_vec()
-                        })
-                        .unwrap_or_default();
-
-                    log::trace!("Dispatch outcome trap: {:?}", message_id);
-
-                    Event::MessageDispatched(DispatchOutcome {
-                        message_id: message_id.into_origin(),
-                        outcome: ExecutionResult::Failure(reason),
-                    })
-                }
-                CoreDispatchOutcome::InitSuccess {
-                    message_id,
-                    origin,
-                    program_id,
-                } => {
-                    let program_id = program_id.into_origin();
-                    let event = Event::InitSuccess(MessageInfo {
-                        message_id: message_id.into_origin(),
-                        origin: origin.into_origin(),
-                        program_id,
+                        }
                     });
 
-                    common::waiting_init_take_messages(program_id)
-                        .into_iter()
-                        .for_each(|m_id| {
-                            if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                                <MessengerPallet<T> as Messenger>::Queue::push_back(m)
-                                    .unwrap_or_else(|_| {
-                                        // Can be called only in case of storage corruption
-                                        unreachable!();
-                                    });
-                            }
-                        });
+                common::set_program_initialized(program_id);
 
-                    common::set_program_initialized(program_id);
-
-                    log::trace!(
-                        "Dispatch ({:?}) init success for program {:?}",
-                        message_id,
-                        program_id
-                    );
-
-                    event
-                }
-                CoreDispatchOutcome::InitFailure {
+                log::trace!(
+                    "Dispatch ({:?}) init success for program {:?}",
                     message_id,
-                    origin,
-                    program_id,
-                    reason,
-                } => {
-                    let program_id = program_id.into_origin();
-                    let origin = origin.into_origin();
+                    program_id
+                );
 
-                    // Some messages addressed to the program could be processed
-                    // in the queue before init message. For example, that could
-                    // happen when init message had more gas limit then rest block
-                    // gas allowance, but a dispatch message to the program was
-                    // dequeued. The other case is async init.
-                    common::waiting_init_take_messages(program_id)
-                        .into_iter()
-                        .for_each(|m_id| {
-                            if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                                <MessengerPallet<T> as Messenger>::Queue::push_back(m)
-                                    .unwrap_or_else(|_| {
-                                        // Can be called only in case of storage corruption
-                                        unreachable!();
-                                    });
-                            }
-                        });
+                event
+            }
+            CoreDispatchOutcome::InitFailure {
+                message_id,
+                origin,
+                program_id,
+                reason,
+            } => {
+                let program_id = program_id.into_origin();
+                let origin = origin.into_origin();
 
-                    let res = common::set_program_terminated_status(program_id);
-                    assert!(res.is_ok(), "only active program can cause init failure");
+                // Some messages addressed to the program could be processed
+                // in the queue before init message. For example, that could
+                // happen when init message had more gas limit then rest block
+                // gas allowance, but a dispatch message to the program was
+                // dequeued. The other case is async init.
+                common::waiting_init_take_messages(program_id)
+                    .into_iter()
+                    .for_each(|m_id| {
+                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
+                                |e| unreachable!("Message queue corrupted! {:?}", e),
+                            );
+                        }
+                    });
 
-                    log::trace!(
-                        "Dispatch ({:?}) init failure for program {:?}",
-                        message_id,
-                        program_id
-                    );
+                let res = common::set_program_terminated_status(program_id);
+                assert!(res.is_ok(), "only active program can cause init failure");
 
-                    Event::InitFailure(
-                        MessageInfo {
-                            message_id: message_id.into_origin(),
-                            origin,
-                            program_id,
-                        },
-                        Reason::Dispatch(reason.as_bytes().to_vec()),
-                    )
-                }
-                CoreDispatchOutcome::NoExecution(message_id) => {
-                    Event::MessageNotExecuted(message_id.into_origin())
-                }
-            };
+                log::trace!(
+                    "Dispatch ({:?}) init failure for program {:?}",
+                    message_id,
+                    program_id
+                );
+
+                Event::InitFailure(
+                    MessageInfo {
+                        message_id: message_id.into_origin(),
+                        origin,
+                        program_id,
+                    },
+                    Reason::Dispatch(reason.as_bytes().to_vec()),
+                )
+            }
+            CoreDispatchOutcome::NoExecution(message_id) => {
+                Event::MessageNotExecuted(message_id.into_origin())
+            }
+        };
 
         Pallet::<T>::deposit_event(event);
     }
@@ -288,10 +283,8 @@ where
         let program_id = id_exited.into_origin();
 
         for message in common::remove_program_waitlist(program_id) {
-            <MessengerPallet<T> as Messenger>::Queue::push_back(message).unwrap_or_else(|_| {
-                // Can be called only in case of storage corruption
-                unreachable!();
-            });
+            <MessengerPallet<T> as Messenger>::Queue::push_back(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
         let res = common::set_program_terminated_status(program_id);
@@ -368,10 +361,8 @@ where
                 let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch).unwrap_or_else(|_| {
-                // Can be called only in case of storage corruption
-                unreachable!();
-            });
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             let message = dispatch.into_parts().1;
 
@@ -442,10 +433,8 @@ where
                 }
             };
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch).unwrap_or_else(|_| {
-                // Can be called only in case of storage corruption
-                unreachable!();
-            });
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
@@ -555,9 +544,7 @@ where
 
         <MessengerPallet<T> as Messenger>::Sent::increase();
         GasPallet::<T>::decrease_gas_allowance(gas_burned);
-        <MessengerPallet<T> as Messenger>::Queue::push_front(dispatch).unwrap_or_else(|_| {
-            // Can be called only in case of storage corruption
-            unreachable!();
-        });
+        <MessengerPallet<T> as Messenger>::Queue::push_front(dispatch)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 }

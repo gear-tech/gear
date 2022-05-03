@@ -371,10 +371,7 @@ pub mod pallet {
                                 );
 
                                 <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-                                    .unwrap_or_else(|_| {
-                                        // Can be called only in case of storage corruption
-                                        unreachable!();
-                                    });
+                                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                             } else {
                                 pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)
                             }

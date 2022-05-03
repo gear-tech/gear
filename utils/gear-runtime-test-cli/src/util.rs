@@ -27,21 +27,14 @@ use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
 pub fn get_dispatch_queue() -> Vec<StoredDispatch> {
     <MessengerPallet<Runtime> as Messenger>::Queue::iter()
-        .map(|v| {
-            v.unwrap_or_else(|_| {
-                // Can be called only in case of storage corruption
-                unreachable!();
-            })
-        })
+        .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
         .collect()
 }
 
 pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
     let need_to_continue = || {
-        !<MessengerPallet<Runtime> as Messenger>::Queue::is_empty().unwrap_or_else(|_| {
-            // Can be called only in case of storage corruption
-            unreachable!();
-        })
+        !<MessengerPallet<Runtime> as Messenger>::Queue::is_empty()
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
     };
 
     while need_to_continue() {

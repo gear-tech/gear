@@ -4669,6 +4669,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "hex-literal",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",

@@ -276,10 +276,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         msg,
                         None,
                     ))
-                    .unwrap_or_else(|_| {
-                        // Can be called only in case of storage corruption
-                        unreachable!();
-                    });
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                 } else {
                     GearPallet::<Runtime>::send_message(
                         Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),

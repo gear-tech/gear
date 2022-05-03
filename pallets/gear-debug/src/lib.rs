@@ -180,12 +180,7 @@ pub mod pallet {
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
             let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
-                .map(|v| {
-                    v.unwrap_or_else(|_| {
-                        // Can be called only in case of storage corruption
-                        unreachable!();
-                    })
-                })
+                .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
                 .collect();
 
             let programs = PrefixIterator::<(H256, Program)>::new(
@@ -231,10 +226,7 @@ pub mod pallet {
             let programs_map = ProgramsMap::<T>::get();
 
             <MessengerPallet<T> as Messenger>::Queue::mutate_all(|d| remap_with(d, &programs_map))
-                .unwrap_or_else(|_| {
-                    // Can be called only in case of storage corruption
-                    unreachable!();
-                });
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
     }
 
