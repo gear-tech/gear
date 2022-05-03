@@ -39,8 +39,6 @@ pub enum ValueType {
     UnspecifiedLocal { parent: H256 },
 }
 
-#[allow(clippy::derivable_impls)]
-// this cannot be derived, despite clippy is saying that!!
 impl Default for ValueType {
     fn default() -> Self {
         ValueType::External {
