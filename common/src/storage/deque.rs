@@ -142,34 +142,8 @@ pub trait StorageDeque: Sized {
             {
                 return Err(DequeError::DuplicateElementKey.into());
             }
-        } else if let Some(tail_key) = Self::TailKey::remove() {
-            let mut new_tail_key = tail_key.next(&value);
-
-            while Self::Elements::contains(&new_tail_key) {
-                new_tail_key = new_tail_key.next(&value);
-            }
-
-            if Self::TailKey::set(new_tail_key.clone()).is_some() {
-                return Err(DequeError::TailWasNotRemoved.into());
-            }
-
-            Self::Elements::mutate(tail_key, |n| {
-                if let Some(n) = n {
-                    if n.next.is_some() {
-                        Err(DequeError::TailHadNextPointer)
-                    } else {
-                        n.next = Some(new_tail_key.clone());
-                        Ok(())
-                    }
-                } else {
-                    Err(DequeError::ElementNotFound)
-                }
-            })
-            .map_err(Into::into)?;
-
-            if Self::Elements::set(new_tail_key, Node { next: None, value }).is_some() {
-                return Err(DequeError::DuplicateElementKey.into());
-            }
+        } else if Self::TailKey::remove().is_some() {
+            return Err(DequeError::HeadWasEmptyWhileTailNot.into());
         } else {
             let first_key = Self::Key::first(&value);
 
