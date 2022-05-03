@@ -85,8 +85,12 @@ pub mod pallet {
         }
     }
 
+    /// Numeric type defining the maximum amount of messages in queue.
     pub type LengthType = u128;
 
+    /// Key for having access for messages in storage.
+    ///
+    /// Used instead of `MessageId` for space saving.
     #[derive(TypeInfo, Encode, Decode, Debug, Clone)]
     pub struct MessageKey(LengthType);
 
@@ -107,6 +111,7 @@ pub mod pallet {
     #[pallet::storage]
     pub type Head<T> = StorageValue<_, MessageKey>;
 
+    /// Accessor type for head of the deque.
     pub struct HeadImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageValue for HeadImpl<T> {
@@ -132,6 +137,7 @@ pub mod pallet {
     #[pallet::storage]
     pub type Tail<T> = StorageValue<_, MessageKey>;
 
+    /// Accessor type for tail of the deque.
     pub struct TailImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageValue for TailImpl<T> {
@@ -157,6 +163,7 @@ pub mod pallet {
     #[pallet::storage]
     pub type Length<T> = StorageValue<_, LengthType, ValueQuery>;
 
+    /// Accessor type for length of the deque.
     pub struct LengthImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageCounter for LengthImpl<T> {
@@ -182,6 +189,7 @@ pub mod pallet {
     #[pallet::storage]
     pub type Dispatches<T> = StorageMap<_, Identity, MessageKey, Node<MessageKey, StoredDispatch>>;
 
+    /// Accessor type for elements of the deque.
     pub struct DispatchImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageMap for DispatchImpl<T> {
@@ -209,8 +217,7 @@ pub mod pallet {
         }
     }
 
-    pub struct DequeImpl<T>(PhantomData<T>);
-
+    /// Callback function accessor for `pop_front` action.
     pub struct OnPopFrontCallback<T>(PhantomData<T>);
 
     impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPopFrontCallback<T> {
@@ -219,6 +226,7 @@ pub mod pallet {
         }
     }
 
+    /// Callback function accessor for `push_front` action.
     pub struct OnPushFrontCallback<T>(PhantomData<T>);
 
     impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPushFrontCallback<T> {
@@ -227,6 +235,9 @@ pub mod pallet {
             <Pallet<T> as GearMessenger>::QueueProcessing::deny();
         }
     }
+
+    /// Deque type itself. Contains all methods by aggregating all accessors.
+    pub struct DequeImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageDeque for DequeImpl<T> {
         type Key = MessageKey;
@@ -244,11 +255,14 @@ pub mod pallet {
         type OnPushBack = ();
     }
 
+    /// Numeric type defining the maximum amount of messages can be sent
+    /// from outside (extrinsics) or processed in single block.
     pub type MessengerCapacity = u32;
 
     #[pallet::storage]
     pub type Sent<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
 
+    /// Accessor type for amount for messages sent from outside during the block.
     pub struct SentImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageCounter for SentImpl<T> {
@@ -274,6 +288,8 @@ pub mod pallet {
     #[pallet::storage]
     pub type Processed<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
 
+    /// Accessor type for amount for messages dequeued and appropriately
+    /// processed (executed, skipped, etc.) during the block.
     pub struct ProcessedImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageCounter for ProcessedImpl<T> {
@@ -299,6 +315,7 @@ pub mod pallet {
     #[pallet::storage]
     pub type QueueProcessing<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
+    /// Accessor type for flag showing may the queue processing be continued during the block.
     pub struct QueueProcessingImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageFlag for QueueProcessingImpl<T> {
