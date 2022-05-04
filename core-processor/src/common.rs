@@ -28,7 +28,7 @@ use codec::{Decode, Encode};
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
 };
@@ -68,7 +68,9 @@ pub struct DispatchResult {
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, Option<Vec<u8>>>,
+    pub page_update: BTreeMap<PageNumber, Vec<u8>>,
+    /// New allocations set for program if it has been changed.
+    pub allocations: Option<BTreeSet<WasmPageNumber>>,
 }
 
 impl DispatchResult {
@@ -180,9 +182,15 @@ pub enum JournalNote {
         /// Number of the page.
         page_number: PageNumber,
         /// New data of the page.
-        ///
-        /// Updates data in case of `Some(data)` or deletes the page
-        data: Option<Vec<u8>>,
+        data: Vec<u8>,
+    },
+    /// Update allocations set note.
+    /// And also removes data for pages which is not in allocations set now.
+    UpdateAllocations {
+        /// Program id.
+        program_id: ProgramId,
+        /// New allocations set for the program.
+        allocations: BTreeSet<WasmPageNumber>,
     },
     /// Send value
     SendValue {
@@ -233,12 +241,13 @@ pub trait JournalHandler {
         awakening_id: MessageId,
     );
     /// Process page update.
-    fn update_page(
+    fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        page_number: PageNumber,
-        data: Option<Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, Vec<u8>>,
     );
+    /// Process [JournalNote::UpdateAllocations].
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -285,18 +294,30 @@ pub enum ExecutionErrorReason {
     /// Not enough gas to load memory
     #[display(fmt = "Not enough gas to load memory")]
     LoadMemoryGasExceeded,
+    /// Not enough gas in block to load memory
+    #[display(fmt = "Not enough gas in block to load memory")]
+    LoadMemoryBlockGasExceeded,
     /// Not enough gas to grow memory size
     #[display(fmt = "Not enough gas to grow memory size")]
     GrowMemoryGasExceeded,
-    /// Not enough gas for initial memory
-    #[display(fmt = "Not enough gas for initial memory")]
+    /// Not enough gas in block to grow memory size
+    #[display(fmt = "Not enough gas in block to grow memory size")]
+    GrowMemoryBlockGasExceeded,
+    /// Not enough gas for initial memory handling
+    #[display(fmt = "Not enough gas for initial memory handling")]
     InitialMemoryGasExceeded,
+    /// Not enough gas in block for initial memory handling
+    #[display(fmt = "Not enough gas in block for initial memory handling")]
+    InitialMemoryBlockGasExceeded,
     /// Mem size less then static pages num
     #[display(fmt = "Mem size less then static pages num")]
     InsufficientMemorySize,
     /// Changed page has no data in initial pages
     #[display(fmt = "Changed page has no data in initial pages")]
     PageNoData,
+    /// Ext works with lazy pages, but lazy pages env is not enabled
+    #[display(fmt = "Ext works with lazy pages, but lazy pages env is not enabled")]
+    LazyPagesInconsistentState,
 }
 
 /// Executable actor.
@@ -306,6 +327,8 @@ pub struct ExecutableActor {
     pub program: Program,
     /// Program value balance.
     pub balance: u128,
+    /// Data which some program allocated pages may have.
+    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
 }
 
 /// Execution context.
@@ -344,19 +367,11 @@ impl Debug for State {
                         actor.as_ref().map(|actor| {
                             (
                                 *id,
-                                (
-                                    actor.balance,
-                                    actor
-                                        .program
-                                        .get_pages()
-                                        .keys()
-                                        .cloned()
-                                        .collect::<BTreeSet<PageNumber>>(),
-                                ),
+                                (actor.balance, actor.program.get_allocations().clone()),
                             )
                         })
                     })
-                    .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
+                    .collect::<BTreeMap<ProgramId, (u128, BTreeSet<WasmPageNumber>)>>(),
             )
             .field("current_failed", &self.current_failed)
             .finish()

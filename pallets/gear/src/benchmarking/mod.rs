@@ -52,7 +52,11 @@ use sp_runtime::{
     Perbill,
 };
 
+use common::{lazy_pages, CodeMetadata, DAGBasedLedger};
+use core_processor::{common::ExecutableActor, configs::BlockInfo};
 use frame_support::traits::Currency;
+
+use crate::manager::{ExtManager, HandleKind};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
@@ -147,6 +151,11 @@ where
     T: Config,
     T::AccountId: Origin,
 {
+    assert!(
+        lazy_pages::try_to_enable_lazy_pages(),
+        "Suppose to run benchs only with lazy pages"
+    );
+
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = 1;
     let root_message_id = MessageId::from(bn).into_origin();
@@ -161,19 +170,13 @@ where
             )
             .map_err(|_| "Code failed to load: {}")?;
 
-            let static_pages = code.static_pages();
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source)?;
 
             let program_id = ProgramId::generate(code_id, b"salt");
-            ExtManager::<T>::default().set_program(
-                program_id,
-                code_id,
-                static_pages,
-                root_message_id,
-            );
+            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -237,7 +240,8 @@ where
     if let Some(queued_dispatch) = common::dequeue_dispatch() {
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
-            .get_executable_actor(actor_id.into_origin())
+            // get actor without pages data because of lazy pages enabled
+            .get_executable_actor(actor_id.into_origin(), false)
             .ok_or("Program not found in the storage")?;
         Ok(Exec {
             ext_manager,

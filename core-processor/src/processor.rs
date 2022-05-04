@@ -162,6 +162,7 @@ fn process_success(
         page_update,
         program_id,
         context_store,
+        allocations,
         ..
     } = dispatch_result;
 
@@ -214,6 +215,13 @@ fn process_success(
             page_number,
             data,
         })
+    }
+
+    if let Some(allocations) = allocations {
+        journal.push(JournalNote::UpdateAllocations {
+            program_id,
+            allocations,
+        });
     }
 
     match kind {

@@ -37,14 +37,14 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Origin, Program};
+    use common::{self, CodeStorage, Origin, Program};
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        ids::ProgramId,
+        ids::{CodeId, ProgramId},
         memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
@@ -61,6 +61,9 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        /// Storage with codes for proograms
+        type CodeStorage: CodeStorage;
     }
 
     #[pallet::pallet]
@@ -178,18 +181,31 @@ pub mod pallet {
                     Ok((program_id, program))
                 },
             )
-            .map(|(id, p)| ProgramDetails {
-                id,
-                state: if let Program::Active(active) = p {
-                    ProgramState::Active(ProgramInfo {
-                        static_pages: active.static_pages,
-                        persistent_pages: common::get_program_pages(id, active.persistent_pages)
-                            .expect("active program exists, therefore pages do"),
-                        code_hash: active.code_hash,
-                    })
-                } else {
-                    ProgramState::Terminated
-                },
+            .map(|(id, p)| {
+                let active = match p {
+                    Program::Active(active) => active,
+                    _ => {
+                        return ProgramDetails {
+                            id,
+                            state: ProgramState::Terminated,
+                        }
+                    }
+                };
+                let code_id = CodeId::from_origin(active.code_hash);
+                let static_pages = match T::CodeStorage::get_code(code_id) {
+                    Some(code) => code.static_pages(),
+                    None => WasmPageNumber(0),
+                };
+                ProgramDetails {
+                    id,
+                    state: {
+                        ProgramState::Active(ProgramInfo {
+                            static_pages,
+                            persistent_pages: common::get_program_pages_data(id, &active),
+                            code_hash: active.code_hash,
+                        })
+                    },
+                }
             })
             .collect();
 

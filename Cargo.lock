@@ -2205,7 +2205,6 @@ dependencies = [
  "clap",
  "frame-benchmarking",
  "frame-benchmarking-cli",
- "gear-lazy-pages",
  "gear-runtime",
  "gear-runtime-interface",
  "gear-runtime-test-cli",
@@ -2321,6 +2320,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-processor",
  "gear-runtime",
  "gear-test",
  "log",
@@ -4685,6 +4685,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "hex-literal",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
@@ -4715,6 +4716,7 @@ dependencies = [
 name = "pallet-gear-program"
 version = "2.0.0"
 dependencies = [
+ "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

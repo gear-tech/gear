@@ -127,7 +127,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 680,
+    spec_version: 690,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -395,6 +395,7 @@ impl pallet_gear::Config for Runtime {
 impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_usage::Config for Runtime {
