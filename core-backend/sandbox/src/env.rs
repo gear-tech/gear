@@ -18,21 +18,42 @@
 
 //! sp-sandbox environment for running a module.
 
+use crate::funcs::FuncError;
 use crate::memory::MemoryWrap;
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use alloc::{
+    boxed::Box, collections::BTreeMap, format, string::String, string::ToString, vec::Vec,
+};
+use core::fmt;
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
-    TerminationReason,
+    BackendError, BackendReport, Environment, HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
+use gear_core_errors::TerminationReason as CoreTerminationReason;
+use gear_core_errors::{CoreError, MemoryError};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
+
+#[derive(Debug, derive_more::Display)]
+pub enum SandboxEnvironmentError {
+    #[display(fmt = "Unable to instantiate module")]
+    ModuleInstantiation,
+    #[display(fmt = "Unable to get wasm module exports")]
+    GetWasmExports,
+    #[display(fmt = "Unable to set module memory data")]
+    SetModuleMemoryData,
+    #[display(fmt = "Failed to create env memory")]
+    CreateEnvMemory,
+    #[display(fmt = "{}", _0)]
+    Memory(MemoryError),
+    #[display(fmt = "{}", _0)]
+    PostExecutionHandler(String),
+}
 
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
@@ -44,7 +65,7 @@ pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
 pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
-    pub trap: Option<&'static str>,
+    pub trap: Option<FuncError<E::Error>>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -60,32 +81,32 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
 
 fn set_pages(
     memory: &mut dyn Memory,
-    pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    pages: &BTreeMap<PageNumber, Box<PageBuf>>,
 ) -> Result<(), String> {
     for (num, buf) in pages {
-        if let Some(buf) = buf {
-            memory
-                .write(num.offset(), &buf[..])
-                .map_err(|e| format!("Cannot write mem to {:?}: {:?}", num, e))?;
-        }
+        memory
+            .write(num.offset(), &buf[..])
+            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", num, e))?;
     }
     Ok(())
 }
 
 impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
+    type Error = SandboxEnvironmentError;
+
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<'static>> {
+    ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Create env memory fail",
+                    reason: SandboxEnvironmentError::CreateEnvMemory,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
@@ -140,7 +161,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(inst) => inst,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Unable to instantiate module",
+                    reason: SandboxEnvironmentError::ModuleInstantiation,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
@@ -151,7 +172,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(entries) => entries,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Unable to get wasm module exports",
+                    reason: SandboxEnvironmentError::GetWasmExports,
                     description: Some(format!("{:?}", e).into()),
                     gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
@@ -161,7 +182,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         // Set module memory.
         if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
             return Err(BackendError {
-                reason: "Unable to set module memory data",
+                reason: SandboxEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: runtime.ext.into_inner().into_gas_amount(),
             });
@@ -192,13 +213,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
-    fn execute<F>(
+    fn execute<F, T>(
         mut self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError>
+    ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), &'static str>,
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)
@@ -214,29 +236,25 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
         let info = ext
             .into_inner()
-            .into_ext_info(|ptr, buff| {
-                memory
-                    .read(ptr, buff)
-                    .map_err(|_err| "Cannot read sandbox mem")
-            })
+            .into_ext_info(|ptr, buff| memory.read(ptr, buff))
             .map_err(|(reason, gas_amount)| BackendError {
-                reason,
+                reason: SandboxEnvironmentError::Memory(reason),
                 description: None,
                 gas_amount,
             })?;
 
         let termination = if res.is_err() {
-            let reason = if let Some(trap) = trap {
-                if let Some(value_dest) = info.exit_argument {
-                    Some(TerminationReason::Exit(value_dest))
-                } else if common_funcs::is_wait_trap(trap) {
-                    Some(TerminationReason::Wait)
-                } else if common_funcs::is_leave_trap(trap) {
-                    Some(TerminationReason::Leave)
-                } else if common_funcs::is_gas_allowance_trap(trap) {
-                    Some(TerminationReason::GasAllowanceExceed)
-                } else {
-                    None
+            let reason = if let Some(FuncError::Core(err)) = &trap {
+                match err.as_termination_reason() {
+                    Some(CoreTerminationReason::Exit) => {
+                        info.exit_argument.map(TerminationReason::Exit)
+                    }
+                    Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
+                    Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
+                    Some(CoreTerminationReason::GasAllowanceExceeded) => {
+                        Some(TerminationReason::GasAllowanceExceeded)
+                    }
+                    None => None,
                 }
             } else {
                 None
@@ -244,7 +262,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,
-                description: trap.map(Into::into),
+                description: trap.map(|e| e.to_string()).map(Into::into),
             })
         } else {
             TerminationReason::Success
@@ -253,7 +271,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         match post_execution_handler(wasm_memory_addr) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
-                reason: e,
+                reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
                 description: None,
                 gas_amount: info.gas_amount,
             }),

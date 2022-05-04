@@ -36,7 +36,7 @@ pallet-gear = { path = "../gear", default-features = false }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 
 [dev-dependencies]
-serde = "1.0.136"
+serde = "1.0.137"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }

@@ -23,10 +23,16 @@ use crate::{
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
-use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec::Vec};
-use anyhow::Result;
+use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet};
 use codec::{Decode, Encode};
-use core::convert::TryFrom;
+use core::array::TryFromSliceError;
+
+/// A program error
+#[derive(Debug, Clone, Copy)]
+pub enum Error {
+    /// Failed to convert PageBuf from slice
+    TryFromSlice(TryFromSliceError),
+}
 
 /// Type alias for map of persistent pages.
 pub type PersistentPageMap = BTreeMap<PageNumber, Option<Box<PageBuf>>>;
@@ -36,8 +42,8 @@ pub type PersistentPageMap = BTreeMap<PageNumber, Option<Box<PageBuf>>>;
 pub struct Program {
     id: ProgramId,
     code: InstrumentedCode,
-    /// Saved state of memory pages.
-    persistent_pages: PersistentPageMap,
+    /// Wasm pages allocated by program.
+    allocations: BTreeSet<WasmPageNumber>,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -48,7 +54,7 @@ impl Program {
         Program {
             id,
             code,
-            persistent_pages: Default::default(),
+            allocations: Default::default(),
             is_initialized: false,
         }
     }
@@ -57,16 +63,13 @@ impl Program {
     pub fn from_parts(
         id: ProgramId,
         code: InstrumentedCode,
-        persistent_pages_numbers: BTreeSet<PageNumber>,
+        allocations: BTreeSet<WasmPageNumber>,
         is_initialized: bool,
     ) -> Self {
         Self {
             id,
             code,
-            persistent_pages: persistent_pages_numbers
-                .into_iter()
-                .map(|k| (k, None))
-                .collect(),
+            allocations,
             is_initialized,
         }
     }
@@ -104,73 +107,19 @@ impl Program {
         self.is_initialized = true;
     }
 
-    /// Set memory from buffer.
-    pub fn set_memory(&mut self, buffer: &[u8]) -> Result<()> {
-        self.persistent_pages.clear();
-        let boxed_slice: Box<[u8]> = buffer.into();
-        // TODO: also alloc remainder.
-        for (num, buf) in boxed_slice.chunks_exact(PageNumber::size()).enumerate() {
-            self.set_page((num as u32 + 1).into(), buf)?;
-        }
-        Ok(())
-    }
-
-    /// Setting multiple pages
-    pub fn set_pages(&mut self, pages: BTreeMap<PageNumber, Vec<u8>>) -> Result<()> {
-        for (page_num, page_data) in pages {
-            self.set_page(page_num, &page_data)?;
-        }
-        Ok(())
-    }
-
-    /// Set memory page from buffer.
-    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<()> {
-        self.persistent_pages.insert(
-            page,
-            Option::from(Box::new(
-                PageBuf::try_from(buf)
-                    .map_err(|err| anyhow::format_err!("TryFromSlice err: {}", err))?,
-            )),
-        );
-        Ok(())
-    }
-
-    /// Remove memory page from buffer.
-    pub fn remove_page(&mut self, page: PageNumber) {
-        self.persistent_pages.remove(&page);
-    }
-
     /// Get reference to memory pages.
-    pub fn get_pages(&self) -> &PersistentPageMap {
-        &self.persistent_pages
+    pub fn get_allocations(&self) -> &BTreeSet<WasmPageNumber> {
+        &self.allocations
     }
 
     /// Get mut reference to memory pages.
-    pub fn get_pages_mut(&mut self) -> &mut PersistentPageMap {
-        &mut self.persistent_pages
-    }
-
-    /// Get reference to memory page.
-    #[allow(clippy::borrowed_box)]
-    pub fn get_page_data(&self, page: PageNumber) -> Option<&Box<PageBuf>> {
-        let res = self.persistent_pages.get(&page);
-        res.expect("Page must be in persistent_pages").as_ref()
-    }
-
-    /// Get mut reference to memory page.
-    pub fn get_page_mut(&mut self, page: PageNumber) -> Option<&mut Box<PageBuf>> {
-        let res = self.persistent_pages.get_mut(&page);
-        res.expect("Page must be in persistent_pages; mut").as_mut()
+    pub fn get_allocations_mut(&mut self) -> &mut BTreeSet<WasmPageNumber> {
+        &mut self.allocations
     }
 
     /// Clear static area of this program.
     pub fn clear_memory(&mut self) {
-        self.persistent_pages.clear();
-    }
-
-    /// Decomposes this instance into tuple of binary code and persistent pages.
-    pub fn into_parts(self) -> (Vec<u8>, PersistentPageMap) {
-        (self.code.into_code(), self.persistent_pages)
+        self.allocations.clear();
     }
 }
 
@@ -181,8 +130,7 @@ mod tests {
     use super::Program;
     use crate::code::Code;
     use crate::ids::ProgramId;
-    use crate::memory::PageNumber;
-    use alloc::{vec, vec::Vec};
+    use alloc::vec::Vec;
     use wasm_instrument::gas_metering::ConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -229,16 +177,12 @@ mod tests {
 
         let code = Code::try_new(binary, 1, |_| ConstantCostRules::default()).unwrap();
         let (code, _) = code.into_parts();
-        let mut program = Program::new(ProgramId::from(1), code);
+        let program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());
 
-        assert!(program.set_page(1.into(), &[0; 123]).is_err());
-
-        assert!(program
-            .set_page(1.into(), &vec![0; PageNumber::size()])
-            .is_ok());
-        assert_eq!(program.get_pages().len(), 1);
+        // no allocations because we do not set them in new
+        assert_eq!(program.get_allocations().len(), 0);
     }
 }

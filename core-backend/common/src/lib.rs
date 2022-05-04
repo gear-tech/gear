@@ -30,6 +30,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use core::fmt;
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -37,60 +38,72 @@ use gear_core::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
-
-pub const EXIT_TRAP_STR: &str = "exit";
-pub const LEAVE_TRAP_STR: &str = "leave";
-pub const WAIT_TRAP_STR: &str = "wait";
-pub const GAS_ALLOWANCE_STR: &str = "allowance";
+use gear_core_errors::ExtError;
 
 pub type HostPointer = u64;
 
-#[derive(Debug)]
-pub enum TerminationReason<'a> {
+#[derive(Debug, Clone)]
+pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Trap {
-        explanation: Option<&'static str>,
-        description: Option<Cow<'a, str>>,
+        explanation: Option<ExtError>,
+        description: Option<Cow<'static, str>>,
     },
     Wait,
-    GasAllowanceExceed,
+    GasAllowanceExceeded,
 }
 
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
-    pub pages: BTreeSet<PageNumber>,
+    pub allocations: BTreeSet<WasmPageNumber>,
     pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
     pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<&'static str>,
+    pub trap_explanation: Option<ExtError>,
     pub exit_argument: Option<ProgramId>,
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
         self,
         get_page_data: F,
-    ) -> Result<ExtInfo, (&'static str, GasAmount)>;
+    ) -> Result<ExtInfo, (T, GasAmount)>;
     fn into_gas_amount(self) -> GasAmount;
 }
 
-pub struct BackendReport<'a> {
-    pub termination: TerminationReason<'a>,
+pub struct BackendReport {
+    pub termination: TerminationReason,
     pub info: ExtInfo,
 }
 
 #[derive(Debug)]
-pub struct BackendError<'a> {
+pub struct BackendError<T> {
     pub gas_amount: GasAmount,
-    pub reason: &'static str,
-    pub description: Option<Cow<'a, str>>,
+    pub reason: T,
+    pub description: Option<Cow<'static, str>>,
+}
+
+impl<T> fmt::Display for BackendError<T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(description) = &self.description {
+            write!(f, "{}: {}", self.reason, description)
+        } else {
+            write!(f, "{}", self.reason)
+        }
+    }
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
+    /// An error issues in environment
+    type Error: fmt::Display;
+
     /// Creates new external environment to execute wasm binary:
     /// 1) instatiates wasm binary.
     /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
@@ -98,9 +111,9 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<'static>>;
+    ) -> Result<Self, BackendError<Self::Error>>;
 
     /// Returns addr to the stack end if it can be identified
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
@@ -110,13 +123,14 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
-    fn execute<F>(
+    fn execute<F, T>(
         self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError>
+    ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), &'static str>;
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display;
 
     /// Consumes environment and returns gas state.
     fn into_gas_amount(self) -> GasAmount;
@@ -128,7 +142,7 @@ pub trait OnSuccessCode<T, E> {
         F: FnMut(T) -> Result<(), E>;
 }
 
-impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
+impl<T, E, E2> OnSuccessCode<T, E> for Result<T, E2> {
     fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
     where
         F: FnMut(T) -> Result<(), E>,
@@ -141,14 +155,15 @@ impl<T, E> OnSuccessCode<T, E> for Result<T, E> {
 }
 
 pub trait IntoErrorCode {
-    fn into_error_code(self) -> Result<i32, &'static str>;
+    fn into_error_code(self) -> i32;
 }
 
-impl IntoErrorCode for Result<(), &str> {
-    fn into_error_code(self) -> Result<i32, &'static str> {
+impl<E> IntoErrorCode for Result<(), E> {
+    fn into_error_code(self) -> i32 {
         match self {
-            Ok(()) => Ok(0),
-            Err(_) => Ok(1),
+            Ok(()) => 0,
+            // TODO: actual error codes
+            Err(_) => 1,
         }
     }
 }

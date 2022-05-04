@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{wasm_pages_to_pages_set, WasmPageNumber};
+use gear_core::memory::{PageNumber, WasmPageNumber};
 use parity_wasm::elements::*;
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
@@ -134,19 +134,17 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 
 pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber) {
     let code_id = CodeId::generate(&code).into_origin();
-    let wasm_pages = (0..static_pages.0)
-        .map(WasmPageNumber)
-        .collect::<Vec<WasmPageNumber>>();
-    let persistent_pages = wasm_pages_to_pages_set(wasm_pages.iter());
-    let persistent_pages_data = persistent_pages
-        .iter()
-        .map(|p| (*p, vec![0u8; PageNumber::size()]))
+    let allocations = (0..static_pages.0).map(WasmPageNumber);
+    let persistent_pages_data: BTreeMap<PageNumber, Vec<u8>> = allocations
+        .clone()
+        .flat_map(|p| p.to_gear_pages_iter())
+        .map(|p| (p, vec![0u8; PageNumber::size()]))
         .collect();
-    super::set_program(
+    super::set_program_and_pages_data(
         program_id,
         ActiveProgram {
-            static_pages,
-            persistent_pages,
+            allocations: allocations.collect(),
+            pages_with_data: persistent_pages_data.keys().copied().collect(),
             code_hash: code_id,
             state: ProgramState::Initialized,
         },

@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::common::ExecutionErrorReason;
 use crate::{
     common::{
         DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
@@ -23,15 +24,13 @@ use crate::{
     configs::ExecutionSettings,
     ext::ProcessorExt,
 };
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec::Vec,
-};
+use alloc::string::ToString;
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{pages_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, PageBuf, WasmPageNumber},
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
@@ -43,7 +42,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    let ExecutableActor { program, balance } = actor;
+    let ExecutableActor {
+        program,
+        balance,
+        pages_data,
+    } = actor;
 
     let program_id = program.id();
     let kind = dispatch.kind();
@@ -55,35 +58,29 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(context.gas_allowance);
 
+    if !A::check_lazy_pages_consistent_state() {
+        return Err(ExecutionError {
+            program_id,
+            gas_amount: gas_counter.into(),
+            reason: Some(ExecutionErrorReason::LazyPagesInconsistentState),
+            allowance_exceed: true,
+        });
+    }
+
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
     let static_pages = program.static_pages();
 
-    let mem_size = if let Some((max_page, _)) = program.get_pages().iter().next_back() {
-        if (max_page.0 + 1) % PageNumber::num_in_one_wasm_page() != 0 {
-            log::error!(
-                "Program's max page is not last page in wasm page: {}",
-                max_page.0
-            );
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: "Program's max page is not last page in wasm page.",
-                allowance_exceed: false,
-            });
-        }
-
-        let max_wasm_page = max_page.to_wasm_page();
-
+    let mem_size = if let Some(max_wasm_page) = program.get_allocations().iter().next_back() {
         // Charging gas for loaded pages
-        let amount = settings.load_page_cost() * program.get_pages().len() as u64;
+        let amount = settings.load_page_cost() * program.get_allocations().len() as u64;
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "",
+                reason: Some(ExecutionErrorReason::LoadMemoryBlockGasExceeded),
                 allowance_exceed: true,
             });
         };
@@ -92,7 +89,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas to load memory.",
+                reason: Some(ExecutionErrorReason::LoadMemoryGasExceeded),
                 allowance_exceed: false,
             });
         };
@@ -105,7 +102,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "",
+                reason: Some(ExecutionErrorReason::GrowMemoryBlockGasExceeded),
                 allowance_exceed: true,
             });
         }
@@ -114,13 +111,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas to grow memory size.",
+                reason: Some(ExecutionErrorReason::GrowMemoryGasExceeded),
                 allowance_exceed: false,
             });
         }
 
         // +1 because pages numeration begins from 0
-        max_wasm_page + 1.into()
+        *max_wasm_page + 1.into()
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost() * static_pages.0 as u64;
@@ -129,7 +126,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "",
+                reason: Some(ExecutionErrorReason::GrowMemoryBlockGasExceeded),
                 allowance_exceed: true,
             });
         };
@@ -138,7 +135,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas for initial memory.",
+                reason: Some(ExecutionErrorReason::InitialMemoryGasExceeded),
                 allowance_exceed: false,
             });
         };
@@ -155,33 +152,21 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         return Err(ExecutionError {
             program_id,
             gas_amount: gas_counter.into(),
-            reason: "Mem size less then static pages num",
+            reason: Some(ExecutionErrorReason::InsufficientMemorySize),
             allowance_exceed: false,
         });
     }
 
-    let initial_pages = program.get_pages();
-
     // Getting wasm pages allocations.
-    let allocations: BTreeSet<WasmPageNumber> = if !initial_pages.is_empty() {
-        match pages_to_wasm_pages_set(initial_pages.keys()) {
-            Err(e) => {
-                return Err(ExecutionError {
-                    program_id,
-                    gas_amount: gas_counter.into(),
-                    reason: e,
-                    allowance_exceed: false,
-                })
-            }
-            Ok(res) => res,
-        }
+    let (allocations, is_initial) = if program.get_allocations().is_empty() {
+        ((0..static_pages.0).map(WasmPageNumber).collect(), true)
     } else {
-        (0..static_pages.0).map(WasmPageNumber).collect()
+        (program.get_allocations().clone(), false)
     };
 
     // Creating allocations context.
     let allocations_context =
-        AllocationsContext::new(allocations, static_pages, settings.max_pages());
+        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
 
     // Creating message context.
     let message_context = MessageContext::new_with_settings(
@@ -191,10 +176,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         msg_ctx_settings,
     );
 
-    let (binary, mut initial_pages) = program.into_parts();
-
     // Creating externalities.
-    let mut ext = A::new(
+    let ext = A::new(
         gas_counter,
         gas_allowance_counter,
         value_counter,
@@ -204,56 +187,60 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.config,
         settings.existential_deposit,
         None,
-        None,
         context.origin,
         program_id,
         Default::default(),
         settings.host_fn_weights,
     );
 
-    let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, &mut initial_pages) {
-        Ok(enabled) => enabled,
-        Err(e) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: ext.into_gas_amount(),
-                reason: e,
-                allowance_exceed: false,
-            })
-        }
-    };
+    // TODO: will be fixed later issue 881
+    let mut pages_initial_data = pages_data
+        .into_iter()
+        .map(|(page, data)| (page, Box::new(PageBuf::try_from(data).unwrap())))
+        .collect();
 
-    let mut env = E::new(ext, &binary, &initial_pages, mem_size).map_err(|err| {
-        log::error!("Setup instance err = {:?}", err);
-        ExecutionError {
-            program_id,
-            gas_amount: err.gas_amount,
-            reason: err.reason,
-            allowance_exceed: false,
-        }
-    })?;
+    let mut env =
+        E::new(ext, program.raw_code(), &pages_initial_data, mem_size).map_err(|err| {
+            log::error!("Setup instance err = {}", err);
+            ExecutionError {
+                program_id,
+                gas_amount: err.gas_amount.clone(),
+                reason: Some(ExecutionErrorReason::Backend(err.to_string())),
+                allowance_exceed: false,
+            }
+        })?;
 
     log::trace!(
-        "init memory pages = {:?}",
-        initial_pages
+        "initial pages with data = {:?}",
+        pages_initial_data
             .iter()
-            .map(|(a, _b)| a.0)
-            .collect::<Vec<u32>>()
+            .map(|(p, _)| p.0)
+            .collect::<Vec<_>>()
     );
 
-    if lazy_pages_enabled {
-        if let Err(e) = A::protect_pages_and_init_info(
-            &initial_pages,
+    if A::is_lazy_pages_enabled() {
+        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
+        let lazy_pages = allocations
+            .iter()
+            .flat_map(|page| page.to_gear_pages_iter())
+            .filter(|page| !pages_initial_data.contains_key(page))
+            .collect();
+        if let Err(e) = A::lazy_pages_protect_and_init_info(
+            &lazy_pages,
             program_id,
             env.get_wasm_memory_begin_addr(),
         ) {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: env.into_gas_amount(),
-                reason: e,
+                reason: Some(ExecutionErrorReason::Processor(e.to_string())),
                 allowance_exceed: false,
             });
         }
+        log::trace!(
+            "lazy pages = {:?}",
+            lazy_pages.iter().map(|p| p.0).collect::<Vec<_>>()
+        );
     }
 
     // Page which is right after stack last page
@@ -267,8 +254,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             // TODO: if post execution actions err is connected, with removing pages protections,
             // then we should panic here, because protected pages may cause UB later, during err handling,
             // if somebody will try to access this pages.
-            if lazy_pages_enabled {
-                A::post_execution_actions(&mut initial_pages, wasm_memory_addr)
+            if A::is_lazy_pages_enabled() {
+                A::lazy_pages_post_execution_actions(&mut pages_initial_data, wasm_memory_addr)
             } else {
                 Ok(())
             }
@@ -277,8 +264,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             Err(e) => {
                 return Err(ExecutionError {
                     program_id,
-                    gas_amount: e.gas_amount,
-                    reason: e.reason,
+                    gas_amount: e.gas_amount.clone(),
+                    reason: Some(ExecutionErrorReason::Backend(e.to_string())),
                     allowance_exceed: false,
                 })
             }
@@ -298,66 +285,59 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
                 program_id,
                 description.unwrap_or_else(|| "None".into()),
-                explanation.unwrap_or("None"),
+                explanation
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "None".to_string()),
             );
 
             DispatchResultKind::Trap(explanation)
         }
         TerminationReason::Wait => DispatchResultKind::Wait,
-        TerminationReason::GasAllowanceExceed => DispatchResultKind::GasAllowanceExceed,
+        TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
+
+    log::trace!(
+        "accessed pages: {:?}",
+        info.pages_data.iter().map(|(p, _)| p).collect::<Vec<_>>()
+    );
 
     // changed and new pages will be updated in storage
     let mut page_update = BTreeMap::new();
     for (page, new_data) in info.pages_data {
-        // exception is stack memory pages - if there are some
-        // we ignore stack pages update, because they are unused after execution is ended,
+        // If there are stack memory pages, then
+        // we ignore stack pages update, because they are unused after execution,
         // and for next program execution old data in stack it's just garbage.
         if let Some(stack_end_page) = stack_end_page {
-            if page.0 < stack_end_page.to_gear_pages().0 {
+            if page.0 < stack_end_page.to_gear_page().0 {
                 continue;
             }
         }
 
-        if let Some(initial_data) = initial_pages.get(&page) {
-            match initial_data.as_ref() {
-                Some(old_data) => {
-                    if !new_data.eq(old_data.as_ref()) {
-                        page_update.insert(page, Some(new_data));
-                        log::trace!(
-                            "Page {} has been changed - will be updated in storage",
-                            page.0
-                        );
-                    }
-                }
-                None => {
-                    return Err(ExecutionError {
-                        program_id,
-                        gas_amount: info.gas_amount,
-                        reason: "RUNTIME ERROR: changed page has no data in initial pages",
-                        allowance_exceed: false,
-                    })
-                }
+        if let Some(initial_data) = pages_initial_data.get(&page) {
+            if !new_data.eq(initial_data.as_ref()) {
+                page_update.insert(page, new_data);
+                log::trace!(
+                    "Page {} is new or changed - will be updated in storage",
+                    page.0
+                );
+            } else if A::is_lazy_pages_enabled() {
+                log::trace!("Page {} is accessed but has not been changed", page.0);
             }
         } else {
-            page_update.insert(page, Some(new_data));
+            page_update.insert(page, new_data);
             log::trace!("Page {} is a new page - will be upload to storage", page.0);
         };
     }
 
-    // freed pages will be removed from storage
-    let current_pages = &info.pages;
-    initial_pages
-        .iter()
-        .filter(|(page, _)| !current_pages.contains(*page))
-        .for_each(|(removed_page, _)| {
-            page_update.insert(*removed_page, None);
-        });
-
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
 
-    // Output.
+    log::trace!(
+        "after exec allocations = {:?}",
+        info.allocations.iter().map(|p| p.0).collect::<Vec<_>>()
+    );
+
+    // Output
     Ok(DispatchResult {
         kind,
         dispatch,
@@ -365,8 +345,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,
         awakening: info.awakening,
+        program_candidates,
         gas_amount: info.gas_amount,
         page_update,
-        program_candidates,
+        allocations: if !is_initial && info.allocations.eq(&allocations) {
+            None
+        } else {
+            Some(info.allocations)
+        },
     })
 }

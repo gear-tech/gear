@@ -45,6 +45,15 @@ js_update() {
 }
 
 cargo_init() {
-  cargo install cargo-hack
-  cargo install cargo-nextest
+  if [ -z $CI ]; then
+    cargo install cargo-hack
+    cargo install cargo-nextest
+  else 
+    curl "https://api.github.com/repos/taiki-e/cargo-hack/releases/latest" | 
+    grep -wo "https.*x86_64-unknown-linux-gnu.tar.gz" | 
+    xargs curl -L | 
+    tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+    
+    curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+  fi
 }

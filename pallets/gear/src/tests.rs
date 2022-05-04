@@ -383,7 +383,7 @@ fn unused_gas_released_back_works() {
 #[cfg(unix)]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber};
+    use gear_core::memory::{PageNumber, WasmPageNumber};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -478,7 +478,10 @@ fn lazy_pages() {
         // Checks that released pages + lazy pages == all pages
         let all_pages = {
             let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
-            wasm_pages_to_pages_set(all_wasm_pages.iter())
+            all_wasm_pages
+                .iter()
+                .flat_map(|p| p.to_gear_pages_iter())
+                .collect()
         };
         let mut res_pages = lazy_pages;
         res_pages.extend(released_pages.iter());
@@ -587,7 +590,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 791822625 + 6228260 - 1; // calc gas pid1 + pid2 - 1
+        let remaining_weight = 791822425 + 6228060 - 1; // calc gas pid1 + pid2 - 1
 
         // Submit programs and get their ids
         let pid1 = {
@@ -681,9 +684,7 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1.into_origin(),
-                outcome: ExecutionResult::Failure(
-                    b"Gas limit exceeded while trying to send message".to_vec(),
-                ),
+                outcome: ExecutionResult::Failure(b"Gas limit exceeded".to_vec()),
             })
             .into(),
         );
@@ -2385,8 +2386,7 @@ fn resume_program_works() {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
-        let memory_pages = common::get_program_pages(program_id, program.persistent_pages)
-            .expect("program exists, so do pages");
+        let memory_pages = common::get_program_pages_data(program_id, &program);
 
         assert_ok!(GearProgram::pause_program(program_id));
 

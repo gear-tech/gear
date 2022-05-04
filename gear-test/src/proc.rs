@@ -102,6 +102,7 @@ where
         Some(ExecutableActor {
             program,
             balance: 0,
+            pages_data: Default::default(),
         }),
         message.into(),
         block_info,

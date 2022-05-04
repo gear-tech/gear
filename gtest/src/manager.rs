@@ -25,12 +25,12 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -64,7 +64,7 @@ impl Actor {
             let mut prog = maybe_prog
                 .take()
                 .expect("actor storage contains only `Some` values by contract");
-            if let Program::Genuine(p) = &mut prog {
+            if let Program::Genuine(p, _) = &mut prog {
                 p.set_initialized();
             }
             *self = Actor::Initialized(prog);
@@ -79,9 +79,9 @@ impl Actor {
         matches!(self, Actor::Uninitialized(..))
     }
 
-    fn as_mut_core_prog(&mut self) -> Option<&mut CoreProgram> {
+    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, Vec<u8>>> {
         match self {
-            Actor::Initialized(Program::Genuine(prog)) => Some(prog),
+            Actor::Initialized(Program::Genuine(_, pages_data)) => Some(pages_data),
             _ => None,
         }
     }
@@ -97,25 +97,33 @@ impl Actor {
 
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor(&self, balance: Balance) -> Option<ExecutableActor> {
-        let program = match self {
-            Actor::Initialized(Program::Genuine(program)) => Some(program.clone()),
-            Actor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program.clone()),
-            _ => None,
+        let (program, pages_data) = match self {
+            Actor::Initialized(Program::Genuine(program, pages_data)) => {
+                (program.clone(), pages_data.clone())
+            }
+            Actor::Uninitialized(_, Some(Program::Genuine(program, pages_data))) => {
+                (program.clone(), pages_data.clone())
+            }
+            _ => return None,
         };
-        program.map(|program| ExecutableActor { program, balance })
+        Some(ExecutableActor {
+            program,
+            balance,
+            pages_data,
+        })
     }
 }
 
 #[derive(Debug)]
 pub(crate) enum Program {
-    Genuine(CoreProgram),
+    Genuine(CoreProgram, BTreeMap<PageNumber, Vec<u8>>),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
 
 impl Program {
-    pub(crate) fn new(prog: CoreProgram) -> Self {
-        Program::Genuine(prog)
+    pub(crate) fn new(prog: CoreProgram, pages_data: BTreeMap<PageNumber, Vec<u8>>) -> Self {
+        Program::Genuine(prog, pages_data)
     }
 
     pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
@@ -171,7 +179,7 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<(Actor, Balance)> {
-        if let Program::Genuine(program) = &program {
+        if let Program::Genuine(program, _) = &program {
             self.store_new_code(program.raw_code());
         }
         self.actors
@@ -367,13 +375,13 @@ impl ExtManager {
                         message_id,
                         program_id,
                         origin: dispatch.source(),
-                        reason: expl,
+                        reason: Some(expl.to_string()),
                     });
                 } else {
                     self.message_dispatched(DispatchOutcome::MessageTrap {
                         message_id,
                         program_id,
-                        trap: Some(expl),
+                        trap: Some(expl.to_string()),
                     })
                 }
 
@@ -494,22 +502,37 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn update_page(
+    fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        page_number: PageNumber,
-        data: Option<Vec<u8>>,
+        mut pages_data: BTreeMap<PageNumber, Vec<u8>>,
     ) {
         let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-        if let Some(prog) = actor.as_mut_core_prog() {
-            if let Some(data) = data {
-                let _ = prog.set_page(page_number, &data);
-            } else {
-                prog.remove_page(page_number);
+        if let Some(actor_pages_data) = actor.get_pages_data_mut() {
+            actor_pages_data.append(&mut pages_data);
+        } else {
+            unreachable!("No pages update for non-initialized program")
+        }
+    }
+
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
+        let (actor, _) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("Can't find existing program");
+
+        if let Actor::Initialized(Program::Genuine(program, pages_data)) = actor {
+            for page in program
+                .get_allocations()
+                .difference(&allocations)
+                .flat_map(|p| p.to_gear_pages_iter())
+            {
+                pages_data.remove(&page);
             }
+            *program.get_allocations_mut() = allocations;
         } else {
             unreachable!("No pages update for non-initialized program")
         }
@@ -544,7 +567,7 @@ impl JournalHandler for ExtManager {
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::new(candidate),
+                        Program::new(candidate, Default::default()),
                         Some(init_message_id),
                     );
                 } else {

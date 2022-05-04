@@ -43,7 +43,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
     let gear_ps = PageNumber::size();
 
     let (gear_page, gear_pages_num, unprot_addr) = unsafe {
-        log::debug!(target: "gear_node::sig_handler", "Interrupted, sig-info = {:?}", *info);
+        log::debug!("Interrupted, sig-info = {:?}", *info);
 
         let mem = (*info).si_addr();
         let native_page = (mem as usize / native_ps) * native_ps;
@@ -66,7 +66,14 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
             (gear_page, 1usize, wasm_mem_begin + gear_page.offset())
         };
 
-        log::debug!(target: "gear_node::sig_handler", "mem={:?} gear_page={} pages_num={} page_addr={:#x}", mem, res.0.0, res.1, res.2);
+        let accessed_page = PageNumber::from(((mem as usize - wasm_mem_begin) / gear_ps) as u32);
+        log::debug!(
+            "mem={:?} accessed={:?} pages={:?} page_native_addr={:#x}",
+            mem,
+            accessed_page,
+            res.0 .0..res.0 .0 + res.1 as u32,
+            res.2
+        );
 
         res
     };
@@ -99,9 +106,15 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
         };
 
         let res = sp_io::storage::read(&hash_key_in_storage, buffer_as_slice, 0);
-        assert!(res.is_some(), "Wasm page must have data in storage");
+
+        if res.is_none() {
+            log::trace!("Page {:?} has no data in storage, so just save current page data to released pages", page);
+        } else {
+            log::trace!("Page {:?} has data in storage, so set this data for page and save it in released pages", page);
+        }
+
         assert!(
-            res.unwrap() as usize == PageNumber::size(),
+            res.is_none() || res.unwrap() as usize == PageNumber::size(),
             "Page data must contain {} bytes, actually has {}",
             PageNumber::size(),
             res.unwrap()
@@ -112,8 +125,6 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
             assert!(res.is_none(), "Any page cannot be released twice");
         });
     }
-
-    log::debug!(target: "gear_node::sig_handler", "Finish signal handling");
 }
 
 /// Initialize lazy pages:

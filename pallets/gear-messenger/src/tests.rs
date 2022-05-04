@@ -101,7 +101,7 @@ fn queue_processing_impl_works_manually() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial state of the block.
-        assert_eq!(<Pallet<Test> as Mgr>::QueueProcessing::allowed(), true);
+        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
 
         // Invariants always.
         assert_ne!(
@@ -111,7 +111,7 @@ fn queue_processing_impl_works_manually() {
 
         // Denying check.
         <Pallet<Test> as Mgr>::QueueProcessing::deny();
-        assert_eq!(<Pallet<Test> as Mgr>::QueueProcessing::allowed(), false);
+        assert!(!<Pallet<Test> as Mgr>::QueueProcessing::allowed());
         assert_ne!(
             <Pallet<Test> as Mgr>::QueueProcessing::allowed(),
             <Pallet<Test> as Mgr>::QueueProcessing::denied()
@@ -119,7 +119,7 @@ fn queue_processing_impl_works_manually() {
 
         // Allowing check.
         <Pallet<Test> as Mgr>::QueueProcessing::allow();
-        assert_eq!(<Pallet<Test> as Mgr>::QueueProcessing::allowed(), true);
+        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
         assert_ne!(
             <Pallet<Test> as Mgr>::QueueProcessing::allowed(),
             <Pallet<Test> as Mgr>::QueueProcessing::denied()
@@ -127,11 +127,11 @@ fn queue_processing_impl_works_manually() {
 
         // Value updates for future blocks.
         <Pallet<Test> as Mgr>::QueueProcessing::deny();
-        assert_eq!(<Pallet<Test> as Mgr>::QueueProcessing::denied(), true);
+        assert!(<Pallet<Test> as Mgr>::QueueProcessing::denied());
 
         run_to_block(2);
 
-        assert_eq!(<Pallet<Test> as Mgr>::QueueProcessing::denied(), false);
+        assert!(!<Pallet<Test> as Mgr>::QueueProcessing::denied());
     });
 }
 
@@ -142,7 +142,7 @@ fn queue_works() {
         // Initial state of the block.
         assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
         assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 0);
-        assert_eq!(<Pallet<Test> as Mgr>::QueueProcessing::allowed(), true);
+        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
         assert!(<<Pallet<Test> as Mgr>::Queue as SDq>::is_empty().expect("Algorithmic error"));
 
         // Dispatch constructor.
