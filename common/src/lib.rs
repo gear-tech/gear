@@ -159,7 +159,7 @@ pub trait PaymentProvider<AccountId> {
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
 /// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
 /// however, the intended use is very close to the UTxO based ledger model.
-pub trait DAGBasedLedger {
+pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
@@ -180,6 +180,9 @@ pub trait DAGBasedLedger {
     /// leading to a decrease in the total supply of the underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
 
+    /// Error type
+    type Error;
+
     /// The total amount of value currently in circulation.
     fn total_supply() -> Self::Balance;
 
@@ -190,30 +193,39 @@ pub trait DAGBasedLedger {
         origin: Self::ExternalOrigin,
         key: Self::Key,
         amount: Self::Balance,
-    ) -> Result<Self::PositiveImbalance, DispatchError>;
+    ) -> Result<Self::PositiveImbalance, Self::Error>;
 
-    /// Get the external origin for a key, if the latter exists.
-    fn get_origin(key: Self::Key) -> Option<Self::ExternalOrigin>;
+    /// The external origin for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
-    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::Key)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error>;
 
     /// Consume underlying value.
     ///
     /// If `key` does not identify any value or the value can't be fully consumed due to
-    /// being a part of other value or itself having unconsumed parts, return None,
+    /// being a part of other value or itself having unconsumed parts, return `None`,
     /// else the corresponding piece of value is destroyed and imbalance is created.
-    fn consume(key: Self::Key) -> Option<(Self::NegativeImbalance, Self::ExternalOrigin)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn consume(
+        key: Self::Key,
+    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>;
 
     /// Burns underlying value.
     ///
     /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
     /// In case of a success, this indicates the entire value supply becomes over-collateralized,
     /// hence negative imbalance.
-    fn spend(
-        key: Self::Key,
-        amount: Self::Balance,
-    ) -> Result<Self::NegativeImbalance, DispatchError>;
+    fn spend(key: Self::Key, amount: Self::Balance)
+        -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///
@@ -232,6 +244,8 @@ pub trait DAGBasedLedger {
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
 }
+
+type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum Program {

@@ -33,7 +33,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 
-use gear_common::{CodeStorage, DAGBasedLedger, Origin as _};
+use gear_common::{CodeStorage, Origin as _, ValueTree};
 use gear_core_processor::common::ExecutableActor;
 use gear_test::sample::ChainProgram;
 use gear_test::{

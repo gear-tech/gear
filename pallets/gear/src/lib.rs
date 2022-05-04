@@ -99,7 +99,7 @@ pub mod pallet {
 
     use alloc::format;
     use common::{
-        self, lazy_pages, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+        self, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState, ValueTree,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -133,7 +133,12 @@ pub mod pallet {
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
 
         /// Implementation of a ledger to account for gas creation and consumption
-        type GasHandler: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>;
+        type GasHandler: ValueTree<
+            ExternalOrigin = H256,
+            Key = H256,
+            Balance = u64,
+            Error = DispatchError,
+        >;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -619,8 +624,11 @@ pub mod pallet {
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
-                let (remaining_gas, _) =
-                    T::GasHandler::get_limit(root_message_id).ok_or_else(|| {
+                let remaining_gas = T::GasHandler::get_limit(root_message_id)
+                    .map_err(|_| {
+                        b"Internal error: unable to get gas limit after execution".to_vec()
+                    })?
+                    .ok_or_else(|| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
@@ -716,28 +724,39 @@ pub mod pallet {
             while Self::can_process_queue() {
                 if let Some(dispatch) = common::dequeue_dispatch() {
                     let msg_id = dispatch.id().into_origin();
-                    let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
-                        limit
-                    } else {
-                        log::debug!(
-                            target: "essential",
-                            "No gas handler for message: {:?} to {:?}",
-                            dispatch.id(),
-                            dispatch.destination(),
-                        );
+                    let gas_limit: u64;
+                    match T::GasHandler::get_limit(msg_id) {
+                        Ok(maybe_limit) => {
+                            if let Some(limit) = maybe_limit {
+                                gas_limit = limit;
+                            } else {
+                                log::debug!(
+                                    target: "essential",
+                                    "No gas handler for message: {:?} to {:?}",
+                                    dispatch.id(),
+                                    dispatch.destination(),
+                                );
 
-                        common::queue_dispatch(dispatch);
+                                common::queue_dispatch(dispatch);
 
-                        // Since we requeue the message without GasHandler we have to take
-                        // into account that there can left only such messages in the queue.
-                        // So stop processing when there is not enough gas/weight.
-                        let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
-                        Self::decrease_gas_allowance(consumed);
-                        if Self::gas_allowance() < consumed {
-                            break;
+                                // Since we requeue the message without GasHandler we have to take
+                                // into account that there can left only such messages in the queue.
+                                // So stop processing when there is not enough gas/weight.
+                                let consumed =
+                                    T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
+                                Self::decrease_gas_allowance(consumed);
+                                if Self::gas_allowance() < consumed {
+                                    break;
+                                }
+
+                                continue;
+                            };
                         }
-
-                        continue;
+                        Err(_err) => {
+                            // We only can get an error here if the gas tree is invalidated
+                            // TODO: handle appropriately
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
                     };
 
                     log::debug!(
@@ -836,9 +855,20 @@ pub mod pallet {
                         None
                     };
 
-                    let origin = <T as Config>::GasHandler::get_origin(msg_id).expect(
-                        "Gas node is guaranteed to exist for the key due to earlier checks",
-                    );
+                    let origin = match <T as Config>::GasHandler::get_origin(msg_id) {
+                        Ok(maybe_origin) => {
+                            // NOTE: intentional expect.
+                            // Given gas tree is valid, a node with such id exists and has origin
+                            maybe_origin.expect(
+                                "Gas node is guaranteed to exist for the key due to earlier checks",
+                            )
+                        }
+                        Err(_err) => {
+                            // Error can only be due to invalid gas tree
+                            // TODO: handle appropriately
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
+                    };
 
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
