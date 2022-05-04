@@ -483,7 +483,9 @@ mod tests {
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
         assert!(context.send_push(expected_handle, &[0]).is_err());
-        assert!(context.send_commit(expected_handle, HandlePacket::default()).is_err());
+        assert!(context
+            .send_commit(expected_handle, HandlePacket::default())
+            .is_err());
 
         // Creating a handle to init and do not commit later
         // to show that the message will not be sent
