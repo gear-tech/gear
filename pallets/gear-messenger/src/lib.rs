@@ -236,6 +236,10 @@ pub mod pallet {
     }
 
     /// Deque type itself. Contains all methods by aggregating all accessors.
+    ///
+    /// Never call `push_front` for priority queueing.
+    /// This method should be used only for requeueing of the element which already was in the queue before.
+    /// It triggers callback of decrementing `Dequeued` and denying `QueueProcessing`.
     pub struct DequeImpl<T>(PhantomData<T>);
 
     impl<T: Config> GearStorageDeque for DequeImpl<T> {

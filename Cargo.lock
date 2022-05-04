@@ -4692,15 +4692,21 @@ dependencies = [
 name = "pallet-gear-messenger"
 version = "1.0.0"
 dependencies = [
+ "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
  "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sp-io",
+ "sp-runtime",
  "sp-std",
 ]
 
