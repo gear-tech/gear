@@ -37,9 +37,7 @@ use crate::{
     Pallet as Gear, *,
 };
 use codec::Encode;
-use common::{
-    benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, DAGBasedLedger, Origin,
-};
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
 use core_processor::{common::ExecutableActor, configs::BlockInfo};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get};

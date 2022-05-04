@@ -22,7 +22,7 @@ use codec::Decode;
 use common::{
     self,
     storage::{Messenger, StorageDeque},
-    DAGBasedLedger, Origin as _,
+    Origin as _, ValueTree,
 };
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
@@ -550,7 +550,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
-                .0,
+                .unwrap(),
             1000
         );
 
@@ -568,7 +568,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
-                .0,
+                .unwrap(),
             500
         );
     });
