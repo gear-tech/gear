@@ -99,7 +99,7 @@ pub mod pallet {
 
     use alloc::format;
     use common::{
-        self, lazy_pages, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+        self, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState, ValueTree,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},

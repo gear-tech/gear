@@ -52,7 +52,7 @@ use sp_runtime::{
     Perbill,
 };
 
-use common::{lazy_pages, CodeMetadata, DAGBasedLedger};
+use common::{lazy_pages, CodeMetadata, ValueTree};
 use core_processor::{common::ExecutableActor, configs::BlockInfo};
 use frame_support::traits::Currency;
 
