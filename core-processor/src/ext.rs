@@ -59,7 +59,7 @@ pub trait ProcessorExt {
         host_fn_weights: HostFnWeights,
     ) -> Self;
 
-    /// Returns whether this extention works with lazy pages
+    /// Returns whether this extension works with lazy pages
     fn is_lazy_pages_enabled() -> bool;
 
     /// If extention support lazy pages, then checks that

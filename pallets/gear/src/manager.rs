@@ -452,7 +452,7 @@ where
                 program.pages_with_data.insert(page);
             }
             common::set_program(program_id, program);
-        };
+        }
     }
 
     fn update_allocations(
@@ -472,7 +472,7 @@ where
             }
             program.allocations = allocations;
             common::set_program(program_id, program);
-        };
+        }
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {

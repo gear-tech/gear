@@ -62,7 +62,7 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
-        /// LOL
+        /// Storage with codes for proograms
         type CodeStorage: CodeStorage;
     }
 

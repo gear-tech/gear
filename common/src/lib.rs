@@ -420,7 +420,7 @@ pub fn get_program_data_for_pages<'a>(
         .collect()
 }
 
-pub fn set_program(id: H256, program: ActiveProgram) {
+fn set_program(id: H256, program: ActiveProgram) {
     log::debug!("set program with id = {}", id);
     sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
 }
