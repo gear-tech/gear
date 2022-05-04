@@ -137,13 +137,16 @@ impl MessageId {
         user_id: ProgramId,
         local_nonce: u128,
     ) -> MessageId {
+        let unique_flag = b"from_user";
+
         let block_number = block_number.to_le_bytes();
         let user_id = user_id.as_ref();
         let local_nonce = local_nonce.to_le_bytes();
 
-        let len = block_number.len() + user_id.len() + local_nonce.len();
+        let len = unique_flag.len() + block_number.len() + user_id.len() + local_nonce.len();
 
         let mut argument = Vec::with_capacity(len);
+        argument.extend_from_slice(unique_flag);
         argument.extend(block_number);
         argument.extend_from_slice(user_id);
         argument.extend(local_nonce);
@@ -153,12 +156,15 @@ impl MessageId {
 
     /// Generate MessageId for program outgoing message
     pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId {
+        let unique_flag = b"outgoing";
+
         let origin_msg_id = origin_msg_id.as_ref();
         let local_nonce = local_nonce.to_le_bytes();
 
-        let len = origin_msg_id.len() + local_nonce.len();
+        let len = unique_flag.len() + origin_msg_id.len() + local_nonce.len();
 
         let mut argument = Vec::with_capacity(len);
+        argument.extend_from_slice(unique_flag);
         argument.extend(origin_msg_id);
         argument.extend(local_nonce);
 
@@ -167,12 +173,15 @@ impl MessageId {
 
     /// Generate MessageId for reply message depent on exit code
     pub fn generate_reply(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+        let unique_flag = b"reply";
+
         let origin_msg_id = origin_msg_id.as_ref();
         let exit_code = exit_code.to_le_bytes();
 
-        let len = origin_msg_id.len() + exit_code.len();
+        let len = unique_flag.len() + origin_msg_id.len() + exit_code.len();
 
         let mut argument = Vec::with_capacity(len);
+        argument.extend_from_slice(unique_flag);
         argument.extend(exit_code);
         argument.extend(origin_msg_id);
 
