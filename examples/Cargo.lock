@@ -410,6 +410,14 @@ dependencies = [
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [
+ "galloc",
+ "gcore",
+]
+
+[[package]]
+name = "demo-ping-gas"
+version = "0.1.0"
+dependencies = [
  "gstd",
 ]
 

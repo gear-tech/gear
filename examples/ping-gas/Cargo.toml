@@ -1,5 +1,5 @@
 [package]
-name = "demo-ping"
+name = "demo-ping-gas"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
@@ -9,5 +9,4 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-galloc = { path = "../../galloc", default-features = false }
-gcore = { path = "../../gcore", default-features = false }
+gstd = { path = "../../gstd", features = ["debug"] }
