@@ -143,6 +143,8 @@ pub trait StorageDeque: Sized {
                 return Err(DequeError::DuplicateElementKey.into());
             }
         } else if Self::TailKey::remove().is_some() {
+            // This branch occurs only in case of algorithmic error
+            // or storage corruption, but should be also handled.
             return Err(DequeError::HeadWasEmptyWhileTailNot.into());
         } else {
             let first_key = Self::Key::first(&value);
