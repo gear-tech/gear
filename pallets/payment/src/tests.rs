@@ -85,7 +85,8 @@ where
 
         let dispatch = dispatch.into_stored();
 
-        assert_ok!(<T as Config>::MessageQueue::push_back(dispatch.into()).map_err(|_| "Error pushing back stored dispatch"));
+        assert_ok!(<T as Config>::MessageQueue::push_back(dispatch.into())
+            .map_err(|_| "Error pushing back stored dispatch"));
     }
 }
 
