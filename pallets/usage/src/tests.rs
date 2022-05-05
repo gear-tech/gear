@@ -108,7 +108,7 @@ fn wait_list_contents() -> Vec<(StoredDispatch, u32)> {
 }
 
 fn decode_validate_usage_call(encoded: &[u8]) -> crate::Call<Test> {
-    let mut encoded = encoded.clone();
+    let mut encoded = <&[u8]>::clone(&encoded);
     let extrinsic: Extrinsic = Decode::decode(&mut encoded).unwrap();
 
     let call = extrinsic.call;
@@ -117,13 +117,12 @@ fn decode_validate_usage_call(encoded: &[u8]) -> crate::Call<Test> {
         _ => unreachable!(),
     };
 
-    assert_eq!(
+    assert!(
         <Usage as sp_runtime::traits::ValidateUnsigned>::validate_unsigned(
             TransactionSource::Local,
             &inner,
         )
-        .is_ok(),
-        true
+        .is_ok()
     );
 
     inner
@@ -256,8 +255,8 @@ fn ocw_double_charge() {
 
         let unsigned = decode_validate_usage_call(&pool.read().transactions[0]);
         let payees_list = match unsigned {
-            crate::Call::collect_waitlist_rent{ payees_list } => payees_list,
-            _ => unreachable!()
+            crate::Call::collect_waitlist_rent { payees_list } => payees_list,
+            _ => unreachable!(),
         };
 
         // emulate malicious validator: send one more unsigned extrinsic with the same argument
@@ -272,16 +271,15 @@ fn ocw_double_charge() {
         // calling the unsigned version of the extrinsic
         assert_ok!(Usage::collect_waitlist_rent(
             Origin::none(),
-            payees_list.clone()));
+            payees_list.clone()
+        ));
 
         let expected_balance = block_author_balance + 9_000;
         assert_eq!(Balances::reserved_balance(&1), 11_000);
         assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), expected_balance);
 
         // call the unsigned extrinsic second time
-        assert_ok!(Usage::collect_waitlist_rent(
-            Origin::none(),
-            payees_list));
+        assert_ok!(Usage::collect_waitlist_rent(Origin::none(), payees_list));
 
         // check that there is no double charging
         assert_eq!(Balances::reserved_balance(&1), 11_000);
