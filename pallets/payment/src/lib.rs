@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::storage::{StorageCounter, StorageDeque};
+use common::storage::StorageCounter;
 use frame_support::{
     pallet_prelude::*,
     traits::Contains,
@@ -44,7 +44,7 @@ pub use pallet::*;
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
 type CallOf<T> = <T as frame_system::Config>::Call;
-type LengthOf<T> = <<<T as Config>::MessageQueue as StorageDeque>::Length as StorageCounter>::Value;
+type LengthOf<T> = <<T as Config>::MessageQueueLength as StorageCounter>::Value;
 
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
 
@@ -192,7 +192,7 @@ where
     fn convert(_previous: Multiplier) -> Multiplier {
         let len_step = S::get().max(1); // Avoiding division by 0.
 
-        let queue_len: u128 = <T as Config>::MessageQueue::len().saturated_into();
+        let queue_len: u128 = <T as Config>::MessageQueueLength::get().saturated_into();
         let pow = queue_len.saturating_div(len_step);
         Multiplier::saturating_from_integer(1 << pow)
     }
@@ -353,7 +353,7 @@ pub mod pallet {
         type ExtraFeeCallFilter: Contains<CallOf<Self>>;
 
         /// Type representing message queue
-        type MessageQueue: StorageDeque;
+        type MessageQueueLength: StorageCounter;
     }
 
     #[pallet::pallet]

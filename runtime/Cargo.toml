@@ -81,6 +81,7 @@ std = [
 	"pallet-gear-debug/std",
 	"pallet-usage/std",
 	"pallet-gas/std",
+	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"gear-common/std",
 	"pallet-grandpa/std",

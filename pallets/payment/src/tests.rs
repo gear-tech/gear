@@ -18,10 +18,10 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, Config, CustomChargeTransactionPayment};
+use crate::{mock::*, CustomChargeTransactionPayment};
 
-use common::storage::StorageDeque;
-use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch};
+use common::storage::{Messenger, StorageDeque};
+use gear_core::message::{Dispatch, DispatchKind, Message};
 
 use codec::Encode;
 use frame_support::{
@@ -31,6 +31,8 @@ use frame_support::{
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
 use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
+
+pub type QueueOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Queue;
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -59,11 +61,11 @@ fn default_post_info() -> PostDispatchInfo {
     }
 }
 
-fn populate_message_queue<T: Config>(n: u64)
+fn populate_message_queue<T>(n: u64)
 where
-    <<T as Config>::MessageQueue as StorageDeque>::Value: From<StoredDispatch>,
+    T: pallet_gear_messenger::Config,
 {
-    assert_ok!(<T as Config>::MessageQueue::clear().map_err(|_| "Error clearing the queue"));
+    assert_ok!(QueueOf::<T>::clear().map_err(|_| "Error clearing the queue"));
 
     for i in 0_u64..n {
         let prog_id = (i + 1).into();
@@ -85,8 +87,9 @@ where
 
         let dispatch = dispatch.into_stored();
 
-        assert_ok!(<T as Config>::MessageQueue::push_back(dispatch.into())
-            .map_err(|_| "Error pushing back stored dispatch"));
+        assert_ok!(
+            QueueOf::<T>::push_back(dispatch).map_err(|_| "Error pushing back stored dispatch")
+        );
     }
 }
 

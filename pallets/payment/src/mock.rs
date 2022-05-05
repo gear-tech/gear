@@ -217,9 +217,12 @@ impl Contains<Call> for ExtraFeeFilter {
     }
 }
 
+type QueueLength =
+    <<GearMessenger as common::storage::Messenger>::Queue as common::storage::StorageDeque>::Length;
+
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
-    type MessageQueue = pallet_gear_messenger::DequeImpl<Test>;
+    type MessageQueueLength = QueueLength;
 }
 
 // Build genesis storage according to the mock runtime.
