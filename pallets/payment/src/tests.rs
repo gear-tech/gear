@@ -18,9 +18,10 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, CustomChargeTransactionPayment};
+use crate::{mock::*, Config, CustomChargeTransactionPayment};
 
-use gear_core::message::{Dispatch, DispatchKind, Message};
+use common::storage::StorageDeque;
+use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch};
 
 use codec::Encode;
 use frame_support::{
@@ -58,8 +59,12 @@ fn default_post_info() -> PostDispatchInfo {
     }
 }
 
-fn populate_message_queue(n: u64) {
-    common::clear_dispatch_queue();
+fn populate_message_queue<T: Config>(n: u64)
+where
+    <<T as Config>::MessageQueue as StorageDeque>::Value: From<StoredDispatch>,
+{
+    assert_ok!(<T as Config>::MessageQueue::clear().map_err(|_| "Error clearing the queue"));
+
     for i in 0_u64..n {
         let prog_id = (i + 1).into();
         let msg_id = (100_u64 * n + i + 1).into();
@@ -80,7 +85,7 @@ fn populate_message_queue(n: u64) {
 
         let dispatch = dispatch.into_stored();
 
-        common::queue_dispatch(dispatch);
+        assert_ok!(<T as Config>::MessageQueue::push_back(dispatch.into()).map_err(|_| "Error pushing back stored dispatch"));
     }
 }
 
@@ -88,7 +93,7 @@ fn populate_message_queue(n: u64) {
 fn custom_fee_multiplier_updated_per_block() {
     new_test_ext().execute_with(|| {
         // Send n extrinsics and run to next block
-        populate_message_queue(10);
+        populate_message_queue::<Test>(10);
         run_to_block(2);
 
         // CustomFeeMultiplier is 2^(10 / 5) == 4
@@ -97,7 +102,7 @@ fn custom_fee_multiplier_updated_per_block() {
             Multiplier::saturating_from_integer(4)
         );
 
-        populate_message_queue(33);
+        populate_message_queue::<Test>(33);
         run_to_block(3);
 
         // CustomFeeMultiplier is 2^(33 / 5) == 64
@@ -162,12 +167,12 @@ fn fee_rounding_error_bounded_by_multiplier() {
         test_case(call, weights.clone(), 1);
 
         // Now populate message queue with 20 => multiplier == 16
-        populate_message_queue(20);
+        populate_message_queue::<Test>(20);
         run_to_block(2);
         test_case(call, weights.clone(), 16);
 
         // Populate message queue with 60 => multiplier == 4096
-        populate_message_queue(60);
+        populate_message_queue::<Test>(60);
         run_to_block(3);
         test_case(call, weights, 4096);
     });
@@ -232,7 +237,7 @@ fn mq_size_affecting_fee_works() {
         );
 
         // Now populate message queue
-        populate_message_queue(20);
+        populate_message_queue::<Test>(20);
 
         run_to_block(2);
 
@@ -327,7 +332,7 @@ fn mq_size_not_affecting_fee_works() {
         );
 
         // Now populate message queue
-        populate_message_queue(20);
+        populate_message_queue::<Test>(20);
 
         run_to_block(2);
 
@@ -459,7 +464,7 @@ fn query_info_and_fee_details_work() {
         );
 
         // Now populate message queue
-        populate_message_queue(20);
+        populate_message_queue::<Test>(20);
         run_to_block(2);
 
         // Extra fee multiplier is now 2^(20 / 5) == 16

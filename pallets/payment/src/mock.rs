@@ -52,6 +52,7 @@ construct_runtime!(
         Authorship: pallet_authorship::{Pallet, Storage},
         TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
         GearPayment: pallet_gear_payment::{Pallet, Storage},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
     }
@@ -143,7 +144,7 @@ impl pallet_transaction_payment::Config for Test {
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<u128>;
-    type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<QueueLengthStep>;
+    type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
 pub struct GasConverter;
@@ -165,7 +166,6 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type Schedule = MySchedule;
-    type BlockGasLimit = BlockGasLimit;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
@@ -178,7 +178,13 @@ impl pallet_gear_program::Config for Test {
     type Currency = Balances;
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = BlockGasLimit;
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
+}
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
 
@@ -213,6 +219,7 @@ impl Contains<Call> for ExtraFeeFilter {
 
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
+    type MessageQueue = pallet_gear_messenger::DequeImpl<Test>;
 }
 
 // Build genesis storage according to the mock runtime.

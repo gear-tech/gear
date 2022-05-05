@@ -4746,6 +4746,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gas",
  "pallet-gear",
+ "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
  "pallet-transaction-payment",

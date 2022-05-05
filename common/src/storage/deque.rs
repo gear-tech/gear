@@ -14,6 +14,8 @@ pub enum DequeError {
     TailWasNotRemoved,
 }
 
+pub type LengthOf<T> = <<T as StorageDeque>::Length as StorageCounter>::Value;
+
 pub trait NextKey<V> {
     fn first(target: &V) -> Self;
     fn next(&self, target: &V) -> Self;
@@ -213,6 +215,10 @@ pub trait StorageDeque: Sized {
             (Some(_), None) => Err(DequeError::TailWasEmptyWhileHeadNot.into()),
             (None, Some(_)) => Err(DequeError::HeadWasEmptyWhileTailNot.into()),
         }
+    }
+
+    fn len() -> LengthOf<Self> {
+        Self::Length::get()
     }
 }
 

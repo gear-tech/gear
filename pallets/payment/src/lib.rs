@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use common::storage::{StorageCounter, StorageDeque};
 use frame_support::{
     pallet_prelude::*,
     traits::Contains,
@@ -29,9 +30,12 @@ use pallet_transaction_payment::{
 };
 use sp_runtime::{
     generic::{CheckedExtrinsic, UncheckedExtrinsic},
-    traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
+    traits::{
+        AtLeast32BitUnsigned, Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf,
+        SignedExtension,
+    },
     transaction_validity::TransactionValidityError,
-    FixedPointNumber, FixedPointOperand, Perquintill,
+    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
 use sp_std::borrow::Cow;
 
@@ -40,6 +44,7 @@ pub use pallet::*;
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
 type CallOf<T> = <T as frame_system::Config>::Call;
+type LengthOf<T> = <<<T as Config>::MessageQueue as StorageDeque>::Length as StorageCounter>::Value;
 
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
 
@@ -176,23 +181,28 @@ where
 }
 
 /// Custom fee multiplier which looks at the message queue size to increase weight fee
-pub struct GearFeeMultiplier<S>(sp_std::marker::PhantomData<S>);
+pub struct GearFeeMultiplier<T, S>(sp_std::marker::PhantomData<(T, S)>);
 
-impl<S> Convert<Multiplier, Multiplier> for GearFeeMultiplier<S>
+impl<T, S> Convert<Multiplier, Multiplier> for GearFeeMultiplier<T, S>
 where
-    S: Get<u64>,
+    T: Config,
+    S: Get<u128>,
+    LengthOf<T>: AtLeast32BitUnsigned,
 {
     fn convert(_previous: Multiplier) -> Multiplier {
         let len_step = S::get().max(1); // Avoiding division by 0.
 
-        let pow = common::dispatch_queue_len().saturating_div(len_step);
+        let queue_len: u128 = <T as Config>::MessageQueue::len().saturated_into();
+        let pow = queue_len.saturating_div(len_step);
         Multiplier::saturating_from_integer(1 << pow)
     }
 }
 
-impl<S> MultiplierUpdate for GearFeeMultiplier<S>
+impl<T, S> MultiplierUpdate for GearFeeMultiplier<T, S>
 where
-    S: Get<u64>,
+    T: Config,
+    S: Get<u128>,
+    LengthOf<T>: AtLeast32BitUnsigned,
 {
     fn min() -> Multiplier {
         Default::default()
@@ -341,6 +351,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config + pallet_transaction_payment::Config {
         /// Filter for calls subbject for extra fees
         type ExtraFeeCallFilter: Contains<CallOf<Self>>;
+
+        /// Type representing message queue
+        type MessageQueue: StorageDeque;
     }
 
     #[pallet::pallet]

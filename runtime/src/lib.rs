@@ -302,7 +302,7 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub const QueueLengthStep: u64 = 10;
+    pub const QueueLengthStep: u128 = 10;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -310,7 +310,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
-    type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<QueueLengthStep>;
+    type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -418,6 +418,7 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
 
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
+    type MessageQueue = pallet_gear_messenger::DequeImpl<Runtime>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
