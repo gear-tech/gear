@@ -133,7 +133,6 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = ();
-    type BlockGasLimit = BlockGasLimit;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
     type WaitListFeePerBlock = ();
@@ -141,7 +140,13 @@ impl pallet_gear::Config for Test {
     type CodeStorage = GearProgram;
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
+}
+
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = BlockGasLimit;
+}
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -156,6 +161,7 @@ construct_runtime!(
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Storage},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas,
     }
@@ -184,9 +190,11 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
+        Gas::on_initialize(System::block_number());
+        GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
         let remaining_weight =
-            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+            remaining_weight.unwrap_or(<Test as pallet_gas::Config>::BlockGasLimit::get());
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }

@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod lazy_pages;
-pub mod storage_queue;
+pub mod storage;
 
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
@@ -33,6 +33,11 @@ use frame_support::{
     traits::Imbalance,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
+    memory::{PageNumber, WasmPageNumber},
+    message::StoredDispatch,
+};
 use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -43,24 +48,10 @@ use sp_std::{
     prelude::*,
 };
 
-use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
-    message::StoredDispatch,
-};
-
-pub use storage_queue::Iterator as QueueIter;
-pub use storage_queue::StorageQueue;
-
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
-pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
-pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
-pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
-
-pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
 pub type ExitCode = i32;
 
@@ -457,31 +448,6 @@ pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
-pub fn clear_dispatch_queue() {
-    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
-}
-
-pub fn dequeue_dispatch() -> Option<StoredDispatch> {
-    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    dispatch_queue.dequeue()
-}
-
-pub fn queue_dispatch(dispatch: StoredDispatch) {
-    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.id();
-    dispatch_queue.queue(dispatch, id.into_origin());
-}
-
-pub fn queue_dispatch_first(dispatch: StoredDispatch) {
-    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.id();
-    dispatch_queue.queue_first(dispatch, id.into_origin());
-}
-
-pub fn dispatch_iter() -> QueueIter<StoredDispatch> {
-    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
-}
-
 pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) {
     if let Some(Program::Active(mut prog)) = get_program(id) {
         prog.allocations = allocations;
@@ -556,13 +522,11 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
-    sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
 
-    // TODO (871) remove next lines after runtime upgraded
-    pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
-    pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
-    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
+    // TODO: Remove this legacy after next runtime upgrade.
+    sp_io::storage::clear_prefix(b"g::msg::", None);
+    sp_io::storage::clear_prefix(b"g::gas_tree", None);
+    sp_io::storage::clear_prefix(b"g::code::", None);
+    sp_io::storage::clear_prefix(b"g::code::orig", None);
 }

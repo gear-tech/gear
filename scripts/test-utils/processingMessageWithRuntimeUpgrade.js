@@ -7,7 +7,7 @@ const { exec } = require('child_process');
 const upload_program = (api, account, pathToDemoPing) => {
   const code = readFileSync(pathToDemoPing);
   const codeBytes = api.createType('Bytes', Array.from(code));
-  const program = api.tx.gear.submitProgram(codeBytes, randomAsHex(20), '0x00', 200_000_000, 0);
+  const program = api.tx.gear.submitProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
   return new Promise((resolve, reject) => {
     program.signAndSend(account, ({ events, status }) => {
       events.forEach(({ event: { method, data } }) => {
@@ -89,7 +89,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
   // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
-  const message = api.tx.gear.sendMessage(programId, 'PING', 500_000_000, 0);
+  const message = api.tx.gear.sendMessage(programId, 'PING', 200_000_000_000, 0);
 
   let codeUpdatedBlock = undefined;
   let messages = [undefined, undefined];

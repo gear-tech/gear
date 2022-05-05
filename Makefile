@@ -201,7 +201,7 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest rtest
+test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-release
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
@@ -235,6 +235,6 @@ test-pallet:
 test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
-.PHONE: test-runtime-upgrade
+.PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade

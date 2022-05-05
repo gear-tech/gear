@@ -19,13 +19,18 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, Origin as _, ValueTree};
+use common::{
+    self,
+    storage::{Messenger, StorageDeque},
+    Origin as _, ValueTree,
+};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
     Duration,
@@ -531,7 +536,10 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let message = common::dequeue_dispatch().unwrap();
+        let message = <MessengerPallet<Test> as Messenger>::Queue::pop_front()
+            .expect("Storage corrupted")
+            .expect("No messages in queue");
+
         assert_eq!(message.source(), 1.into());
         assert_eq!(message.destination(), 1.into());
         assert_eq!(
@@ -547,7 +555,9 @@ fn trap_reply_message_is_sent() {
         );
 
         // Second trap reply message
-        let message = common::dequeue_dispatch().unwrap();
+        let message = <MessengerPallet<Test> as Messenger>::Queue::pop_front()
+            .expect("Storage corrupted")
+            .expect("No messages in queue");
         assert_eq!(message.source(), 2.into());
         assert_eq!(message.destination(), 2.into());
         assert_eq!(

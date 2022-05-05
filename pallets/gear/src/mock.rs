@@ -59,6 +59,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -137,14 +138,19 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type Schedule = MySchedule;
-    type BlockGasLimit = BlockGasLimit;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = BlockGasLimit;
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
+}
 
 pub struct FixedBlockAuthor;
 
@@ -203,10 +209,12 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
+        Gas::on_initialize(System::block_number());
+        GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
 
         let remaining_weight =
-            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+            remaining_weight.unwrap_or(<Test as pallet_gas::Config>::BlockGasLimit::get());
 
         log::debug!(
             "🧱 Running on_idle block #{} with weight {}",
@@ -221,7 +229,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
 pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
-    let initial_gas = <Test as pallet_gear::Config>::BlockGasLimit::get();
+    let initial_gas = <Test as pallet_gas::Config>::BlockGasLimit::get();
 
     let message = Message::new(
         Default::default(),

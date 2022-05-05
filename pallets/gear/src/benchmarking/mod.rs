@@ -32,31 +32,25 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    manager::{ExtManager, HandleKind},
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     Pallet as Gear, *,
 };
 use codec::Encode;
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
+use core_processor::{common::ExecutableActor, configs::BlockInfo};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
-use frame_support::traits::Get;
+use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
-
-use sp_std::prelude::*;
-use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
-
-use common::{benchmarking, CodeStorage, Origin};
 use gear_core::ids::{MessageId, ProgramId};
-
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, UniqueSaturatedInto},
     Perbill,
 };
-
-use common::{lazy_pages, CodeMetadata, ValueTree};
-use core_processor::{common::ExecutableActor, configs::BlockInfo};
-use frame_support::traits::Currency;
-
-use crate::manager::{ExtManager, HandleKind};
+use sp_std::prelude::*;
+use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
@@ -227,8 +221,10 @@ where
 
     let dispatch = dispatch.into_stored();
 
-    common::clear_dispatch_queue();
-    common::queue_dispatch(dispatch);
+    <MessengerPallet<T> as Messenger>::Queue::clear()
+        .map_err(|_| "Unable to clear message queue")?;
+    <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+        .map_err(|_| "Unable to push message")?;
 
     let block_info = BlockInfo {
         height: 1,
@@ -237,7 +233,10 @@ where
 
     let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-    if let Some(queued_dispatch) = common::dequeue_dispatch() {
+    let maybe_dispatch = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+        .map_err(|_| "Unable to pop message")?;
+
+    if let Some(queued_dispatch) = maybe_dispatch {
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
@@ -304,7 +303,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
     }: _(origin, code, salt, vec![], 100_000_000_u64, value)
     verify {
-        assert!(common::dequeue_dispatch().is_some());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
     }
 
     send_message {
@@ -317,7 +316,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_dispatch().is_some());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
     }
 
     send_reply {
@@ -342,7 +341,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_dispatch().is_some());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
     }
 
     initial_allocation {
@@ -356,7 +355,7 @@ benchmarks! {
         Gear::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_dispatch().is_none());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(None)));
     }
 
     alloc_in_handle {
@@ -370,7 +369,7 @@ benchmarks! {
         Gear::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_dispatch().is_none());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(None)));
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the

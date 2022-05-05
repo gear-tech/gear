@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gas;
-use frame_support::{construct_runtime, parameter_types};
+use crate as pallet_gear_messenger;
+use frame_support::{
+    construct_runtime, parameter_types,
+    traits::{OnFinalize, OnInitialize},
+};
 use frame_system as system;
 use primitive_types::H256;
 use sp_runtime::{
@@ -29,10 +32,6 @@ use sp_std::convert::{TryFrom, TryInto};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-pub const ALICE: u64 = 1;
-pub const BOB: u64 = 2;
-pub const BLOCK_AUTHOR: u64 = 255;
-
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test where
@@ -41,8 +40,8 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
     }
 );
 
@@ -91,8 +90,8 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_gas::Config for Test {
-    type BlockGasLimit = ();
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -101,17 +100,20 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage::<Test>()
         .unwrap();
 
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (ALICE, 100_000_000_u128),
-            (BOB, 2_u128),
-            (BLOCK_AUTHOR, 1_u128),
-        ],
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
+    pallet_balances::GenesisConfig::<Test> { balances: vec![] }
+        .assimilate_storage(&mut t)
+        .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext
+}
+
+pub fn run_to_block(n: u64) {
+    while System::block_number() < n {
+        System::on_finalize(System::block_number());
+        System::set_block_number(System::block_number() + 1);
+        System::on_initialize(System::block_number());
+        GearMessenger::on_initialize(System::block_number());
+    }
 }
