@@ -33,7 +33,7 @@ use crate::{builder_error::BuilderError, insert_stack_end_export};
 pub struct WasmProject {
     original_dir: PathBuf,
     out_dir: PathBuf,
-    wasm_subdir: PathBuf,
+    target_dir: PathBuf,
     file_base_name: Option<String>,
     profile: String,
 }
@@ -57,7 +57,14 @@ impl WasmProject {
             .expect("Path should have subdirs in the `target` dir")
             .as_os_str();
 
-        let wasm_subdir = PathBuf::from("target/wasm32-unknown-unknown").join(profile);
+        let mut target_dir = out_dir.clone();
+        while target_dir.pop() {
+            if target_dir.ends_with("target") {
+                break;
+            }
+        }
+        target_dir.push("wasm32-unknown-unknown");
+        target_dir.push(profile);
 
         let profile = if profile == "debug" {
             "dev".to_string()
@@ -68,7 +75,7 @@ impl WasmProject {
         WasmProject {
             original_dir,
             out_dir,
-            wasm_subdir,
+            target_dir,
             file_base_name: None,
             profile,
         }
@@ -152,25 +159,37 @@ impl WasmProject {
             .file_base_name
             .as_ref()
             .expect("Run `WasmProject::create_project()` first");
+
         let from_path = self
             .out_dir
             .join("target/wasm32-unknown-unknown/release")
             .join(format!("{}.wasm", &file_base_name));
-        let to_dir = self.original_dir.join(&self.wasm_subdir);
-        fs::create_dir_all(&to_dir)?;
 
-        let to_path = to_dir.join(format!("{}.wasm", &file_base_name));
+        fs::create_dir_all(&self.target_dir)?;
+
+        let to_path = self.target_dir.join(format!("{}.wasm", &file_base_name));
         fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
 
-        let to_opt_path = to_dir.join(format!("{}.opt.wasm", &file_base_name));
+        let to_opt_path = self
+            .target_dir
+            .join(format!("{}.opt.wasm", &file_base_name));
         Self::generate_opt(&from_path, &to_opt_path)?;
 
-        let to_meta_path = to_dir.join(format!("{}.meta.wasm", &file_base_name));
+        let to_meta_path = self
+            .target_dir
+            .join(format!("{}.meta.wasm", &file_base_name));
         Self::generate_meta(&from_path, &to_meta_path)?;
 
-        let wasm_binary_path = self.out_dir.join("wasm_binary_path.txt");
-        fs::write(&wasm_binary_path, format!("{}", to_opt_path.display()))
-            .context("unable to write `wasm_binary_path.txt`")?;
+        let wasm_binary_path = self.original_dir.join(".binpath");
+
+        let relative_path_to_opt = pathdiff::diff_paths(&to_opt_path, &self.original_dir)
+            .expect("Unable to calculate relative path");
+
+        fs::write(
+            &wasm_binary_path,
+            format!("{}", relative_path_to_opt.display()),
+        )
+        .context("unable to write `.binpath`")?;
 
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         fs::write(
@@ -183,9 +202,9 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
 "#,
-                to_path.display(),
-                to_opt_path.display(),
-                to_meta_path.display(),
+                display_path(to_path),
+                display_path(to_opt_path),
+                display_path(to_meta_path),
             ),
         )
         .context("unable to write `wasm_binary.rs`")?;
@@ -225,4 +244,9 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
             .map_err(|_| BuilderError::UnableToGenerateMeta(from.to_path_buf()))?;
         parity_wasm::serialize_to_file(to, module).context("unable to write the metadata WASM")
     }
+}
+
+// Windows has path like `path\to\somewhere` which is incorrect for `include_*` Rust's macros
+fn display_path(path: PathBuf) -> String {
+    path.display().to_string().replace('\\', "/")
 }

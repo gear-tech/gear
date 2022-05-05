@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -131,6 +131,24 @@ impl<T: Codec> StorageQueue<T> {
         }
     }
 
+    pub fn queue_first(&mut self, value: T, id: H256) {
+        if self.is_empty() {
+            self.queue(value, id)
+        } else {
+            sp_io::storage::set(
+                &self.key_with_prefix(id.as_bytes()),
+                &Node {
+                    value,
+                    next: sp_io::storage::get(&self.key_with_prefix(b"head"))
+                        .map(|v| H256::from_slice(&v)),
+                }
+                .encode(),
+            );
+
+            self.set_head(id)
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.head.is_none() && self.tail.is_none()
     }
@@ -211,6 +229,37 @@ mod tests {
             let value: Option<u32> = queue.dequeue();
 
             assert_eq!(value, Some(0u32));
+        });
+    }
+
+    #[test]
+    fn queue_first_on_empty() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+
+            queue.queue_first(0u32, H256::random());
+            let value: Option<u32> = queue.dequeue();
+
+            assert_eq!(value, Some(0u32));
+        });
+    }
+
+    #[test]
+    fn queue_first() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+
+            queue.queue(0u32, H256::random());
+            queue.queue_first(1u32, H256::random());
+
+            let value: Option<u32> = queue.dequeue();
+            assert_eq!(value, Some(1u32));
+
+            let value: Option<u32> = queue.dequeue();
+            assert_eq!(value, Some(0u32));
+
+            let value: Option<u32> = queue.dequeue();
+            assert!(value.is_none());
         });
     }
 

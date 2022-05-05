@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,13 +23,13 @@
 #[macro_export]
 macro_rules! debug {
     ($arg:literal) => {
-        $crate::ext::debug(&$crate::prelude::format!("{}", $arg));
+        $crate::ext::debug(&$crate::prelude::format!("{}", $arg))
     };
     ($arg:expr) => {
-        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg));
+        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg))
     };
     ($fmt:literal, $($args:tt)+) => {
-        $crate::ext::debug(&$crate::prelude::format!($fmt, $($args)+));
+        $crate::ext::debug(&$crate::prelude::format!($fmt, $($args)+))
     };
 }
 

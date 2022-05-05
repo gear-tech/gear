@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,14 +17,28 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
+use crate::{ext::LazyPagesExt, manager::ExtManager};
+use common::lazy_pages;
+use common::Origin as _;
+use core_processor::{
+    common::{DispatchOutcome, JournalNote},
+    configs::BlockInfo,
+    Ext,
+};
+use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
+use gear_backend_sandbox::SandboxEnvironment;
+use gear_core::{
+    ids::ProgramId,
+    message::{Dispatch, DispatchKind, Message},
+};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, IdentityLookup, UniqueSaturatedInto},
 };
+use sp_std::convert::{TryFrom, TryInto};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -44,6 +58,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -102,9 +117,17 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
+
 parameter_types! {
-    pub const BlockGasLimit: u64 = 100_000_000;
+    pub const BlockGasLimit: u64 = 50_000_000_000;
+    pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;
+    pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
 impl pallet_gear::Config for Test {
@@ -113,9 +136,12 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = ();
+    type Schedule = MySchedule;
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}
@@ -157,9 +183,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (USER_1, 200_000_000_u128),
-            (USER_2, 150_000_000_u128),
-            (USER_3, 300_000_000_u128),
+            (USER_1, 100_000_000_000_u128),
+            (USER_2, 50_000_000_000_u128),
+            (USER_3, 100_000_000_000_u128),
             (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],
@@ -178,8 +204,95 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
+
         let remaining_weight =
             remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+
+        log::debug!(
+            "🧱 Running on_idle block #{} with weight {}",
+            System::block_number(),
+            remaining_weight
+        );
+
         Gear::on_idle(System::block_number(), remaining_weight);
     }
+}
+
+pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
+    let ext_manager: ExtManager<Test> = Default::default();
+
+    let initial_gas = <Test as pallet_gear::Config>::BlockGasLimit::get();
+
+    let message = Message::new(
+        Default::default(),
+        ProgramId::from_origin(source),
+        ProgramId::from_origin(dest),
+        payload,
+        Some(initial_gas),
+        0,
+        None,
+    );
+
+    let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
+
+    let actor = ext_manager
+        .get_executable_actor(dest, !lazy_pages_enabled)
+        .expect("Can't find a program");
+
+    let dispatch = Dispatch::new(DispatchKind::Handle, message);
+
+    let block_info = BlockInfo {
+        height: System::block_number() as u32,
+        timestamp: Timestamp::get(),
+    };
+
+    let schedule = <Test as pallet_gear::Config>::Schedule::get();
+    let existential_deposit =
+        <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
+
+    let journal = if lazy_pages_enabled {
+        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+            Some(actor),
+            dispatch.into_stored().into_incoming(initial_gas),
+            block_info,
+            existential_deposit,
+            ProgramId::from_origin(source),
+            ProgramId::from_origin(dest),
+            u64::MAX,
+            <Test as pallet_gear::Config>::OutgoingLimit::get(),
+            schedule.host_fn_weights.into_core(),
+        )
+    } else {
+        core_processor::process::<Ext, SandboxEnvironment<_>>(
+            Some(actor),
+            dispatch.into_stored().into_incoming(initial_gas),
+            block_info,
+            existential_deposit,
+            ProgramId::from_origin(source),
+            ProgramId::from_origin(dest),
+            u64::MAX,
+            <Test as pallet_gear::Config>::OutgoingLimit::get(),
+            schedule.host_fn_weights.into_core(),
+        )
+    };
+
+    let mut gas_burned: u64 = 0;
+    let mut gas_to_send: u64 = 0;
+
+    for note in &journal {
+        match note {
+            JournalNote::GasBurned { amount, .. } => {
+                gas_burned = gas_burned.saturating_add(*amount);
+            }
+            JournalNote::SendDispatch { dispatch, .. } => {
+                gas_to_send = gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
+            }
+            JournalNote::MessageDispatched(DispatchOutcome::MessageTrap { .. }) => {
+                panic!("Program terminated with a trap");
+            }
+            _ => (),
+        }
+    }
+
+    (gas_burned, gas_to_send)
 }

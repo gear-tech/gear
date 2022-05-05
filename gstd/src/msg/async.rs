@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -38,7 +38,7 @@ use futures::future::FusedFuture;
 /// implements `Future` trait. Program interrupts until the reply is received.
 /// As soon as the reply is received, the function checks it's exit code and
 /// returns `Ok()` with decoded structure inside or `Err()` in case of exit code
-/// does not equal 0. For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html),
+/// does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
@@ -77,7 +77,7 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// implements `Future` trait. Program interrupts until the reply is received.
 /// As soon as the reply is received, the function checks it's exit code and
 /// returns `Ok()` with raw bytes inside or `Err()` in case of exit code does
-/// not equal 0. For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html),
+/// not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
@@ -114,21 +114,21 @@ impl FusedFuture for MessageFuture {
 /// with one difference - it takes the structure in, then encodes it
 /// and sends it in bytes. When receiving the message, it decodes the bytes.
 /// So the input should be SCALE codeс encodable, output - decodable
-/// (https://docs.substrate.io/v3/advanced/scale-codec/).
+/// (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `CodecMessageFuture` object returned by the function.
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
     value: u128,
-) -> CodecMessageFuture<D> {
-    let waiting_reply_to = crate::msg::send(program, payload, value);
+) -> Result<CodecMessageFuture<D>> {
+    let waiting_reply_to = crate::msg::send(program, payload, value)?;
     signals().register_signal(waiting_reply_to);
 
-    CodecMessageFuture::<D> {
+    Ok(CodecMessageFuture::<D> {
         waiting_reply_to,
         phantom: PhantomData,
-    }
+    })
 }
 
 /// Send a message and wait for reply.
@@ -141,9 +141,9 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
     value: u128,
-) -> MessageFuture {
-    let waiting_reply_to = crate::msg::send_bytes(program, payload, value);
+) -> Result<MessageFuture> {
+    let waiting_reply_to = crate::msg::send_bytes(program, payload, value)?;
     signals().register_signal(waiting_reply_to);
 
-    MessageFuture { waiting_reply_to }
+    Ok(MessageFuture { waiting_reply_to })
 }

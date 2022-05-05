@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,11 +19,13 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
+use common::{self, Origin as _, ValueTree};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency, unsigned::TransactionSource};
-use gear_core::message::DispatchKind;
-use hex_literal::hex;
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    message::{DispatchKind, StoredDispatch, StoredMessage},
+};
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
     Duration,
@@ -38,43 +40,67 @@ pub(crate) fn init_logger() {
 
 fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
     for i in 0_u64..n {
-        let prog_id = (i + 1).into_origin();
-        let msg_id = (100_u64 * n + i + 1).into_origin();
+        let prog_id = (i + 1).into();
+        let msg_id = (100_u64 * n + i + 1).into();
         let blk_num = i % (bn as u64) + 1;
-        let user_id = i % num_users + 1;
+        let user_id = (i % num_users + 1).into();
         let gas_limit = gas_limits[i as usize];
-        let message = QueuedMessage {
-            id: msg_id,
-            source: user_id.into_origin(),
-            dest: prog_id,
-            payload: vec![],
-            value: 0_u128,
-            reply: None,
-        };
+        let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
         common::insert_waiting_message(
-            prog_id.clone(),
-            msg_id.clone(),
-            QueuedDispatch {
-                kind: DispatchKind::Handle,
-                message,
-                payload_store: None,
-            },
+            prog_id.into_origin(),
+            msg_id.into_origin(),
+            StoredDispatch::new(DispatchKind::Handle, message, None),
             blk_num.try_into().unwrap(),
         );
         let _ = <Test as pallet_gear::Config>::GasHandler::create(
             user_id.into_origin(),
-            msg_id,
+            msg_id.into_origin(),
             gas_limit,
         );
     }
 }
 
-fn wait_list_contents() -> Vec<(QueuedDispatch, u32)> {
-    frame_support::storage::PrefixIterator::<(QueuedDispatch, u32)>::new(
+fn populate_wait_list_with_split(
+    n: u64,
+    bn: u32,
+    user_id: impl Into<ProgramId> + Copy,
+    gas_limit: u64,
+) {
+    let mut last_msg_id: Option<MessageId> = None;
+    let user_id = user_id.into();
+    for i in 0_u64..n {
+        let prog_id = (i + 1).into();
+        let msg_id = (100_u64 * n + i + 1).into();
+        let blk_num = i % (bn as u64) + 1;
+        let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
+        common::insert_waiting_message(
+            prog_id.into_origin(),
+            msg_id.into_origin(),
+            StoredDispatch::new(DispatchKind::Handle, message, None),
+            blk_num.try_into().unwrap(),
+        );
+        if let Some(last_msg_id) = last_msg_id {
+            let _ = <Test as pallet_gear::Config>::GasHandler::split(
+                last_msg_id.into_origin(),
+                msg_id.into_origin(),
+            );
+        } else {
+            let _ = <Test as pallet_gear::Config>::GasHandler::create(
+                user_id.into_origin(),
+                msg_id.into_origin(),
+                gas_limit,
+            );
+        }
+        last_msg_id = Some(msg_id);
+    }
+}
+
+fn wait_list_contents() -> Vec<(StoredDispatch, u32)> {
+    frame_support::storage::PrefixIterator::<(StoredDispatch, u32)>::new(
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         |_, mut value| {
-            let decoded = <(QueuedDispatch, u32)>::decode(&mut value)?;
+            let decoded = <(StoredDispatch, u32)>::decode(&mut value)?;
             Ok(decoded)
         },
     )
@@ -206,6 +232,8 @@ fn ocw_double_charge() {
             assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&i, 20_000));
         }
 
+        let block_author_balance = Balances::free_balance(&BLOCK_AUTHOR);
+
         // Assert the tx pool is empty
         assert_eq!(pool.read().transactions.len(), 0);
 
@@ -246,8 +274,9 @@ fn ocw_double_charge() {
             Origin::none(),
             payees_list.clone()));
 
+        let expected_balance = block_author_balance + 9_000;
         assert_eq!(Balances::reserved_balance(&1), 11_000);
-        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 9_001);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), expected_balance);
 
         // call the unsigned extrinsic second time
         assert_ok!(Usage::collect_waitlist_rent(
@@ -256,7 +285,7 @@ fn ocw_double_charge() {
 
         // check that there is no double charging
         assert_eq!(Balances::reserved_balance(&1), 11_000);
-        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 9_001);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), expected_balance);
     })
 }
 
@@ -302,7 +331,8 @@ fn ocw_interval_stretches_for_large_wait_list() {
         let num_batches = 7_u32;
 
         // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
-        let num_entries = <Test as Config>::MaxBatchSize::get().saturating_mul(num_batches) as u64;
+        let batch_size = <Test as Config>::MaxBatchSize::get() as u64;
+        let num_entries = batch_size.saturating_mul(num_batches as u64);
         assert_eq!(num_entries, 70);
         populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
@@ -322,11 +352,45 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // From block 15 on we expect to have a new transaction every block
         run_to_block_with_ocw(15);
         assert_eq!(pool.read().transactions.len(), 3);
-        // New "invoicing" round has started, as well
+
+        // New "invoicing" round has started
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_ROUND_STARTED_AT),
             Some(15_u32)
         );
+
+        // The last tx in the pool contains batch #1 of messages
+        let latest_tx = decode_txs(pool.clone())[..]
+            .last()
+            .expect("Checked above")
+            .clone();
+        assert!(matches!(
+            latest_tx.call,
+            mock::Call::Usage(pallet::Call::collect_waitlist_rent { .. })
+        ));
+        if let mock::Call::Usage(pallet::Call::collect_waitlist_rent { payees_list }) =
+            latest_tx.call
+        {
+            for (
+                i,
+                PayeeInfo {
+                    program_id,
+                    message_id,
+                },
+            ) in payees_list.into_iter().enumerate()
+            {
+                let i = i as u64;
+                assert_eq!(
+                    (program_id, message_id),
+                    (
+                        (i + 1).into_origin(),
+                        (100_u64 * (num_entries as u64) + i + 1).into_origin()
+                    )
+                );
+            }
+        } else {
+            unreachable!()
+        }
 
         // Last seen key in the wait list should be that of the 10th message
         assert_eq!(
@@ -339,6 +403,39 @@ fn ocw_interval_stretches_for_large_wait_list() {
 
         run_to_block_with_ocw(16);
         assert_eq!(pool.read().transactions.len(), 4);
+
+        // The last tx in the pool now contains batch #2 of messages
+        let latest_tx = decode_txs(pool.clone())[..]
+            .last()
+            .expect("Checked above")
+            .clone();
+        assert!(matches!(
+            latest_tx.call,
+            mock::Call::Usage(pallet::Call::collect_waitlist_rent { .. })
+        ));
+        if let mock::Call::Usage(pallet::Call::collect_waitlist_rent { payees_list }) =
+            latest_tx.call
+        {
+            for (
+                i,
+                PayeeInfo {
+                    program_id,
+                    message_id,
+                },
+            ) in payees_list.into_iter().enumerate()
+            {
+                let i = i as u64;
+                assert_eq!(
+                    (program_id, message_id),
+                    (
+                        (batch_size + i + 1).into_origin(),
+                        (100_u64 * (num_entries as u64) + batch_size + i + 1).into_origin()
+                    )
+                );
+            }
+        } else {
+            unreachable!()
+        }
 
         // Last seen key in the wait list should be that of the 20th message
         assert_eq!(
@@ -414,11 +511,12 @@ fn rent_charge_works() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message, n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         assert_eq!(wl.len(), 10);
-        assert_eq!(wl[0].0.id, 1001.into_origin());
-        assert_eq!(wl[9].0.id, 1010.into_origin());
+        assert_eq!(wl[0].0.id(), 1001.into());
+        assert_eq!(wl[9].0.id(), 1010.into());
 
         run_to_block(15);
 
@@ -462,8 +560,9 @@ fn rent_charge_works() {
         // The insertion block number has been reset for the first 5 messages
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message, n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         // current block number
         assert_eq!(wl[0].1, 15);
         assert_eq!(wl[4].1, 15);
@@ -472,7 +571,7 @@ fn rent_charge_works() {
         assert_eq!(wl[9].1, 10);
 
         // Check that the collected rent adds up
-        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 6001);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 6101);
     });
 }
 
@@ -490,25 +589,12 @@ fn trap_reply_message_is_sent() {
         // Populate wait list with 2 messages
         populate_wait_list(2, 10, 2, vec![1_100, 500]);
 
-        let wl = wait_list_contents()
-            .into_iter()
-            .map(|(d, n)| (d.message, n))
-            .collect::<Vec<_>>();
+        let wl = wait_list_contents();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
-        let program_1 = gear_core::program::Program::new(
-            1.into(),
-            hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-        )
-        .unwrap();
-        common::native::set_program(program_1);
-        let program_2 = gear_core::program::Program::new(
-            2.into(),
-            hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
-        )
-        .unwrap();
-        common::native::set_program(program_2);
+        let _program_1 = crate::mock::set_program::<Test>(1.into(), [0; 32].into(), 10);
+        let _program_2 = crate::mock::set_program::<Test>(2.into(), [0; 32].into(), 10);
 
         run_to_block(15);
 
@@ -527,41 +613,41 @@ fn trap_reply_message_is_sent() {
             ],
         ));
 
-        // The first message still was charge the amount in excess
+        // The first message still was charged the amount in excess
         assert_eq!(Balances::reserved_balance(&1), 1_000);
 
         // The second message wasn't charged at all before emitting trap reply
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let QueuedDispatch { message, .. } = common::dequeue_dispatch().unwrap();
-        assert_eq!(message.source, 1.into_origin());
-        assert_eq!(message.dest, 1.into_origin());
+        let message = common::dequeue_dispatch().unwrap();
+        assert_eq!(message.source(), 1.into());
+        assert_eq!(message.destination(), 1.into());
         assert_eq!(
-            message.reply,
-            Some((201.into_origin(), core_processor::ERR_EXIT_CODE))
+            message.reply(),
+            Some((201.into(), core_processor::ERR_EXIT_CODE))
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id)
+            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
-                .0,
+                .unwrap(),
             1000
         );
 
         // Second trap reply message
-        let QueuedDispatch { message, .. } = common::dequeue_dispatch().unwrap();
-        assert_eq!(message.source, 2.into_origin());
-        assert_eq!(message.dest, 2.into_origin());
+        let message = common::dequeue_dispatch().unwrap();
+        assert_eq!(message.source(), 2.into());
+        assert_eq!(message.destination(), 2.into());
         assert_eq!(
-            message.reply,
-            Some((202.into_origin(), core_processor::ERR_EXIT_CODE))
+            message.reply(),
+            Some((202.into(), core_processor::ERR_EXIT_CODE))
         );
 
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id)
+            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
-                .0,
+                .unwrap(),
             500
         );
     });
@@ -613,6 +699,99 @@ fn external_submitter_gets_rewarded() {
         // Check that the collected rent adds up:
         // 10% goes to the external user, the rest - to a validator
         assert_eq!(Balances::free_balance(&10), 1_000_600);
-        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 5401);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 5501);
+    });
+}
+
+#[test]
+fn dust_discarded_with_noop() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Message sender has reserved just above `T::TrapReplyExistentialGasLimit`
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&1, 1_100));
+
+        run_to_block(10);
+
+        // Populate wait list with 2 messages
+        populate_wait_list(1, 10, 1, vec![1_100]);
+
+        let wl = wait_list_contents();
+        assert_eq!(wl.len(), 1);
+
+        run_to_block(15);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::signed(11), // AccountId without any balance
+            vec![PayeeInfo {
+                program_id: 1.into_origin(),
+                message_id: 101.into_origin()
+            },],
+        ));
+
+        // The amount destined to the tx submitter is below `ExistentialDeposit`
+        // It should have been removed as dust, no change in the beneficiary free balance
+        assert_eq!(Balances::free_balance(&11), 0);
+    });
+}
+
+#[test]
+fn gas_properly_handled_for_trap_replies() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // 3st user has just above `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&3, 1_100));
+        // 4nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&4, 500));
+
+        run_to_block(10);
+
+        // Populate wait list with 2 messages
+        populate_wait_list_with_split(2, 10, 3, 1_100);
+
+        let wl = wait_list_contents();
+        assert_eq!(wl.len(), 2);
+
+        // Insert respective programs to the program storage
+        let _program_1 = crate::mock::set_program::<Test>(1.into(), [0; 32].into(), 10);
+        let _program_2 = crate::mock::set_program::<Test>(2.into(), [0; 32].into(), 10);
+
+        run_to_block(15);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            vec![
+                PayeeInfo {
+                    program_id: 1.into_origin(),
+                    message_id: 201.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 2.into_origin(),
+                    message_id: 202.into_origin()
+                },
+            ],
+        ));
+
+        // Both messages should have been removed from wait list
+        assert_eq!(wait_list_contents().len(), 0);
+
+        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
+            ProgramId::from(3).into_origin()
+        ));
+        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
+            ProgramId::from(4).into_origin()
+        ));
+
+        // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
+        assert_eq!(
+            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
+            0
+        );
+
+        // Ensure the message sender has the funds unreserved
+        assert_eq!(Balances::reserved_balance(&3), 0);
+        assert_eq!(Balances::free_balance(&3), 999_900); // Initital 1_000_000 less 100 paid for rent
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 201); // Initial 101 + 100 charged for rent
     });
 }

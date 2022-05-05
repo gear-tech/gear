@@ -17,33 +17,30 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
-    Pallet,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
+    MessageInfo, Pallet,
 };
+use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
+use common::{ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree};
 use core_processor::common::{
-    CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
+    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
-use frame_support::{
-    storage::PrefixIterator,
-    traits::{BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency},
+use frame_support::traits::{
+    BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
 };
 use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, ExitCode, MessageId},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    message::{Dispatch, ExitCode, StoredDispatch},
+    program::Program as NativeProgram,
 };
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    marker::PhantomData,
-    prelude::*,
-};
+use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config> {
     // Messages with these destinations will be forcibly pushed to the queue.
@@ -56,49 +53,6 @@ pub enum HandleKind {
     Init(Vec<u8>),
     Handle(H256),
     Reply(H256, ExitCode),
-}
-
-impl<T: Config> CollectState for ExtManager<T>
-where
-    T::AccountId: Origin,
-{
-    fn collect(&self) -> State {
-        let actors: BTreeMap<ProgramId, ExecutableActor> = PrefixIterator::<H256>::new(
-            STORAGE_PROGRAM_PREFIX.to_vec(),
-            STORAGE_PROGRAM_PREFIX.to_vec(),
-            |key, _| Ok(H256::from_slice(key)),
-        )
-        .filter_map(|k| {
-            self.get_executable_actor(k)
-                .map(|actor| (actor.program.id(), actor))
-        })
-        .map(|(id, mut actor)| {
-            let pages_data = {
-                let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
-                let data = common::get_program_pages(id.into_origin(), page_numbers)
-                    .expect("active program exists, therefore pages do");
-                data.into_iter().map(|(k, v)| (k.into(), v)).collect()
-            };
-            let _ = actor.program.set_pages(pages_data);
-            (id, actor)
-        })
-        .collect();
-
-        let dispatch_queue = common::dispatch_iter()
-            .map(|dispatch| {
-                let gas = T::GasHandler::get_limit(dispatch.message.id)
-                    .map(|(gas, _id)| gas)
-                    .unwrap_or(0);
-                dispatch.into_dispatch(gas)
-            })
-            .collect();
-
-        State {
-            dispatch_queue,
-            actors,
-            ..Default::default()
-        }
-    }
 }
 
 impl<T: Config> Default for ExtManager<T>
@@ -117,56 +71,52 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn executable_actor_from_code(&self, id: H256, code: Vec<u8>) -> Option<ExecutableActor> {
-        NativeProgram::new(ProgramId::from_origin(id), code)
-            .ok()
-            .map(|program| ExecutableActor {
-                program,
-                balance: 0,
-            })
-    }
-
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
-        let program = common::get_program(id)
-            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
+    pub fn get_executable_actor(&self, id: H256, with_pages: bool) -> Option<ExecutableActor> {
+        let active: ActiveProgram = common::get_program(id)?.try_into().ok()?;
+        let program = {
+            let code_id = CodeId::from_origin(active.code_hash);
+            let code = T::CodeStorage::get_code(code_id)?;
+            NativeProgram::from_parts(
+                ProgramId::from_origin(id),
+                code,
+                active.allocations,
+                matches!(active.state, ProgramState::Initialized),
+            )
+        };
 
-        let balance = T::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-            .unique_saturated_into();
+        let balance =
+            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+                .unique_saturated_into();
+        let pages_data = if with_pages {
+            common::get_program_data_for_pages(id, active.pages_with_data.iter())
+        } else {
+            Default::default()
+        };
 
-        Some(ExecutableActor { program, balance })
+        Some(ExecutableActor {
+            program,
+            balance,
+            pages_data,
+        })
     }
 
-    pub fn set_program(&self, program: NativeProgram, message_id: H256) {
+    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: H256) {
         assert!(
-            program.get_pages().is_empty(),
-            "Must has empty persistent pages, has {:?}",
-            program.get_pages()
-        );
-        let code_hash = CodeHash::generate(program.code()).into_origin();
-        assert!(
-            common::code_exists(code_hash),
+            T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",
         );
 
-        let persistent_pages: BTreeMap<u32, Vec<u8>> = program
-            .get_pages()
-            .iter()
-            .map(|(k, v)| (k.raw(), v.as_ref().expect("Must have page data").to_vec()))
-            .collect();
-
-        let id = program.id().into_origin();
-
+        // An empty program has been just constructed: it contains no mem allocations.
         let program = common::ActiveProgram {
-            static_pages: program.static_pages(),
-            nonce: program.message_nonce(),
-            persistent_pages: persistent_pages.keys().copied().collect(),
-            code_hash,
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
+            code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
         };
 
-        common::set_program(id, program, persistent_pages);
+        common::set_program_and_pages_data(program_id.into_origin(), program, Default::default());
     }
 }
 
@@ -175,6 +125,8 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
+        Pallet::<T>::message_handled();
+
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
@@ -275,7 +227,7 @@ where
                         origin,
                         program_id,
                     },
-                    Reason::Dispatch(reason.as_bytes().to_vec()),
+                    Reason::Dispatch(reason.unwrap_or_default().into_bytes()),
                 )
             }
             CoreDispatchOutcome::NoExecution(message_id) => {
@@ -295,22 +247,31 @@ where
 
         match T::GasHandler::spend(message_id, amount) {
             Ok(_) => {
-                if let Some((_, origin)) = T::GasHandler::get_limit(message_id) {
-                    let charge = T::GasPrice::gas_price(amount);
-                    if let Some(author) = Authorship::<T>::author() {
-                        let _ = T::Currency::repatriate_reserved(
-                            &<T::AccountId as Origin>::from_origin(origin),
-                            &author,
-                            charge,
-                            BalanceStatus::Free,
-                        );
+                match T::GasHandler::get_origin(message_id) {
+                    Ok(maybe_origin) => {
+                        if let Some(origin) = maybe_origin {
+                            let charge = T::GasPrice::gas_price(amount);
+                            if let Some(author) = Authorship::<T>::author() {
+                                let _ = <T as Config>::Currency::repatriate_reserved(
+                                    &<T::AccountId as Origin>::from_origin(origin),
+                                    &author,
+                                    charge,
+                                    BalanceStatus::Free,
+                                );
+                            }
+                        } else {
+                            log::debug!(
+                                target: "essential",
+                                "Failed to get limit of {:?}",
+                                message_id,
+                            );
+                        }
                     }
-                } else {
-                    log::debug!(
-                        target: "essential",
-                        "Failed to get limit of {:?}",
-                        message_id,
-                    );
+                    Err(_err) => {
+                        // We only can get an error here if the gas tree is invalidated
+                        // TODO: handle appropriately
+                        unreachable!("Can never happen unless gas tree corrupted");
+                    }
                 }
             }
             Err(err) => {
@@ -335,9 +296,9 @@ where
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
-        let balance = T::Currency::total_balance(program_account);
+        let balance = <T as Config>::Currency::total_balance(program_account);
         if !balance.is_zero() {
-            T::Currency::transfer(
+            <T as Config>::Currency::transfer(
                 program_account,
                 &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
                 balance,
@@ -350,77 +311,90 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
-        if let Some((neg_imbalance, external)) = T::GasHandler::consume(message_id) {
-            let gas_left = neg_imbalance.peek();
-            log::debug!("Unreserve balance on message processed: {}", gas_left);
+        match T::GasHandler::consume(message_id) {
+            Err(_e) => {
+                // We only can get an error here if the gas tree is invalidated
+                // TODO: handle appropriately
+                unreachable!("Can never happen unless gas tree corrupted");
+            }
+            Ok(maybe_outcome) => {
+                if let Some((neg_imbalance, external)) = maybe_outcome {
+                    let gas_left = neg_imbalance.peek();
+                    log::debug!("Unreserve balance on message processed: {}", gas_left);
 
-            let refund = T::GasPrice::gas_price(gas_left);
+                    let refund = T::GasPrice::gas_price(gas_left);
 
-            let _ =
-                T::Currency::unreserve(&<T::AccountId as Origin>::from_origin(external), refund);
+                    let _ = <T as Config>::Currency::unreserve(
+                        &<T::AccountId as Origin>::from_origin(external),
+                        refund,
+                    );
+                }
+            }
         }
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
         let message_id = message_id.into_origin();
-        let (gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
+        let gas_limit = dispatch.gas_limit();
+        let dispatch = dispatch.into_stored();
 
-        if dispatch.message.value != 0
-            && T::Currency::reserve(
-                &<T::AccountId as Origin>::from_origin(dispatch.message.source),
-                dispatch.message.value.unique_saturated_into(),
+        if dispatch.value() != 0
+            && <T as Config>::Currency::reserve(
+                &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
+                dispatch.value().unique_saturated_into(),
             )
             .is_err()
         {
             log::debug!(
                 "Message (from: {:?}) {:?} will be skipped",
                 message_id,
-                dispatch.message
+                dispatch.message()
             );
             return;
         }
 
         log::debug!(
             "Sending message {:?} from {:?}",
-            dispatch.message,
+            dispatch.message(),
             message_id
         );
 
-        if common::program_exists(dispatch.message.dest)
-            || self
-                .marked_destinations
-                .contains(&ProgramId::from_origin(dispatch.message.dest))
+        if GearProgramPallet::<T>::program_exists(dispatch.destination().into_origin())
+            || self.marked_destinations.contains(&dispatch.destination())
         {
             if let Some(gas_limit) = gas_limit {
-                let _ =
-                    T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+                let _ = T::GasHandler::split_with_value(
+                    message_id,
+                    dispatch.id().into_origin(),
+                    gas_limit,
+                );
             } else {
-                let _ = T::GasHandler::split(message_id, *dispatch.message_id());
+                let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
             common::queue_dispatch(dispatch);
         } else {
+            let message = dispatch.into_parts().1;
+
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            Pallet::<T>::insert_to_mailbox(dispatch.message.dest, dispatch.message.clone());
-            Pallet::<T>::deposit_event(Event::Log(dispatch.message));
+            Pallet::<T>::insert_to_mailbox(message.destination().into_origin(), message.clone());
+
+            Pallet::<T>::deposit_event(Event::Log(message));
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let (_gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
-
-        let dest = dispatch.message.dest;
-        let message_id = dispatch.message.id;
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+        Pallet::<T>::message_handled();
 
         common::insert_waiting_message(
-            dest,
-            message_id,
+            dispatch.destination().into_origin(),
+            dispatch.id().into_origin(),
             dispatch.clone(),
             <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
         );
 
-        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch.message));
+        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch));
     }
 
     fn wake_message(
@@ -441,22 +415,31 @@ where
 
             match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
                 Ok(_) => {
-                    if let Some((_, origin)) = T::GasHandler::get_limit(message_id.into_origin()) {
-                        let charge = T::GasPrice::gas_price(chargeable_amount);
-                        if let Some(author) = Authorship::<T>::author() {
-                            let _ = T::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(origin),
-                                &author,
-                                charge,
-                                BalanceStatus::Free,
-                            );
+                    match T::GasHandler::get_origin(message_id.into_origin()) {
+                        Ok(maybe_origin) => {
+                            if let Some(origin) = maybe_origin {
+                                let charge = T::GasPrice::gas_price(chargeable_amount);
+                                if let Some(author) = Authorship::<T>::author() {
+                                    let _ = <T as Config>::Currency::repatriate_reserved(
+                                        &<T::AccountId as Origin>::from_origin(origin),
+                                        &author,
+                                        charge,
+                                        BalanceStatus::Free,
+                                    );
+                                }
+                            } else {
+                                log::debug!(
+                                    target: "essential",
+                                    "Failed to get limit of {:?}",
+                                    message_id,
+                                );
+                            }
                         }
-                    } else {
-                        log::debug!(
-                            target: "essential",
-                            "Failed to get limit of {:?}",
-                            message_id,
-                        );
+                        Err(_err) => {
+                            // We only can get an error here if the gas tree is invalidated
+                            // TODO: handle appropriately
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
                     }
                 }
                 Err(err) => {
@@ -482,35 +465,41 @@ where
         }
     }
 
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        common::set_program_nonce(program_id.into_origin(), nonce);
-    }
-
-    fn update_page(
+    fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        page_number: PageNumber,
-        data: Option<Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, Vec<u8>>,
     ) {
         let program_id = program_id.into_origin();
-        let page_number = page_number.raw();
-
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");
-
-        if let Program::Active(prog) = program {
-            let mut persistent_pages = prog.persistent_pages;
-
-            if let Some(data) = data {
-                persistent_pages.insert(page_number);
-                common::set_program_page(program_id, page_number, data);
-            } else {
-                persistent_pages.remove(&page_number);
-                common::remove_program_page(program_id, page_number);
+        if let Program::Active(mut program) = program {
+            for (page, data) in pages_data {
+                common::set_program_page_data(program_id, page, data);
+                program.pages_with_data.insert(page);
             }
+            common::set_program(program_id, program);
+        }
+    }
 
-            common::set_program_persistent_pages(program_id, persistent_pages);
-        };
+    fn update_allocations(
+        &mut self,
+        program_id: ProgramId,
+        allocations: BTreeSet<gear_core::memory::WasmPageNumber>,
+    ) {
+        let program_id = program_id.into_origin();
+        let program = common::get_program(program_id)
+            .expect("page update guaranteed to be called only for existing and active program");
+        if let Program::Active(mut program) = program {
+            let removed_pages = program.allocations.difference(&allocations);
+            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
+                if program.pages_with_data.remove(&page) {
+                    common::remove_program_page_data(program_id, page);
+                }
+            }
+            program.allocations = allocations;
+            common::set_program(program_id, program);
+        }
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
@@ -525,17 +514,18 @@ where
             );
             let from = <T::AccountId as Origin>::from_origin(from);
             let to = <T::AccountId as Origin>::from_origin(to);
-            if T::Currency::can_reserve(&to, T::Currency::minimum_balance()) {
+            if <T as Config>::Currency::can_reserve(&to, <T as Config>::Currency::minimum_balance())
+            {
                 // `to` account exists, so we can repatriate reserved value for it.
-                let _ = T::Currency::repatriate_reserved(
+                let _ = <T as Config>::Currency::repatriate_reserved(
                     &from,
                     &to,
                     value.unique_saturated_into(),
                     BalanceStatus::Free,
                 );
             } else {
-                T::Currency::unreserve(&from, value.unique_saturated_into());
-                let _ = T::Currency::transfer(
+                <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
+                let _ = <T as Config>::Currency::transfer(
                     &from,
                     &to,
                     value.unique_saturated_into(),
@@ -545,20 +535,15 @@ where
         } else {
             log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
             let from = <T::AccountId as Origin>::from_origin(from);
-            T::Currency::unreserve(&from, value.unique_saturated_into());
+            <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
-        let code_hash = code_hash.inner().into();
-
-        if let Some(code) = common::get_code(code_hash) {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+        if T::CodeStorage::get_code(code_id).is_some() {
             for (candidate_id, init_message) in candidates {
-                if !common::program_exists(candidate_id.into_origin()) {
-                    // Code hash for invalid code can't be added to the storage from extrinsics.
-                    let new_program = NativeProgram::new(candidate_id, code.clone())
-                        .expect("guaranteed to be valid");
-                    self.set_program(new_program, init_message.into_origin());
+                if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
+                    self.set_program(candidate_id, code_id, init_message.into_origin());
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -566,11 +551,24 @@ where
         } else {
             log::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
-                code_hash
+                code_id
             );
             for (candidate, _) in candidates {
                 self.marked_destinations.insert(candidate);
             }
         }
+    }
+
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
+        log::debug!(
+            "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
+            dispatch.id(),
+            Pallet::<T>::gas_allowance(),
+            gas_burned,
+        );
+
+        Pallet::<T>::stop_processing();
+        Pallet::<T>::decrease_gas_allowance(gas_burned);
+        common::queue_dispatch_first(dispatch);
     }
 }

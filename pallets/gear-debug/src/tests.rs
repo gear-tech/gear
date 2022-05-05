@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,10 +20,12 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, Origin as _, QueuedDispatch, QueuedMessage};
+use common::{self, Origin as _};
+use frame_system::Pallet as SystemPallet;
 use gear_core::{
-    message::DispatchKind,
-    program::{CodeHash, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
+    memory::WasmPageNumber,
+    message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
@@ -46,11 +48,11 @@ fn parse_wat(source: &str) -> Vec<u8> {
 }
 
 fn generate_program_id(code: &[u8]) -> H256 {
-    ProgramId::generate(CodeHash::generate(code), b"salt").into_origin()
+    ProgramId::generate(CodeId::generate(code), b"salt").into_origin()
 }
 
 fn generate_code_hash(code: &[u8]) -> H256 {
-    CodeHash::generate(code).into_origin()
+    CodeId::generate(code).into_origin()
 }
 
 #[test]
@@ -86,7 +88,7 @@ fn debug_mode_works() {
         let program_id_2 = generate_program_id(&code_2);
 
         PalletGear::<Test>::submit_program(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             code_1.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -102,22 +104,24 @@ fn debug_mode_works() {
 
         Pallet::<Test>::do_snapshot();
 
+        let static_pages = WasmPageNumber(16);
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
-                    static_pages: 16,
-                    persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                    code_hash: generate_code_hash(&code_1),
-                    nonce: 0u64,
+                    state: crate::ProgramState::Active(crate::ProgramInfo {
+                        static_pages,
+                        persistent_pages: Default::default(),
+                        code_hash: generate_code_hash(&code_1),
+                    }),
                 }],
             })
             .into(),
         );
 
         PalletGear::<Test>::submit_program(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
@@ -136,17 +140,19 @@ fn debug_mode_works() {
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_2,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: generate_code_hash(&code_2),
-                        nonce: 0u64,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: generate_code_hash(&code_2),
+                        }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: generate_code_hash(&code_1),
-                        nonce: 0u64,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: generate_code_hash(&code_1),
+                        }),
                     },
                 ],
             })
@@ -154,7 +160,7 @@ fn debug_mode_works() {
         );
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             program_id_1,
             vec![],
             1_000_000_u64,
@@ -162,10 +168,10 @@ fn debug_mode_works() {
         )
         .expect("Failed to send message");
 
-        let message_id_1 = common::peek_last_message_id(&[]);
+        let message_id_1 = get_last_message_id();
 
         PalletGear::<Test>::send_message(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             program_id_2,
             vec![],
             1_000_000_u64,
@@ -173,7 +179,7 @@ fn debug_mode_works() {
         )
         .expect("Failed to send message");
 
-        let message_id_2 = common::peek_last_message_id(&[]);
+        let message_id_2 = get_last_message_id();
 
         run_to_block(4, Some(0)); // no message will get processed
 
@@ -182,46 +188,47 @@ fn debug_mode_works() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![
-                    // message will have reverse order since the first one requeued to the end
-                    QueuedDispatch {
-                        kind: DispatchKind::Handle,
-                        message: QueuedMessage {
-                            id: message_id_2,
-                            source: 1.into_origin(),
-                            dest: program_id_2,
-                            payload: vec![],
-                            value: 0,
-                            reply: None,
-                        },
-                        payload_store: None,
-                    },
-                    QueuedDispatch {
-                        kind: DispatchKind::Handle,
-                        message: QueuedMessage {
-                            id: message_id_1,
-                            source: 1.into_origin(),
-                            dest: program_id_1,
-                            payload: vec![],
-                            value: 0,
-                            reply: None,
-                        },
-                        payload_store: None,
-                    },
+                    StoredDispatch::new(
+                        DispatchKind::Handle,
+                        StoredMessage::new(
+                            MessageId::from_origin(message_id_1),
+                            1.into(),
+                            ProgramId::from_origin(program_id_1),
+                            Default::default(),
+                            0,
+                            None,
+                        ),
+                        None,
+                    ),
+                    StoredDispatch::new(
+                        DispatchKind::Handle,
+                        StoredMessage::new(
+                            MessageId::from_origin(message_id_2),
+                            1.into(),
+                            ProgramId::from_origin(program_id_2),
+                            Default::default(),
+                            0,
+                            None,
+                        ),
+                        None,
+                    ),
                 ],
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_2,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: generate_code_hash(&code_2),
-                        nonce: 0u64,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: generate_code_hash(&code_2),
+                        }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: generate_code_hash(&code_1),
-                        nonce: 0u64,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: generate_code_hash(&code_1),
+                        }),
                     },
                 ],
             })
@@ -238,21 +245,42 @@ fn debug_mode_works() {
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_2,
-                        static_pages: 16,
-                        persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: generate_code_hash(&code_2),
-                        nonce: 0u64,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: generate_code_hash(&code_2),
+                        }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: generate_code_hash(&code_1),
-                        nonce: 0u64,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: Default::default(),
+                            code_hash: generate_code_hash(&code_1),
+                        }),
                     },
                 ],
             })
             .into(),
         );
     })
+}
+
+fn get_last_message_id() -> H256 {
+    use pallet_gear::{Event, MessageInfo};
+
+    let event = match SystemPallet::<Test>::events()
+        .last()
+        .map(|r| r.event.clone())
+    {
+        Some(super::mock::Event::Gear(e)) => e,
+        _ => unreachable!("Should be one Gear event"),
+    };
+
+    match event {
+        Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+        Event::Log(msg) => msg.id().into_origin(),
+        Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+        _ => unreachable!("expect sending"),
+    }
 }

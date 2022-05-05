@@ -19,6 +19,7 @@ test_usage() {
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     rtest          run node runtime testing tool
     pallet         run pallet-gear tests
+    runtime-upgrade run runtime-upgrade test for queue processing
 
 EOF
 }
@@ -32,7 +33,7 @@ js_test() {
   node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
-gtest() {
+gtest_debug() {
   ROOT_DIR="$1"
   shift
 
@@ -60,14 +61,43 @@ gtest() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
   fi
 
-  cargo run --package gear-test --release -- $YAMLS "$@"
+  cargo run --package gear-test $CARGO_FLAGS -- $YAMLS "$@"
+}
+
+gtest() {
+  CARGO_FLAGS="--release"
+  gtest_debug "$1"
 }
 
 # $1 - ROOT DIR
+rtest_debug() {
+  cargo run --package gear-node $CARGO_FLAGS -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+}
+
 rtest() {
-  cargo run --package gear-node --release -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+  CARGO_FLAGS="--release"
+  rtest_debug $1
 }
 
 pallet_test() {
   cargo test -p pallet-gear "$@"
+}
+
+# $1 - ROOT DIR
+runtime_upgrade_test() {
+  TEST_SCRIPT_PATH="$1/scripts/test-utils"
+
+  RUNTIME_PATH="$1/scripts/test-utils/gear_runtime.compact.compressed.wasm"
+  DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
+
+  # Run node
+  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" cargo run --package gear-node --release -- --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+
+  # Change dir to the js script dir
+  cd "$TEST_SCRIPT_PATH"
+
+  # Run test
+  npm test "$RUNTIME_PATH" "$DEMO_PING_PATH"
+
+  # Killing node process added in js script
 }

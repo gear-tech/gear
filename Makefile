@@ -100,7 +100,7 @@ clippy-release: clippy-gear-release clippy-examples
 
 .PHONY: clippy-gear
 clippy-gear:
-	@ ./scripts/gear.sh clippy gear
+	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
 .PHONY: clippy-gear-release
 clippy-gear-release:
@@ -177,11 +177,11 @@ run-node-release:
 
 .PHONY: run-dev-node
 run-dev-node:
-	@ ./scripts/gear.sh run node -- --dev
+	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug,pallet-usage=debug" ./scripts/gear.sh run node -- --dev -l0
 
 .PHONY: run-dev-node-release
 run-dev-node-release:
-	@ ./scripts/gear.sh run node --release -- --dev
+	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug,pallet-usage=debug" ./scripts/gear.sh run node --release -- --dev -l0
 
 .PHONY: purge-chain
 purge-chain:
@@ -201,10 +201,10 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-pallet test-js gtest
+test: test-gear test-js gtest rtest
 
 .PHONY: test-release
-test-release: test-gear-release test-pallet-release test-js gtest rtest
+test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
 
 .PHONY: test-gear
 test-gear: init-js examples
@@ -234,3 +234,7 @@ test-pallet:
 .PHONY: test-pallet-release
 test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
+
+.PHONE: test-runtime-upgrade
+test-runtime-upgrade: init-js examples node-release
+	@ ./scripts/gear.sh test runtime-upgrade

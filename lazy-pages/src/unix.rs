@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Lazy pages support in unix.
 
-use gear_core::memory::{PageNumber, PAGE_SIZE};
+use gear_core::memory::{PageNumber, WasmPageNumber};
 use libc::{c_void, siginfo_t};
 use nix::sys::signal;
 
@@ -37,30 +37,53 @@ use crate::{LAZY_PAGES_ENABLED, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES, WASM_MEM_B
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
 extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
-    let (wasm_page, wasm_page_native_addr) = unsafe {
-        log::debug!(target: "gear_node::sig_handler", "Interrupted, sig-info = {:?}", *info);
+    // In this function we use panics in check instead of err return, because it's signal handler.
+
+    let native_ps = page_size::get();
+    let gear_ps = PageNumber::size();
+
+    let (gear_page, gear_pages_num, unprot_addr) = unsafe {
+        log::debug!("Interrupted, sig-info = {:?}", *info);
+
         let mem = (*info).si_addr();
-        let native_page = (mem as usize / page_size::get()) * page_size::get();
+        let native_page = (mem as usize / native_ps) * native_ps;
         let wasm_mem_begin = WASM_MEM_BEGIN.with(|x| *x.borrow());
+
         assert!(wasm_mem_begin != 0, "Wasm memory begin addr is not set");
-        // TODO: we need to do something here. May be throw it to old sig handler.
-        assert!(wasm_mem_begin <= native_page, "Unknown sisegv/sigbus");
-        let wasm_page: PageNumber = (((native_page - wasm_mem_begin) / PAGE_SIZE) as u32).into();
-        let wasm_page_native_addr = wasm_mem_begin + wasm_page.offset();
-        log::debug!(target: "gear_node::sig_handler", "mem={:#x} native_page={:#x} wasm_page={} wasm_page_addr={:#x}", mem as usize, native_page, wasm_page.raw(), wasm_page_native_addr);
-        (wasm_page, wasm_page_native_addr)
+        assert!(
+            wasm_mem_begin <= native_page,
+            "sisegv/sigbus from unknown memory"
+        );
+
+        // First gear page which must be unprotected
+        let gear_page = PageNumber::from(((native_page - wasm_mem_begin) / gear_ps) as u32);
+
+        let res = if native_ps > gear_ps {
+            assert!(native_ps % gear_ps == 0);
+            (gear_page, native_ps / gear_ps, native_page)
+        } else {
+            assert!(gear_ps % native_ps == 0);
+            (gear_page, 1usize, wasm_mem_begin + gear_page.offset())
+        };
+
+        let accessed_page = PageNumber::from(((mem as usize - wasm_mem_begin) / gear_ps) as u32);
+        log::debug!(
+            "mem={:?} accessed={:?} pages={:?} page_native_addr={:#x}",
+            mem,
+            accessed_page,
+            res.0 .0..res.0 .0 + res.1 as u32,
+            res.2
+        );
+
+        res
     };
 
-    let page_info = LAZY_PAGES_INFO.with(|info| info.borrow_mut().remove(&wasm_page.raw()));
-    if page_info.is_none() {
-        // TODO: we need to do something here. May be throw it to old sig handler.
-        panic!("sigsegv/sigbus from unknown memory");
-    }
+    let unprot_size = gear_pages_num * gear_ps;
 
     let res = unsafe {
         libc::mprotect(
-            wasm_page_native_addr as *mut libc::c_void,
-            PAGE_SIZE,
+            unprot_addr as *mut libc::c_void,
+            unprot_size,
             libc::PROT_READ | libc::PROT_WRITE,
         )
     };
@@ -70,26 +93,38 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
         errno::errno()
     );
 
-    let page_as_slice =
-        unsafe { std::slice::from_raw_parts_mut(wasm_page_native_addr as *mut u8, PAGE_SIZE) };
-    let hash_key_in_storage = page_info.unwrap();
-    let res = sp_io::storage::read(&hash_key_in_storage, page_as_slice, 0);
-    assert!(res.is_some(), "Wasm page must have data in storage");
-    assert!(
-        res.unwrap() as usize == PAGE_SIZE,
-        "Page data must contain {} bytes, actually has {}",
-        PAGE_SIZE,
-        res.unwrap()
-    );
+    for idx in 0..gear_pages_num as u32 {
+        let page = gear_page.0 + idx;
 
-    let res = RELEASED_LAZY_PAGES.with(|rpages| {
-        rpages
-            .borrow_mut()
-            .insert(wasm_page.raw(), page_as_slice.to_vec())
-    });
-    assert!(res.is_none(), "Any page cannot be released twice");
+        let hash_key_in_storage = LAZY_PAGES_INFO
+            .with(|info| info.borrow_mut().remove(&page))
+            .expect("sigsegv/sigbus from unknown memory");
 
-    log::debug!(target: "gear_node::sig_handler", "Finish signal handling");
+        let buffer_as_slice = unsafe {
+            let ptr = (unprot_addr as *mut u8).add(idx as usize * gear_ps);
+            std::slice::from_raw_parts_mut(ptr, gear_ps)
+        };
+
+        let res = sp_io::storage::read(&hash_key_in_storage, buffer_as_slice, 0);
+
+        if res.is_none() {
+            log::trace!("Page {:?} has no data in storage, so just save current page data to released pages", page);
+        } else {
+            log::trace!("Page {:?} has data in storage, so set this data for page and save it in released pages", page);
+        }
+
+        assert!(
+            res.is_none() || res.unwrap() as usize == PageNumber::size(),
+            "Page data must contain {} bytes, actually has {}",
+            PageNumber::size(),
+            res.unwrap()
+        );
+
+        RELEASED_LAZY_PAGES.with(|rpages| {
+            let res = rpages.borrow_mut().insert(page, buffer_as_slice.to_vec());
+            assert!(res.is_none(), "Any page cannot be released twice");
+        });
+    }
 }
 
 /// Initialize lazy pages:
@@ -104,12 +139,26 @@ pub unsafe fn init_lazy_pages() -> bool {
         return true;
     }
 
-    assert!(LAZY_PAGES_INFO.with(|x| x.borrow().is_empty()));
-    assert!(WASM_MEM_BEGIN.with(|x| *x.borrow() == 0));
-    assert!(RELEASED_LAZY_PAGES.with(|x| x.borrow().is_empty()));
+    if !LAZY_PAGES_INFO.with(|x| x.borrow().is_empty()) {
+        log::error!("Lazy pages info must be empty before initialization");
+        return false;
+    }
+    if !WASM_MEM_BEGIN.with(|x| *x.borrow() == 0) {
+        log::error!("Wasm mem begin must be 0 before initialization");
+        return false;
+    }
+    if !RELEASED_LAZY_PAGES.with(|x| x.borrow().is_empty()) {
+        log::error!("Released lazy pages must be empty before initialization");
+        return false;
+    }
 
-    if page_size::get() > PAGE_SIZE || PAGE_SIZE % page_size::get() != 0 {
-        log::debug!("Unsupported native pages size: {:#x}", page_size::get());
+    let ps = page_size::get();
+    if ps > WasmPageNumber::size()
+        || WasmPageNumber::size() % ps != 0
+        || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
+        || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
+    {
+        log::debug!("Unsupported native pages size: {:#x}", ps);
         return false;
     }
 

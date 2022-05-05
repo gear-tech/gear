@@ -2,19 +2,19 @@ title: Async-sign (well known cases)
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_async_sign.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async_sign.opt.wasm
     init_message:
       kind: custom
       value:
         # Eve
         destination: "0x{eve}"
-        # bob's Account Id
-        signatory: "0x{5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty}"
+        # Bob
+        signatory: "0x{bob}"
 
   - id:
-      kind: ss58
-      value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+      kind: account
+      value: bob
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:
@@ -39,7 +39,7 @@ programs:
   - id:
       kind: account
       value: eve
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value: []

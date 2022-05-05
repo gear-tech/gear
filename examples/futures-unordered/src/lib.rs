@@ -36,8 +36,8 @@ async fn main() {
             debug!("UNORDERED: Before any sending");
 
             let requests = vec![
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0),
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap(),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap(),
             ];
 
             let mut unordered: FuturesUnordered<_> = requests.into_iter().collect();
@@ -49,7 +49,8 @@ async fn main() {
                 source,
                 first.expect("Can't fail").expect("Exit code is 0"),
                 0,
-            );
+            )
+            .unwrap();
             debug!("First (from demo_ping) done");
 
             let second = unordered.next().await;
@@ -57,37 +58,38 @@ async fn main() {
                 source,
                 second.expect("Can't fail").expect("Exit code is 0"),
                 0,
-            );
+            )
+            .unwrap();
             debug!("Second (from demo_async) done");
 
-            msg::reply_bytes("DONE", 0);
+            msg::reply_bytes("DONE", 0).unwrap();
         }
         // using select! macro to wait for first future done
         "select" => {
             debug!("SELECT: Before any sending");
 
             select_biased! {
-                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0) => {
+                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap() => {
                     debug!("Recieved msg from demo_async");
-                    msg::send_bytes(source, res.expect("Exit code is 0"), 0);
+                    msg::send_bytes(source, res.expect("Exit code is 0"), 0).unwrap();
                 },
-                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0) => {
+                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap() => {
                     debug!("Recieved msg from demo_ping");
-                    msg::send_bytes(source, res.expect("Exit code is 0"), 0);
+                    msg::send_bytes(source, res.expect("Exit code is 0"), 0).unwrap();
                 },
             };
 
             debug!("Finish after select");
 
-            msg::reply_bytes("DONE", 0);
+            msg::reply_bytes("DONE", 0).unwrap();
         }
         // using join! macros to wait all features done
         "join" => {
             debug!("JOIN: Before any sending");
 
             let res = join!(
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0),
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0)
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap(),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap()
             );
 
             debug!("Finish after join");
@@ -103,8 +105,8 @@ async fn main() {
                     .expect("Unable to decode string"),
             );
 
-            msg::send_bytes(source, result, 0);
-            msg::reply_bytes("DONE", 0);
+            msg::send_bytes(source, result, 0).unwrap();
+            msg::reply_bytes("DONE", 0).unwrap();
         }
         _ => {
             panic!("Unknown option");

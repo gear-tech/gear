@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,10 @@
 
 #![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
+#![cfg_attr(
+    all(target_arch = "wasm32", feature = "debug"),
+    feature(panic_info_message)
+)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 

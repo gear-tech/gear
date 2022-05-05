@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -37,11 +37,17 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Program, QueuedDispatch};
+    use common::{self, CodeStorage, Origin, Program};
+    use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
     use frame_system::pallet_prelude::*;
+    use gear_core::{
+        ids::{CodeId, ProgramId},
+        memory::{PageNumber, WasmPageNumber},
+        message::{StoredDispatch, StoredMessage},
+    };
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
@@ -55,6 +61,9 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        /// Storage with codes for proograms
+        type CodeStorage: CodeStorage;
     }
 
     #[pallet::pallet]
@@ -74,18 +83,41 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
-    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    pub struct ProgramInfo {
+        pub static_pages: WasmPageNumber,
+        pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
+        pub code_hash: H256,
+    }
+
+    impl fmt::Debug for ProgramInfo {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("ProgramInfo")
+                .field("static_pages", &self.static_pages)
+                .field(
+                    "persistent_pages",
+                    &self.persistent_pages.keys().cloned().collect::<Vec<_>>(),
+                )
+                .field("code_hash", &self.code_hash)
+                .finish()
+        }
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    pub enum ProgramState {
+        Active(ProgramInfo),
+        Terminated,
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
     pub struct ProgramDetails {
         pub id: H256,
-        pub static_pages: u32,
-        pub persistent_pages: BTreeMap<u32, Vec<u8>>,
-        pub code_hash: H256,
-        pub nonce: u64,
+        pub state: ProgramState,
     }
 
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct DebugData {
-        pub dispatch_queue: Vec<QueuedDispatch>,
+        pub dispatch_queue: Vec<StoredDispatch>,
         pub programs: Vec<ProgramDetails>,
     }
 
@@ -114,7 +146,7 @@ pub mod pallet {
 
     #[derive(Decode, Encode)]
     struct Node {
-        value: QueuedDispatch,
+        value: StoredDispatch,
         next: Option<H256>,
     }
 
@@ -149,14 +181,31 @@ pub mod pallet {
                     Ok((program_id, program))
                 },
             )
-            .filter_map(|(id, prog)| prog.try_into().ok().map(|p| (id, p)))
-            .map(|(id, p): (H256, common::ActiveProgram)| ProgramDetails {
-                id,
-                static_pages: p.static_pages,
-                persistent_pages: common::get_program_pages(id, p.persistent_pages)
-                    .expect("active program exists, therefore pages do"),
-                code_hash: p.code_hash,
-                nonce: p.nonce,
+            .map(|(id, p)| {
+                let active = match p {
+                    Program::Active(active) => active,
+                    _ => {
+                        return ProgramDetails {
+                            id,
+                            state: ProgramState::Terminated,
+                        }
+                    }
+                };
+                let code_id = CodeId::from_origin(active.code_hash);
+                let static_pages = match T::CodeStorage::get_code(code_id) {
+                    Some(code) => code.static_pages(),
+                    None => WasmPageNumber(0),
+                };
+                ProgramDetails {
+                    id,
+                    state: {
+                        ProgramState::Active(ProgramInfo {
+                            static_pages,
+                            persistent_pages: common::get_program_pages_data(id, &active),
+                            code_hash: active.code_hash,
+                        })
+                    },
+                }
             })
             .collect();
 
@@ -186,13 +235,37 @@ pub mod pallet {
                     if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                         let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
                         for (k, v) in programs_map.iter() {
-                            if *k == current_node.value.message.dest {
-                                current_node.value.message.dest = *v;
+                            if *k == current_node.value.destination().into_origin() {
+                                current_node.value = StoredDispatch::new(
+                                    current_node.value.kind(),
+                                    StoredMessage::new(
+                                        current_node.value.id(),
+                                        current_node.value.source(),
+                                        ProgramId::from_origin(*v),
+                                        (*current_node.value.payload()).to_vec(),
+                                        current_node.value.value(),
+                                        current_node.value.reply(),
+                                    ),
+                                    current_node.value.context().clone(),
+                                );
+
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
 
-                            if *v == current_node.value.message.source {
-                                current_node.value.message.source = *k;
+                            if *v == current_node.value.source().into_origin() {
+                                current_node.value = StoredDispatch::new(
+                                    current_node.value.kind(),
+                                    StoredMessage::new(
+                                        current_node.value.id(),
+                                        ProgramId::from_origin(*k),
+                                        current_node.value.destination(),
+                                        (*current_node.value.payload()).to_vec(),
+                                        current_node.value.value(),
+                                        current_node.value.reply(),
+                                    ),
+                                    current_node.value.context().clone(),
+                                );
+
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
                         }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,8 @@ use codec::{Decode, Encode};
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
 
-use gear_common::{Origin, QueuedDispatch, QueuedMessage, STORAGE_MESSAGE_PREFIX};
+use gear_common::{Origin, STORAGE_MESSAGE_PREFIX};
+use gear_core::message::{StoredDispatch, StoredMessage};
 use gear_runtime::{Gear, Runtime, System};
 
 use pallet_gear_debug::DebugData;
@@ -29,10 +30,10 @@ use pallet_gear_debug::DebugData;
 use sp_core::H256;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
-pub fn get_dispatch_queue() -> Vec<QueuedDispatch> {
+pub fn get_dispatch_queue() -> Vec<StoredDispatch> {
     #[derive(Decode, Encode)]
     struct Node {
-        value: QueuedDispatch,
+        value: StoredDispatch,
         next: Option<H256>,
     }
 
@@ -57,8 +58,8 @@ pub fn get_dispatch_queue() -> Vec<QueuedDispatch> {
     dispatch_queue
 }
 
-pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<QueuedMessage>) {
-    while !gear_common::StorageQueue::<QueuedDispatch>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
+pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
+    while !gear_common::StorageQueue::<StoredDispatch>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
         run_to_block(System::block_number() + 1, None);
         // Parse data from events
         for event in System::events() {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,8 +20,9 @@
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
 //! During execution data from storage is loaded for all pages, which has been accesed.
-//! See also [handle_sigsegv].
+//! See also `handle_sigsegv`.
 
+use sp_std::{result::Result, vec::Vec};
 use std::{cell::RefCell, collections::BTreeMap};
 
 #[cfg(unix)]
@@ -48,13 +49,12 @@ thread_local! {
 }
 
 /// Save page key in storage
-pub fn save_page_lazy_info(wasm_page: u32, key: &[u8]) {
-    LAZY_PAGES_INFO
-        .with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(wasm_page, key.to_vec()));
+pub fn save_page_lazy_info(page: u32, key: &[u8]) {
+    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(page, key.to_vec()));
 }
 
 /// Returns vec of not-accessed wasm lazy pages
-pub fn get_wasm_lazy_pages_numbers() -> sp_std::vec::Vec<u32> {
+pub fn get_lazy_pages_numbers() -> Vec<u32> {
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().iter().map(|x| *x.0).collect())
 }
 
@@ -71,13 +71,26 @@ pub fn reset_lazy_pages_info() {
 }
 
 /// Returns vec of lazy pages which has been accessed
-pub fn get_released_pages() -> sp_std::vec::Vec<u32> {
+pub fn get_released_pages() -> Vec<u32> {
     RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|x| *x.0).collect())
 }
 
+/// Returns whether lazy pages env is enabled
+pub fn is_lazy_pages_enabled() -> bool {
+    LAZY_PAGES_ENABLED.with(|x| *x.borrow())
+}
+
+#[derive(Debug)]
+pub struct GetReleasedPageError;
+
 /// Returns page data which page has in storage before execution
-pub fn get_released_page_old_data(page: u32) -> sp_std::vec::Vec<u8> {
-    RELEASED_LAZY_PAGES.with(|x| x.borrow().get(&page).expect("Must have this page").to_vec())
+pub fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
+    RELEASED_LAZY_PAGES.with(|x| {
+        x.borrow()
+            .get(&page)
+            .ok_or(GetReleasedPageError)
+            .map(|data| data.to_vec())
+    })
 }
 
 pub use sys::init_lazy_pages;

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,17 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use frame_support::traits::{FindAuthor, OffchainWorker, OnInitialize};
+use common::{CodeMetadata, CodeStorage, Origin as _};
+use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
+use gear_core::code::InstrumentedCodeAndId;
+use gear_core::{
+    code::{Code, CodeAndId},
+    ids::ProgramId,
+    program::Program,
+};
+use hex_literal::hex;
 use parking_lot::RwLock;
 use primitive_types::H256;
 use sp_core::offchain::{
@@ -34,7 +42,9 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
 };
+use sp_std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -49,6 +59,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
@@ -73,7 +84,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: u64 = 100;
 }
 
 impl system::Config for Test {
@@ -108,6 +119,12 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
+
 parameter_types! {
     pub const WaitListFeePerBlock: u64 = 100;
 }
@@ -119,8 +136,11 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = ();
+    type OutgoingLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
+    type Schedule = ();
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}
@@ -129,7 +149,6 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 5;
     pub const MaxBatchSize: u32 = 10;
     pub const ExpirationDuration: u64 = 3000;
-    pub const TrapReplyExistentialGasLimit: u64 = 1000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
 }
 
@@ -140,7 +159,7 @@ impl pallet_usage::Config for Test {
     type WaitListTraversalInterval = WaitListTraversalInterval;
     type ExpirationDuration = ExpirationDuration;
     type MaxBatchSize = MaxBatchSize;
-    type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
+    type TrapReplyExistentialGasLimit = ConstU64<1000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
 }
 
@@ -162,7 +181,7 @@ impl pallet_authorship::Config for Test {
     type EventHandler = ();
 }
 
-pub type Extrinsic = TestXt<Call, ()>;
+pub(crate) type Extrinsic = TestXt<Call, ()>;
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
 where
@@ -197,7 +216,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (8, 1_000_000_u128),
             (9, 1_000_000_u128),
             (10, 1_000_000_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (BLOCK_AUTHOR, 101_u128),
         ],
     }
     .assimilate_storage(&mut t)
@@ -223,8 +242,10 @@ pub fn with_offchain_ext() -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>)
 pub(crate) fn run_to_block(n: u64) {
     let now = System::block_number();
     for i in now + 1..=n {
+        log::debug!("📦 Processing block {}", i);
         System::set_block_number(i);
         Usage::on_initialize(i);
+        Gear::on_idle(i, 1_000_000_000);
     }
 }
 
@@ -249,4 +270,48 @@ pub(crate) fn get_current_offchain_time() -> u64 {
 pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     let storage_value_ref = StorageValueRef::persistent(key);
     storage_value_ref.get::<T>().ok().flatten()
+}
+
+pub(crate) fn set_program<T: pallet_gear::Config>(
+    program_id: ProgramId,
+    who: H256,
+    bn: u32,
+) -> Program {
+    let code = Code::try_new(
+        hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+        1,
+        |_| ConstantCostRules::default(),
+    )
+    .expect("Error creating Code");
+
+    let code_and_id = CodeAndId::new(code);
+
+    let code_hash = code_and_id.code_id().into_origin();
+    let _ = T::CodeStorage::add_code(code_and_id.clone(), CodeMetadata::new(who, bn));
+
+    let code_and_id: InstrumentedCodeAndId = code_and_id.into();
+    let (code, _) = code_and_id.into_parts();
+    let program = Program::new(program_id, code);
+
+    common::set_program_and_pages_data(
+        H256::from_slice(program.id().as_ref()),
+        common::ActiveProgram {
+            allocations: program.get_allocations().clone(),
+            pages_with_data: Default::default(),
+            code_hash,
+            state: common::ProgramState::Initialized,
+        },
+        Default::default(),
+    );
+
+    program
+}
+
+pub(crate) fn decode_txs(pool: Arc<RwLock<PoolState>>) -> Vec<Extrinsic> {
+    pool.read()
+        .transactions
+        .iter()
+        .cloned()
+        .map(|bytes| Extrinsic::decode(&mut &bytes[..]).unwrap())
+        .collect::<Vec<_>>()
 }

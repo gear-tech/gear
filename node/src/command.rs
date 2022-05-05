@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use sc_service::PartialComponents;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
-        "Substrate Node".into()
+        "Gear Node".into()
     }
 
     fn impl_version() -> String {
@@ -43,11 +43,11 @@ impl SubstrateCli for Cli {
     }
 
     fn support_url() -> String {
-        "support.anonymous.an".into()
+        "gear-tech.io".into()
     }
 
     fn copyright_start_year() -> i32 {
-        2017
+        2021
     }
 
     fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
@@ -138,7 +138,7 @@ pub fn run() -> sc_cli::Result<()> {
                     backend,
                     ..
                 } = service::new_partial(&config)?;
-                Ok((cmd.run(client, backend), task_manager))
+                Ok((cmd.run(client, backend, None), task_manager))
             })
         }
         Some(Subcommand::Benchmark(cmd)) => {
@@ -159,6 +159,26 @@ pub fn run() -> sc_cli::Result<()> {
 
             runner.sync_run(|config| cmd.run(config))
         }
+        #[cfg(feature = "try-runtime")]
+        Some(Subcommand::TryRuntime(cmd)) => {
+            let runner = cli.create_runner(cmd)?;
+            runner.async_run(|config| {
+                // we don't need any of the components of new_partial, just a runtime, or a task
+                // manager to do `async_run`.
+                let registry = config.prometheus_config.as_ref().map(|cfg| &cfg.registry);
+                let task_manager =
+                    sc_service::TaskManager::new(config.tokio_handle.clone(), registry)
+                        .map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
+                Ok((
+                    cmd.run::<Block, service::ExecutorDispatch>(config),
+                    task_manager,
+                ))
+            })
+        }
+        #[cfg(not(feature = "try-runtime"))]
+        Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
+				You can enable it with `--features try-runtime`."
+            .into()),
         None => {
             let runner = cli.create_runner(&cli.run)?;
             runner.run_node_until_exit(|config| async move {

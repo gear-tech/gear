@@ -6,7 +6,7 @@ programs:
     source:
       kind: id
       value: 1000001
-    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm
+    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.opt.wasm
     init_message:
       kind: utf-8
       value: "invalid input for init"
@@ -24,8 +24,15 @@ fixtures:
           value: unknown
 
     expected:
+
       # no active programs in the state
       - programs:
+        only: true
+        ids:
+          - kind: id
+            value: 1
+            terminated: true
+
         log:
           # Trap in init generates trap reply
           - destination: 1000001

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -30,76 +30,140 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use core::fmt;
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::{Memory, PageBuf, PageNumber},
-    message::{MessageId, OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
-    program::{CodeHash, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
+    message::{ContextStore, Dispatch},
 };
+use gear_core_errors::ExtError;
 
-pub const EXIT_TRAP_STR: &str = "exit";
-pub const LEAVE_TRAP_STR: &str = "leave";
-pub const WAIT_TRAP_STR: &str = "wait";
+pub type HostPointer = u64;
 
-pub enum TerminationReason<'a> {
+#[derive(Debug, Clone)]
+pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Trap {
-        explanation: Option<&'static str>,
-        description: Option<Cow<'a, str>>,
+        explanation: Option<ExtError>,
+        description: Option<Cow<'static, str>>,
     },
     Wait,
+    GasAllowanceExceeded,
 }
 
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
-    pub pages: BTreeSet<PageNumber>,
-    pub accessed_pages: BTreeMap<PageNumber, Vec<u8>>,
-    pub outgoing: Vec<OutgoingMessage>,
-    pub init_messages: Vec<ProgramInitMessage>,
-    pub reply: Option<ReplyMessage>,
+    pub allocations: BTreeSet<WasmPageNumber>,
+    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
+    pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
-    pub nonce: u64,
-    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
-    pub payload_store: Option<PayloadStore>,
-
-    pub trap_explanation: Option<&'static str>,
-
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub context_store: ContextStore,
+    pub trap_explanation: Option<ExtError>,
     pub exit_argument: Option<ProgramId>,
 }
 
-pub struct BackendReport<'a> {
-    pub termination: TerminationReason<'a>,
+pub trait IntoExtInfo {
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
+        self,
+        get_page_data: F,
+    ) -> Result<ExtInfo, (T, GasAmount)>;
+    fn into_gas_amount(self) -> GasAmount;
+}
+
+pub struct BackendReport {
+    pub termination: TerminationReason,
     pub info: ExtInfo,
 }
 
-pub struct BackendError<'a> {
+#[derive(Debug)]
+pub struct BackendError<T> {
     pub gas_amount: GasAmount,
-    pub reason: &'static str,
-    pub description: Option<Cow<'a, str>>,
+    pub reason: T,
+    pub description: Option<Cow<'static, str>>,
 }
 
-pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
-    /// Setup external environment, provide `ext`, set the beginning of the memory region
-    /// to the `static_area` content after creatig instance.
-    fn setup(
-        &mut self,
+impl<T> fmt::Display for BackendError<T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(description) = &self.description {
+            write!(f, "{}: {}", self.reason, description)
+        } else {
+            write!(f, "{}", self.reason)
+        }
+    }
+}
+
+pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
+    /// An error issues in environment
+    type Error: fmt::Display;
+
+    /// Creates new external environment to execute wasm binary:
+    /// 1) instatiates wasm binary.
+    /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
+    /// 3) instatiate external funcs for wasm module.
+    fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        memory: &dyn Memory,
-    ) -> Result<(), BackendError<'static>>;
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        mem_size: WasmPageNumber,
+    ) -> Result<Self, BackendError<Self::Error>>;
 
     /// Returns addr to the stack end if it can be identified
-    fn get_stack_mem_end(&self) -> Option<i32>;
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
-    /// Run setuped instance starting at `entry_point` - wasm export function name.
-    /// NOTE: external environment must be set up.
-    /// NOTE: env is dropped after execution
-    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
+    /// Returns host address of wasm memory buffer. Needed for lazy-pages
+    fn get_wasm_memory_begin_addr(&self) -> HostPointer;
 
-    /// Create internal representation of wasm memory with size `total_pages`
-    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str>;
+    /// Run instance setup starting at `entry_point` - wasm export function name.
+    /// Also runs `post_execution_handler` after running instance at provided entry point.
+    fn execute<F, T>(
+        self,
+        entry_point: &str,
+        post_execution_handler: F,
+    ) -> Result<BackendReport, BackendError<Self::Error>>
+    where
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display;
+
+    /// Consumes environment and returns gas state.
+    fn into_gas_amount(self) -> GasAmount;
+}
+
+pub trait OnSuccessCode<T, E> {
+    fn on_success_code<F>(self, f: F) -> Result<i32, E>
+    where
+        F: FnMut(T) -> Result<(), E>;
+}
+
+impl<T, E, E2> OnSuccessCode<T, E> for Result<T, E2> {
+    fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
+    where
+        F: FnMut(T) -> Result<(), E>,
+    {
+        match self {
+            Ok(t) => f(t).map(|_| 0),
+            Err(_) => Ok(1),
+        }
+    }
+}
+
+pub trait IntoErrorCode {
+    fn into_error_code(self) -> i32;
+}
+
+impl<E> IntoErrorCode for Result<(), E> {
+    fn into_error_code(self) -> i32 {
+        match self {
+            Ok(()) => 0,
+            // TODO: actual error codes
+            Err(_) => 1,
+        }
+    }
 }

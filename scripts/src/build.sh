@@ -70,6 +70,8 @@ examples_build() {
 
   if [ -z "$YAMLS" ]
   then
+    cd "$ROOT_DIR"
+    cargo +nightly build --release -p "demo-*"
     cd "$ROOT_DIR"/examples
     CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
     cd "$ROOT_DIR"
@@ -78,7 +80,7 @@ examples_build() {
     # all examples which is used as deps inside yamls.
     for yaml in $YAMLS
     do
-      names=$(cat $yaml | perl -ne 'print "$1 " if /.*path: .*\/(.*).wasm/s')
+      names=$(cat $yaml | perl -ne 'print "$1 " if /.*path: .*\/(.*?)\./s')
       names=$(echo $names | tr _ -)
       for name in $names
       do

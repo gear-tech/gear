@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,8 +25,8 @@ pub fn handle_journal(
     handler: &mut dyn JournalHandler,
 ) {
     let mut page_updates = BTreeMap::new();
-    let mut nonces = BTreeMap::new();
     let mut exit_list = vec![];
+    let mut allocations_update = BTreeMap::new();
 
     for note in journal.into_iter() {
         match note {
@@ -47,9 +47,6 @@ pub fn handle_journal(
                 program_id,
                 awakening_id,
             } => handler.wake_message(message_id, program_id, awakening_id),
-            JournalNote::UpdateNonce { program_id, nonce } => {
-                nonces.insert(program_id, nonce);
-            }
             JournalNote::UpdatePage {
                 program_id,
                 page_number,
@@ -58,22 +55,30 @@ pub fn handle_journal(
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
                 entry.insert(page_number, data);
             }
+            JournalNote::UpdateAllocations {
+                program_id,
+                allocations,
+            } => {
+                allocations_update.insert(program_id, allocations);
+            }
             JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
             JournalNote::StoreNewPrograms {
                 code_hash,
                 candidates,
             } => handler.store_new_programs(code_hash, candidates),
+            JournalNote::StopProcessing {
+                dispatch,
+                gas_burned,
+            } => handler.stop_processing(dispatch, gas_burned),
         }
     }
 
-    for (program_id, nonce) in nonces {
-        handler.update_nonce(program_id, nonce);
+    for (program_id, pages_data) in page_updates {
+        handler.update_pages_data(program_id, pages_data);
     }
 
-    for (program_id, pages) in page_updates {
-        for (page_number, data) in pages {
-            handler.update_page(program_id, page_number, data);
-        }
+    for (program_id, allocations) in allocations_update {
+        handler.update_allocations(program_id, allocations);
     }
 
     for (id_exited, value_destination) in exit_list {

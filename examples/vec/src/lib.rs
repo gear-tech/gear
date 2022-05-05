@@ -16,7 +16,7 @@ pub unsafe extern "C" fn handle() {
         &v[new_msg as usize - 1],
         v[new_msg as usize - 1]
     );
-    msg::send(msg::source(), v.len() as i32, 0);
+    msg::send(msg::source(), v.len() as i32, 0).unwrap();
     debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
 
     // The test idea is to allocate two wasm pages and check this allocation,

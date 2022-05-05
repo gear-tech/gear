@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,378 +18,328 @@
 
 //! Wasmtime environment for running a module.
 
-use crate::memory::MemoryWrap;
-use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
+use core::fmt;
+
+use alloc::{
+    boxed::Box,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use gear_backend_common::{
-    funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
+    BackendError, BackendReport, Environment, ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
-    env::{Ext, LaterExt},
-    memory::{Memory, PageBuf, PageNumber},
+    env::{ClonedExtCarrier, Ext, ExtCarrier},
+    gas::GasAmount,
+    memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use wasmtime::{
-    Extern, Func, Instance, Limits, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryAccessError, MemoryType,
+    Module, Store, Trap,
 };
+
+/// Data type in wasmtime store
+pub struct StoreData<E: Ext> {
+    pub ext: ClonedExtCarrier<E>,
+    pub termination_reason: Option<TerminationReason>,
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum WasmtimeEnvironmentError {
+    #[display(fmt = "Non-env imports are not supported")]
+    NonEnvImports,
+    #[display(fmt = "Missing import")]
+    MissingImport,
+    #[display(fmt = "Unable to create module")]
+    ModuleCreation,
+    #[display(fmt = "Unable to create instance")]
+    InstanceCreation,
+    #[display(fmt = "Unable to set module memory data")]
+    SetModuleMemoryData,
+    #[display(fmt = "Failed to create env memory")]
+    CreateEnvMemory,
+    #[display(fmt = "{}", _0)]
+    MemoryAccess(MemoryAccessError),
+    #[display(fmt = "{}", _0)]
+    PostExecutionHandler(String),
+}
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
-    store: wasmtime::Store,
-    ext: LaterExt<E>,
-    funcs: BTreeMap<&'static str, Func>,
-    instance: Option<Instance>,
+    store: Store<StoreData<E>>,
+    ext: ExtCarrier<E>,
+    memory: WasmtimeMemory,
+    instance: Instance,
 }
 
-impl<E: Ext + 'static> WasmtimeEnvironment<E> {
-    /// New environment.
-    ///
-    /// To run actual function with provided external environment, `setup_and_run` should be used.
-    pub fn new() -> Self {
-        let mut result = Self {
-            store: Store::default(),
-            ext: Default::default(),
-            funcs: BTreeMap::new(),
-            instance: None,
-        };
-
-        result.add_func_i32_to_u32("alloc", funcs::alloc);
-        result.add_func_i32("free", funcs::free);
-        result.add_func_i32("gas", funcs::gas);
-        result.add_func_into_i32("gr_block_height", funcs::block_height);
-        result.add_func_into_i64("gr_block_timestamp", funcs::block_timestamp);
-        result.add_func_i32_i32_i32_i32_i32_i64_i32_i32(
-            "gr_create_program_wgas",
-            funcs::create_program_wgas,
-        );
-        result.add_func_to_i32("gr_exit_code", funcs::exit_code);
-        result.add_func_into_i64("gr_gas_available", funcs::gas_available);
-        result.add_func_i32_i32("gr_debug", funcs::debug);
-        result.add_func_i32("gr_exit", funcs::exit);
-        result.add_func_i32("gr_origin", funcs::origin);
-        result.add_func_i32("gr_msg_id", funcs::msg_id);
-        result.add_func_i32("gr_program_id", funcs::program_id);
-        result.add_func_i32_i32_i32("gr_read", funcs::read);
-        result.add_func_i32_i32_i32_i32("gr_reply", funcs::reply);
-        result.add_func_i32_i32("gr_reply_commit", funcs::reply_commit);
-        result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
-        result.add_func_i32("gr_reply_to", funcs::reply_to);
-        result.add_func_i32_i32_i32_i64_i32_i32("gr_send_wgas", funcs::send_wgas);
-        result.add_func_i32_i32_i32_i32_i32("gr_send", funcs::send);
-        result.add_func_i32_i32_i32_i64_i32("gr_send_commit_wgas", funcs::send_commit_wgas);
-        result.add_func_i32_i32_i32_i32("gr_send_commit", funcs::send_commit);
-        result.add_func_to_i32("gr_send_init", funcs::send_init);
-        result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
-        result.add_func_into_i32("gr_size", funcs::size);
-        result.add_func_i32("gr_source", funcs::source);
-        result.add_func_i32("gr_value", funcs::value);
-        result.add_func_i32("gr_value_available", funcs::value_available);
-        result.add_func("gr_leave", funcs::leave);
-        result.add_func("gr_wait", funcs::wait);
-        result.add_func_i32("gr_wake", funcs::wake);
-
-        result
+fn set_pages<T: Ext>(
+    mut store: &mut Store<StoreData<T>>,
+    memory: &mut WasmtimeMemory,
+    pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+) -> Result<(), String> {
+    let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
+    for (num, buf) in pages {
+        if memory_size <= num.to_wasm_page() {
+            return Err(format!("Memory size {:?} less then {:?}", memory_size, num));
+        }
+        memory
+            .write(&mut store, num.offset(), &buf[..])
+            .map_err(|e| format!("Cannot write to {:?}: {:?}", num, e))?;
     }
+    Ok(())
+}
 
-    fn add_func<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn() -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap0(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap1(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap2(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap3(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap4(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap6(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i32, i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i32_i32_i32_i64_i32_i32<F>(
-        &mut self,
-        key: &'static str,
-        func: fn(LaterExt<E>) -> F,
-    ) where
-        F: 'static + Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap8(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_to_u32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32) -> Result<u32, &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap1(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_into_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn() -> i32,
-    {
-        self.funcs
-            .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
-    }
-
-    fn add_func_to_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn() -> Result<i32, &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap0(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_into_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn() -> i64,
-    {
-        self.funcs
-            .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
-    }
-
-    fn wrap0<R>(func: impl Fn() -> Result<R, &'static str>) -> impl Fn() -> Result<R, Trap> {
-        move || func().map_err(Trap::new)
-    }
-
-    fn wrap1<T, R>(func: impl Fn(T) -> Result<R, &'static str>) -> impl Fn(T) -> Result<R, Trap> {
-        move |a| func(a).map_err(Trap::new)
-    }
-
-    fn wrap2<T0, T1, R>(
-        func: impl Fn(T0, T1) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1) -> Result<R, Trap> {
-        move |a, b| func(a, b).map_err(Trap::new)
-    }
-
-    fn wrap3<T0, T1, T2, R>(
-        func: impl Fn(T0, T1, T2) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1, T2) -> Result<R, Trap> {
-        move |a, b, c| func(a, b, c).map_err(Trap::new)
-    }
-
-    fn wrap4<T0, T1, T2, T3, R>(
-        func: impl Fn(T0, T1, T2, T3) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1, T2, T3) -> Result<R, Trap> {
-        move |a, b, c, d| func(a, b, c, d).map_err(Trap::new)
-    }
-
-    fn wrap5<T0, T1, T2, T3, T4, R>(
-        func: impl Fn(T0, T1, T2, T3, T4) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1, T2, T3, T4) -> Result<R, Trap> {
-        move |a, b, c, d, e| func(a, b, c, d, e).map_err(Trap::new)
-    }
-
-    fn wrap6<T0, T1, T2, T3, T4, T5, R>(
-        func: impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, Trap> {
-        move |a, b, c, d, e, f| func(a, b, c, d, e, f).map_err(Trap::new)
-    }
-
-    fn wrap8<T0, T1, T2, T3, T4, T5, T6, T7, R>(
-        func: impl Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> Result<R, Trap> {
-        move |a, b, c, d, e, f, g, h| func(a, b, c, d, e, f, g, h).map_err(Trap::new)
+impl<E> WasmtimeEnvironment<E>
+where
+    E: Ext + IntoExtInfo,
+{
+    fn prepare_post_execution_data(
+        self,
+    ) -> Result<(ExtInfo, HostPointer), BackendError<WasmtimeEnvironmentError>> {
+        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
+        let WasmtimeEnvironment {
+            mut store,
+            ext,
+            memory,
+            ..
+        } = self;
+        ext.into_inner()
+            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
+                memory.read(&mut store, offset, buffer)
+            })
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason: WasmtimeEnvironmentError::MemoryAccess(reason),
+                description: None,
+                gas_amount,
+            })
+            .map(|info| (info, wasm_memory_addr))
     }
 }
 
-impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
-    /// Create a default environment.
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl<E> Environment<E> for WasmtimeEnvironment<E>
+where
+    E: Ext + IntoExtInfo,
+{
+    type Error = WasmtimeEnvironmentError;
 
-impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
-    fn setup(
-        &mut self,
+    fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        memory: &dyn Memory,
-    ) -> Result<(), BackendError<'static>> {
-        self.ext.set(ext);
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        mem_size: WasmPageNumber,
+    ) -> Result<Self, BackendError<Self::Error>> {
+        let ext_carrier = ExtCarrier::new(ext);
 
-        let module = Module::new(self.store.engine(), binary).map_err(|e| BackendError {
-            reason: "Unable to create module",
-            description: Some(e.to_string().into()),
-            gas_amount: self.ext.unset().into().gas_amount,
-        })?;
+        let engine = Engine::default();
+        let store_data = StoreData {
+            ext: ext_carrier.cloned(),
+            termination_reason: None,
+        };
+        let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
-        let mut imports = module
-            .imports()
-            .map(|import| {
-                if import.module() != "env" {
-                    Err(BackendError {
-                        reason: "Non-env imports are not supported",
-                        description: import
-                            .name()
-                            .map(|v| format!("Function {:?} is not env", v).into()),
-                        gas_amount: self.ext.unset().into().gas_amount,
-                    })
-                } else {
-                    Ok((import.name(), Option::<Extern>::None))
-                }
-            })
-            .collect::<Result<Vec<_>, BackendError>>()?;
+        // Creates new wasm memory
+        let mut memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
+            Ok(mem) => mem,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: WasmtimeEnvironmentError::CreateEnvMemory,
+                    description: Some(e.to_string().into()),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                })
+            }
+        };
+
+        /// Make import funcs
+        use crate::funcs::FuncsHandler as funcs;
+        let mut funcs = BTreeMap::<&'static str, Func>::new();
+        funcs.insert("alloc", funcs::alloc(&mut store, memory));
+        funcs.insert("free", funcs::free(&mut store));
+        funcs.insert("gas", funcs::gas(&mut store));
+        funcs.insert("gr_block_height", funcs::block_height(&mut store));
+        funcs.insert("gr_block_timestamp", funcs::block_timestamp(&mut store));
+        funcs.insert(
+            "gr_create_program_wgas",
+            funcs::create_program_wgas(&mut store, memory),
+        );
+        funcs.insert("gr_exit_code", funcs::exit_code(&mut store));
+        funcs.insert("gr_gas_available", funcs::gas_available(&mut store));
+        funcs.insert("gr_debug", funcs::debug(&mut store, memory));
+        funcs.insert("gr_exit", funcs::exit(&mut store, memory));
+        funcs.insert("gr_origin", funcs::origin(&mut store, memory));
+        funcs.insert("gr_msg_id", funcs::msg_id(&mut store, memory));
+        funcs.insert("gr_program_id", funcs::program_id(&mut store, memory));
+        funcs.insert("gr_read", funcs::read(&mut store, memory));
+        funcs.insert("gr_reply", funcs::reply(&mut store, memory));
+        funcs.insert("gr_reply_wgas", funcs::reply_wgas(&mut store, memory));
+        funcs.insert("gr_reply_commit", funcs::reply_commit(&mut store, memory));
+        funcs.insert(
+            "gr_reply_commit_wgas",
+            funcs::reply_commit_wgas(&mut store, memory),
+        );
+        funcs.insert("gr_reply_push", funcs::reply_push(&mut store, memory));
+        funcs.insert("gr_reply_to", funcs::reply_to(&mut store, memory));
+        funcs.insert("gr_send_wgas", funcs::send_wgas(&mut store, memory));
+        funcs.insert("gr_send", funcs::send(&mut store, memory));
+        funcs.insert(
+            "gr_send_commit_wgas",
+            funcs::send_commit_wgas(&mut store, memory),
+        );
+        funcs.insert("gr_send_commit", funcs::send_commit(&mut store, memory));
+        funcs.insert("gr_send_init", funcs::send_init(&mut store, memory));
+        funcs.insert("gr_send_push", funcs::send_push(&mut store, memory));
+        funcs.insert("gr_size", funcs::size(&mut store));
+        funcs.insert("gr_source", funcs::source(&mut store, memory));
+        funcs.insert("gr_value", funcs::value(&mut store, memory));
+        funcs.insert(
+            "gr_value_available",
+            funcs::value_available(&mut store, memory),
+        );
+        funcs.insert("gr_leave", funcs::leave(&mut store));
+        funcs.insert("gr_wait", funcs::wait(&mut store));
+        funcs.insert("gr_wake", funcs::wake(&mut store, memory));
+
+        let module = match Module::new(&engine, binary) {
+            Ok(module) => module,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: WasmtimeEnvironmentError::ModuleCreation,
+                    description: Some(e.to_string().into()),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                })
+            }
+        };
+
+        let mut imports = Vec::with_capacity(module.imports().len());
+        for import in module.imports() {
+            if import.module() != "env" {
+                return Err(BackendError {
+                    reason: WasmtimeEnvironmentError::NonEnvImports,
+                    description: import
+                        .name()
+                        .map(|v| format!("Function {:?} is not env", v).into()),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                });
+            }
+            imports.push((import.name(), Option::<Extern>::None));
+        }
 
         for (import_name, ref mut ext) in imports.iter_mut() {
             if let Some(name) = import_name {
                 *ext = match *name {
-                    "memory" => match memory.as_any().downcast_ref::<WasmtimeMemory>() {
-                        Some(mem) => Some(Extern::Memory(mem.clone())),
-                        _ => {
-                            return Err(BackendError {
-                                reason: "Memory is not wasmtime::Memory",
-                                description: None,
-                                gas_amount: self.ext.unset().into().gas_amount,
-                            })
-                        }
-                    },
-                    key if self.funcs.contains_key(key) => Some(self.funcs[key].clone().into()),
+                    "memory" => Some(Extern::Memory(memory)),
+                    key if funcs.contains_key(key) => Some(funcs[key].into()),
                     _ => continue,
                 }
             }
         }
 
-        let externs = imports
-            .into_iter()
-            .map(|(name, host_function)| {
-                host_function.ok_or_else(|| BackendError {
-                    reason: "Missing import",
+        let mut externs = Vec::with_capacity(imports.len());
+        for (name, host_function) in imports {
+            if let Some(host_function) = host_function {
+                externs.push(host_function);
+            } else {
+                return Err(BackendError {
+                    reason: WasmtimeEnvironmentError::MissingImport,
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: self.ext.unset().into().gas_amount,
-                })
-            })
-            .collect::<Result<Vec<_>, BackendError>>()?;
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                });
+            }
+        }
 
-        let instance = Instance::new(&self.store, &module, &externs).map_err(|e| BackendError {
-            reason: "Unable to create instance",
-            description: Some(e.to_string().into()),
-            gas_amount: self.ext.unset().into().gas_amount,
-        })?;
-
-        // Set module memory.
-        memory.set_pages(memory_pages).map_err(|e| BackendError {
-            reason: "Unable to set module memory",
-            description: Some(format!("{:?}", e).into()),
-            gas_amount: self.ext.unset().into().gas_amount,
-        })?;
-
-        self.instance.replace(instance);
-
-        Ok(())
-    }
-
-    fn get_stack_mem_end(&self) -> Option<i32> {
-        let instance = self.instance.as_ref().expect("Must have instance");
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let global = instance.get_global("__gear_stack_end")?;
-        global.get().i32()
-    }
-
-    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
-        let instance = self.instance.as_mut().expect("Must have instance");
-
-        let entry_func = match instance.get_func(entry_point) {
-            // Entry function found
-            Some(f) => f,
-            // Entry function not found, so we mean this as empty function
-            _ => {
-                return Ok(BackendReport {
-                    termination: TerminationReason::Success,
-                    info: self.ext.unset().into(),
+        let instance = match Instance::new(&mut store, &module, &externs) {
+            Ok(instance) => instance,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: WasmtimeEnvironmentError::InstanceCreation,
+                    description: Some(e.to_string().into()),
+                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
 
-        let res = entry_func.call(&[]);
+        // Set module memory data
+        if let Err(e) = set_pages(&mut store, &mut memory, memory_pages) {
+            return Err(BackendError {
+                reason: WasmtimeEnvironmentError::SetModuleMemoryData,
+                description: Some(format!("{:?}", e).into()),
+                gas_amount: ext_carrier.into_inner().into_gas_amount(),
+            });
+        }
 
-        let info: ExtInfo = self.ext.unset().into();
+        Ok(WasmtimeEnvironment {
+            store,
+            ext: ext_carrier,
+            memory,
+            instance,
+        })
+    }
+
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
+        // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
+        let global = self
+            .instance
+            .get_global(&mut self.store, "__gear_stack_end")?;
+        global.get(&mut self.store).i32().and_then(|addr| {
+            if addr < 0 {
+                None
+            } else {
+                Some(WasmPageNumber(
+                    (addr as usize / WasmPageNumber::size()) as u32,
+                ))
+            }
+        })
+    }
+
+    fn get_wasm_memory_begin_addr(&self) -> HostPointer {
+        self.memory.data_ptr(&self.store) as HostPointer
+    }
+
+    fn execute<F, T>(
+        mut self,
+        entry_point: &str,
+        post_execution_handler: F,
+    ) -> Result<BackendReport, BackendError<Self::Error>>
+    where
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display,
+    {
+        let func = self.instance.get_func(&mut self.store, entry_point);
+
+        let entry_func = if let Some(f) = func {
+            // Entry function found
+            f
+        } else {
+            let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
+
+            // Entry function not found, so we mean this as empty function
+            return match post_execution_handler(wasm_memory_addr) {
+                Ok(_) => Ok(BackendReport {
+                    termination: TerminationReason::Success,
+                    info,
+                }),
+                Err(e) => Err(BackendError {
+                    reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
+                    description: None,
+                    gas_amount: info.gas_amount,
+                }),
+            };
+        };
+
+        let res = entry_func.call(&mut self.store, &[], &mut []);
+
+        let termination_reason = self.store.data().termination_reason.clone();
+
+        let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
 
         let termination = if let Err(e) = &res {
-            let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
-                let trap = trap.to_string();
-
+            let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
                 if let Some(value_dest) = info.exit_argument {
                     Some(TerminationReason::Exit(value_dest))
-                } else if funcs::is_wait_trap(&trap) {
-                    Some(TerminationReason::Wait)
-                } else if funcs::is_leave_trap(&trap) {
-                    Some(TerminationReason::Leave)
                 } else {
-                    None
+                    termination_reason
                 }
             } else {
                 None
@@ -403,13 +353,17 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        Ok(BackendReport { termination, info })
+        match post_execution_handler(wasm_memory_addr) {
+            Ok(_) => Ok(BackendReport { termination, info }),
+            Err(e) => Err(BackendError {
+                reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
+                description: None,
+                gas_amount: info.gas_amount,
+            }),
+        }
     }
 
-    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {
-        Ok(Box::new(MemoryWrap::new(
-            WasmtimeMemory::new(&self.store, MemoryType::new(Limits::at_least(total_pages)))
-                .map_err(|_| "Create env memory fail")?,
-        )))
+    fn into_gas_amount(self) -> GasAmount {
+        self.ext.into_inner().into_gas_amount()
     }
 }

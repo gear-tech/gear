@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -51,22 +51,25 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    let info = crate::prelude::format!("panic occurred: '{:?}'", panic_info);
-
-    let payload = if info.len() > 64 && &info[59..63] == "Some" {
-        let msg_len = info.rfind("{").map(|v| v.saturating_sub(86)).unwrap_or(0);
-
-        &info[64..64 + msg_len]
-    } else {
-        &"UNKNOWN"
-    };
-
-    let location = panic_info
-        .location()
-        .map(|v| crate::prelude::format!(", at `{}`, line {}", v.file(), v.line()))
-        .unwrap_or_default();
-
-    crate::debug!("Panicked with {:?}{}", payload, location);
+    match (panic_info.message(), panic_info.location()) {
+        (Some(msg), Some(loc)) => crate::debug!(
+            "panic occurred: '{:?}', {}:{}:{}",
+            msg,
+            loc.file(),
+            loc.line(),
+            loc.column()
+        ),
+        (Some(msg), None) => crate::debug!("panic occurred: '{:?}'", msg),
+        (None, Some(loc)) => {
+            crate::debug!(
+                "panic occurred, {}:{}:{}",
+                loc.file(),
+                loc.line(),
+                loc.column()
+            )
+        }
+        _ => crate::debug!("panic occurred"),
+    }
 
     core::arch::wasm32::unreachable();
 }

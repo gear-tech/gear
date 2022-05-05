@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,10 +21,13 @@
 #[macro_use]
 extern crate alloc;
 
-use common::DAGBasedLedger;
+use common::ValueTree;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+use frame_support::{traits::StorageVersion, weights::Weight};
+
+pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -37,18 +40,24 @@ mod offchain;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
+/// The current storage version.
+const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{GasPrice, Origin, PaymentProvider, QueuedDispatch, QueuedMessage};
+    use common::{GasPrice, Origin, PaymentProvider};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{Currency, Get},
+        traits::{Currency, Get, Imbalance, ReservableCurrency},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
-    use gear_core::{message::MessageId, program::ProgramId};
+    use gear_core::{
+        ids::MessageId,
+        message::{ReplyMessage, ReplyPacket},
+    };
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -58,6 +67,7 @@ pub mod pallet {
         traits::{SaturatedConversion, Saturating},
         Perbill,
     };
+    use sp_std::convert::TryInto;
     use sp_std::prelude::*;
 
     #[pallet::config]
@@ -66,6 +76,8 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_gear::Config
         + SendTransactionTypes<Call<Self>>
+    where
+        <Self as frame_system::Config>::AccountId: Origin,
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -102,12 +114,16 @@ pub mod pallet {
     >>::Balance;
 
     #[pallet::pallet]
+    #[pallet::storage_version(USAGE_STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
-    pub enum Event<T: Config> {
+    pub enum Event<T: Config>
+    where
+        T::AccountId: Origin,
+    {
         WaitListRentCollected(u32),
     }
 
@@ -121,7 +137,10 @@ pub mod pallet {
     /// Accepting the unsigned `collect_waitlist_rent` extrinsic either if it originated on the
     /// the local node or if it has already been included in a block.
     #[pallet::validate_unsigned]
-    impl<T: Config> ValidateUnsigned for Pallet<T> {
+    impl<T: Config> ValidateUnsigned for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         type Call = Call<T>;
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
@@ -156,7 +175,10 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             0_u64
@@ -173,11 +195,7 @@ pub mod pallet {
         fn offchain_worker(now: BlockNumberFor<T>) {
             // Only do something if we are a validator
             if !sp_io::offchain::is_validator() {
-                log::debug!(
-                    target: "runtime::usage",
-                    "Skipping offchain worker at {:?}: not a validator.",
-                    now,
-                );
+                log::debug!("Skipping offchain worker at {:?}: not a validator.", now,);
                 return;
             }
 
@@ -188,22 +206,14 @@ pub mod pallet {
                 match current_round_storage_ref.get::<BlockNumberFor<T>>() {
                     Ok(maybe_round_started_at) => maybe_round_started_at.unwrap_or_default(),
                     _ => {
-                        log::debug!(
-                            target: "runtime::usage",
-                            "Failed to get a value from storage at block {:?}",
-                            now,
-                        );
+                        log::debug!("Failed to get a value from storage at block {:?}", now,);
                         return;
                     }
                 };
             let (_, last_key) = match offchain::get_last_key_from_offchain_storage() {
                 Ok(x) => x,
                 _ => {
-                    log::debug!(
-                        target: "runtime::usage",
-                        "Failed to get a value from storage at block {:?}",
-                        now,
-                    );
+                    log::debug!("Failed to get a value from storage at block {:?}", now,);
                     return;
                 }
             };
@@ -214,7 +224,6 @@ pub mod pallet {
                 // We have either finished the previous round or never started one, and the number of
                 // elapsed blocks since last traversal is less than the expected minimum interval
                 log::debug!(
-                    target: "runtime::usage",
                     "Block {:?} offchain worker. Not starting next wait list traversal until block {:?}",
                     now,
                     current_round_started_at.saturating_add(T::WaitListTraversalInterval::get()),
@@ -244,7 +253,10 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         fn do_rent_collection(
             payees_list: Vec<PayeeInfo>,
             external_account: Option<&T::AccountId>,
@@ -263,30 +275,39 @@ pub mod pallet {
                             let chargeable_amount =
                             <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
-                                Some((msg_gas_balance, origin)) => {
-                                    let usable_gas = msg_gas_balance
-                                        .saturating_sub(T::TrapReplyExistentialGasLimit::get());
+                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
+                                Ok(maybe_limit) => {
+                                    match maybe_limit {
+                                        Some(msg_gas_balance) => {
+                                            let usable_gas = msg_gas_balance
+                                                .saturating_sub(T::TrapReplyExistentialGasLimit::get());
 
-                                    let new_free_gas = usable_gas.saturating_sub(chargeable_amount);
+                                            let new_free_gas = usable_gas.saturating_sub(chargeable_amount);
 
-                                    let actual_fee = usable_gas.saturating_sub(new_free_gas);
-                                    Some((actual_fee, origin, dispatch, msg_gas_balance))
+                                            let actual_fee = usable_gas.saturating_sub(new_free_gas);
+                                            Some((actual_fee, dispatch, msg_gas_balance))
+                                        },
+                                        _ => {
+                                            log::debug!(
+                                                target: "essential",
+                                                "Message in wait list doesn't have associated gas - can't charge rent",
+                                            );
+                                            None
+                                        }
+                                    }
                                 },
-                                _ => {
-                                    log::debug!(
-                                        target: "essential",
-                                        "Message in wait list doesn't have associated gas - can't charge rent",
-                                    );
-                                    None
+                                Err(_err) => {
+                                    // This can only be due to invalid gas tree
+                                    // TODO: handle appropriately
+                                    unreachable!("Can never happen unless gas tree corrupted");
                                 }
                             }
                         })
                     },
                 )
-                .for_each(|(fee, origin, dispatch, msg_gas_balance)| {
-                    let msg_id = dispatch.message.id;
-                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
+                .for_each(|(fee, dispatch, msg_gas_balance)| {
+                    let msg_id = dispatch.id();
+                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id.into_origin(), fee) {
                         log::debug!(
                             target: "essential",
                             "Error spending {:?} gas from {:?}: {:?}",
@@ -295,6 +316,18 @@ pub mod pallet {
                         return;
                     };
                     let total_reward = T::GasPrice::gas_price(fee);
+                    let origin = match <T as pallet_gear::Config>::GasHandler::get_origin(msg_id.into_origin()) {
+                        Ok(maybe_origin) => {
+                            // NOTE: intentional expect.
+                            // Given the gas tree is valid, the node with this id is guaranteed to have an origin
+                            maybe_origin
+                                .expect("Gas node is guaranteed to exist for the key due to earlier checks")
+                        },
+                        Err(_e) => {
+                            // Can only be due to invalid gas tree
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
+                    };
 
                     // Counter-balance the created imbalance with a value transfer
                     match external_account {
@@ -344,48 +377,70 @@ pub mod pallet {
                         }
                     };
 
-                    let program_id = dispatch.message.dest;
-                    let message_id = dispatch.message.id;
+                    let program_id = dispatch.destination();
                     let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
                     if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
-                        if common::get_program(program_id).is_some() {
-                                // TODO: generate system signal for program (#647)
+                        if common::get_program(program_id.into_origin()).is_some() {
+                            // TODO: generate system signal for program (#647)
 
-                                // Generate trap reply
-                                let trap_message_id = core_processor::next_system_reply_message_id(ProgramId::from_origin(program_id), MessageId::from_origin(message_id)).into_origin();
-                                let trap_message = QueuedMessage {
-                                    id: trap_message_id,
-                                    source: program_id,
-                                    dest: dispatch.message.source,
-                                    payload: vec![],
-                                    value: 0,
-                                    reply: Some((msg_id, core_processor::ERR_EXIT_CODE)),
-                                };
+                            // Generate trap reply
+                            let trap_message_id = MessageId::generate_reply(msg_id, core_processor::ERR_EXIT_CODE);
+                            let packet = ReplyPacket::system(core_processor::ERR_EXIT_CODE);
+                            let message = ReplyMessage::from_packet(trap_message_id, packet);
+                            let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
-                                let reply_dispatch = QueuedDispatch::new_reply(trap_message);
-
+                            if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination().into_origin()) {
                                 // Enqueue the trap reply message
-                                let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
-                                    msg_id,
-                                    trap_message_id,
-                                    new_msg_gas_balance
+                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                    msg_id.into_origin(),
+                                    trap_message_id.into_origin(),
                                 );
-                                common::queue_dispatch(reply_dispatch);
-                        } else {
-                                // Wait init messages can't reach that, because if program init failed,
-                                // then all waiting messages are moved to queue deleted.
-                                log::debug!(
-                                    target: "essential",
-                                    "Program {:?} isn't in storage, but message with that dest is in WL",
-                                    program_id,
-                                )
+
+                                common::queue_dispatch(dispatch);
+                            } else {
+                                pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)
                             }
+
+                            // Consume the corresponding node
+                            match T::GasHandler::consume(msg_id.into_origin()) {
+                                Err(e) => {
+                                    // We only can get an error here if the gas tree is invalidated
+                                    // TODO: throwing a panic is not appropriate here; decide, what to do
+                                    log::debug!(
+                                        target: "essential",
+                                        "Gas tree invalidated: {:?}",
+                                        e,
+                                    );
+                                }
+                                Ok(maybe_outcome) => {
+                                    if let Some((neg_imbalance, external)) = maybe_outcome {
+                                        let gas_left = neg_imbalance.peek();
+                                        log::debug!("Unreserve balance on message processed: {}", gas_left);
+
+                                        let refund = T::GasPrice::gas_price(gas_left);
+
+                                        let _ = <T as pallet_gear::Config>::Currency::unreserve(
+                                            &<T::AccountId as Origin>::from_origin(external),
+                                            refund,
+                                        );
+                                    }
+                                }
+                            }
+                        } else {
+                            // Wait init messages can't reach that, because if program init failed,
+                            // then all waiting messages are moved to queue deleted.
+                            log::debug!(
+                                target: "essential",
+                                "Program {:?} isn't in storage, but message with that dest is in WL",
+                                program_id,
+                            )
+                        }
                     } else {
                         // Message still got enough gas limit and may keep waiting.
                         // Updating gas limit value and re-inserting the message into wait list.
                         common::insert_waiting_message(
-                            program_id,
-                            msg_id,
+                            program_id.into_origin(),
+                            msg_id.into_origin(),
                             dispatch,
                             current_block.saturated_into(),
                         );
@@ -398,7 +453,10 @@ pub mod pallet {
     }
 
     #[pallet::call]
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Collect rent payment for keeping messages in the wait list.
         ///
         /// This extrinsic can be both signed and unsigned:
@@ -415,7 +473,9 @@ pub mod pallet {
                 _ => Err(DispatchError::BadOrigin),
             }?;
 
-            let total_collected = Self::do_rent_collection(payees_list, who.as_ref());
+            let total_collected = Self::do_rent_collection(payees_list.clone(), who.as_ref());
+
+            log::debug!("Collected {} from {:?}", total_collected, payees_list);
 
             if total_collected > 0 {
                 Self::deposit_event(Event::WaitListRentCollected(total_collected));

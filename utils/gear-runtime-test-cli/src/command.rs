@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,11 +28,14 @@ use colored::{ColoredString, Colorize};
 use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
-    message::Message as CoreMessage,
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
+    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
+    program::Program as CoreProgram,
 };
 
-use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
+use gear_common::{CodeStorage, Origin as _, ValueTree};
+use gear_core_processor::common::ExecutableActor;
+use gear_test::sample::ChainProgram;
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -41,7 +44,7 @@ use gear_test::{
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
-use pallet_gear_debug::DebugData;
+use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -98,7 +101,7 @@ impl CliConfiguration for GearRuntimeTestCmd {
 fn init_fixture(
     test: &'_ sample::Test,
     snapshots: &mut Vec<DebugData>,
-    mailbox: &mut Vec<QueuedMessage>,
+    mailbox: &mut Vec<StoredMessage>,
 ) -> anyhow::Result<()> {
     if let Some(codes) = &test.codes {
         for code in codes {
@@ -134,7 +137,7 @@ fn init_fixture(
 
                     let json = MetaData::Json(payload);
 
-                    let wasm = program_path.replace(".wasm", ".meta.wasm");
+                    let wasm = gear_test::sample::get_meta_wasm_path(program_path);
 
                     json.convert(&wasm, &meta_type)
                         .expect("Unable to get bytes")
@@ -147,9 +150,9 @@ fn init_fixture(
         if let Err(e) = GearPallet::<Runtime>::submit_program(
             Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
-            program.id.to_program_id().as_slice().to_vec(),
+            program.id.to_program_id().as_ref().to_vec(),
             init_message,
-            program.init_gas_limit.unwrap_or(5_000_000_000),
+            program.init_gas_limit.unwrap_or(50_000_000_000),
             program.init_value.unwrap_or(0) as u128,
         ) {
             return Err(anyhow::format_err!("Submit program error: {:?}", e));
@@ -174,9 +177,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         .map(|program| {
             let program_path = program.path.clone();
             let code = std::fs::read(&program_path).unwrap();
-            let salt = program.id.to_program_id().as_slice().to_vec();
+            let salt = program.id.to_program_id().as_ref().to_vec();
 
-            let id = ProgramId::generate(CodeHash::generate(&code), &salt);
+            let id = ProgramId::generate(CodeId::generate(&code), &salt);
 
             progs_n_paths.push((program.path.as_ref(), id));
 
@@ -186,241 +189,304 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     let programs_map: BTreeMap<H256, H256> = programs
         .iter()
-        .map(|(k, v)| (H256::from_slice(k.as_slice()), *v))
+        .map(|(k, v)| (H256::from_slice(k.as_ref()), *v))
         .collect();
 
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
         let program = gear_common::ActiveProgram {
-            static_pages: 0,
-            nonce: 0,
-            persistent_pages: Default::default(),
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
         };
-        gear_common::set_program(*id, program, Default::default());
+        gear_common::set_program_and_pages_data(*id, program, Default::default());
     }
 
     // Enable remapping of the source and destination of messages
     pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
     pallet_gear_debug::RemapId::<Runtime>::put(true);
-    let mut mailbox: Vec<QueuedMessage> = vec![];
+    let mut mailbox: Vec<StoredMessage> = vec![];
 
-    match init_fixture(test, &mut snapshots, &mut mailbox) {
-        Ok(()) => {
-            log::trace!("programs: {:?}", &programs);
-            let mut errors = vec![];
-            let mut expected_log = vec![];
+    if let Err(err) = init_fixture(test, &mut snapshots, &mut mailbox) {
+        return format!("Initialization error ({})", err).bright_red();
+    }
 
-            for message in &fixture.messages {
-                let payload = match &message.payload {
-                    Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
-                    Some(PayloadVariant::Custom(v)) => {
-                        let meta_type = MetaType::HandleInput;
+    log::trace!("intial programs: {:?}", &programs);
 
-                        let payload = parse_payload(
-                            serde_json::to_string(&v).expect("Cannot convert to string"),
-                        );
+    let mut errors = vec![];
+    let mut expected_log = vec![];
 
-                        let json = MetaData::Json(payload);
+    for message in &fixture.messages {
+        let payload = match &message.payload {
+            Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
+            Some(PayloadVariant::Custom(v)) => {
+                let meta_type = MetaType::HandleInput;
 
-                        let wasm = test
-                            .programs
-                            .iter()
-                            .filter(|p| p.id == message.destination)
-                            .last()
-                            .expect("Program not found")
-                            .path
-                            .clone()
-                            .replace(".wasm", ".meta.wasm");
+                let payload =
+                    parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));
 
-                        json.convert(&wasm, &meta_type)
-                            .expect("Unable to get bytes")
-                            .into_bytes()
-                    }
-                    _ => message
-                        .payload
-                        .as_ref()
-                        .map(|payload| payload.clone().into_raw())
-                        .unwrap_or_default(),
-                };
+                let json = MetaData::Json(payload);
 
-                let dest = programs[&message.destination.to_program_id()];
-
-                let gas_limit = message.gas_limit.unwrap_or(
-                    GearPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64,
+                let wasm = gear_test::sample::get_meta_wasm_path(
+                    test.programs
+                        .iter()
+                        .filter(|p| p.id == message.destination)
+                        .last()
+                        .expect("Program not found")
+                        .path
+                        .clone(),
                 );
-
-                let value = message.value.unwrap_or(0);
-
-                // Force push to MQ if msg.source.is_some()
-                if let Some(source) = &message.source {
-                    let source = H256::from_slice(source.to_program_id().as_slice());
-                    let id = gear_common::next_message_id(&payload);
-
-                    let _ =
-                        <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
-
-                    let msg = QueuedMessage {
-                        id,
-                        source,
-                        dest,
-                        payload,
-                        value,
-                        reply: None,
-                    };
-                    gear_common::queue_dispatch(QueuedDispatch::new_handle(msg))
-                } else {
-                    GearPallet::<Runtime>::send_message(
-                        Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
-                        dest,
-                        payload,
-                        gas_limit,
-                        value,
-                    );
-                }
-
-                // After initialization the last snapshot is empty, so we get MQ after sending messages
-                snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
+                json.convert(&wasm, &meta_type)
+                    .expect("Unable to get bytes")
+                    .into_bytes()
             }
+            _ => message
+                .payload
+                .as_ref()
+                .map(|payload| payload.clone().into_raw())
+                .unwrap_or_default(),
+        };
 
-            process_queue(&mut snapshots, &mut mailbox);
+        let dest = programs[&message.destination.to_program_id()];
 
-            // After processing queue some new programs could be created, so we
-            // search for them
-            for snapshot_program in &snapshots.last().unwrap().programs {
-                let exists = programs.iter().any(|(k, v)| {
-                    k.into_origin() == snapshot_program.id || v == &snapshot_program.id
-                });
-                if exists {
-                    continue;
-                } else {
-                    // A new program was created
-                    programs.insert(
-                        ProgramId::from_origin(snapshot_program.id),
-                        snapshot_program.id,
-                    );
-                }
-            }
+        let gas_limit = message
+            .gas_limit
+            .unwrap_or(GearPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64);
 
-            for exp in &fixture.expected {
-                let snapshot: DebugData = if let Some(step) = exp.step {
-                    if snapshots.len() < (step + test.programs.len()) {
-                        Default::default()
-                    } else {
-                        snapshots[(step + test.programs.len()) - 1].clone()
-                    }
-                } else {
-                    snapshots.last().unwrap().clone()
-                };
+        let value = message.value.unwrap_or(0);
 
-                let mut message_queue: Vec<CoreMessage> = snapshot
-                    .dispatch_queue
-                    .iter()
-                    .map(|dispatch| dispatch.message.clone().into_message(0))
-                    .collect();
+        // Force push to MQ if msg.source.is_some()
+        if let Some(source) = &message.source {
+            let source = H256::from_slice(source.to_program_id().as_ref());
+            let id = GearPallet::<Runtime>::next_message_id(source);
 
-                if let Some(mut expected_messages) = exp.messages.clone() {
-                    if expected_messages.is_empty() {
-                        break;
-                    }
+            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
 
-                    message_queue.iter_mut().for_each(|msg| {
-                        if let Some(id) = programs.get(&msg.dest) {
-                            msg.dest = ProgramId::from(id.as_bytes());
-                        }
-                    });
+            let msg = StoredMessage::new(
+                MessageId::from_origin(id),
+                ProgramId::from_origin(source),
+                ProgramId::from_origin(dest),
+                payload,
+                value,
+                None,
+            );
+            gear_common::queue_dispatch(StoredDispatch::new(DispatchKind::Handle, msg, None));
+        } else {
+            GearPallet::<Runtime>::send_message(
+                Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                dest,
+                payload,
+                gas_limit,
+                value,
+            );
+        }
 
-                    expected_messages.iter_mut().for_each(|msg| {
-                        msg.destination = gear_test::address::Address::H256(
-                            programs[&msg.destination.to_program_id()],
-                        )
-                    });
+        // After initialization the last snapshot is empty, so we get MQ after sending messages
+        snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
+    }
 
-                    if let Err(msg_errors) = gear_test::check::check_messages(
-                        &progs_n_paths,
-                        &message_queue,
-                        &expected_messages,
-                    ) {
-                        errors.push(format!("step: {:?}", exp.step));
-                        errors.extend(
-                            msg_errors
-                                .into_iter()
-                                .map(|err| format!("Messages check [{}]", err)),
-                        );
-                    }
-                }
-                let mut progs: Vec<gear_core::program::Program> = snapshot
-                    .programs
-                    .iter()
-                    .filter_map(|p| {
-                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
-                            Some(CoreProgram::from_parts(
-                                *pid,
-                                vec![],
-                                p.static_pages,
-                                p.nonce,
-                                p.persistent_pages.keys().cloned().collect(),
-                                true,
-                            ))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                if let Some(expected_memory) = &exp.memory {
-                    if let Err(mem_errors) =
-                        gear_test::check::check_memory(&mut progs, expected_memory)
-                    {
-                        errors.push(format!("step: {:?}", exp.step));
-                        errors.extend(mem_errors);
-                    }
-                }
+    process_queue(&mut snapshots, &mut mailbox);
 
-                if let Some(alloc) = &exp.allocations {
-                    if let Err(alloc_errors) = gear_test::check::check_allocations(&progs, alloc) {
-                        errors.push(format!("step: {:?}", exp.step));
-                        errors.extend(alloc_errors);
-                    }
-                }
+    let mut idx = 0;
+    snapshots.iter().for_each(|s| {
+        log::trace!(
+            "snapshot {} programs = {:?}",
+            idx,
+            s.programs.iter().map(|p| p.id).collect::<Vec<_>>()
+        );
+        idx += 1;
+    });
 
-                if let Some(log) = &exp.log {
-                    expected_log.append(&mut log.clone());
-                }
-            }
+    // After processing queue some new programs could be created, so we
+    // search for them
+    for snapshot_program in &snapshots.last().unwrap().programs {
+        let exists = programs
+            .iter()
+            .any(|(k, v)| k.into_origin() == snapshot_program.id || v == &snapshot_program.id);
+        if exists {
+            continue;
+        } else {
+            // A new program was created
+            programs.insert(
+                ProgramId::from_origin(snapshot_program.id),
+                snapshot_program.id,
+            );
+        }
+    }
 
-            if !expected_log.is_empty() {
-                log::trace!("mailbox: {:?}", &mailbox);
-
-                let messages: Vec<CoreMessage> = mailbox
-                    .iter_mut()
-                    .map(|msg| msg.clone().into_message(0))
-                    .collect();
-
-                for message in &messages {
-                    if let Ok(utf8) = core::str::from_utf8(message.payload()) {
-                        log::trace!("log({})", utf8)
-                    }
-                }
-
-                if let Err(log_errors) =
-                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log)
-                {
-                    errors.extend(
-                        log_errors
-                            .into_iter()
-                            .map(|err| format!("Log check [{}]", err)),
-                    );
-                }
-            }
-
-            if !errors.is_empty() {
-                errors.insert(0, "\n".to_string());
-                errors.join("\n").bright_red()
+    for exp in &fixture.expected {
+        let snapshot: DebugData = if let Some(step) = exp.step {
+            if snapshots.len() < (step + test.programs.len()) {
+                Default::default()
             } else {
-                "Ok".bright_green()
+                snapshots[(step + test.programs.len()) - 1].clone()
+            }
+        } else {
+            snapshots.last().unwrap().clone()
+        };
+
+        let mut message_queue: Vec<(StoredMessage, GasLimit)> = snapshot
+            .dispatch_queue
+            .into_iter()
+            .map(|dispatch| (dispatch.into_parts().1, 0))
+            .collect();
+
+        if let Some(mut expected_messages) = exp.messages.clone() {
+            if expected_messages.is_empty() {
+                break;
+            }
+
+            message_queue.iter_mut().for_each(|(msg, _gas)| {
+                if let Some(id) = programs.get(&msg.destination()) {
+                    *msg = StoredMessage::new(
+                        msg.id(),
+                        msg.source(),
+                        ProgramId::from(id.as_bytes()),
+                        msg.payload().to_vec(),
+                        msg.value(),
+                        msg.reply(),
+                    );
+                }
+            });
+
+            expected_messages.iter_mut().for_each(|msg| {
+                msg.destination =
+                    gear_test::address::Address::H256(programs[&msg.destination.to_program_id()])
+            });
+
+            // For runtime tests gas check skipped due to absence of gas tree in snapshot.
+            if let Err(msg_errors) = gear_test::check::check_messages(
+                &progs_n_paths,
+                &message_queue,
+                &expected_messages,
+                true,
+            ) {
+                errors.push(format!("step: {:?}", exp.step));
+                errors.extend(
+                    msg_errors
+                        .into_iter()
+                        .map(|err| format!("Messages check [{}]", err)),
+                );
             }
         }
-        Err(e) => format!("Initialization error ({})", e).bright_red(),
+
+        let actors: Vec<ExecutableActor> = snapshot
+            .programs
+            .iter()
+            .filter_map(|p| {
+                if let ProgramState::Active(info) = &p.state {
+                    if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                        let code_id = CodeId::from_origin(info.code_hash);
+                        let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
+                            .expect("code should be in the storage");
+                        let pages = info
+                            .persistent_pages
+                            .keys()
+                            .copied()
+                            .map(|p| p.to_wasm_page())
+                            .collect();
+                        let program = CoreProgram::from_parts(*pid, code, pages, true);
+                        Some(ExecutableActor {
+                            program,
+                            balance: 0,
+                            pages_data: info.persistent_pages.clone(),
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if let Some(expected_memory) = &exp.memory {
+            if let Err(mem_errors) = gear_test::check::check_memory(&actors, expected_memory) {
+                errors.push(format!("step: {:?}", exp.step));
+                errors.extend(mem_errors);
+            }
+        }
+
+        if let Some(alloc) = &exp.allocations {
+            if let Err(alloc_errors) = gear_test::check::check_allocations(
+                &actors
+                    .into_iter()
+                    .map(|a| a.program)
+                    .collect::<Vec<gear_core::program::Program>>(),
+                alloc,
+            ) {
+                errors.push(format!("step: {:?}", exp.step));
+                errors.extend(alloc_errors);
+            }
+        }
+
+        let actual_programs = snapshot
+            .programs
+            .iter()
+            .filter_map(|p| {
+                if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                    Some((*pid, p.state == ProgramState::Terminated))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if let Some(programs_struct) = &exp.programs {
+            let expected_programs = programs_struct
+                .ids
+                .iter()
+                .map(|program: &ChainProgram| {
+                    (
+                        program.address.to_program_id(),
+                        program.terminated.unwrap_or_default(),
+                    )
+                })
+                .collect();
+
+            if let Err(state_errors) = gear_test::check::check_programs_state(
+                &expected_programs,
+                &actual_programs,
+                programs_struct.only.unwrap_or_default(),
+            ) {
+                errors.push(format!("step: {:?}", exp.step));
+                errors.extend(state_errors);
+            }
+        }
+
+        if let Some(log) = &exp.log {
+            expected_log.append(&mut log.clone());
+        }
+    }
+
+    if !expected_log.is_empty() {
+        log::trace!("mailbox: {:?}", &mailbox);
+
+        let messages: Vec<(StoredMessage, GasLimit)> =
+            mailbox.into_iter().map(|msg| (msg, 0)).collect();
+
+        for (message, _) in &messages {
+            if let Ok(utf8) = core::str::from_utf8(message.payload()) {
+                log::trace!("log({})", utf8)
+            }
+        }
+
+        if let Err(log_errors) =
+            gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log, true)
+        {
+            errors.extend(
+                log_errors
+                    .into_iter()
+                    .map(|err| format!("Log check [{}]", err)),
+            );
+        }
+    }
+
+    if !errors.is_empty() {
+        errors.insert(0, "\n".to_string());
+        errors.join("\n").bright_red()
+    } else {
+        "Ok".bright_green()
     }
 }

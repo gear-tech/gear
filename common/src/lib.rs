@@ -19,8 +19,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod lazy_pages;
-pub mod native;
 pub mod storage_queue;
+
+pub mod code_storage;
+pub use code_storage::{CodeStorage, Error as CodeStorageError};
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -39,20 +44,19 @@ use sp_std::{
 };
 
 use gear_core::{
-    message::{DispatchKind, PayloadStore},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
+    memory::{PageNumber, WasmPageNumber},
+    message::StoredDispatch,
 };
 
-pub use storage_queue::Iterator;
+pub use storage_queue::Iterator as QueueIter;
 pub use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
-pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
-pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
@@ -100,9 +104,29 @@ impl Origin for H256 {
     }
 }
 
-impl Origin for CodeHash {
+impl Origin for MessageId {
     fn into_origin(self) -> H256 {
-        self.inner().into()
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for ProgramId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for CodeId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
     }
 
     fn from_origin(val: H256) -> Self {
@@ -135,7 +159,7 @@ pub trait PaymentProvider<AccountId> {
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
 /// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
 /// however, the intended use is very close to the UTxO based ledger model.
-pub trait DAGBasedLedger {
+pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
@@ -156,6 +180,9 @@ pub trait DAGBasedLedger {
     /// leading to a decrease in the total supply of the underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
 
+    /// Error type
+    type Error;
+
     /// The total amount of value currently in circulation.
     fn total_supply() -> Self::Balance;
 
@@ -166,27 +193,39 @@ pub trait DAGBasedLedger {
         origin: Self::ExternalOrigin,
         key: Self::Key,
         amount: Self::Balance,
-    ) -> Result<Self::PositiveImbalance, DispatchError>;
+    ) -> Result<Self::PositiveImbalance, Self::Error>;
 
-    /// Get value item by it's ID, if exists.
-    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
+    /// The external origin for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
+
+    /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error>;
 
     /// Consume underlying value.
     ///
     /// If `key` does not identify any value or the value can't be fully consumed due to
-    /// being a part of other value or itself having unconsumed parts, return None,
+    /// being a part of other value or itself having unconsumed parts, return `None`,
     /// else the corresponding piece of value is destroyed and imbalance is created.
-    fn consume(key: Self::Key) -> Option<(Self::NegativeImbalance, Self::ExternalOrigin)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn consume(
+        key: Self::Key,
+    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>;
 
     /// Burns underlying value.
     ///
     /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
     /// In case of a success, this indicates the entire value supply becomes over-collateralized,
     /// hence negative imbalance.
-    fn spend(
-        key: Self::Key,
-        amount: Self::Balance,
-    ) -> Result<Self::NegativeImbalance, DispatchError>;
+    fn spend(key: Self::Key, amount: Self::Balance)
+        -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///
@@ -206,158 +245,7 @@ pub trait DAGBasedLedger {
     fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Dispatch {
-    pub kind: DispatchKind,
-    pub message: Message,
-    pub payload_store: Option<PayloadStore>,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct QueuedDispatch {
-    pub kind: DispatchKind,
-    pub message: QueuedMessage,
-    pub payload_store: Option<PayloadStore>,
-}
-
-impl Dispatch {
-    pub fn new_init(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Init,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_handle(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Handle,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_reply(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::HandleReply,
-            payload_store: None,
-        }
-    }
-}
-
-impl QueuedDispatch {
-    pub fn new_init(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Init,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_handle(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Handle,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_reply(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::HandleReply,
-            payload_store: None,
-        }
-    }
-
-    pub fn into_dispatch(self, gas_limit: u64) -> gear_core::message::Dispatch {
-        gear_core::message::Dispatch {
-            message: self.message.into_message(gas_limit),
-            kind: self.kind,
-            payload_store: self.payload_store,
-        }
-    }
-
-    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (Option<u64>, Self) {
-        let (gas_limit, message) = QueuedMessage::without_gas_limit(dispatch.message);
-
-        let dispatch = Self {
-            message,
-            kind: dispatch.kind,
-            payload_store: dispatch.payload_store,
-        };
-
-        (gas_limit, dispatch)
-    }
-
-    pub fn message_id(&self) -> &H256 {
-        &self.message.id
-    }
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Message {
-    pub id: H256,
-    pub source: H256,
-    pub dest: H256,
-    pub payload: Vec<u8>,
-    pub gas_limit: u64,
-    pub value: u128,
-    pub reply: Option<(H256, ExitCode)>,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct QueuedMessage {
-    pub id: H256,
-    pub source: H256,
-    pub dest: H256,
-    pub payload: Vec<u8>,
-    pub value: u128,
-    pub reply: Option<(H256, ExitCode)>,
-}
-
-impl QueuedMessage {
-    pub fn into_message(self, gas_limit: u64) -> gear_core::message::Message {
-        gear_core::message::Message {
-            id: gear_core::message::MessageId::from_origin(self.id),
-            source: gear_core::program::ProgramId::from_origin(self.source),
-            dest: gear_core::program::ProgramId::from_origin(self.dest),
-            payload: self.payload.into(),
-            gas_limit: Some(gas_limit),
-            value: self.value,
-            reply: self.reply.map(|(message_id, exit_code)| {
-                (
-                    gear_core::message::MessageId::from_origin(message_id),
-                    exit_code,
-                )
-            }),
-        }
-    }
-
-    pub fn without_gas_limit(message: gear_core::message::Message) -> (Option<u64>, Self) {
-        let gear_core::message::Message {
-            id,
-            source,
-            dest,
-            payload,
-            gas_limit,
-            value,
-            reply,
-        } = message;
-
-        let new_message = Self {
-            id: id.into_origin(),
-            source: source.into_origin(),
-            dest: dest.into_origin(),
-            payload: payload.into_raw(),
-            value,
-            reply: reply.map(|(message_id, exit_code)| (message_id.into_origin(), exit_code)),
-        };
-
-        (gas_limit, new_message)
-    }
-}
+type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum Program {
@@ -373,21 +261,6 @@ pub enum ProgramError {
 }
 
 impl Program {
-    pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
-        let is_initialized = self.is_initialized();
-        let program: ActiveProgram = self.try_into()?;
-        let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
-        let native_program = NativeProgram::from_parts(
-            ProgramId::from_origin(id),
-            code,
-            program.static_pages,
-            program.nonce,
-            program.persistent_pages,
-            is_initialized,
-        );
-        Ok(native_program)
-    }
-
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
@@ -417,7 +290,7 @@ impl Program {
     }
 }
 
-impl TryFrom<Program> for ActiveProgram {
+impl core::convert::TryFrom<Program> for ActiveProgram {
     type Error = ProgramError;
 
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
@@ -430,10 +303,11 @@ impl TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
-    pub static_pages: u32,
-    pub persistent_pages: BTreeSet<u32>,
+    /// Set of wasm pages numbers, which is allocated by the program.
+    pub allocations: BTreeSet<WasmPageNumber>,
+    /// Set of gear pages numbers, which has data in storage.
+    pub pages_with_data: BTreeSet<PageNumber>,
     pub code_hash: H256,
-    pub nonce: u64,
     pub state: ProgramState,
 }
 
@@ -452,6 +326,7 @@ pub enum ProgramState {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
+    #[codec(compact)]
     pub block_number: u32,
 }
 
@@ -464,14 +339,6 @@ impl CodeMetadata {
     }
 }
 
-// Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
-enum CodeKeyPrefixKind {
-    // "g::code::"
-    RawCode,
-    // "g::code::metadata::"
-    CodeMetadata,
-}
-
 pub fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PREFIX);
@@ -479,56 +346,33 @@ pub fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
-fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
-    let prefix = match kind {
-        CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
-        CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
-    };
-    // key's length is N bytes of code hash + M bytes of prefix
-    // currently code hash is 32 bytes
-    let mut key = Vec::with_capacity(prefix.len() + code_hash.as_bytes().len());
-    key.extend(prefix);
-    code_hash.encode_to(&mut key);
-    key
-}
-
-fn page_key(id: H256, page: u32) -> Vec<u8> {
+pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    id.encode_to(&mut key);
-    key.extend(b"::");
-    page.encode_to(&mut key);
+    program_id.encode_to(&mut key);
+
     key
 }
 
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
+    let mut key = pages_prefix(id);
+    key.extend(b"::");
+    page.0.encode_to(&mut key);
+    key
+}
+
+pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
     key.extend(b"::");
-    msg_id.encode_to(&mut key);
-
     key
 }
 
-pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
-}
-
-pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::RawCode), code)
-}
-
-pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
-    sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::CodeMetadata),
-        &metadata.encode(),
-    )
-}
-
-pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeMetadata))
-        .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+    let mut key = wait_prefix(prog_id);
+    msg_id.encode_to(&mut key);
+    key
 }
 
 pub fn set_program_initialized(id: H256) {
@@ -545,9 +389,8 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
         if program.is_terminated() {
             return Err(ProgramError::IsTerminated);
         }
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
+
+        sp_io::storage::clear_prefix(&pages_prefix(id), None);
         sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
 
         Ok(())
@@ -562,136 +405,109 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(id: H256, page_idx: u32) -> Option<Vec<u8>> {
+pub fn get_program_page_data(id: H256, page_idx: PageNumber) -> Option<Vec<u8>> {
     let key = page_key(id, page_idx);
     sp_io::storage::get(&key)
 }
 
 /// Save page data key in storage
-pub fn save_page_lazy_info(id: H256, page_num: u32) {
+pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     let key = page_key(id, page_num);
-    gear_ri::gear_ri::save_page_lazy_info(page_num, &key);
+    gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
-pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32, Vec<u8>>> {
-    let mut persistent_pages = BTreeMap::new();
-    for page_num in pages {
-        let key = page_key(id, page_num);
-
-        persistent_pages.insert(page_num, sp_io::storage::get(&key)?);
-    }
-    Some(persistent_pages)
+pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<PageNumber, Vec<u8>> {
+    get_program_data_for_pages(id, program.pages_with_data.iter())
 }
 
-pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<u32, Vec<u8>>) {
+/// Returns data for all pages from `pages` arg, which has data in storage.
+pub fn get_program_data_for_pages<'a>(
+    id: H256,
+    pages: impl Iterator<Item = &'a PageNumber>,
+) -> BTreeMap<PageNumber, Vec<u8>> {
+    pages
+        .map(|p| {
+            let key = page_key(id, *p);
+            (*p, sp_io::storage::get(&key))
+        })
+        .filter_map(|(page, data)| data.map(|data| (page, data)))
+        .collect()
+}
+
+pub fn set_program(id: H256, program: ActiveProgram) {
+    log::debug!("set program with id = {}", id);
+    sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
+}
+
+pub fn set_program_and_pages_data(
+    id: H256,
+    program: ActiveProgram,
+    persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
+) {
     for (page_num, page_buf) in persistent_pages {
+        // TODO: remove this panic and make result (issue 883)
+        assert!(program.allocations.contains(&page_num.to_wasm_page()));
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
-    sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
+    set_program(id, program);
 }
 
 pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
-pub fn dequeue_dispatch() -> Option<QueuedDispatch> {
+pub fn clear_dispatch_queue() {
+    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
+}
+
+pub fn dequeue_dispatch() -> Option<StoredDispatch> {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     dispatch_queue.dequeue()
 }
 
-pub fn queue_dispatch(dispatch: QueuedDispatch) {
+pub fn queue_dispatch(dispatch: StoredDispatch) {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.message.id;
-    dispatch_queue.queue(dispatch, id);
+    let id = dispatch.id();
+    dispatch_queue.queue(dispatch, id.into_origin());
 }
 
-pub fn dispatch_iter() -> Iterator<QueuedDispatch> {
+pub fn queue_dispatch_first(dispatch: StoredDispatch) {
+    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
+    let id = dispatch.id();
+    dispatch_queue.queue_first(dispatch, id.into_origin());
+}
+
+pub fn dispatch_iter() -> QueueIter<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
-pub fn nonce_fetch_inc() -> u128 {
-    let original_nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(STORAGE_MESSAGE_NONCE_KEY, &new_nonce.encode());
-
-    original_nonce
-}
-
-pub fn peek_last_message_id(payload: &[u8]) -> H256 {
-    let nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let mut data = payload.encode();
-    data.extend_from_slice(&(nonce.wrapping_sub(1)).to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
-    message_id
-}
-
-// WARN: Never call that in threads
-pub fn next_message_id(payload: &[u8]) -> H256 {
-    let nonce = nonce_fetch_inc();
-    let mut data = payload.encode();
-    data.extend_from_slice(&nonce.to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
-    message_id
-}
-
-pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
-    let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
-    key_id.extend(&caller_id[..]);
-
-    let original_nonce = sp_io::storage::get(&key_id)
-        .map(|val| u64::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0);
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(&key_id, &new_nonce.encode());
-
-    original_nonce
-}
-
-pub fn set_program_nonce(id: H256, nonce: u64) {
+pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) {
     if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.nonce = nonce;
+        prog.allocations = allocations;
         sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 
-pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
-    if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.persistent_pages = persistent_pages;
-        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
-    }
-}
-
-pub fn set_program_page(program_id: H256, page_num: u32, page_buf: Vec<u8>) {
-    let page_key = page_key(program_id, page_num);
-
+pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: Vec<u8>) {
+    let page_key = page_key(program_id, page);
     sp_io::storage::set(&page_key, &page_buf);
 }
 
-pub fn remove_program_page(program_id: H256, page_num: u32) {
+pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
     let page_key = page_key(program_id, page_num);
-
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: QueuedDispatch, bn: u32) {
+pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: StoredDispatch, bn: u32) {
     let payload = (dispatch, bn);
     sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
 }
 
-pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(QueuedDispatch, u32)> {
+pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(StoredDispatch, u32)> {
     let id = wait_key(dest_prog_id, msg_id);
     let msg = sp_io::storage::get(&id)
-        .and_then(|val| <(QueuedDispatch, u32)>::decode(&mut &val[..]).ok());
+        .and_then(|val| <(StoredDispatch, u32)>::decode(&mut &val[..]).ok());
 
     if msg.is_some() {
         sp_io::storage::clear(&id);
@@ -699,7 +515,7 @@ pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Queue
     msg
 }
 
-fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);
@@ -715,10 +531,10 @@ fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn remove_program_waitlist(prog_id: H256) -> Vec<QueuedDispatch> {
+pub fn remove_program_waitlist(prog_id: H256) -> Vec<StoredDispatch> {
     let key = program_waitlist_prefix(prog_id);
     let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<QueuedDispatch>::decode(&mut &v[..]).ok());
+        sp_io::storage::get(&key).and_then(|v| Vec::<StoredDispatch>::decode(&mut &v[..]).ok());
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()
@@ -737,54 +553,16 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     messages.unwrap_or_default()
 }
 
-pub fn code_exists(code_hash: H256) -> bool {
-    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
-}
-
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn nonce_incremented() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            assert_eq!(nonce_fetch_inc(), 0_u128);
-            assert_eq!(nonce_fetch_inc(), 1_u128);
-            assert_eq!(nonce_fetch_inc(), 2_u128);
-        });
-    }
-
-    fn get_active_program(id: H256) -> Option<ActiveProgram> {
-        get_program(id).and_then(|p| p.try_into().ok())
-    }
-
-    #[test]
-    fn program_decoded() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = CodeHash::generate(&code).into_origin();
-            let program_id = H256::from_low_u64_be(1);
-            let program = ActiveProgram {
-                static_pages: 256,
-                persistent_pages: Default::default(),
-                code_hash,
-                nonce: 0,
-                state: ProgramState::Initialized,
-            };
-            set_code(code_hash, &code);
-            assert!(get_program(program_id).is_none());
-            set_program(program_id, program.clone(), Default::default());
-            assert_eq!(get_active_program(program_id).unwrap(), program);
-            assert_eq!(get_code(program.code_hash).unwrap(), code);
-        });
-    }
+    // TODO (871) remove next lines after runtime upgraded
+    pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
+    pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
+    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
 }

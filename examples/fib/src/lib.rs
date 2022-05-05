@@ -27,7 +27,8 @@ pub unsafe extern "C" fn handle() {
         msg::source(),
         make_fib(new_msg as usize)[new_msg as usize - 1],
         0,
-    );
+    )
+    .unwrap();
 
     debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
 

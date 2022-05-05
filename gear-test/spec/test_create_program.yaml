@@ -9,7 +9,7 @@ programs:
     source:
       kind: id
       value: 101
-    path: target/wasm32-unknown-unknown/release/demo_create_program.wasm
+    path: target/wasm32-unknown-unknown/release/demo_create_program.opt.wasm
 
 fixtures:
   - title: Simple creation of program from program
@@ -25,12 +25,13 @@ fixtures:
 
     expected:
       - programs:
+        ids:
           - kind: id
             value: 1
 
-          - kind: ss58
-            # computed manually new program address
-            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - &address
+            kind: h256
+            value: 9c1de0d1359e2a4bd3e474a21527afdb6eaeba3106a167705775af0acac11183
 
   - title: Try to re-init existing program
 
@@ -49,7 +50,7 @@ fixtures:
           value: 100
         payload:
           kind: utf-8
-          value: duplicate    
+          value: duplicate
 
     expected:
       - step: 1
@@ -61,9 +62,7 @@ fixtures:
             payload:
               kind: utf-8
               value: duplicate
-          - destination: &address
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: true
             payload:
               kind: utf-8
@@ -73,15 +72,12 @@ fixtures:
 
       - step: 2
         programs:
-          - kind: id
-            value: 1
-          - kind: ss58
-            # computed manually new program address
-            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          ids:
+            - kind: id
+              value: 1
+            - *address
         messages:
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination:  *address
             init: true
             payload:
               kind: utf-8

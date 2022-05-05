@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,15 +27,19 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
+pub use pallet_transaction_payment::{Multiplier, MultiplierUpdate};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, IdentifyAccount, NumberFor, Verify,
+    },
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
+    ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Perquintill,
 };
+use sp_std::convert::{TryFrom, TryInto};
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
@@ -59,7 +63,6 @@ pub use frame_support::{
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
-use primitive_types::H256;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -88,7 +91,7 @@ pub type Balance = u128;
 pub type Index = u32;
 
 /// A hash of some data used by the chain.
-pub type Hash = H256;
+pub type Hash = sp_core::H256;
 
 /// Digest item type.
 pub type DigestItem = generic::DigestItem;
@@ -124,7 +127,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 340,
+    spec_version: 710,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -301,6 +304,36 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
+    pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_integer(1);
+}
+
+/// Custom fee multiplier which remains constant regardless the network congestion
+/// TODO: consider using Substrate's built-in `pallet_transaction_payment::TargetedFeeAdjustment`
+/// to allow elastic fees based on network conditions (if that's more appropriate)
+pub struct ConstantFeeMultiplier<M>(sp_std::marker::PhantomData<M>);
+
+impl<M> MultiplierUpdate for ConstantFeeMultiplier<M>
+where
+    M: frame_support::traits::Get<Multiplier>,
+{
+    fn min() -> Multiplier {
+        M::get()
+    }
+    fn target() -> Perquintill {
+        Default::default()
+    }
+    fn variability() -> Multiplier {
+        Default::default()
+    }
+}
+impl<M> Convert<Multiplier, Multiplier> for ConstantFeeMultiplier<M>
+where
+    M: frame_support::traits::Get<Multiplier>,
+{
+    fn convert(previous: Multiplier) -> Multiplier {
+        let min_multiplier = M::get();
+        previous.max(min_multiplier)
+    }
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -308,7 +341,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
-    type FeeMultiplierUpdate = ();
+    type FeeMultiplierUpdate = ConstantFeeMultiplier<MinimumMultiplier>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -328,6 +361,12 @@ impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
 }
 
+impl pallet_gear_program::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = pallet_gear_program::weights::GearProgramWeight<Runtime>;
+    type Currency = Balances;
+}
+
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
@@ -335,6 +374,7 @@ parameter_types! {
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
     pub const WaitListFeePerBlock: u64 = 1_000;
+    pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
 }
 
 impl pallet_gear::Config for Runtime {
@@ -343,15 +383,19 @@ impl pallet_gear::Config for Runtime {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
+    type Schedule = Schedule;
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = ConstU32<1024>;
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
+    type CodeStorage = GearProgram;
 }
 
 #[cfg(feature = "debug-mode")]
 impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_usage::Config for Runtime {
@@ -393,6 +437,7 @@ construct_runtime!(
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         Authorship: pallet_authorship,
+        GearProgram: pallet_gear_program,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
@@ -419,6 +464,7 @@ construct_runtime!(
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         Authorship: pallet_authorship,
+        GearProgram: pallet_gear_program,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
@@ -595,8 +641,9 @@ impl_runtime_apis! {
             account_id: H256,
             kind: HandleKind,
             payload: Vec<u8>,
-        ) -> Option<u64> {
-            Gear::get_gas_spent(account_id, kind, payload)
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            Gear::get_gas_spent(account_id, kind, payload, value)
         }
     }
 
@@ -615,6 +662,7 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
             list_benchmark!(list, extra, pallet_balances, Balances);
             list_benchmark!(list, extra, pallet_timestamp, Timestamp);
+            list_benchmark!(list, extra, pallet_gear_program, GearProgram);
             list_benchmark!(list, extra, pallet_gear, Gear);
 
             let storage_info = AllPalletsWithSystem::storage_info();
@@ -649,10 +697,26 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
             add_benchmark!(params, batches, pallet_balances, Balances);
             add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+            add_benchmark!(params, batches, pallet_gear_program, GearProgram);
             add_benchmark!(params, batches, pallet_gear, Gear);
 
             if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
             Ok(batches)
+        }
+    }
+
+    #[cfg(feature = "try-runtime")]
+    impl frame_try_runtime::TryRuntime<Block> for Runtime {
+        fn on_runtime_upgrade() -> (Weight, Weight) {
+            // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
+            // have a backtrace here. If any of the pre/post migration checks fail, we shall stop
+            // right here and right now.
+            let weight = Executive::try_runtime_upgrade().unwrap();
+            (weight, BlockWeights::get().max_block)
+        }
+
+        fn execute_block_no_check(block: Block) -> Weight {
+            Executive::execute_block_no_check(block)
         }
     }
 }

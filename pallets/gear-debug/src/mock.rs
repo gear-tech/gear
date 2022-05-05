@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,7 @@ use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
 };
+use sp_std::convert::{TryFrom, TryInto};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -81,6 +82,7 @@ impl system::Config for Test {
 impl pallet_gear_debug::Config for Test {
     type Event = Event;
     type WeightInfo = ();
+    type CodeStorage = GearProgram;
 }
 
 pub struct FixedBlockAuthor;
@@ -103,6 +105,7 @@ impl pallet_authorship::Config for Test {
 
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
+    pub const OutgoingLimit: u32 = 1024;
     pub const BlockGasLimit: u64 = 100_000_000;
 }
 
@@ -118,6 +121,12 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
+
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
@@ -125,8 +134,11 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
+    type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
     type WaitListFeePerBlock = ();
+    type Schedule = ();
+    type CodeStorage = GearProgram;
 }
 
 impl pallet_gas::Config for Test {}
@@ -143,6 +155,7 @@ construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Storage},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas,
     }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -65,12 +65,14 @@ mod sys {
         gas_limit: u64,
         value_ptr: *const u8,
         _message_id_ptr: *mut u8,
-    ) {
+    ) -> i32 {
         ptr::copy(program, PROGRAM.0.as_mut_ptr(), 32);
         MESSAGE_LEN = data_len as _;
         ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);
         GAS_LIMIT = gas_limit;
         VALUE = *(value_ptr as *const u128);
+
+        0
     }
 
     #[no_mangle]
@@ -81,7 +83,7 @@ mod sys {
     #[no_mangle]
     unsafe extern "C" fn gr_source(program: *mut u8) {
         for i in 0..PROGRAM.0.len() {
-            *program.offset(i as isize) = PROGRAM.0[i];
+            *program.add(i) = PROGRAM.0[i];
         }
     }
 
@@ -95,11 +97,11 @@ mod sys {
 #[test]
 fn messages() {
     let mut id: [u8; 32] = [0; 32];
-    for i in 0..id.len() {
-        id[i] = i as u8;
+    for (i, elem) in id.iter_mut().enumerate() {
+        *elem = i as u8;
     }
 
-    msg::send_with_gas(ActorId(id), b"HELLO", 1000, 12345678);
+    msg::send_with_gas(ActorId(id), b"HELLO", 1000, 12345678).unwrap();
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ActorId(id));

@@ -1,12 +1,14 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram, ProgramState},
+    manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;
 use gear_core::{
-    message::{Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    ids::{CodeId, MessageId, ProgramId},
+    message::{Dispatch, DispatchKind, Message},
+    program::Program as CoreProgram,
 };
 use path_clean::PathClean;
 use std::{
@@ -16,6 +18,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
@@ -43,7 +46,9 @@ impl From<ProgramId> for ProgramIdWrapper {
 
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
-        Self(other.into())
+        let mut id = [0; 32];
+        id[0..8].copy_from_slice(&other.to_le_bytes()[..]);
+        Self(id.into())
     }
 }
 
@@ -89,8 +94,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .actors
-            .insert(program_id, (program, ProgramState::Uninitialized(None), 0))
+            .store_new_actor(program_id, program, None)
             .is_some()
         {
             panic!(
@@ -115,12 +119,11 @@ impl<'a> Program<'a> {
         system: &'a System,
         id: I,
     ) -> Self {
-        let path_file = env::var("OUT_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| env::current_dir().expect("Unable to get current dir"));
-        let path_file = path_file.join("wasm_binary_path.txt");
+        let current_dir = env::current_dir().expect("Unable to get current dir");
+        let path_file = current_dir.join(".binpath");
         let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let path = String::from_utf8(path_bytes).expect("Invalid path");
+        let relative_path: PathBuf = String::from_utf8(path_bytes).expect("Invalid path").into();
+        let path = current_dir.join(relative_path);
 
         Self::from_file_with_id(system, id, path)
     }
@@ -136,7 +139,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, InnerProgram::Mock(Box::new(mock)))
+        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
@@ -158,11 +161,14 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        let code = Code::try_new(code, 1, |_| ConstantCostRules::default())
+            .expect("Failed to create Program from code");
 
-        let program =
-            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
+        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        let (code, _) = code_and_id.into_parts();
+        let program = CoreProgram::new(program_id, code);
 
-        Self::program_with_id(system, id, InnerProgram::Core(program))
+        Self::program_with_id(system, id, InnerProgram::new(program, Default::default()))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
@@ -208,15 +214,35 @@ impl<'a> Program<'a> {
         }
 
         let message = Message::new(
-            MessageId::from(system.fetch_inc_message_nonce()),
+            MessageId::generate_from_user(
+                system.block_info.height,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            ),
             source,
             self.id,
-            payload.as_ref().to_vec().into(),
+            payload.as_ref().to_vec(),
             Some(u64::MAX),
             value,
+            None,
         );
 
-        system.run_message(message)
+        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+
+        let kind = if let Actor::Uninitialized(id, _) = actor {
+            if id.is_none() {
+                *id = Some(message.id());
+                DispatchKind::Init
+            } else {
+                DispatchKind::Handle
+            }
+        } else {
+            DispatchKind::Handle
+        };
+
+        let dispatch = Dispatch::new(kind, message);
+
+        system.run_dispatch(dispatch)
     }
 
     pub fn id(&self) -> ProgramId {
@@ -224,13 +250,14 @@ impl<'a> Program<'a> {
     }
 }
 
+pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
+    ProgramId::generate(code_hash, salt)
+}
+
 #[cfg(test)]
 mod tests {
-    use gear_core::message::Message;
-
-    use crate::{CoreLog, System};
-
-    use super::{Program, ProgramIdWrapper};
+    use super::Program;
+    use crate::{Log, System};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -244,25 +271,15 @@ mod tests {
             "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
         );
 
-        let handle_msg_payload = String::from("payload");
-        let run_result = prog.send(user_id, handle_msg_payload);
+        let init_msg_payload = String::from("InvalidInput");
+        let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
 
-        let expected_log = {
-            // id, payload, gas limit, value and reply id aren't important
-            let msg = Message::new_reply(
-                Default::default(),
-                prog.id(),
-                ProgramIdWrapper::from(user_id).0,
-                Default::default(),
-                0,
-                Default::default(),
-                2,
-            );
-            CoreLog::from_message(msg)
-        };
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
+
+        let expected_log = Log::error_builder(2).source(prog.id()).dest(user_id);
+
         assert!(!run_result.main_failed());
-        assert!(run_result.log.contains(&expected_log));
+        assert!(run_result.contains(&expected_log));
     }
 }

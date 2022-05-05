@@ -99,7 +99,7 @@ mod sys {
 ///     # let mut salt = vec![0u8; msg::size()];
 ///     # msg::load(&mut salt[..]);
 ///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0);
-///     msg::send_with_gas(new_program_id, b"payload for a new program", 10_000, 0);
+///     msg::send_with_gas(new_program_id, b"payload for a new program", 10_000, 0).unwrap();
 /// }
 /// ```
 pub fn create_program_with_gas(

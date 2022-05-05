@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -36,6 +36,7 @@ pub trait GearApi<BlockHash> {
         source: H256,
         kind: HandleKind,
         payload: Bytes,
+        value: u128,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex>;
 
@@ -45,9 +46,10 @@ pub trait GearApi<BlockHash> {
         source: H256,
         code: Bytes,
         payload: Bytes,
+        value: u128,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex> {
-        self.get_gas_spent(source, HandleKind::Init(code.to_vec()), payload, at)
+        self.get_gas_spent(source, HandleKind::Init(code.to_vec()), payload, value, at)
     }
 
     #[rpc(name = "gear_getHandleGasSpent")]
@@ -56,9 +58,10 @@ pub trait GearApi<BlockHash> {
         source: H256,
         dest: H256,
         payload: Bytes,
+        value: u128,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex> {
-        self.get_gas_spent(source, HandleKind::Handle(dest), payload, at)
+        self.get_gas_spent(source, HandleKind::Handle(dest), payload, value, at)
     }
 
     #[rpc(name = "gear_getReplyGasSpent")]
@@ -68,12 +71,14 @@ pub trait GearApi<BlockHash> {
         message_id: H256,
         exit_code: i32,
         payload: Bytes,
+        value: u128,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex> {
         self.get_gas_spent(
             source,
             HandleKind::Reply(message_id, exit_code),
             payload,
+            value,
             at,
         )
     }
@@ -125,6 +130,7 @@ where
         source: H256,
         kind: HandleKind,
         payload: Bytes,
+        value: u128,
         at: Option<<Block as BlockT>::Hash>,
     ) -> Result<NumberOrHex> {
         let api = self.client.runtime_api();
@@ -133,7 +139,7 @@ where
 			self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(&at, source, kind, payload.to_vec())
+            .get_gas_spent(&at, source, kind, payload.to_vec(), value)
             .map_err(|e| RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
                 message: "Unable to get gas spent.".into(),
@@ -149,10 +155,10 @@ where
         };
 
         match runtime_api_result {
-            Some(value) => Ok(try_into_rpc_gas_spent(value)?),
-            None => Err(RpcError {
+            Ok(gas) => Ok(try_into_rpc_gas_spent(gas)?),
+            Err(message) => Err(RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
-                message: "Empty run result".to_string(),
+                message: String::from_utf8_lossy(&message).into(),
                 data: None,
             }),
         }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,7 @@ use crate::proc;
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
+use core_processor::common::ExecutableActor;
 use core_processor::{
     common::{CollectState, JournalHandler},
     Ext,
@@ -28,13 +29,17 @@ use core_processor::{
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
+use gear_core::code::Code;
+use gear_core::ids::CodeId;
+use gear_core::memory::PageNumber;
 use gear_core::{
-    memory::PAGE_SIZE,
-    message::{Message, MessageId},
-    program::{Program, ProgramId},
+    ids::{MessageId, ProgramId},
+    message::*,
+    program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
+use std::collections::{BTreeMap, BTreeSet};
 use std::{
     collections::HashMap,
     fmt, fs,
@@ -48,8 +53,10 @@ use std::{
 const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
-    fn store_code(&mut self, code: &[u8]);
-    fn store_program(&mut self, program: gear_core::program::Program, init_message_id: MessageId);
+    fn store_code(&mut self, code_hash: CodeId, code: Code);
+    fn store_original_code(&mut self, code: &[u8]);
+    fn store_program(&mut self, id: ProgramId, code: Code, init_message_id: MessageId) -> Program;
+    fn write_gas(&mut self, message_id: MessageId, gas_limit: u64);
 }
 
 pub struct FixtureLogger {
@@ -198,8 +205,9 @@ fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl 
 
 pub fn check_messages(
     progs_n_paths: &[(&str, ProgramId)],
-    messages: &[Message],
+    messages: &[(StoredMessage, GasLimit)],
     expected_messages: &[sample::Message],
+    skip_gas: bool,
 ) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
@@ -209,13 +217,15 @@ pub fn check_messages(
         ))
     } else {
         let mut expected_messages: Vec<sample::Message> = expected_messages.into();
-        let mut messages: Vec<Message> = messages.into();
+        let mut messages: Vec<(StoredMessage, GasLimit)> = messages.into();
         expected_messages
             .iter_mut()
-            .zip(messages.iter_mut())
             .enumerate()
-            .for_each(|(position, (exp, msg))| {
-                let source_n_dest = [msg.source(), msg.dest()];
+            .for_each(|(position, exp)| {
+                let (msg, gas_limit) = messages
+                    .get_mut(position)
+                    .expect("Can't fail. Lengths checked above");
+                let source_n_dest = [msg.source(), msg.destination()];
                 let is_init = exp.init.unwrap_or(false);
 
                 if exp
@@ -236,7 +246,8 @@ pub fn check_messages(
                                     (false, false) => MetaType::HandleInput,
                                 };
 
-                                let path: String = path.replace(".wasm", ".meta.wasm");
+                                let path: String =
+                                    crate::sample::get_meta_wasm_path(String::from(path));
 
                                 let json = MetaData::Json(proc::parse_payload(
                                     serde_json::to_string(&v).expect("Cannot convert to string"),
@@ -253,16 +264,24 @@ pub fn check_messages(
                                         .into_json(),
                                 );
 
-                                msg.payload = MetaData::CodecBytes(msg.payload.clone().into_raw())
+                                let new_payload = MetaData::CodecBytes((*msg.payload()).to_vec())
                                     .convert(&path, &meta_type)
                                     .expect("Unable to get bytes")
-                                    .into_bytes()
-                                    .into();
+                                    .into_bytes();
+
+                                *msg = StoredMessage::new(
+                                    msg.id(),
+                                    msg.source(),
+                                    msg.destination(),
+                                    new_payload,
+                                    msg.value(),
+                                    msg.reply(),
+                                );
                             };
 
-                            !payload.equals(msg.payload.as_ref())
+                            !payload.equals(msg.payload())
                         }
-                        _ => !payload.equals(msg.payload.as_ref()),
+                        _ => !payload.equals(msg.payload()),
                     })
                     .unwrap_or(false)
                 {
@@ -273,31 +292,31 @@ pub fn check_messages(
                             .expect("Checked above.")
                             .clone()
                             .into_raw(),
-                        msg.payload.clone().into_raw(),
+                        (*msg.payload()).to_vec(),
                     ))
                 }
 
                 match_or_else(
                     Some(exp.destination.to_program_id()),
-                    msg.dest,
+                    msg.destination(),
                     |expected, actual| {
                         errors.push(MessagesError::destination(position, expected, actual))
                     },
                 );
 
-                if let Some(msg_gas_limit) = msg.gas_limit {
-                    match_or_else(exp.gas_limit, msg_gas_limit, |expected, actual| {
+                if !skip_gas && exp.gas_limit.is_some() {
+                    match_or_else(exp.gas_limit, *gas_limit, |expected, actual| {
                         errors.push(MessagesError::gas_limit(position, expected, actual))
                     });
                 }
 
-                match_or_else(exp.value, msg.value, |expected, actual| {
+                match_or_else(exp.value, msg.value(), |expected, actual| {
                     errors.push(MessagesError::value(position, expected, actual))
                 });
 
                 match_or_else(
                     exp.exit_code,
-                    msg.reply.map(|(_, exit_code)| exit_code).unwrap_or(0),
+                    msg.exit_code().unwrap_or(0),
                     |expected, actual| {
                         errors.push(MessagesError::exit_code(position, expected, actual))
                     },
@@ -322,14 +341,14 @@ pub fn check_allocations(
         let target_program_id = exp.id.to_program_id();
         if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
             let actual_pages = program
-                .get_pages()
+                .get_allocations()
                 .iter()
-                .filter(|(page, _buf)| match exp.filter {
-                    Some(AllocationFilter::Static) => page.raw() < program.static_pages(),
-                    Some(AllocationFilter::Dynamic) => page.raw() >= program.static_pages(),
+                .filter(|page| match exp.filter {
+                    Some(AllocationFilter::Static) => **page < program.static_pages(),
+                    Some(AllocationFilter::Dynamic) => **page >= program.static_pages(),
                     None => true,
                 })
-                .collect::<Vec<_>>();
+                .collect::<BTreeSet<_>>();
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
@@ -343,10 +362,8 @@ pub fn check_allocations(
                     }
                 }
                 AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                    let mut actual_pages = actual_pages
-                        .iter()
-                        .map(|(page, _buf)| page.raw())
-                        .collect::<Vec<_>>();
+                    let mut actual_pages =
+                        actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
                     let mut expected_pages = expected_pages.clone();
 
                     actual_pages.sort_unstable();
@@ -365,7 +382,7 @@ pub fn check_allocations(
                     for &expected_page in expected_pages {
                         if !actual_pages
                             .iter()
-                            .map(|(page, _buf)| page.raw())
+                            .map(|page| page.0)
                             .any(|actual_page| actual_page == expected_page)
                         {
                             errors.push(format!(
@@ -378,6 +395,7 @@ pub fn check_allocations(
                 }
             }
         } else {
+            log::error!("Program not found");
             errors.push(format!(
                 "Expectation error (Program id not found: {})",
                 exp.id.to_program_id()
@@ -393,19 +411,18 @@ pub fn check_allocations(
 }
 
 pub fn check_memory(
-    program_storage: &mut Vec<Program>,
+    actors: &Vec<ExecutableActor>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for p in &mut *program_storage {
-            if p.id() == case.id.to_program_id() {
-                let page = case.address / PAGE_SIZE;
-                if let Some(page_buf) = p.get_page_data((page as u32).into()) {
-                    if page_buf[case.address - page * PAGE_SIZE
-                        ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
-                        != case.bytes
-                    {
+        for actor in actors {
+            if actor.program.id() == case.id.to_program_id() {
+                let page = PageNumber::new_from_addr(case.address);
+                if let Some(page_buf) = actor.pages_data.get(&page) {
+                    let begin_byte = case.address - page.offset();
+                    let end_byte = begin_byte + case.bytes.len();
+                    if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
                     }
                 } else {
@@ -421,26 +438,42 @@ pub fn check_memory(
     }
 }
 
-fn check_active_programs(
-    expected_ids: Vec<ProgramId>,
-    actual_ids: Vec<ProgramId>,
+pub fn check_programs_state(
+    expected_programs: &BTreeMap<ProgramId, bool>,
+    actual_programs: &BTreeMap<ProgramId, bool>,
+    only: bool,
 ) -> Result<(), Vec<String>> {
-    let mut errors = Vec::with_capacity(expected_ids.len());
-    if expected_ids.len() != actual_ids.len() {
-        errors.push(format!(
-            "invalid amount of active programs: expected - {:?}, actual - {:?}",
-            expected_ids.len(),
-            actual_ids.len()
-        ));
-    } else {
-        let check_data = expected_ids.iter().zip(actual_ids.iter());
-        for (idx, (expected_id, actual_id)) in check_data.enumerate() {
-            if expected_id != actual_id {
+    let mut errors = Vec::new();
+
+    if only {
+        if actual_programs.len() != expected_programs.len() {
+            errors.push(format!(
+                "Different lens of actual and expected programs: actual length={}, expected length={}",
+                actual_programs.len(), expected_programs.len(),
+            ));
+        }
+
+        for id in actual_programs.keys() {
+            if !expected_programs.contains_key(id) {
                 errors.push(format!(
-                    "invalid program id at position {:?}. Expected - {:?}, actual - {:?}",
-                    idx, expected_id, actual_id
+                    "Actual program {:?} wasn't found in expectations",
+                    id,
                 ));
             }
+        }
+    }
+
+    for (id, terminated) in expected_programs {
+        let actual_termination = actual_programs.get(id);
+        if let Some(actual_termination) = actual_termination {
+            if actual_termination != terminated {
+                errors.push(format!(
+                    "Wrong state of program: {:?} expected to be active={:?}, but it is active={:?}",
+                    id, terminated, actual_termination,
+                ));
+            }
+        } else {
+            errors.push(format!("Invalid program id {:?}.", id));
         }
     }
 
@@ -496,9 +529,12 @@ where
                         let msgs: Vec<_> = final_state
                             .dispatch_queue
                             .into_iter()
-                            .map(|d| d.message)
+                            .map(|(d, gas_limit)| (d.into_parts().1, gas_limit))
                             .collect();
-                        if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
+
+                        if let Err(msg_errors) =
+                            check_messages(progs_n_paths, &msgs, messages, false)
+                        {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(
                                 msg_errors
@@ -515,7 +551,13 @@ where
                         }
                     }
 
-                    if let Err(log_errors) = check_messages(progs_n_paths, &final_state.log, log) {
+                    let logs = final_state
+                        .log
+                        .into_iter()
+                        .map(|v| (v, 0u64))
+                        .collect::<Vec<(StoredMessage, GasLimit)>>();
+
+                    if let Err(log_errors) = check_messages(progs_n_paths, &logs, log, true) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             log_errors
@@ -524,16 +566,29 @@ where
                         );
                     }
                 }
-                if let Some(programs) = &exp.active_programs {
+                if let Some(programs) = &exp.programs {
                     let expected_prog_ids = programs
+                        .ids
                         .iter()
-                        .map(|address| address.to_program_id())
+                        .map(|program| {
+                            (
+                                program.address.to_program_id(),
+                                program.terminated.unwrap_or_default(),
+                            )
+                        })
                         .collect();
-                    // Final state returns only active programs
-                    let actual_prog_ids = final_state.actors.iter().map(|(id, _)| *id).collect();
-                    if let Err(prog_id_errors) =
-                        check_active_programs(expected_prog_ids, actual_prog_ids)
-                    {
+
+                    let actual_prog_ids = final_state
+                        .actors
+                        .iter()
+                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .collect();
+
+                    if let Err(prog_id_errors) = check_programs_state(
+                        &expected_prog_ids,
+                        &actual_prog_ids,
+                        programs.only.unwrap_or_default(),
+                    ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             prog_id_errors
@@ -548,7 +603,7 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .map(|(_, v)| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
@@ -558,12 +613,12 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let mut progs: Vec<Program> = final_state
+                        let actors: Vec<ExecutableActor> = final_state
                             .actors
                             .into_iter()
-                            .map(|(_, v)| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt)
                             .collect();
-                        if let Err(mem_errors) = check_memory(&mut progs, mem) {
+                        if let Err(mem_errors) = check_memory(&actors, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
                         }
@@ -598,7 +653,6 @@ pub fn check_main<JH, E, F>(
     skip_memory: bool,
     print_logs: bool,
     storage_factory: F,
-    ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
 ) -> anyhow::Result<()>
 where
     JH: JournalHandler + CollectState + ExecutionContext,
@@ -640,33 +694,17 @@ where
                     .unwrap()
                     .insert(thread::current().id(), Vec::new());
 
-                let output = if let Some(test_ext) = &ext {
-                    test_ext().execute_with(|| {
-                        let storage = storage_factory();
-                        run_fixture::<JH, E>(
-                            storage,
-                            test,
-                            fixture_no,
-                            &progs_n_paths,
-                            &total_failed,
-                            skip_messages,
-                            skip_allocations,
-                            skip_memory,
-                        )
-                    })
-                } else {
-                    let storage = storage_factory();
-                    run_fixture::<JH, E>(
-                        storage,
-                        test,
-                        fixture_no,
-                        &progs_n_paths,
-                        &total_failed,
-                        skip_messages,
-                        skip_allocations,
-                        skip_memory,
-                    )
-                };
+                let storage = storage_factory();
+                let output = run_fixture::<JH, E>(
+                    storage,
+                    test,
+                    fixture_no,
+                    &progs_n_paths,
+                    &total_failed,
+                    skip_messages,
+                    skip_allocations,
+                    skip_memory,
+                );
                 if output != "Ok".bright_green() {
                     map.read()
                         .unwrap()
