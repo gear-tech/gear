@@ -516,7 +516,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             })?;
 
         if let Some((message_id, _)) = maybe_message_id {
-            let _ = wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
+            wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
                 ctx.trap = Some(err);
                 HostError
             })?;

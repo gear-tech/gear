@@ -376,6 +376,7 @@ fn mq_size_not_affecting_fee_works() {
 }
 
 #[test]
+#[allow(clippy::let_unit_value)]
 fn query_info_and_fee_details_work() {
     let program_id = H256::random();
     let call_affecting_mq = Call::Gear(pallet_gear::Call::send_message {

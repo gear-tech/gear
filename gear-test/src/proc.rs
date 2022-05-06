@@ -177,7 +177,7 @@ where
         let message_id = MessageId::from(nonce);
         let id = program.id.to_program_id();
 
-        let _ = init_program::<E, JH>(
+        init_program::<E, JH>(
             InitMessage {
                 id,
                 code,
