@@ -27,17 +27,15 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
-pub use pallet_transaction_payment::{Multiplier, MultiplierUpdate};
+pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{
-        AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, IdentifyAccount, NumberFor, Verify,
-    },
+    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Perquintill,
+    ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
 };
 use sp_std::convert::{TryFrom, TryInto};
 use sp_std::prelude::*;
@@ -51,8 +49,8 @@ pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU32, ConstU64, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness,
-        StorageInfo,
+        ConstU128, ConstU32, ConstU64, ConstU8, Contains, Currency, FindAuthor,
+        KeyOwnerProofSystem, OnUnbalanced, Randomness, StorageInfo,
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -62,13 +60,13 @@ pub use frame_support::{
 };
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
-use pallet_transaction_payment::CurrencyAdapter;
+
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
-pub use {pallet_gas, pallet_gear, pallet_usage};
+pub use {pallet_gas, pallet_gear, pallet_gear_payment, pallet_usage};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -127,7 +125,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 720,
+    spec_version: 730,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -304,44 +302,15 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_integer(1);
-}
-
-/// Custom fee multiplier which remains constant regardless the network congestion
-/// TODO: consider using Substrate's built-in `pallet_transaction_payment::TargetedFeeAdjustment`
-/// to allow elastic fees based on network conditions (if that's more appropriate)
-pub struct ConstantFeeMultiplier<M>(sp_std::marker::PhantomData<M>);
-
-impl<M> MultiplierUpdate for ConstantFeeMultiplier<M>
-where
-    M: frame_support::traits::Get<Multiplier>,
-{
-    fn min() -> Multiplier {
-        M::get()
-    }
-    fn target() -> Perquintill {
-        Default::default()
-    }
-    fn variability() -> Multiplier {
-        Default::default()
-    }
-}
-impl<M> Convert<Multiplier, Multiplier> for ConstantFeeMultiplier<M>
-where
-    M: frame_support::traits::Get<Multiplier>,
-{
-    fn convert(previous: Multiplier) -> Multiplier {
-        let min_multiplier = M::get();
-        previous.max(min_multiplier)
-    }
+    pub const QueueLengthStep: u128 = 10;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-    type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
+    type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
-    type FeeMultiplierUpdate = ConstantFeeMultiplier<MinimumMultiplier>;
+    type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -416,6 +385,45 @@ impl pallet_gear_messenger::Config for Runtime {
     type Event = Event;
 }
 
+pub struct ExtraFeeFilter;
+impl Contains<Call> for ExtraFeeFilter {
+    fn contains(call: &Call) -> bool {
+        // Calls that affect message queue and are subject to extra fee
+        matches!(
+            call,
+            Call::Gear(pallet_gear::Call::submit_program { .. })
+                | Call::Gear(pallet_gear::Call::send_message { .. })
+                | Call::Gear(pallet_gear::Call::send_reply { .. })
+        )
+    }
+}
+
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
+
+pub struct DealWithFees;
+impl OnUnbalanced<NegativeImbalance> for DealWithFees {
+    fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
+        if let Some(fees) = fees_then_tips.next() {
+            if let Some(author) = Authorship::author() {
+                Balances::resolve_creating(&author, fees);
+            }
+            if let Some(tips) = fees_then_tips.next() {
+                if let Some(author) = Authorship::author() {
+                    Balances::resolve_creating(&author, tips);
+                }
+            }
+        }
+    }
+}
+
+type QueueLength =
+    <<GearMessenger as gear_common::storage::Messenger>::Queue as gear_common::storage::StorageDeque>::Length;
+
+impl pallet_gear_payment::Config for Runtime {
+    type ExtraFeeCallFilter = ExtraFeeFilter;
+    type MessageQueueLength = QueueLength;
+}
+
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
     Call: From<C>,
@@ -447,6 +455,7 @@ construct_runtime!(
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
+        GearPayment: pallet_gear_payment,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug,
@@ -475,6 +484,7 @@ construct_runtime!(
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
+        GearPayment: pallet_gear_payment,
     }
 );
 
@@ -493,7 +503,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
-    pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
+    pallet_gear_payment::CustomChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -632,13 +642,13 @@ impl_runtime_apis! {
             uxt: <Block as BlockT>::Extrinsic,
             len: u32,
         ) -> pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo<Balance> {
-            TransactionPayment::query_info(uxt, len)
+            GearPayment::query_info(uxt, len)
         }
         fn query_fee_details(
             uxt: <Block as BlockT>::Extrinsic,
             len: u32,
         ) -> pallet_transaction_payment::FeeDetails<Balance> {
-            TransactionPayment::query_fee_details(uxt, len)
+            GearPayment::query_fee_details(uxt, len)
         }
     }
 
