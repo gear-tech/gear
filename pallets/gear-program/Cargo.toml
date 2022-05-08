@@ -57,3 +57,4 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks"
 ]
+disable_lazy_pages = ["common/disable_lazy_pages"]

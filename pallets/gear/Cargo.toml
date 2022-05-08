@@ -96,3 +96,4 @@ runtime-benchmarks = [
 	"rand_pcg",
 ]
 try-runtime = ["frame-support/try-runtime"]
+disable_lazy_pages = ["common/disable_lazy_pages"]
