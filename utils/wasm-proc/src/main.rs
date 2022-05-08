@@ -163,8 +163,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let res = gear_wasm_builder::optimize::optimize_wasm(PathBuf::from(file), "s", true)
             .map_err(|_| Error::WasmOptFailed)?;
 
-        println!(
-            "wasm-opt: {} {} Ki -> {} Ki",
+        log::info!(
+            "wasm-opt: {} {} Kb -> {} Kb",
             res.dest_wasm.display(),
             res.original_size,
             res.optimized_size
