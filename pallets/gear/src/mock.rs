@@ -19,6 +19,7 @@
 use crate as pallet_gear;
 use crate::{ext::LazyPagesExt, manager::ExtManager};
 use common::Origin as _;
+use core_processor::configs::AllocationsConfig;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
@@ -243,6 +244,13 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     };
 
     let schedule = <Test as pallet_gear::Config>::Schedule::get();
+    let allocations_config = AllocationsConfig {
+        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+        init_cost: schedule.memory_weights.initial_cost,
+        alloc_cost: schedule.memory_weights.allocation_cost,
+        mem_grow_cost: schedule.memory_weights.grow_cost,
+        load_page_cost: schedule.memory_weights.load_cost,
+    };
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
 
@@ -250,6 +258,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         Some(actor),
         dispatch.into_stored().into_incoming(initial_gas),
         block_info,
+        allocations_config,
         existential_deposit,
         ProgramId::from_origin(source),
         ProgramId::from_origin(dest),

@@ -69,7 +69,7 @@ pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Allocation config.
-    pub config: AllocationsConfig,
+    pub allocations_config: AllocationsConfig,
     /// Minimal amount of existance for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
@@ -81,38 +81,39 @@ impl ExecutionSettings {
     pub fn new(
         block_info: BlockInfo,
         existential_deposit: u128,
+        allocations_config: AllocationsConfig,
         host_fn_weights: HostFnWeights,
     ) -> Self {
         Self {
             block_info,
             existential_deposit,
-            config: Default::default(),
+            allocations_config,
             host_fn_weights,
         }
     }
 
     /// Max amount of pages.
     pub fn max_pages(&self) -> WasmPageNumber {
-        self.config.max_pages
+        self.allocations_config.max_pages
     }
 
     /// Cost of initial memory.
     pub fn init_cost(&self) -> u64 {
-        self.config.init_cost
+        self.allocations_config.init_cost
     }
 
     /// Cost of allocating memory.
     pub fn alloc_cost(&self) -> u64 {
-        self.config.alloc_cost
+        self.allocations_config.alloc_cost
     }
 
     /// Memory grow cost.
     pub fn mem_grow_cost(&self) -> u64 {
-        self.config.mem_grow_cost
+        self.allocations_config.mem_grow_cost
     }
 
     /// Load gear page cost.
     pub fn load_page_cost(&self) -> u64 {
-        self.config.load_page_cost
+        self.allocations_config.load_page_cost
     }
 }

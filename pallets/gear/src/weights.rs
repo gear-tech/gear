@@ -71,6 +71,10 @@ pub trait WeightInfo {
 	fn gr_wait(r: u32, ) -> Weight;
 	fn gr_wake(r: u32, ) -> Weight;
 	fn gr_create_program_wgas(r: u32, ) -> Weight;
+	fn initial_cost() -> Weight;
+	fn allocation_cost() -> Weight;
+	fn grow_cost() -> Weight;
+	fn load_cost() -> Weight;
 	fn instr_i64const(r: u32, ) -> Weight;
 	fn instr_i64load(r: u32, ) -> Weight;
 	fn instr_i64store(r: u32, ) -> Weight;
@@ -363,6 +367,18 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads((8 as Weight).saturating_mul(r as Weight)))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
+	}
+	fn initial_cost() -> Weight {
+		100_000_000 as Weight
+	}
+	fn allocation_cost() -> Weight {
+		200_000_000 as Weight
+	}
+	fn grow_cost() -> Weight {
+		200_000_000 as Weight
+	}
+	fn load_cost() -> Weight {
+		20_000_000 as Weight
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(8_410_000 as Weight)
@@ -855,6 +871,18 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads((8 as Weight).saturating_mul(r as Weight)))
 			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
 			.saturating_add(RocksDbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
+	}
+	fn initial_cost() -> Weight {
+		50_000_000 as Weight
+	}
+	fn allocation_cost() -> Weight {
+		100_000_000 as Weight
+	}
+	fn grow_cost() -> Weight {
+		100_000_000 as Weight
+	}
+	fn load_cost() -> Weight {
+		10_000_000 as Weight
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(8_410_000 as Weight)
