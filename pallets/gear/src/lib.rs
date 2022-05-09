@@ -558,7 +558,8 @@ pub mod pallet {
             {
                 let actor_id = queued_dispatch.destination();
 
-                let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
+                let lazy_pages_enabled =
+                    !cfg!(feature = "disable_lazy_pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
                     .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
@@ -731,7 +732,8 @@ pub mod pallet {
                     );
 
                     let schedule = T::Schedule::get();
-                    let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
+                    let lazy_pages_enabled = !cfg!(feature = "disable_lazy_pages")
+                        && lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();

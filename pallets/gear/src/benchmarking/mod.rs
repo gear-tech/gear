@@ -146,8 +146,8 @@ where
     T::AccountId: Origin,
 {
     assert!(
-        lazy_pages::try_to_enable_lazy_pages(),
-        "Suppose to run benchs only with lazy pages"
+        cfg!(feature = "disable_lazy_pages") || lazy_pages::try_to_enable_lazy_pages(),
+        "Suppose to run benchs with lazy pages"
     );
 
     let ext_manager = ExtManager::<T>::default();

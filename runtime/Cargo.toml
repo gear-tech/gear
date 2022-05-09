@@ -131,10 +131,5 @@ debug-mode = [
 	"pallet-gear-debug",
 ]
 disable_lazy_pages = [
-	"gear-common/disable_lazy_pages",
-	"pallet-gas/disable_lazy_pages",
 	"pallet-gear/disable_lazy_pages",
-	"pallet-gear-debug/disable_lazy_pages",
-	"pallet-gear-program/disable_lazy_pages",
-	"pallet-usage/disable_lazy_pages",
 ]
