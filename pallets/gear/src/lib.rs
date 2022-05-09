@@ -955,6 +955,7 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
+        #[frame_support::transactional]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1026,6 +1027,7 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
+        #[frame_support::transactional]
         pub fn submit_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
