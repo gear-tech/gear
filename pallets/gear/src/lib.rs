@@ -732,8 +732,8 @@ pub mod pallet {
                     );
 
                     let schedule = T::Schedule::get();
-                    let lazy_pages_enabled = cfg!(feature = "lazy-pages")
-                        && lazy_pages::try_to_enable_lazy_pages();
+                    let lazy_pages_enabled =
+                        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
