@@ -28,7 +28,7 @@ pub fn optimize_wasm(
             .unwrap()
     ));
 
-    let _ = do_optimization(
+    do_optimization(
         source.as_os_str(),
         dest_optimized.as_os_str(),
         optimization_passes,
