@@ -242,7 +242,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     );
 
     let lazy_pages_enabled =
-        !cfg!(feature = "disable_lazy_pages") && lazy_pages::try_to_enable_lazy_pages();
+        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
     let actor = ext_manager
         .get_executable_actor(dest, !lazy_pages_enabled)
