@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,
 };
@@ -76,6 +76,7 @@ impl ExecutionContext for InMemoryExtManager {
             Some(ExecutableActor {
                 program: program.clone(),
                 balance: 0,
+                pages_data: Default::default(),
             }),
         );
         program
@@ -193,26 +194,44 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.push_back(dispatch);
         }
     }
-    fn update_page(
+
+    fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        page_number: PageNumber,
-        data: Option<Vec<u8>>,
+        mut pages_data: BTreeMap<PageNumber, Vec<u8>>,
     ) {
         if let Some(actor) = self
             .actors
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
-            if let Some(data) = data {
-                let _ = actor.program.set_page(page_number, &data);
-            } else {
-                actor.program.remove_page(page_number);
-            }
+            actor.pages_data.append(&mut pages_data);
         } else {
             unreachable!("Can't update page for terminated program");
         }
     }
+
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
+        if let Some(actor) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("Program not found in storage")
+        {
+            for page in actor
+                .program
+                .get_allocations()
+                .difference(&allocations)
+                .flat_map(|p| p.to_gear_pages_iter())
+            {
+                actor.pages_data.remove(&page);
+            }
+
+            *actor.program.get_allocations_mut() = allocations;
+        } else {
+            unreachable!("Can't update allocations for terminated program");
+        }
+    }
+
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
             if let Some(Some(actor)) = self.actors.get_mut(&from) {

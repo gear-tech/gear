@@ -26,6 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use gear_core_errors::MessageError as Error;
 use scale_info::TypeInfo;
 
 pub const OUTGOING_LIMIT: u32 = 1024;
@@ -107,29 +108,6 @@ pub struct ContextStore {
     initialized: BTreeSet<ProgramId>,
     awaken: BTreeSet<MessageId>,
     reply_sent: bool,
-}
-
-/// Error using messages.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub enum Error {
-    /// Message limit exceeded.
-    LimitExceeded,
-    /// Duplicate reply message.
-    DuplicateReply,
-    /// Duplicate waiting message.
-    DuplicateWaiting,
-    /// Duplicate waking message.
-    DuplicateWaking,
-    /// An attempt to commit or to push a payload into an already formed message.
-    LateAccess,
-    /// No message found with given handle, or handle exceeds the maximum messages amount.
-    OutOfBounds,
-    /// An attempt to push a payload into reply that was not set
-    NoReplyFound,
-    /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
-    UncommittedPayloads,
-    /// Duplicate init message
-    DuplicateInit,
 }
 
 /// Context of currently processing incoming message.

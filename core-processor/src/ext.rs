@@ -17,7 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::configs::{AllocationsConfig, BlockInfo};
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
+use core::fmt;
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     charge_gas_token,
@@ -25,15 +30,17 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{
-        wasm_pages_to_pages_set, AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber,
-    },
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
+use gear_core_errors::{ExtError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExt {
+    /// An error issues in processor
+    type Error: fmt::Display;
+
     /// Create new
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -45,7 +52,6 @@ pub trait ProcessorExt {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
@@ -53,34 +59,25 @@ pub trait ProcessorExt {
         host_fn_weights: HostFnWeights,
     ) -> Self;
 
-    /// Try to enable and initialize lazy pages env
-    fn try_to_enable_lazy_pages(
-        &mut self,
-        program_id: ProgramId,
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> Result<bool, &'static str>;
+    /// Returns whether this extension works with lazy pages
+    fn is_lazy_pages_enabled() -> bool;
+
+    /// If extention support lazy pages, then checks that
+    /// environment for lazy pages is initialized.
+    fn check_lazy_pages_consistent_state() -> bool;
 
     /// Protect and save storage keys for pages which has no data
-    fn protect_pages_and_init_info(
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn lazy_pages_protect_and_init_info(
+        lazy_pages: &BTreeSet<PageNumber>,
         prog_id: ProgramId,
         wasm_mem_begin_addr: u64,
-    ) -> Result<(), &'static str>;
+    ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
-    fn post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn lazy_pages_post_execution_actions(
+        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
         wasm_mem_begin_addr: u64,
-    ) -> Result<(), &'static str>;
-
-    /// Remove lazy-pages protection, returns wasm memory begin addr
-    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), &'static str>;
-
-    /// Protect lazy-pages and set new wasm mem addr if it has been changed
-    fn protect_lazy_pages_and_update_wasm_mem_addr(
-        old_mem_addr: u64,
-        new_mem_addr: u64,
-    ) -> Result<(), &'static str>;
+    ) -> Result<(), Self::Error>;
 }
 
 /// Structure providing externalities for running host functions.
@@ -102,7 +99,7 @@ pub struct Ext {
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Any guest code panic explanation, if available.
-    pub error_explanation: Option<&'static str>,
+    pub error_explanation: Option<ExtError>,
     /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
     /// Communication origin
@@ -118,6 +115,8 @@ pub struct Ext {
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExt for Ext {
+    type Error = ExtError;
+
     fn new(
         gas_counter: GasCounter,
         gas_allowance_counter: GasAllowanceCounter,
@@ -127,7 +126,6 @@ impl ProcessorExt for Ext {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
@@ -143,7 +141,7 @@ impl ProcessorExt for Ext {
             block_info,
             config,
             existential_deposit,
-            error_explanation,
+            error_explanation: None,
             exit_argument,
             origin,
             program_id,
@@ -152,54 +150,43 @@ impl ProcessorExt for Ext {
         }
     }
 
-    fn try_to_enable_lazy_pages(
-        &mut self,
-        _program_id: ProgramId,
-        _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> Result<bool, &'static str> {
-        Ok(false)
+    fn is_lazy_pages_enabled() -> bool {
+        false
     }
 
-    fn protect_pages_and_init_info(
-        _memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn check_lazy_pages_consistent_state() -> bool {
+        true
+    }
+
+    fn lazy_pages_protect_and_init_info(
+        _memory_pages: &BTreeSet<PageNumber>,
         _prog_id: ProgramId,
         _wasm_mem_begin_addr: u64,
-    ) -> Result<(), &'static str> {
-        Ok(())
+    ) -> Result<(), Self::Error> {
+        unreachable!()
     }
 
-    fn post_execution_actions(
-        _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    fn lazy_pages_post_execution_actions(
+        _memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
         _wasm_mem_begin_addr: u64,
-    ) -> Result<(), &'static str> {
-        Ok(())
-    }
-
-    fn remove_lazy_pages_prot(_mem_addr: u64) -> Result<(), &'static str> {
-        Ok(())
-    }
-
-    fn protect_lazy_pages_and_update_wasm_mem_addr(
-        _old_mem_addr: u64,
-        _new_mem_addr: u64,
-    ) -> Result<(), &'static str> {
-        Ok(())
+    ) -> Result<(), Self::Error> {
+        unreachable!()
     }
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
         self,
         mut get_page_data: F,
-    ) -> Result<ExtInfo, (&'static str, GasAmount)> {
-        let pages = wasm_pages_to_pages_set(self.allocations_context.allocations().iter());
+    ) -> Result<ExtInfo, (T, GasAmount)> {
+        let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
-        for page in pages.iter() {
+        for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
             if let Err(err) = get_page_data(page.offset(), &mut buf) {
                 return Err((err, self.gas_counter.into()));
             }
-            pages_data.insert(*page, buf);
+            pages_data.insert(page, buf);
         }
 
         let (outcome, context_store) = self.message_context.drain();
@@ -207,7 +194,7 @@ impl IntoExtInfo for Ext {
 
         Ok(ExtInfo {
             gas_amount: self.gas_counter.into(),
-            pages,
+            allocations: wasm_pages,
             pages_data,
             generated_dispatches,
             awakening,
@@ -225,10 +212,7 @@ impl IntoExtInfo for Ext {
 
 impl Ext {
     /// Return result and store error info in field
-    pub fn return_and_store_err<T>(
-        &mut self,
-        result: Result<T, &'static str>,
-    ) -> Result<T, &'static str> {
+    pub fn return_and_store_err<T>(&mut self, result: Result<T, ExtError>) -> Result<T, ExtError> {
         result.map_err(|err| {
             self.error_explanation = Some(err);
             err
@@ -237,11 +221,13 @@ impl Ext {
 }
 
 impl EnvExt for Ext {
+    type Error = ExtError;
+
     fn alloc(
         &mut self,
         pages_num: WasmPageNumber,
         mem: &mut dyn Memory,
-    ) -> Result<WasmPageNumber, &'static str> {
+    ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
         self.charge_gas(pages_num.0.saturating_mul(self.config.alloc_cost as u32))?;
         // Greedily charge gas for grow
@@ -254,7 +240,7 @@ impl EnvExt for Ext {
         let result = self
             .allocations_context
             .alloc(pages_num, mem)
-            .map_err(|_e| "Allocation error");
+            .map_err(ExtError::Alloc);
 
         let page_number = self.return_and_store_err(result)?;
 
@@ -286,132 +272,121 @@ impl EnvExt for Ext {
         Ok(page_number)
     }
 
-    fn block_height(&mut self) -> Result<u32, &'static str> {
+    fn block_height(&mut self) -> Result<u32, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::BlockHeight)?;
         Ok(self.block_info.height)
     }
 
-    fn block_timestamp(&mut self) -> Result<u64, &'static str> {
+    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::BlockTimestamp)?;
         Ok(self.block_info.timestamp)
     }
 
-    fn origin(&mut self) -> Result<gear_core::ids::ProgramId, &'static str> {
+    fn origin(&mut self) -> Result<gear_core::ids::ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Origin)?;
         Ok(self.origin)
     }
 
-    fn send_init(&mut self) -> Result<usize, &'static str> {
+    fn send_init(&mut self) -> Result<usize, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendInit)?;
-        let result = self
-            .message_context
-            .send_init()
-            .map_err(|_e| "Message init error");
+        let result = self.message_context.send_init().map_err(ExtError::Message);
 
         self.return_and_store_err(result.map(|v| v as usize))
     }
 
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
+    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendPush(buffer.len() as u32))?;
         let result = self
             .message_context
             .send_push(handle as u32, buffer)
-            .map_err(|_e| "Payload push error");
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
 
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(buffer.len() as u32))?;
         let result = self
             .message_context
             .reply_push(buffer)
-            .map_err(|_e| "Reply payload push error");
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
 
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str> {
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(
-                "Value of the message is less than existance deposit, but greater than 0",
-            ));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };
 
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
-            return self
-                .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
+            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
 
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err("No value left to reply"));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
         };
 
         let result = self
             .message_context
             .send_commit(handle as u32, msg)
-            .map_err(|_e| "Message commit error");
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
 
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
         if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(
-                "Value of the message is less than existance deposit, but greater than 0",
-            ));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };
 
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err("No value left to reply"));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
         };
 
         let result = self
             .message_context
             .reply_commit(msg)
-            .map_err(|_e| "Reply commit error");
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
 
-    fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, &'static str> {
+    fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
         Ok(self.message_context.current().reply())
     }
 
-    fn source(&mut self) -> Result<ProgramId, &'static str> {
+    fn source(&mut self) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Source)?;
         Ok(self.message_context.current().source())
     }
 
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), &'static str> {
+    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
         if self.exit_argument.is_some() {
-            Err("Cannot call `exit' twice")
+            Err(ExtError::ExitTwice)
         } else {
             self.exit_argument = Some(value_destination);
             Ok(())
         }
     }
 
-    fn message_id(&mut self) -> Result<MessageId, &'static str> {
+    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::MsgId)?;
         Ok(self.message_context.current().id())
     }
 
-    fn program_id(&mut self) -> Result<gear_core::ids::ProgramId, &'static str> {
+    fn program_id(&mut self) -> Result<gear_core::ids::ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ProgramId)?;
         Ok(self.program_id)
     }
 
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), &'static str> {
-        let result = self
-            .allocations_context
-            .free(page)
-            .map_err(|_e| "Free error");
+    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
+        let result = self.allocations_context.free(page).map_err(ExtError::Free);
 
         // Returns back gas for allocated page if it's new
         if !self.allocations_context.is_init_page(page) {
@@ -421,11 +396,11 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn debug(&mut self, data: &str) -> Result<(), &'static str> {
+    fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
         if data.starts_with("panic occurred") {
-            self.error_explanation = Some("Panic occurred");
+            self.error_explanation = Some(ExtError::PanicOccurred);
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
@@ -436,83 +411,84 @@ impl EnvExt for Ext {
         self.message_context.current().payload()
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), &'static str> {
+    fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
     }
 
-    fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
+    fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
         use ChargeResult::*;
 
         let common_charge = self.gas_counter.charge(val as u64);
         let allowance_charge = self.gas_allowance_counter.charge(val as u64);
 
         let res = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err("Gas limit exceeded"),
-            (Enough, NotEnough) => Err(gear_backend_common::GAS_ALLOWANCE_STR),
+            (NotEnough, _) => Err(ExtError::GasLimitExceeded),
+            (Enough, NotEnough) => Err(ExtError::TerminationReason(
+                TerminationReason::GasAllowanceExceeded,
+            )),
             (Enough, Enough) => Ok(()),
         };
 
         self.return_and_store_err(res)
     }
 
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), &'static str> {
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
         use ChargeResult::*;
         let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
 
         let res = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err("Gas limit exceeded"),
-            (Enough, NotEnough) => Err(gear_backend_common::GAS_ALLOWANCE_STR),
+            (NotEnough, _) => Err(ExtError::GasLimitExceeded),
+            (Enough, NotEnough) => Err(ExtError::TerminationReason(
+                TerminationReason::GasAllowanceExceeded,
+            )),
             (Enough, Enough) => Ok(()),
         };
 
         self.return_and_store_err(res)
     }
 
-    fn refund_gas(&mut self, val: u32) -> Result<(), &'static str> {
+    fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
         if self.gas_counter.refund(val as u64) == ChargeResult::Enough {
             self.gas_allowance_counter.refund(val as u64);
             Ok(())
         } else {
-            self.return_and_store_err(Err("Too many gas added"))
+            self.return_and_store_err(Err(ExtError::TooManyGasAdded))
         }
     }
 
-    fn gas_available(&mut self) -> Result<u64, &'static str> {
+    fn gas_available(&mut self) -> Result<u64, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::GasAvailable)?;
         Ok(self.gas_counter.left())
     }
 
-    fn value(&mut self) -> Result<u128, &'static str> {
+    fn value(&mut self) -> Result<u128, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Value)?;
         Ok(self.message_context.current().value())
     }
 
-    fn value_available(&mut self) -> Result<u128, &'static str> {
+    fn value_available(&mut self) -> Result<u128, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ValueAvailable)?;
         Ok(self.value_counter.left())
     }
 
-    fn leave(&mut self) -> Result<(), &'static str> {
+    fn leave(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Leave)?;
         Ok(())
     }
 
-    fn wait(&mut self) -> Result<(), &'static str> {
+    fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wait)?;
         Ok(())
     }
 
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wake)?;
-        let result = self
-            .message_context
-            .wake(waker_id)
-            .map_err(|_| "Unable to mark the message to be woken");
+        let result = self.message_context.wake(waker_id).map_err(ExtError::Wake);
 
         self.return_and_store_err(result)
     }
 
-    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str> {
+    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
         let code_hash = packet.code_id();
 
@@ -527,7 +503,7 @@ impl EnvExt for Ext {
 
                 new_prog_id
             })
-            .map_err(|_| "Duplicate init message for the same id");
+            .map_err(ExtError::InitMessageNotDuplicated);
 
         self.return_and_store_err(result)
     }

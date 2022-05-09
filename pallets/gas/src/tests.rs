@@ -37,7 +37,7 @@ fn simple_value_tree() {
         assert_eq!(Gas::total_supply(), 1000);
 
         {
-            let (_neg, owner) = Gas::consume(new_root).unwrap();
+            let (_neg, owner) = Gas::consume(new_root).unwrap().unwrap();
 
             assert_eq!(owner, ALICE.into_origin());
         }
@@ -66,10 +66,10 @@ fn sub_nodes_tree() {
         drop(pos_imb);
         assert_eq!(Gas::total_supply(), 1000);
 
-        assert!(matches!(Gas::consume(new_root), None));
-        assert!(matches!(Gas::consume(split_1), None));
+        assert!(matches!(Gas::consume(new_root).unwrap(), None));
+        assert!(matches!(Gas::consume(split_1).unwrap(), None));
 
-        let consume_result = Gas::consume(split_2);
+        let consume_result = Gas::consume(split_2).unwrap();
         assert!(consume_result.is_some());
         assert_eq!(consume_result.unwrap().0.peek(), 1000);
         // Negative imbalance moved and dropped above - total supply decreased
@@ -112,7 +112,7 @@ fn value_tree_known_errors() {
             assert_eq!(Gas::total_supply(), 0);
 
             // Consume node
-            Gas::consume(new_root);
+            assert_ok!(Gas::consume(new_root));
             // Negative imbalance dropped immediately - total supply decreased (in saturating way)
             // In practice it means the total supply is still 0
             assert_eq!(Gas::total_supply(), 0);
@@ -144,11 +144,11 @@ fn sub_nodes_tree_with_spends() {
             .unwrap();
         assert_eq!(offset1.peek(), 900);
 
-        assert!(matches!(Gas::consume(split_1), None));
-        assert!(matches!(Gas::consume(split_2), None));
+        assert!(matches!(Gas::consume(split_1).unwrap(), None));
+        assert!(matches!(Gas::consume(split_2).unwrap(), None));
 
         let offset2 = offset1
-            .offset(Gas::consume(new_root).unwrap().0)
+            .offset(Gas::consume(new_root).unwrap().unwrap().0)
             .same()
             .unwrap();
         assert_eq!(offset2.peek(), 0);
@@ -170,16 +170,16 @@ fn all_keys_are_cleared() {
             Gas::split_with_value(root, *key, 100).unwrap();
         }
 
-        Gas::consume(root);
+        assert_ok!(Gas::consume(root));
         for key in sub_keys.iter() {
             // here we have not yet consumed everything
-            assert!(ValueView::<Test>::contains_key(*key));
+            assert!(GasTree::<Test>::contains_key(*key));
 
-            Gas::consume(*key);
+            assert_ok!(Gas::consume(*key));
         }
 
         // here we consumed everything
-        let key_count = ValueView::<Test>::iter_keys().fold(0, |k, _| k + 1);
+        let key_count = GasTree::<Test>::iter_keys().fold(0, |k, _| k + 1);
         assert_eq!(key_count, 0);
     });
 }
@@ -206,11 +206,11 @@ fn split_with_no_value() {
         assert_eq!(offset1.peek(), 900);
         assert_eq!(Gas::spend(split_1, 200).unwrap().peek(), 200);
 
-        assert!(matches!(Gas::consume(split_1), None));
-        assert!(matches!(Gas::consume(split_2), None));
-        assert!(matches!(Gas::consume(split_1_2), None));
+        assert!(matches!(Gas::consume(split_1).unwrap(), None));
+        assert!(matches!(Gas::consume(split_2).unwrap(), None));
+        assert!(matches!(Gas::consume(split_1_2).unwrap(), None));
 
-        let final_imb = Gas::consume(new_root).unwrap().0;
+        let final_imb = Gas::consume(new_root).unwrap().unwrap().0;
         assert_eq!(final_imb.peek(), 700);
 
         assert_eq!(Gas::total_supply(), 0);
@@ -240,12 +240,12 @@ fn long_chain() {
         assert_ok!(Gas::spend(m3, 50));
         assert_ok!(Gas::spend(m4, 50));
 
-        assert!(matches!(Gas::consume(m1), None));
-        assert!(matches!(Gas::consume(m2), None));
-        assert!(matches!(Gas::consume(root), None));
-        assert!(matches!(Gas::consume(m4), None));
+        assert!(matches!(Gas::consume(m1).unwrap(), None));
+        assert!(matches!(Gas::consume(m2).unwrap(), None));
+        assert!(matches!(Gas::consume(root).unwrap(), None));
+        assert!(matches!(Gas::consume(m4).unwrap(), None));
 
-        let (neg_imb, payee) = Gas::consume(m3).unwrap();
+        let (neg_imb, payee) = Gas::consume(m3).unwrap().unwrap();
 
         // 2000 initial, 5*50 spent
         assert_eq!(neg_imb.peek(), 1750);
@@ -273,30 +273,30 @@ fn limit_vs_origin() {
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
         // Original 1000 less 600 that were `split_with_value`
-        assert_eq!(Gas::get_limit(root_node), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(400));
 
         // Parent's 400
-        assert_eq!(Gas::get_limit(split_1), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(400));
 
         // Parent's 400
-        assert_eq!(Gas::get_limit(split_2), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(400));
 
         // Propriatery 600
-        assert_eq!(Gas::get_limit(split_1_1), Some((600, split_1_1)));
+        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some(600));
 
         // Grand-parent's 400
-        assert_eq!(Gas::get_limit(split_1_2), Some((400, root_node)));
+        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(400));
 
         // Parent's 600
-        assert_eq!(Gas::get_limit(split_1_1_1), Some((600, split_1_1)));
+        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some(600));
 
         // All nodes origin is `origin`
-        assert_eq!(Gas::get_origin(root_node), Some(origin));
-        assert_eq!(Gas::get_origin(split_1), Some(origin));
-        assert_eq!(Gas::get_origin(split_2), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_1), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_2), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_1_1), Some(origin));
+        assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(split_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(split_2).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(split_1_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(split_1_2).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(split_1_1_1).unwrap(), Some(origin));
     });
 }
 
@@ -344,21 +344,21 @@ fn subtree_gas_limit_remains_intact() {
         assert_ok!(Gas::split_with_value(node_2, node_5, 250));
 
         // Check gas limits in the beginning
-        assert_eq!(Gas::get_limit(root), Some((200, root)));
-        assert_eq!(Gas::get_limit(node_1), Some((300, node_1)));
-        assert_eq!(Gas::get_limit(node_2), Some((250, node_2)));
-        assert_eq!(Gas::get_limit(node_3), Some((300, node_1))); // defined by parent
-        assert_eq!(Gas::get_limit(node_4), Some((250, node_2))); // defined by parent
-        assert_eq!(Gas::get_limit(node_5), Some((250, node_5)));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(250));
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300)); // defined by parent
+        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250)); // defined by parent
+        assert_eq!(Gas::get_limit(node_5).unwrap(), Some(250));
 
         // Consume node_1
-        assert!(matches!(Gas::consume(node_1), None));
+        assert!(matches!(Gas::consume(node_1).unwrap(), None));
         // Expect gas limit of the node_3 to remain unchanged
-        assert_eq!(Gas::get_limit(node_3), Some((300, node_1)));
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300));
 
         // Consume node_2
-        assert!(matches!(Gas::consume(node_2), None));
+        assert!(matches!(Gas::consume(node_2).unwrap(), None));
         // Expect gas limit of the node_4 to remain unchanged
-        assert_eq!(Gas::get_limit(node_4), Some((250, node_2)));
+        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
     });
 }

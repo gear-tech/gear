@@ -60,6 +60,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
@@ -135,7 +136,6 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = ();
-    type BlockGasLimit = ();
     type OutgoingLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
@@ -143,13 +143,19 @@ impl pallet_gear::Config for Test {
     type CodeStorage = GearProgram;
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = ();
+}
 
 parameter_types! {
     pub const WaitListTraversalInterval: u32 = 5;
     pub const MaxBatchSize: u32 = 10;
     pub const ExpirationDuration: u64 = 3000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
 }
 
 impl pallet_usage::Config for Test {
@@ -245,6 +251,8 @@ pub(crate) fn run_to_block(n: u64) {
         log::debug!("📦 Processing block {}", i);
         System::set_block_number(i);
         Usage::on_initialize(i);
+        Gas::on_initialize(System::block_number());
+        GearMessenger::on_initialize(System::block_number());
         Gear::on_idle(i, 1_000_000_000);
     }
 }
@@ -293,24 +301,15 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
     let (code, _) = code_and_id.into_parts();
     let program = Program::new(program_id, code);
 
-    common::set_program(
+    common::set_program_and_pages_data(
         H256::from_slice(program.id().as_ref()),
         common::ActiveProgram {
-            static_pages: program.static_pages(),
-            persistent_pages: program.get_pages().iter().map(|(num, _)| *num).collect(),
+            allocations: program.get_allocations().clone(),
+            pages_with_data: Default::default(),
             code_hash,
             state: common::ProgramState::Initialized,
         },
-        program
-            .get_pages()
-            .iter()
-            .map(|(num, buf)| {
-                let buf = buf
-                    .as_ref()
-                    .expect("When set program, each page must have data");
-                (*num, buf.to_vec())
-            })
-            .collect(),
+        Default::default(),
     );
 
     program

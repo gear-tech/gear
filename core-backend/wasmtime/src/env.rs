@@ -18,6 +18,8 @@
 
 //! Wasmtime environment for running a module.
 
+use core::fmt;
+
 use alloc::{
     boxed::Box,
     collections::BTreeMap,
@@ -26,8 +28,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, HostPointer,
-    IntoExtInfo, TerminationReason,
+    BackendError, BackendReport, Environment, ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
@@ -35,12 +36,34 @@ use gear_core::{
     memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use wasmtime::{
-    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryAccessError, MemoryType,
+    Module, Store, Trap,
 };
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
     pub ext: ClonedExtCarrier<E>,
+    pub termination_reason: Option<TerminationReason>,
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum WasmtimeEnvironmentError {
+    #[display(fmt = "Non-env imports are not supported")]
+    NonEnvImports,
+    #[display(fmt = "Missing import")]
+    MissingImport,
+    #[display(fmt = "Unable to create module")]
+    ModuleCreation,
+    #[display(fmt = "Unable to create instance")]
+    InstanceCreation,
+    #[display(fmt = "Unable to set module memory data")]
+    SetModuleMemoryData,
+    #[display(fmt = "Failed to create env memory")]
+    CreateEnvMemory,
+    #[display(fmt = "{}", _0)]
+    MemoryAccess(MemoryAccessError),
+    #[display(fmt = "{}", _0)]
+    PostExecutionHandler(String),
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -54,24 +77,27 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
 fn set_pages<T: Ext>(
     mut store: &mut Store<StoreData<T>>,
     memory: &mut WasmtimeMemory,
-    pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    pages: &BTreeMap<PageNumber, Box<PageBuf>>,
 ) -> Result<(), String> {
     let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
     for (num, buf) in pages {
         if memory_size <= num.to_wasm_page() {
             return Err(format!("Memory size {:?} less then {:?}", memory_size, num));
         }
-        if let Some(buf) = buf {
-            memory
-                .write(&mut store, num.offset(), &buf[..])
-                .map_err(|e| format!("Cannot write to {:?}: {:?}", num, e))?;
-        }
+        memory
+            .write(&mut store, num.offset(), &buf[..])
+            .map_err(|e| format!("Cannot write to {:?}: {:?}", num, e))?;
     }
     Ok(())
 }
 
-impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
-    fn prepare_post_execution_data(self) -> Result<(ExtInfo, HostPointer), BackendError<'static>> {
+impl<E> WasmtimeEnvironment<E>
+where
+    E: Ext + IntoExtInfo,
+{
+    fn prepare_post_execution_data(
+        self,
+    ) -> Result<(ExtInfo, HostPointer), BackendError<WasmtimeEnvironmentError>> {
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
         let WasmtimeEnvironment {
             mut store,
@@ -81,12 +107,10 @@ impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
         } = self;
         ext.into_inner()
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                memory
-                    .read(&mut store, offset, buffer)
-                    .map_err(|_| "Cannot read wasmtime memory")
+                memory.read(&mut store, offset, buffer)
             })
             .map_err(|(reason, gas_amount)| BackendError {
-                reason,
+                reason: WasmtimeEnvironmentError::MemoryAccess(reason),
                 description: None,
                 gas_amount,
             })
@@ -94,18 +118,24 @@ impl<E: Ext + IntoExtInfo> WasmtimeEnvironment<E> {
     }
 }
 
-impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
+impl<E> Environment<E> for WasmtimeEnvironment<E>
+where
+    E: Ext + IntoExtInfo,
+{
+    type Error = WasmtimeEnvironmentError;
+
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<'static>> {
+    ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);
 
         let engine = Engine::default();
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
+            termination_reason: None,
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
@@ -114,7 +144,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Create env memory failed",
+                    reason: WasmtimeEnvironmentError::CreateEnvMemory,
                     description: Some(e.to_string().into()),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
@@ -174,7 +204,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             Ok(module) => module,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Unable to create module",
+                    reason: WasmtimeEnvironmentError::ModuleCreation,
                     description: Some(e.to_string().into()),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
@@ -185,7 +215,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         for import in module.imports() {
             if import.module() != "env" {
                 return Err(BackendError {
-                    reason: "Non-env imports are not supported",
+                    reason: WasmtimeEnvironmentError::NonEnvImports,
                     description: import
                         .name()
                         .map(|v| format!("Function {:?} is not env", v).into()),
@@ -211,7 +241,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                 externs.push(host_function);
             } else {
                 return Err(BackendError {
-                    reason: "Missing import",
+                    reason: WasmtimeEnvironmentError::MissingImport,
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
@@ -223,7 +253,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             Ok(instance) => instance,
             Err(e) => {
                 return Err(BackendError {
-                    reason: "Unable to create instance",
+                    reason: WasmtimeEnvironmentError::InstanceCreation,
                     description: Some(e.to_string().into()),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
@@ -233,7 +263,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         // Set module memory data
         if let Err(e) = set_pages(&mut store, &mut memory, memory_pages) {
             return Err(BackendError {
-                reason: "Unable to set module memory data",
+                reason: WasmtimeEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: ext_carrier.into_inner().into_gas_amount(),
             });
@@ -267,13 +297,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         self.memory.data_ptr(&self.store) as HostPointer
     }
 
-    fn execute<F>(
+    fn execute<F, T>(
         mut self,
         entry_point: &str,
         post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError>
+    ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), &'static str>,
+        F: FnOnce(HostPointer) -> Result<(), T>,
+        T: fmt::Display,
     {
         let func = self.instance.get_func(&mut self.store, entry_point);
 
@@ -290,7 +321,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     info,
                 }),
                 Err(e) => Err(BackendError {
-                    reason: e,
+                    reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
                     description: None,
                     gas_amount: info.gas_amount,
                 }),
@@ -299,22 +330,16 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
+        let termination_reason = self.store.data().termination_reason.clone();
+
         let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
 
         let termination = if let Err(e) = &res {
-            let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
-                let trap = trap.to_string();
-
+            let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
                 if let Some(value_dest) = info.exit_argument {
                     Some(TerminationReason::Exit(value_dest))
-                } else if common_funcs::is_wait_trap(&trap) {
-                    Some(TerminationReason::Wait)
-                } else if common_funcs::is_leave_trap(&trap) {
-                    Some(TerminationReason::Leave)
-                } else if common_funcs::is_gas_allowance_trap(&trap) {
-                    Some(TerminationReason::GasAllowanceExceed)
                 } else {
-                    None
+                    termination_reason
                 }
             } else {
                 None
@@ -331,7 +356,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         match post_execution_handler(wasm_memory_addr) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
-                reason: e,
+                reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
                 description: None,
                 gas_amount: info.gas_amount,
             }),

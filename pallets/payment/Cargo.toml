@@ -1,0 +1,67 @@
+[package]
+name = "pallet-gear-payment"
+version = "0.1.0"
+authors = ['Gear Technologies']
+edition = '2018'
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+description = "Gear main pallet"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+log = { version = "0.4.16", default-features = false }
+parity-wasm = { version = "0.42.2", default-features = false, optional = true }
+primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
+
+# Internal dependencies
+common = { package = "gear-common", path = "../../common", default-features = false }
+
+# Substrate deps
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+[dev-dependencies]
+serde = "1.0.132"
+env_logger = "0.9"
+wabt = "0.10"
+gear-core = { path = "../../core" }
+sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-gear = { path = "../gear" }
+pallet-gas = { path = "../gas" }
+pallet-gear-messenger = { path = "../gear-messenger" }
+pallet-gear-program = { path = "../gear-program" }
+
+[features]
+default = ['std']
+std = [
+	"codec/std",
+	"log/std",
+	"frame-support/std",
+	"frame-system/std",
+	"scale-info/std",
+	"sp-std/std",
+	"sp-runtime/std",
+	"pallet-balances/std",
+	"pallet-transaction-payment/std",
+	"pallet-authorship/std",
+	"primitive-types/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-system/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"parity-wasm",
+]

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, CodeStorage, DAGBasedLedger, GasPrice as _, Origin as _};
+use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
@@ -31,8 +31,8 @@ use super::{
         calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance,
-    GearProgramPallet, Mailbox, MessageInfo, Pallet as GearPallet, Reason,
+    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, Mailbox,
+    MessageInfo, Pallet as GearPallet, Reason,
 };
 
 use utils::*;
@@ -45,7 +45,7 @@ fn unstoppable_block_execution_works() {
         let executions_amount = 10;
         let balance_for_each_execution = user_balance / executions_amount;
 
-        assert!(balance_for_each_execution < <Test as Config>::BlockGasLimit::get());
+        assert!(balance_for_each_execution < <Test as pallet_gas::Config>::BlockGasLimit::get());
 
         let program_id = {
             let res = submit_program_default(USER_2, ProgramCodeKind::Default);
@@ -80,7 +80,7 @@ fn unstoppable_block_execution_works() {
             Event::MessagesDequeued(executions_amount as u32).into(),
         );
 
-        assert_eq!(GasAllowance::<Test>::get(), 0);
+        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1) as u64,
@@ -112,7 +112,7 @@ fn submit_program_expected_failure() {
         );
 
         // Gas limit is too high
-        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
         assert_noop!(
             GearPallet::<Test>::submit_program(
                 Origin::signed(USER_1),
@@ -215,7 +215,7 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - GasAllowance::<Test>::get();
+        let actual_gas_burned = remaining_weight - pallet_gas::Pallet::<Test>::gas_allowance();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
@@ -267,7 +267,7 @@ fn send_message_expected_failure() {
         assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         // Gas limit too high
-        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
         assert_noop!(
             GearPallet::<Test>::send_message(
                 Origin::signed(USER_1),
@@ -319,7 +319,8 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
-            <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
+            <Test as pallet_gas::Config>::BlockGasLimit::get()
+                - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert_eq!(
             BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
@@ -365,7 +366,8 @@ fn unused_gas_released_back_works() {
 
         run_to_block(2, None);
         let user1_actual_msgs_spends = GasPrice::gas_price(
-            <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
+            <Test as pallet_gas::Config>::BlockGasLimit::get()
+                - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
         assert_eq!(
@@ -381,7 +383,7 @@ fn unused_gas_released_back_works() {
 #[cfg(unix)]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber};
+    use gear_core::memory::{PageNumber, WasmPageNumber};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -476,7 +478,10 @@ fn lazy_pages() {
         // Checks that released pages + lazy pages == all pages
         let all_pages = {
             let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
-            wasm_pages_to_pages_set(all_wasm_pages.iter())
+            all_wasm_pages
+                .iter()
+                .flat_map(|p| p.to_gear_pages_iter())
+                .collect()
         };
         let mut res_pages = lazy_pages;
         res_pages.extend(released_pages.iter());
@@ -585,7 +590,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 791822625 + 6228260 - 1; // calc gas pid1 + pid2 - 1
+        let remaining_weight = 791822425 + 6228060 - 1; // calc gas pid1 + pid2 - 1
 
         // Submit programs and get their ids
         let pid1 = {
@@ -679,9 +684,7 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1.into_origin(),
-                outcome: ExecutionResult::Failure(
-                    b"Gas limit exceeded while trying to send message".to_vec(),
-                ),
+                outcome: ExecutionResult::Failure(b"Gas limit exceeded".to_vec()),
             })
             .into(),
         );
@@ -689,7 +692,7 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         // Equals 0 due to trying execution of msg2.
-        assert_eq!(GasAllowance::<Test>::get(), 0);
+        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
 
         let real_gas_to_burn = expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2;
         let last_block_allowance = real_gas_to_burn + 1;
@@ -708,7 +711,7 @@ fn block_gas_limit_works() {
 
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
         assert_eq!(
-            GasAllowance::<Test>::get(),
+            pallet_gas::Pallet::<Test>::gas_allowance(),
             last_block_allowance - real_gas_to_burn
         );
     });
@@ -2383,8 +2386,7 @@ fn resume_program_works() {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
-        let memory_pages = common::get_program_pages(program_id, program.persistent_pages)
-            .expect("program exists, so do pages");
+        let memory_pages = common::get_program_pages_data(program_id, &program);
 
         assert_ok!(GearProgram::pause_program(program_id));
 

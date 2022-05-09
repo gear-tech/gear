@@ -25,17 +25,15 @@
 //! we define this simple definition of a program that can be passed to `submit_code` that
 //! compiles it down into a `WasmModule` that can be used as a program's code.
 
-use sp_std::marker::PhantomData;
-
 use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
-
 use gear_core::ids::CodeId;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
 };
+use sp_std::marker::PhantomData;
 use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,

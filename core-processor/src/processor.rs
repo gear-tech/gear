@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::common::ExecutionErrorReason;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
@@ -25,6 +26,7 @@ use crate::{
     executor,
     ext::ProcessorExt,
 };
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
@@ -91,7 +93,7 @@ fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
-    err: Option<&'static str>,
+    err: Option<ExecutionErrorReason>,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -129,12 +131,12 @@ fn process_error(
             message_id,
             origin,
             program_id,
-            reason: err.unwrap_or_default(),
+            reason: err.map(|e| e.to_string()),
         },
         _ => DispatchOutcome::MessageTrap {
             message_id,
             program_id,
-            trap: err,
+            trap: err.map(|e| e.to_string()),
         },
     };
 
@@ -160,6 +162,7 @@ fn process_success(
         page_update,
         program_id,
         context_store,
+        allocations,
         ..
     } = dispatch_result;
 
@@ -212,6 +215,13 @@ fn process_success(
             page_number,
             data,
         })
+    }
+
+    if let Some(allocations) = allocations {
+        journal.push(JournalNote::UpdateAllocations {
+            program_id,
+            allocations,
+        });
     }
 
     match kind {
@@ -275,9 +285,12 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         msg_ctx_settings,
     ) {
         Ok(res) => match res.kind {
-            DispatchResultKind::Trap(reason) => {
-                process_error(res.dispatch, program_id, res.gas_amount.burned(), reason)
-            }
+            DispatchResultKind::Trap(reason) => process_error(
+                res.dispatch,
+                program_id,
+                res.gas_amount.burned(),
+                reason.map(|e| e.to_string()).map(ExecutionErrorReason::Ext),
+            ),
             DispatchResultKind::Success => process_success(Success, res),
             DispatchResultKind::Wait => process_success(Wait, res),
             DispatchResultKind::Exit(value_destination) => {
@@ -291,7 +304,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
             if e.allowance_exceed {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
             } else {
-                process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason))
+                process_error(dispatch, program_id, e.gas_amount.burned(), e.reason)
             }
         }
     }

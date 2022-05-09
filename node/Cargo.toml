@@ -21,7 +21,7 @@ clap = { version = "3.1", features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 hex-literal = "0.3.4"
 page_size = "0.4.2"
-libc = { version = "0.2.124", default-features = false }
+libc = { version = "0.2.125", default-features = false }
 nix = "0.24.1"
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
@@ -69,7 +69,6 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear
 
 # Internal
 gear-runtime = { path = "../runtime" }
-gear-lazy-pages = { path = "../lazy-pages" }
 gear-runtime-interface = { path = "../runtime-interface" }
 gear-runtime-test-cli = { path = "../utils/gear-runtime-test-cli" }
 
@@ -81,5 +80,5 @@ substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/ge
 [features]
 runtime-benchmarks = ["gear-runtime/runtime-benchmarks"]
 debug-mode = ["gear-runtime/debug-mode"]
-# Enable features that allow the runtime to be tried and debugged. 
+# Enable features that allow the runtime to be tried and debugged.
 try-runtime = ["gear-runtime/try-runtime", "try-runtime-cli"]

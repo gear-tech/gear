@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-log = { version = "0.4.16", default-features = false }
+log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
 # Internal deps
@@ -35,6 +35,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-program = { path = "../gear-program", default-features = false }
+pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 
 [dev-dependencies]
 parking_lot = "0.12.0"

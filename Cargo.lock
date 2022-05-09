@@ -767,9 +767,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.12"
+version = "3.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c167e37342afc5f33fd87bbc870cedd020d2a6dffa05d45ccd9241fbdd146db"
+checksum = "47582c09be7c8b32c0ab3a6181825ababb713fde6fff20fc573a3870dd45c6a0"
 dependencies = [
  "atty",
  "bitflags",
@@ -797,9 +797,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "189ddd3b5d32a70b35e7686054371742a937b0d99128e76dde6340210e966669"
+checksum = "a37c35f1112dad5e6e0b1adaff798507497a18fceeb30cceb3bae7d1427b9213"
 dependencies = [
  "os_str_bytes",
 ]
@@ -2089,7 +2089,9 @@ dependencies = [
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-core",
+ "gear-core-errors",
  "log",
 ]
 
@@ -2097,8 +2099,10 @@ dependencies = [
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "parity-wasm 0.42.2",
  "sp-sandbox",
@@ -2108,8 +2112,10 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "wasmtime 0.35.1",
 ]
@@ -2118,6 +2124,7 @@ dependencies = [
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -2141,9 +2148,9 @@ dependencies = [
 name = "gear-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "blake2-rfc",
  "derive_more",
+ "gear-core-errors",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2155,13 +2162,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-core-errors"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake2-rfc",
+ "derive_more",
  "gear-backend-common",
  "gear-core",
+ "gear-core-errors",
  "log",
  "parity-scale-codec",
 ]
@@ -2187,7 +2205,6 @@ dependencies = [
  "clap",
  "frame-benchmarking",
  "frame-benchmarking-cli",
- "gear-lazy-pages",
  "gear-runtime",
  "gear-runtime-interface",
  "gear-runtime-test-cli",
@@ -2250,6 +2267,8 @@ dependencies = [
  "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
+ "pallet-gear-messenger",
+ "pallet-gear-payment",
  "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
  "pallet-grandpa",
@@ -2280,6 +2299,7 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "errno",
  "gear-core",
  "gear-lazy-pages",
@@ -2302,12 +2322,15 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-processor",
  "gear-runtime",
  "gear-test",
  "log",
  "pallet-balances",
+ "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
+ "pallet-gear-messenger",
  "parity-scale-codec",
  "rayon",
  "sc-cli",
@@ -3303,9 +3326,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.124"
+version = "0.2.125"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a41fed9d98f27ab1c6d161da622a4fa35e8a54a8adc24bbf3ddd0ef70b0e50"
+checksum = "5916d2ae698f6de9bfb891ad7a8d65c09d232dc58cc4ac433c7da3b2fd84bc2b"
 
 [[package]]
 name = "libc_print"
@@ -3936,9 +3959,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.16"
+version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
+checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if 1.0.0",
  "value-bag",
@@ -4630,6 +4653,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
  "log",
@@ -4637,6 +4661,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
+ "pallet-gear-messenger",
  "pallet-gear-proc-macro",
  "pallet-gear-program",
  "pallet-timestamp",
@@ -4667,10 +4692,12 @@ dependencies = [
  "gear-common",
  "gear-core",
  "hex-literal",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
  "pallet-gear",
+ "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -4678,6 +4705,58 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "wabt",
+]
+
+[[package]]
+name = "pallet-gear-messenger"
+version = "1.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-gear-payment"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gas",
+ "pallet-gear",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "primitive-types",
+ "scale-info",
+ "serde",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4697,6 +4776,7 @@ dependencies = [
 name = "pallet-gear-program"
 version = "2.0.0"
 dependencies = [
+ "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -4891,6 +4971,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gas",
  "pallet-gear",
+ "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -6961,18 +7042,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.136"
+version = "1.0.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce31e24b01e1e524df96f1c2fdd054405f8d7376249a5110886fb4b658484789"
+checksum = "61ea8d54c77f8315140a05f4c7237403bf38b72704d031543aa1d16abbf517d1"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.136"
+version = "1.0.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08597e7152fcd306f41838ed3e37be9eaeed2b61c42e2117266a554fab4662f9"
+checksum = "1f26faba0c3959972377d3b2d306ee9f71faee9714294e41bb777f83f88578be"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6981,9 +7062,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.79"
+version = "1.0.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e8d9fa5c3b304765ce1fd9c4c8a3de2c8db365a5b91be52f186efc675681d95"
+checksum = "9b7ce2b32a1aed03c558dc61a5cd328f15aff2dbc17daad8fb8af04d2100e15c"
 dependencies = [
  "itoa 1.0.1",
  "ryu",
@@ -7001,9 +7082,9 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.8.23"
+version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a521f2940385c165a24ee286aa8599633d162077a54bdcae2a6fd5a7bfa7a0"
+checksum = "707d15895415db6628332b737c838b88c598522e4dc70647e59b72312924aebc"
 dependencies = [
  "indexmap",
  "ryu",
@@ -8005,9 +8086,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "syn"
-version = "1.0.86"
+version = "1.0.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a65b3f4ffa0092e9887669db0eae07941f023991ab58ea44da8fe8e2d511c6b"
+checksum = "7ff7c592601f11445996a06f8ad0c27f094a58857c2f89e97974ab9235b92c52"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8069,18 +8150,18 @@ checksum = "b1141d4d61095b28419e22cb0bbf02755f5e54e0526f97f1e3d1d160e60885fb"
 
 [[package]]
 name = "thiserror"
-version = "1.0.30"
+version = "1.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "854babe52e4df1653706b98fcfc05843010039b406875930a70e4d9644e5c417"
+checksum = "bd829fe32373d27f76265620b5309d0340cb8550f523c1dda251d6298069069a"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.30"
+version = "1.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa32fd3f627f367fe16f893e2597ae3c05020f8bba2666a4e6ea73d377e5714b"
+checksum = "0396bc89e626244658bef819e22d0cc459e795a5ebe878e6ec336d1674a8d79a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8599,9 +8680,9 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "value-bag"
-version = "1.0.0-alpha.8"
+version = "1.0.0-alpha.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79923f7731dc61ebfba3633098bf3ac533bbd35ccd8c57e7088d9a5eebe0263f"
+checksum = "2209b78d1249f7e6f3293657c9779fe31ced465df091bbd433a1cf88e916ec55"
 dependencies = [
  "ctor",
  "version_check",

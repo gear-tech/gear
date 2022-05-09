@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use self::imbalances::{NegativeImbalance, PositiveImbalance};
-use common::{DAGBasedLedger, Origin};
+use common::{Origin, ValueTree};
 use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalance};
 pub use pallet::*;
 pub use primitive_types::H256;
@@ -39,8 +39,6 @@ pub enum ValueType {
     UnspecifiedLocal { parent: H256 },
 }
 
-#[allow(clippy::derivable_impls)]
-// this cannot be derived, despite clippy is saying that!!
 impl Default for ValueType {
     fn default() -> Self {
         ValueType::External {
@@ -52,6 +50,7 @@ impl Default for ValueType {
 
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
+    pub id: H256,
     pub spec_refs: u32,
     pub unspec_refs: u32,
     pub inner: ValueType,
@@ -59,8 +58,9 @@ pub struct ValueNode {
 }
 
 impl ValueNode {
-    pub fn new(origin: H256, value: u64) -> Self {
+    pub fn new(origin: H256, id: H256, value: u64) -> Self {
         Self {
+            id,
             inner: ValueType::External { id: origin, value },
             spec_refs: 0,
             unspec_refs: 0,
@@ -95,9 +95,34 @@ impl ValueNode {
     pub fn refs(&self) -> u32 {
         self.spec_refs.saturating_add(self.unspec_refs)
     }
+
+    /// The first upstream node (self included), that holds a concrete value.
+    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
+    pub fn node_with_value<T: Config>(&self) -> Result<ValueNode, DispatchError> {
+        if let ValueType::UnspecifiedLocal { parent } = self.inner {
+            <Pallet<T>>::get_node(parent)
+                .ok_or(Error::<T>::GasTreeInvalidated)?
+                .node_with_value::<T>()
+        } else {
+            Ok(self.clone())
+        }
+    }
+
+    /// Returns the AccountId (as Origin) of the value tree creator.
+    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
+    pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
+        match self.inner {
+            ValueType::External { id, .. } => Ok(id),
+            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
+                <Pallet<T>>::get_node(parent)
+                    .ok_or(<Error<T>>::GasTreeInvalidated)?
+                    .root_origin::<T>()
+            }
+        }
+    }
 }
 
-pub type ConsumeResult<T> = Option<(NegativeImbalance<T>, H256)>;
+pub type ConsumeOutput<T> = Option<(NegativeImbalance<T>, H256)>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -105,7 +130,11 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// The maximum amount of gas that can be used within a single block.
+        #[pallet::constant]
+        type BlockGasLimit: Get<u64>;
+    }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
@@ -122,21 +151,31 @@ pub mod pallet {
 
         /// Value node doesn't exist for a key
         NodeNotFound,
+
+        /// Gas tree has been invalidated
+        GasTreeInvalidated,
     }
+
+    #[pallet::storage]
+    #[pallet::getter(fn gas_allowance)]
+    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, <T as Config>::BlockGasLimit>;
 
     #[pallet::storage]
     #[pallet::getter(fn total_issuance)]
     pub type TotalIssuance<T> = StorageValue<_, u64, ValueQuery, GetDefault>;
 
     #[pallet::storage]
-    #[pallet::getter(fn value_view)]
-    pub type ValueView<T> = StorageMap<_, Identity, H256, ValueNode>;
+    #[pallet::getter(fn get_node)]
+    pub type GasTree<T> = StorageMap<_, Identity, H256, ValueNode>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            0_u64
+            // Reset block gas allowance
+            Allowance::<T>::put(T::BlockGasLimit::get());
+
+            T::DbWeight::get().writes(1)
         }
 
         /// Finalization
@@ -147,96 +186,98 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        pub fn check_consumed(key: H256) -> ConsumeResult<T> {
+        pub fn update_gas_allowance(gas: u64) {
+            Allowance::<T>::put(gas);
+        }
+
+        pub fn decrease_gas_allowance(gas: u64) {
+            Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
+        }
+
+        /// Check if a node is consumed and does not have any child nodes so it can be deleted.
+        /// If the node's type is `ValueType::External`, the locked value is released to the owner.
+        /// Otherwise this function is called for the parent node to propagate the process furter.
+        pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
             let mut delete_current_node = false;
-            let res = Self::value_view(key).and_then(|current_node| match current_node.inner {
-                ValueType::SpecifiedLocal { parent, .. }
-                | ValueType::UnspecifiedLocal { parent } => {
-                    if current_node.consumed && current_node.refs() == 0 {
-                        let mut parent_node =
-                            Self::value_view(parent).expect("Parent node must exist for any node");
+            let maybe_node = Self::get_node(key);
+            let outcome = if let Some(current_node) = maybe_node {
+                match current_node.inner {
+                    ValueType::SpecifiedLocal { parent, .. }
+                    | ValueType::UnspecifiedLocal { parent } => {
+                        if current_node.consumed && current_node.refs() == 0 {
+                            // Parent node must exist for any node; if it doesn't, the tree's become invalid
+                            let mut parent_node =
+                                Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
+                            assert!(
+                                parent_node.refs() > 0,
+                                "parent node must contain ref to its child node"
+                            );
 
-                        assert!(
-                            parent_node.refs() > 0,
-                            "parent node must contain ref to its child node"
-                        );
+                            if let ValueType::SpecifiedLocal { .. } = current_node.inner {
+                                parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
+                            } else {
+                                parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
+                            }
 
-                        if let ValueType::SpecifiedLocal { .. } = current_node.inner {
-                            parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
-                        } else {
-                            parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
-                        }
-
-                        ValueView::<T>::mutate(parent, |node| {
-                            *node = Some(parent_node);
-                        });
-
-                        if let ValueType::SpecifiedLocal {
-                            value: self_value, ..
-                        } = current_node.inner
-                        {
-                            // this is specified, so it need to get to the first specified parent also
-                            // going up until external or specified parent is found
-
-                            let (parent_key, mut parent_node) = Self::node_with_value(parent);
-
-                            let parent_val = parent_node
-                                .inner_value_mut()
-                                .expect("Querying parent with value");
-
-                            *parent_val = parent_val.saturating_add(self_value);
-
-                            ValueView::<T>::mutate(parent_key, |value| {
-                                *value = Some(parent_node);
+                            GasTree::<T>::mutate(parent, |node| {
+                                *node = Some(parent_node);
                             });
-                        }
 
-                        delete_current_node = true;
-                        Self::check_consumed(parent)
-                    } else {
-                        None
+                            if let ValueType::SpecifiedLocal {
+                                value: self_value, ..
+                            } = current_node.inner
+                            {
+                                // this is specified, so it needs to get to the first specified parent also
+                                // going up until external or specified parent is found
+
+                                // `parent` key is known to exist, hence there must be a node.
+                                // If there isn't, the gas tree is considered corrupted (invalidated).
+                                let mut parent_node = Self::get_node(parent)
+                                    .ok_or(Error::<T>::GasTreeInvalidated)?
+                                    // a node with value must exist for a node, unless tree corrupted
+                                    .node_with_value::<T>()?;
+
+                                // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+                                let parent_val = parent_node
+                                    .inner_value_mut()
+                                    .expect("Querying parent with value");
+
+                                *parent_val = parent_val.saturating_add(self_value);
+
+                                GasTree::<T>::mutate(parent_node.id, |value| {
+                                    *value = Some(parent_node);
+                                });
+                            }
+
+                            delete_current_node = true;
+                            Self::check_consumed(parent)?
+                        } else {
+                            None
+                        }
+                    }
+                    ValueType::External { id, value } => {
+                        if current_node.refs() == 0 && current_node.consumed {
+                            delete_current_node = true;
+                            Some((NegativeImbalance::new(value), id))
+                        } else {
+                            None
+                        }
                     }
                 }
-                ValueType::External { id, value } => {
-                    if current_node.refs() == 0 && current_node.consumed {
-                        delete_current_node = true;
-                        Some((NegativeImbalance::new(value), id))
-                    } else {
-                        None
-                    }
-                }
-            });
+            } else {
+                None
+            };
 
             if delete_current_node {
-                ValueView::<T>::remove(key);
+                GasTree::<T>::remove(key);
             }
 
-            res
-        }
-
-        pub fn node_root_origin(node: &ValueNode) -> H256 {
-            match node.inner {
-                ValueType::External { id, .. } => id,
-                ValueType::SpecifiedLocal { parent, .. }
-                | ValueType::UnspecifiedLocal { parent } => {
-                    Self::node_root_origin(&Self::value_view(parent).expect("Parent should exist"))
-                }
-            }
-        }
-
-        pub fn node_with_value(key: H256) -> (H256, ValueNode) {
-            let node =
-                Self::value_view(key).expect("Only existing key should be provided by the caller");
-            if let ValueType::UnspecifiedLocal { parent } = node.inner {
-                Self::node_with_value(parent)
-            } else {
-                (key, node)
-            }
+            Ok(outcome)
         }
     }
 }
 
-impl<T: Config> DAGBasedLedger for Pallet<T>
+impl<T: Config> ValueTree for Pallet<T>
 where
     T::AccountId: Origin,
 {
@@ -245,6 +286,7 @@ where
     type Balance = u64;
     type PositiveImbalance = PositiveImbalance<T>;
     type NegativeImbalance = NegativeImbalance<T>;
+    type Error = DispatchError;
 
     fn total_supply() -> u64 {
         Self::total_issuance()
@@ -253,42 +295,54 @@ where
     /// Releases in circulation a certain amount of newly created gas
     fn create(origin: H256, key: H256, amount: u64) -> Result<PositiveImbalance<T>, DispatchError> {
         ensure!(
-            !ValueView::<T>::contains_key(key),
+            !GasTree::<T>::contains_key(key),
             Error::<T>::GasTreeAlreadyExists
         );
 
-        let node = ValueNode::new(origin, amount);
+        let node = ValueNode::new(origin, key, amount);
 
         // Save value node to storage
-        ValueView::<T>::insert(key, node);
+        GasTree::<T>::insert(key, node);
 
         Ok(PositiveImbalance::new(amount))
     }
 
-    fn get_origin(key: H256) -> Option<H256> {
-        Self::value_view(key).map(|node| Self::node_root_origin(&node))
-    }
-
-    fn get_limit(key: H256) -> Option<(u64, H256)> {
-        Self::value_view(key).and_then(|node| {
-            if let Some(value) = node.inner_value() {
-                Some((value, key))
-            } else {
-                node.parent().and_then(Self::get_limit)
-            }
+    fn get_origin(key: H256) -> Result<Option<H256>, DispatchError> {
+        Ok(if let Some(node) = Self::get_node(key) {
+            // key known, must return the origin, unless corrupted
+            Some(node.root_origin::<T>()?)
+        } else {
+            // key unknown - legitimate result
+            None
         })
     }
 
-    fn consume(key: H256) -> ConsumeResult<T> {
+    fn get_limit(key: H256) -> Result<Option<u64>, DispatchError> {
+        if let Some(node) = Self::get_node(key) {
+            Ok({
+                let node_with_value = node.node_with_value::<T>()?;
+                // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+                let v = node_with_value
+                    .inner_value()
+                    .expect("The node here is either external or specified, hence the inner value");
+                Some(v)
+            })
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn consume(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
         let mut delete_current_node = false;
         let mut consume_parent_node = false;
-        Self::value_view(key).and_then(|mut node| {
+        let maybe_node = Self::get_node(key);
+        let outcome = if let Some(mut node) = maybe_node {
             match node.inner {
                 ValueType::UnspecifiedLocal { parent }
                 | ValueType::SpecifiedLocal { parent, .. } => {
+                    // Parent node must exist for any node; if it doesn't, the tree's become invalid
                     let mut parent_node =
-                        Self::value_view(parent).expect("Parent node must exist for any node");
-
+                        Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
                     assert!(
                         parent_node.refs() > 0,
                         "parent node must contain ref to its child node"
@@ -310,31 +364,36 @@ where
 
                     if delete_current_node {
                         // Update parent node
-                        ValueView::<T>::mutate(parent, |value| {
+                        GasTree::<T>::mutate(parent, |value| {
                             *value = Some(parent_node);
                         });
                     }
 
-                    // Upstream value to the first node that limits value
                     if let ValueType::SpecifiedLocal {
                         value: self_value, ..
                     } = node.inner
                     {
                         if node.unspec_refs == 0 {
-                            let (parent_key, mut parent_node) = Self::node_with_value(parent);
+                            // Any node of type `ValueType::SpecifiedLocal` must have a parent
+                            let mut parent_node = Self::get_node(parent)
+                                .ok_or(<Error<T>>::GasTreeInvalidated)?
+                                // Upstream node with a concrete value must exist for any node
+                                .node_with_value::<T>()?;
+
+                            // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
                             let parent_val = parent_node
                                 .inner_value_mut()
                                 .expect("Querying parent with value");
                             *parent_val = parent_val.saturating_add(self_value);
 
-                            ValueView::<T>::mutate(parent_key, |value| {
+                            GasTree::<T>::mutate(parent_node.id, |value| {
                                 *value = Some(parent_node);
                             });
                         }
                     }
 
                     if delete_current_node {
-                        ValueView::<T>::remove(key);
+                        GasTree::<T>::remove(key);
                     } else {
                         node.consumed = true;
 
@@ -344,7 +403,7 @@ where
                             };
 
                             // Save current node
-                            ValueView::<T>::mutate(key, |value| {
+                            GasTree::<T>::mutate(key, |value| {
                                 *value = Some(node);
                             });
                         }
@@ -352,7 +411,7 @@ where
 
                     // now check if the parent node can be consumed as well
                     if consume_parent_node {
-                        Self::check_consumed(parent)
+                        Self::check_consumed(parent)?
                     } else {
                         None
                     }
@@ -362,12 +421,12 @@ where
 
                     if node.refs() == 0 {
                         // Delete current node
-                        ValueView::<T>::remove(id);
+                        GasTree::<T>::remove(id);
 
                         Some((NegativeImbalance::new(value), id))
                     } else {
                         // Save current node
-                        ValueView::<T>::mutate(key, |n| {
+                        GasTree::<T>::mutate(key, |n| {
                             *n = Some(node);
                         });
 
@@ -375,21 +434,29 @@ where
                     }
                 }
             }
-        })
+        } else {
+            None
+        };
+
+        Ok(outcome)
     }
 
     fn spend(key: H256, amount: u64) -> Result<NegativeImbalance<T>, DispatchError> {
-        Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
-        let (key, mut node) = Self::node_with_value(key);
+        // Upstream node with a concrete value exist for any node.
+        // If it doesn't, the tree is considered invalidated.
+        let mut node = Self::get_node(key)
+            .ok_or(Error::<T>::NodeNotFound)?
+            .node_with_value::<T>()?;
 
+        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         ensure!(
             node.inner_value().expect("Querying node with value") >= amount,
             Error::<T>::InsufficientBalance
         );
         *node.inner_value_mut().expect("Querying node with value") -= amount;
 
-        // Save current node
-        ValueView::<T>::mutate(key, |value| {
+        // Save node that deliveres limit
+        GasTree::<T>::mutate(node.id, |value| {
             *value = Some(node);
         });
 
@@ -397,11 +464,12 @@ where
     }
 
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
-        let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
+        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
         node.unspec_refs = node.unspec_refs.saturating_add(1);
 
         let new_node = ValueNode {
+            id: new_node_key,
             inner: ValueType::UnspecifiedLocal { parent: key },
             spec_refs: 0,
             unspec_refs: 0,
@@ -409,9 +477,9 @@ where
         };
 
         // Save new node
-        ValueView::<T>::insert(new_node_key, new_node);
+        GasTree::<T>::insert(new_node_key, new_node);
         // Update current node
-        ValueView::<T>::mutate(key, |value| {
+        GasTree::<T>::mutate(key, |value| {
             *value = Some(node);
         });
 
@@ -419,8 +487,13 @@ where
     }
 
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
-        let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
-        let (_, node_with_value) = Self::node_with_value(key);
+        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        // Upstream node with a concrete value exist for any node.
+        // If it doesn't, the tree is considered invalidated.
+        let node_with_value = node.node_with_value::<T>()?;
+
+        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         ensure!(
             node_with_value
                 .inner_value()
@@ -432,6 +505,7 @@ where
         node.spec_refs = node.spec_refs.saturating_add(1);
 
         let new_node = ValueNode {
+            id: new_node_key,
             inner: ValueType::SpecifiedLocal {
                 value: amount,
                 parent: key,
@@ -442,14 +516,19 @@ where
         };
 
         // Save new node
-        ValueView::<T>::insert(new_node_key, new_node);
+        GasTree::<T>::insert(new_node_key, new_node);
         // Update current node
-        ValueView::<T>::mutate(key, |value| {
+        GasTree::<T>::mutate(key, |value| {
             *value = Some(node);
         });
 
         // re-querying it since it might be the same node we already updated above.. :(
-        let (node_key_with_value, mut node_with_value) = Self::node_with_value(key);
+        let mut node_with_value =
+            // NOTE: intentional expects. Querying the same nodes we did earlier in this function
+            Self::get_node(key).expect("Node exists")
+                .node_with_value::<T>().expect("Node with value exists");
+
+        // NOTE: intentional expects. A node_with_value is guaranteed to have inner_value
         ensure!(
             node_with_value
                 .inner_value()
@@ -460,7 +539,7 @@ where
         *node_with_value
             .inner_value_mut()
             .expect("Querying node with value") -= amount;
-        ValueView::<T>::mutate(node_key_with_value, |value| {
+        GasTree::<T>::mutate(node_with_value.id, |value| {
             *value = Some(node_with_value);
         });
 

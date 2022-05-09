@@ -28,13 +28,16 @@ use gear_core::memory::PageNumber;
 
 pub use sp_std::{result::Result, vec::Vec};
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 pub enum MprotectError {
+    #[display(fmt = "Page error")]
     PageError,
+    #[display(fmt = "OS error")]
     OsError,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
+#[display(fmt = "Failed to get released page")]
 pub struct GetReleasedPageError;
 
 /// TODO: deprecated remove before release
@@ -115,13 +118,20 @@ unsafe fn sys_mprotect_interval(
     let res = libc::mprotect(addr as *mut libc::c_void, size, prot_mask);
     if res != 0 {
         log::error!(
-            "Cannot set page protection for {:#x}: {}",
+            "Cannot set page protection for addr={:#x} size={:#x} mask={:#x}: {}",
             addr,
+            size,
+            prot_mask,
             errno::errno()
         );
         return Err(MprotectError::PageError);
     }
-    log::trace!("mprotect native page: {:#x}, mask {:#x}", addr, prot_mask);
+    log::trace!(
+        "mprotect native page: {:#x}, size: {:#x}, mask {:#x}",
+        addr,
+        size,
+        prot_mask
+    );
     Ok(())
 }
 
@@ -168,7 +178,7 @@ pub trait GearRI {
     }
 
     /// Mprotect all lazy pages.
-    /// If `protect` argument is true then restrict all accesses to page,
+    /// If `protect` argument is true then restrict all accesses to pages,
     /// else allows read and write accesses.
     fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
         let lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
@@ -212,6 +222,10 @@ pub trait GearRI {
 
     fn init_lazy_pages() -> bool {
         unsafe { gear_lazy_pages::init_lazy_pages() }
+    }
+
+    fn is_lazy_pages_enabled() -> bool {
+        gear_lazy_pages::is_lazy_pages_enabled()
     }
 
     fn reset_lazy_pages_info() {

@@ -100,7 +100,7 @@ clippy-release: clippy-gear-release clippy-examples
 
 .PHONY: clippy-gear
 clippy-gear:
-	@ ./scripts/gear.sh clippy gear
+	@ ./scripts/gear.sh clippy gear --all-targets --all-features
 
 .PHONY: clippy-gear-release
 clippy-gear-release:
@@ -201,7 +201,7 @@ purge-dev-chain-release:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest
+test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-release
 test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
@@ -235,6 +235,6 @@ test-pallet:
 test-pallet-release:
 	@ ./scripts/gear.sh test pallet --release
 
-.PHONE: test-runtime-upgrade
+.PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
