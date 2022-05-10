@@ -28,6 +28,8 @@ sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate
 sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
+	"wasmer-sandbox",
+	"wasmer-cache",
 ] }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
