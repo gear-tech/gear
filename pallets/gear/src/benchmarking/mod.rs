@@ -146,7 +146,7 @@ where
     T::AccountId: Origin,
 {
     assert!(
-        lazy_pages::try_to_enable_lazy_pages(),
+        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages(),
         "Suppose to run benchs only with lazy pages"
     );
 

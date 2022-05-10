@@ -147,6 +147,7 @@ impl ProcessorExt for LazyPagesExt {
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
     ) -> Self {
+        assert!(cfg!(feature = "lazy-pages"));
         Self {
             inner: Ext {
                 gas_counter,
