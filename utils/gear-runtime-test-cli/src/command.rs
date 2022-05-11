@@ -202,7 +202,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
         };
-        gear_common::set_program_and_pages_data(*id, program, Default::default());
+        gear_common::set_program(*id, program);
     }
 
     // Enable remapping of the source and destination of messages

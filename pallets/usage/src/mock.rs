@@ -301,7 +301,7 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
     let (code, _) = code_and_id.into_parts();
     let program = Program::new(program_id, code);
 
-    common::set_program_and_pages_data(
+    common::set_program(
         H256::from_slice(program.id().as_ref()),
         common::ActiveProgram {
             allocations: program.get_allocations().clone(),
@@ -309,7 +309,6 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
             code_hash,
             state: common::ProgramState::Initialized,
         },
-        Default::default(),
     );
 
     program

@@ -426,22 +426,27 @@ pub fn get_program_data_for_pages<'a>(
 }
 
 pub fn set_program(id: H256, program: ActiveProgram) {
-    log::debug!("set program with id = {}", id);
+    log::trace!("set program with id = {}", id);
     sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
 }
+
+#[derive(Debug)]
+pub struct PageIsNotAllocatedErr(pub PageNumber);
 
 pub fn set_program_and_pages_data(
     id: H256,
     program: ActiveProgram,
     persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
-) {
+) -> Result<(), PageIsNotAllocatedErr> {
     for (page_num, page_buf) in persistent_pages {
-        // TODO: remove this panic and make result (issue 883)
-        assert!(program.allocations.contains(&page_num.to_wasm_page()));
+        if !program.allocations.contains(&page_num.to_wasm_page()) {
+            return Err(PageIsNotAllocatedErr(page_num));
+        }
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
     set_program(id, program);
+    Ok(())
 }
 
 pub fn program_exists(id: H256) -> bool {

@@ -110,7 +110,12 @@ impl<T: Config> pallet::Pallet<T> {
 
         PausedPrograms::<T>::remove(program_id);
 
-        common::set_program_and_pages_data(program_id, paused_program.program, memory_pages);
+        if let Err(err) =
+            common::set_program_and_pages_data(program_id, paused_program.program, memory_pages)
+        {
+            log::error!("Wrong page with data number: {:?}", err.0);
+            return Err(Error::<T>::WrongPageWithDataNumber.into());
+        }
 
         wait_list.into_iter().for_each(|(msg_id, d)| {
             common::insert_waiting_message(program_id, msg_id, d, block_number)
