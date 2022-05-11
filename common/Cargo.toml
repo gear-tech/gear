@@ -52,4 +52,3 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "parity-wasm",
 ]
-disable_lazy_pages = []

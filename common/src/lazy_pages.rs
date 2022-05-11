@@ -64,7 +64,7 @@ fn mprotect_lazy_pages(addr: u64, protect: bool) -> Result<(), Error> {
 
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages() -> bool {
-    if cfg!(feature = "disable_lazy_pages") || !gear_ri::init_lazy_pages() {
+    if !gear_ri::init_lazy_pages() {
         // TODO: lazy-pages must be disabled in validators in relay-chain,
         // but it can be fixed in future only.
         log::debug!("lazy-pages: disabled or unsupported");

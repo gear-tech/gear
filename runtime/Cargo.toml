@@ -130,3 +130,4 @@ try-runtime = [
 debug-mode = [
 	"pallet-gear-debug",
 ]
+lazy-pages = ["pallet-gear/lazy-pages"]
