@@ -26,6 +26,7 @@ use core::task::{Context, Waker};
 pub type Payload = Vec<u8>;
 pub type ExitCode = i32;
 
+#[derive(Debug)]
 pub(crate) enum ReplyPoll {
     None,
     Pending,

@@ -38,7 +38,7 @@ impl CargoCommand {
             manifest_path: "Cargo.toml".into(),
             args: vec!["+nightly", "rustc", "--target=wasm32-unknown-unknown"],
             profile: "dev".to_string(),
-            rustc_flags: vec!["-C", "link-arg=--import-memory"],
+            rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
         }
     }
 

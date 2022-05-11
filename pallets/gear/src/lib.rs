@@ -558,7 +558,8 @@ pub mod pallet {
             {
                 let actor_id = queued_dispatch.destination();
 
-                let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
+                let lazy_pages_enabled =
+                    cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
                     .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
@@ -731,7 +732,8 @@ pub mod pallet {
                     );
 
                     let schedule = T::Schedule::get();
-                    let lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages();
+                    let lazy_pages_enabled =
+                        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
@@ -955,6 +957,7 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
+        #[frame_support::transactional]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1026,6 +1029,7 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
+        #[frame_support::transactional]
         pub fn submit_program(
             origin: OriginFor<T>,
             code: Vec<u8>,

@@ -180,6 +180,8 @@ pub trait StorageDeque: Sized {
             }
         }
 
+        Self::Length::clear();
+
         Ok(())
     }
 
