@@ -18,6 +18,8 @@
 
 //! Program creation module
 
+pub mod salt_factory;
+
 use crate::{prelude::convert::AsRef, ActorId, CodeHash};
 
 pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
