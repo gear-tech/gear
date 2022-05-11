@@ -19,13 +19,11 @@
 use crate::js::{MetaData, MetaType};
 use crate::proc;
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
+use crate::Ext;
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::common::ExecutableActor;
-use core_processor::{
-    common::{CollectState, JournalHandler},
-    Ext,
-};
+use core_processor::common::{CollectState, JournalHandler};
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;

@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    ext::Ext,
     log::{CoreLog, RunResult},
     program::WasmProgram,
 };
-use core_processor::{common::*, configs::BlockInfo, Ext};
+use core_processor::{common::*, configs::BlockInfo};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},

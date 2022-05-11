@@ -427,8 +427,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -505,8 +505,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -550,8 +550,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -583,8 +583,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -616,8 +616,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -649,8 +649,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -684,8 +684,8 @@ benchmarks! {
 
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -717,8 +717,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -750,8 +750,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -795,8 +795,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -851,8 +851,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -911,8 +911,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -956,8 +956,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1001,8 +1001,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1047,8 +1047,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1105,8 +1105,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1163,8 +1163,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1233,8 +1233,8 @@ benchmarks! {
     }: {
 
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1303,8 +1303,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1363,8 +1363,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1421,8 +1421,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1471,8 +1471,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1519,8 +1519,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1569,8 +1569,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1626,8 +1626,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1673,8 +1673,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1720,8 +1720,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1787,8 +1787,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,
@@ -1867,8 +1867,8 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
+                    ext::Ext,
+                    SandboxEnvironment<ext::Ext>,
                 >(
                     maybe_actor,
                     dispatch,

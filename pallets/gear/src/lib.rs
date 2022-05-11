@@ -97,7 +97,7 @@ pub mod pallet {
     use super::*;
 
     use crate::{
-        ext::LazyPagesExt,
+        ext::Ext,
         manager::{ExtManager, HandleKind},
     };
     use alloc::format;
@@ -107,7 +107,6 @@ pub mod pallet {
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
-        Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -564,31 +563,17 @@ pub mod pallet {
                     .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-                let journal = if lazy_pages_enabled {
-                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(initial_gas),
-                        block_info,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                    )
-                } else {
-                    core_processor::process::<Ext, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(initial_gas),
-                        block_info,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                    )
-                };
+                let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
+                    Some(actor),
+                    queued_dispatch.into_incoming(initial_gas),
+                    block_info,
+                    existential_deposit,
+                    ProgramId::from_origin(source),
+                    actor_id,
+                    u64::MAX,
+                    T::OutgoingLimit::get(),
+                    schedule.host_fn_weights.clone().into_core(),
+                );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
@@ -833,31 +818,17 @@ pub mod pallet {
                         }
                     };
 
-                    let journal = if lazy_pages_enabled {
-                        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                            maybe_active_actor,
-                            dispatch.into_incoming(gas_limit),
-                            block_info,
-                            existential_deposit,
-                            ProgramId::from_origin(origin),
-                            program_id,
-                            GasPallet::<T>::gas_allowance(),
-                            T::OutgoingLimit::get(),
-                            schedule.host_fn_weights.into_core(),
-                        )
-                    } else {
-                        core_processor::process::<Ext, SandboxEnvironment<_>>(
-                            maybe_active_actor,
-                            dispatch.into_incoming(gas_limit),
-                            block_info,
-                            existential_deposit,
-                            ProgramId::from_origin(origin),
-                            program_id,
-                            GasPallet::<T>::gas_allowance(),
-                            T::OutgoingLimit::get(),
-                            schedule.host_fn_weights.into_core(),
-                        )
-                    };
+                    let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        maybe_active_actor,
+                        dispatch.into_incoming(gas_limit),
+                        block_info,
+                        existential_deposit,
+                        ProgramId::from_origin(origin),
+                        program_id,
+                        GasPallet::<T>::gas_allowance(),
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.into_core(),
+                    );
 
                     core_processor::handle_journal(journal, &mut ext_manager);
 

@@ -20,7 +20,8 @@ use crate::address::Address;
 use crate::check::ExecutionContext;
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
-use core_processor::{common::*, configs::*, Ext};
+use crate::Ext;
+use core_processor::{common::*, configs::*};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},

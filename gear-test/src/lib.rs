@@ -25,7 +25,10 @@
 
 pub mod address;
 pub mod check;
+pub mod ext;
 pub mod js;
 pub mod manager;
 pub mod proc;
 pub mod sample;
+
+pub use ext::Ext;
