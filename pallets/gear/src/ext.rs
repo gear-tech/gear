@@ -146,6 +146,7 @@ impl ProcessorExt for LazyPagesExt {
         program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
+        forbidden_funcs: Vec<&'static str>,
     ) -> Self {
         assert!(cfg!(feature = "lazy-pages"));
         Self {
@@ -164,6 +165,7 @@ impl ProcessorExt for LazyPagesExt {
                 program_id,
                 program_candidates_data,
                 host_fn_weights,
+                forbidden_funcs,
             },
         }
     }
@@ -392,5 +394,9 @@ impl EnvExt for LazyPagesExt {
         costs: gear_core::costs::RuntimeCosts,
     ) -> Result<(), Self::Error> {
         self.inner.charge_gas_runtime(costs).map_err(Error::Core)
+    }
+
+    fn forbidden_funcs(&self) -> &[&'static str] {
+        &self.inner.forbidden_funcs
     }
 }

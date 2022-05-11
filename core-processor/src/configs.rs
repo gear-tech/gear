@@ -18,6 +18,7 @@
 
 //! Configurations.
 
+use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use gear_core::costs::HostFnWeights;
 use gear_core::memory::WasmPageNumber;
@@ -74,6 +75,8 @@ pub struct ExecutionSettings {
     pub existential_deposit: u128,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
+    /// Functions forbidden to be called.
+    pub forbidden_funcs: Vec<&'static str>,
 }
 
 impl ExecutionSettings {
@@ -82,12 +85,14 @@ impl ExecutionSettings {
         block_info: BlockInfo,
         existential_deposit: u128,
         host_fn_weights: HostFnWeights,
+        forbidden_funcs: Vec<&'static str>,
     ) -> Self {
         Self {
             block_info,
             existential_deposit,
             config: Default::default(),
             host_fn_weights,
+            forbidden_funcs,
         }
     }
 

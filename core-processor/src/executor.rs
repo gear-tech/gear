@@ -191,6 +191,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program_id,
         Default::default(),
         settings.host_fn_weights,
+        settings.forbidden_funcs,
     );
 
     // TODO: will be fixed later issue 881

@@ -53,4 +53,4 @@ pub use executor::execute_wasm;
 pub use ext::Ext;
 pub use ext::ProcessorExt;
 pub use handler::handle_journal;
-pub use processor::process;
+pub use processor::{process, Processor};

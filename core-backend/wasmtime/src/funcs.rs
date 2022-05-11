@@ -60,6 +60,8 @@ enum FuncError<E> {
     Leave,
     #[display(fmt = "`gr_wait` has been called")]
     Wait,
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 impl<E> FuncError<E> {
@@ -723,6 +725,13 @@ where
                 ext.wake(waker_id).map_err(FuncError::Core)
             })
             .map_err(Trap::new)
+        };
+        Func::wrap(store, func)
+    }
+
+    pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
+        let func = move |_: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
+            Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
         };
         Func::wrap(store, func)
     }

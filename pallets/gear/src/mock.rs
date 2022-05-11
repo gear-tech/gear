@@ -23,7 +23,7 @@ use common::Origin as _;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
-    Ext,
+    Ext, Processor,
 };
 use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
@@ -258,29 +258,24 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
 
+    let processor = Processor::new()
+        .block_info(block_info)
+        .existential_deposit(existential_deposit)
+        .origin(ProgramId::from_origin(source))
+        .program_id(ProgramId::from_origin(dest))
+        .outgoing_limit(<Test as pallet_gear::Config>::OutgoingLimit::get())
+        .host_fn_weights(schedule.host_fn_weights.into_core())
+        .forbidden_funcs(vec!["gr_gas_available"]);
+
     let journal = if lazy_pages_enabled {
-        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+        processor.process::<LazyPagesExt, SandboxEnvironment<_>>(
             Some(actor),
             dispatch.into_stored().into_incoming(initial_gas),
-            block_info,
-            existential_deposit,
-            ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
-            u64::MAX,
-            <Test as pallet_gear::Config>::OutgoingLimit::get(),
-            schedule.host_fn_weights.into_core(),
         )
     } else {
-        core_processor::process::<Ext, SandboxEnvironment<_>>(
+        processor.process::<Ext, SandboxEnvironment<_>>(
             Some(actor),
             dispatch.into_stored().into_incoming(initial_gas),
-            block_info,
-            existential_deposit,
-            ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
-            u64::MAX,
-            <Test as pallet_gear::Config>::OutgoingLimit::get(),
-            schedule.host_fn_weights.into_core(),
         )
     };
 

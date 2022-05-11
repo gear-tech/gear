@@ -151,6 +151,9 @@ pub trait Ext {
 
     /// Send init message to create a new program
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
+
+    /// Return the list of functions that are forbidden to be called.
+    fn forbidden_funcs(&self) -> &[&'static str];
 }
 
 /// An error occurred during [`ExtCarrier::with_fallible`] which should be called only when inner is set
@@ -368,6 +371,9 @@ mod tests {
         }
         fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
             Ok(Default::default())
+        }
+        fn forbidden_funcs(&self) -> &[&'static str] {
+            &[]
         }
     }
 
