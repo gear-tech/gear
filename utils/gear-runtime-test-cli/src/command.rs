@@ -18,39 +18,41 @@
 
 #![allow(unused_must_use)]
 
-use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use crate::util::{get_dispatch_queue, new_test_ext, process_queue};
-use crate::GearRuntimeTestCmd;
+use crate::{
+    util::{get_dispatch_queue, new_test_ext, process_queue},
+    GearRuntimeTestCmd,
+};
 use colored::{ColoredString, Colorize};
-
-use gear_runtime::{Origin, Runtime};
-
+use gear_common::{
+    storage::{Messenger, StorageDeque},
+    CodeStorage, Origin as _, ValueTree,
+};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
-
-use gear_common::{CodeStorage, Origin as _, ValueTree};
 use gear_core_processor::common::ExecutableActor;
-use gear_test::sample::ChainProgram;
+use gear_runtime::{Origin, Runtime};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
     proc::*,
-    sample,
-    sample::PayloadVariant,
+    sample::{self, ChainProgram, PayloadVariant},
 };
+use pallet_gas::Pallet as GasPallet;
 use pallet_gear::Pallet as GearPallet;
 use pallet_gear_debug::{DebugData, ProgramState};
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
-use sp_runtime::app_crypto::UncheckedFrom;
-use sp_runtime::AccountId32;
+use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
+use std::{
+    collections::BTreeMap,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -252,7 +254,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
         let gas_limit = message
             .gas_limit
-            .unwrap_or(GearPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64);
+            .unwrap_or(GasPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64);
 
         let value = message.value.unwrap_or(0);
 
@@ -271,7 +273,11 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 value,
                 None,
             );
-            gear_common::queue_dispatch(StoredDispatch::new(DispatchKind::Handle, msg, None));
+
+            <<MessengerPallet<Runtime> as Messenger>::Queue as StorageDeque>::push_back(
+                StoredDispatch::new(DispatchKind::Handle, msg, None),
+            )
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             GearPallet::<Runtime>::send_message(
                 Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),

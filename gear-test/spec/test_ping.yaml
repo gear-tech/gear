@@ -7,6 +7,12 @@ programs:
       kind: account
       value: alice
 
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_ping_gas.opt.wasm
+    source:
+      kind: account
+      value: alice
+
 fixtures:
   - title: ping-pong
 
@@ -15,14 +21,6 @@ fixtures:
         payload:
           kind: utf-8
           value: PING
-      - destination: 1
-        payload:
-          kind: utf-8
-          value: PING_REPLY_WITH_GAS
-      - destination: 1
-        payload:
-          kind: utf-8
-          value: PING_REPLY_COMMIT_WITH_GAS
 
     expected:
       - log:
@@ -30,7 +28,21 @@ fixtures:
           payload:
             kind: utf-8
             value: PONG
-          gas_limit: 0
+
+  - title: ping-pong wgas
+
+    messages:
+      - destination: 2
+        payload:
+          kind: utf-8
+          value: PING_REPLY_WITH_GAS
+      - destination: 2
+        payload:
+          kind: utf-8
+          value: PING_REPLY_COMMIT_WITH_GAS
+
+    expected:
+      - log:
         - destination: 1000001
           payload:
             kind: utf-8

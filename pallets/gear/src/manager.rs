@@ -22,7 +22,9 @@ use crate::{
 };
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
-use common::{ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree};
+use common::{
+    storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
+};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -35,6 +37,8 @@ use gear_core::{
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
+use pallet_gas::Pallet as GasPallet;
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
@@ -125,8 +129,6 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
-        Pallet::<T>::message_handled();
-
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
@@ -176,7 +178,9 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            common::queue_dispatch(m);
+                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
+                                |e| unreachable!("Message queue corrupted! {:?}", e),
+                            );
                         }
                     });
 
@@ -208,7 +212,9 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            common::queue_dispatch(m);
+                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
+                                |e| unreachable!("Message queue corrupted! {:?}", e),
+                            );
                         }
                     });
 
@@ -243,7 +249,7 @@ where
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
-        Pallet::<T>::decrease_gas_allowance(amount);
+        GasPallet::<T>::decrease_gas_allowance(amount);
 
         match T::GasHandler::spend(message_id, amount) {
             Ok(_) => {
@@ -289,7 +295,8 @@ where
         let program_id = id_exited.into_origin();
 
         for message in common::remove_program_waitlist(program_id) {
-            common::queue_dispatch(message);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
         let res = common::set_program_terminated_status(program_id);
@@ -320,14 +327,17 @@ where
             Ok(maybe_outcome) => {
                 if let Some((neg_imbalance, external)) = maybe_outcome {
                     let gas_left = neg_imbalance.peek();
-                    log::debug!("Unreserve balance on message processed: {}", gas_left);
 
-                    let refund = T::GasPrice::gas_price(gas_left);
+                    if gas_left > 0 {
+                        log::debug!("Unreserve balance on message processed: {}", gas_left);
 
-                    let _ = <T as Config>::Currency::unreserve(
-                        &<T::AccountId as Origin>::from_origin(external),
-                        refund,
-                    );
+                        let refund = T::GasPrice::gas_price(gas_left);
+
+                        let _ = <T as Config>::Currency::unreserve(
+                            &<T::AccountId as Origin>::from_origin(external),
+                            refund,
+                        );
+                    }
                 }
             }
         }
@@ -371,7 +381,9 @@ where
             } else {
                 let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
-            common::queue_dispatch(dispatch);
+
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             let message = dispatch.into_parts().1;
 
@@ -385,8 +397,6 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        Pallet::<T>::message_handled();
-
         common::insert_waiting_message(
             dispatch.destination().into_origin(),
             dispatch.id().into_origin(),
@@ -453,7 +463,8 @@ where
                 }
             };
 
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
@@ -563,12 +574,13 @@ where
         log::debug!(
             "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
-            Pallet::<T>::gas_allowance(),
+            GasPallet::<T>::gas_allowance(),
             gas_burned,
         );
 
-        Pallet::<T>::stop_processing();
-        Pallet::<T>::decrease_gas_allowance(gas_burned);
-        common::queue_dispatch_first(dispatch);
+        <MessengerPallet<T> as Messenger>::Sent::increase();
+        GasPallet::<T>::decrease_gas_allowance(gas_burned);
+        <MessengerPallet<T> as Messenger>::Queue::push_front(dispatch)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 }

@@ -5,10 +5,8 @@ authors = ["Gear Technologies"]
 edition = "2018"
 license = "GPL-3.0"
 
-[dependencies]
 [features]
 debug=[]
 
 [dev-dependencies]
 hex-literal = "0.3.4"
-

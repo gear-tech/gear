@@ -173,6 +173,9 @@ impl WasmProject {
         let to_opt_path = self
             .target_dir
             .join(format!("{}.opt.wasm", &file_base_name));
+
+        let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
+
         Self::generate_opt(&from_path, &to_opt_path)?;
 
         let to_meta_path = self

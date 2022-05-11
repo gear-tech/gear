@@ -25,6 +25,7 @@ use crate::wasm_project::WasmProject;
 mod builder_error;
 mod cargo_command;
 mod crate_info;
+pub mod optimize;
 mod stack_end;
 mod wasm_project;
 

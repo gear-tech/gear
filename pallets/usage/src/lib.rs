@@ -47,7 +47,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{GasPrice, Origin, PaymentProvider};
+    use common::{storage::*, GasPrice, Origin, PaymentProvider};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -58,6 +58,7 @@ pub mod pallet {
         ids::MessageId,
         message::{ReplyMessage, ReplyPacket},
     };
+    use pallet_gear_messenger::Pallet as MessengerPallet;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -179,14 +180,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        /// Initialization
-        fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            0_u64
-        }
-
-        /// Finalization
-        fn on_finalize(_bn: BlockNumberFor<T>) {}
-
         /// Offchain worker
         ///
         /// Scans the wait list portion by portion and sends a transaction back on-chain
@@ -396,7 +389,8 @@ pub mod pallet {
                                     trap_message_id.into_origin(),
                                 );
 
-                                common::queue_dispatch(dispatch);
+                                <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                             } else {
                                 pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)
                             }
