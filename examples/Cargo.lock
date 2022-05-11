@@ -703,6 +703,7 @@ dependencies = [
  "parity-scale-codec 3.1.2",
  "primitive-types 0.11.1",
  "scale-info 2.0.1",
+ "sp-core-hashing 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1377,13 +1378,27 @@ dependencies = [
  "scale-info 1.0.0",
  "schnorrkel",
  "secrecy",
- "sp-core-hashing",
+ "sp-core-hashing 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-debug-derive",
  "sp-runtime-interface",
- "sp-std",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-storage",
  "ss58-registry",
  "zeroize",
+]
+
+[[package]]
+name = "sp-core-hashing"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec864a6a67249f0c8dd3d5acab43623a61677e85ff4f2f9b04b802d2fe780e83"
+dependencies = [
+ "blake2-rfc",
+ "byteorder",
+ "sha2 0.9.8",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tiny-keccak",
+ "twox-hash",
 ]
 
 [[package]]
@@ -1396,7 +1411,7 @@ dependencies = [
  "digest 0.10.3",
  "sha2 0.10.1",
  "sha3",
- "sp-std",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "twox-hash",
 ]
 
@@ -1419,7 +1434,7 @@ dependencies = [
  "parity-scale-codec 2.3.1",
  "primitive-types 0.10.1",
  "sp-runtime-interface-proc-macro",
- "sp-std",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-storage",
  "sp-tracing",
  "sp-wasm-interface",
@@ -1441,6 +1456,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14804d6069ee7a388240b665f17908d98386ffb0b5d39f89a4099fc7a2a4c03f"
+
+[[package]]
+name = "sp-std"
+version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa1f2227664125e4636305bcbfcf00f312140e"
 
 [[package]]
@@ -1451,7 +1472,7 @@ dependencies = [
  "parity-scale-codec 2.3.1",
  "ref-cast",
  "sp-debug-derive",
- "sp-std",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
 ]
 
 [[package]]
@@ -1460,7 +1481,7 @@ version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa1f2227664125e4636305bcbfcf00f312140e"
 dependencies = [
  "parity-scale-codec 2.3.1",
- "sp-std",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "tracing",
  "tracing-core",
 ]
@@ -1472,7 +1493,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec 2.3.1",
- "sp-std",
+ "sp-std 4.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
 ]
 
 [[package]]
@@ -1548,6 +1569,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tiny-keccak"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
+dependencies = [
+ "crunchy",
 ]
 
 [[package]]

@@ -7,7 +7,10 @@ fn invert(array: &mut [u8]) {
 }
 
 impl SaltFactory {
-    /// This is unsafe because all [`SaltFactory`] in one message from this constructor will produse same salts.
+    /// This is unsafe because all [`SaltFactory`] in one message from this
+    /// constructor will produse same salts.
+    /// # Safety
+    /// Call it once or less in a executeion.
     pub unsafe fn new() -> Self {
         SaltFactory(*crate::msg::id().inner())
     }
