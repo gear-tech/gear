@@ -175,27 +175,6 @@ fn mprotect_pages_vec(mem_addr: u64, pages: &[u32], protect: bool) -> Result<(),
     mprotect(start, count, protect)
 }
 
-#[cfg(feature = "std")]
-#[test]
-fn test_mprotect_pages_vec() {
-    use gear_core::memory::WasmPageNumber;
-
-    let mut v = vec![0u8; 3 * WasmPageNumber::size()];
-    let buff = v.as_mut_ptr() as usize;
-    let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
-        * WasmPageNumber::size()) as u64;
-
-    mprotect_pages_vec(page_begin + 1, &[0, 1, 2, 3], true)
-        .expect_err("Must fail because page_begin + 1 is not aligned addr");
-
-    let pages: Vec<u32> = WasmPageNumber(2)
-        .to_gear_pages_iter()
-        .map(|p| p.0)
-        .collect();
-    mprotect_pages_vec(page_begin, &pages, true).expect("Must be correct");
-    mprotect_pages_vec(page_begin, &pages, false).expect("Must be correct");
-}
-
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
@@ -278,4 +257,25 @@ pub trait GearRI {
     fn print_hello() {
         println!("Hello from gear runtime interface!!!");
     }
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_mprotect_pages_vec() {
+    use gear_core::memory::WasmPageNumber;
+
+    let mut v = vec![0u8; 3 * WasmPageNumber::size()];
+    let buff = v.as_mut_ptr() as usize;
+    let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
+        * WasmPageNumber::size()) as u64;
+
+    mprotect_pages_vec(page_begin + 1, &[0, 1, 2, 3], true)
+        .expect_err("Must fail because page_begin + 1 is not aligned addr");
+
+    let pages: Vec<u32> = WasmPageNumber(2)
+        .to_gear_pages_iter()
+        .map(|p| p.0)
+        .collect();
+    mprotect_pages_vec(page_begin, &pages, true).expect("Must be correct");
+    mprotect_pages_vec(page_begin, &pages, false).expect("Must be correct");
 }
