@@ -291,7 +291,8 @@ impl AllocationsContext {
 #[cfg(test)]
 /// This module contains tests of PageNumber struct
 mod tests {
-    use super::PageNumber;
+    use super::{PageNumber, WasmPageNumber};
+    use alloc::vec::Vec;
 
     #[test]
     /// Test that PageNumbers add up correctly
@@ -327,5 +328,24 @@ mod tests {
     /// Test that PageNumbers subtraction causes panic on overflow
     fn page_number_subtraction_with_overflow() {
         let _ = PageNumber(1) - PageNumber(u32::MAX);
+    }
+
+    #[test]
+    /// Test that PageNumbers subtract correctly
+    fn wasm_pages_to_gear_pages() {
+        let wasm_pages: Vec<WasmPageNumber> =
+            [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();
+        let gear_pages: Vec<u32> = wasm_pages
+            .iter()
+            .flat_map(|p| p.to_gear_pages_iter())
+            .map(|p| p.0)
+            .collect();
+
+        let expectation = [
+            0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 160, 161, 162, 163, 164, 165,
+            166, 167, 168, 169, 170, 171, 172, 173, 174, 175,
+        ];
+
+        assert!(gear_pages.eq(&expectation));
     }
 }
