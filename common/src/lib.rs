@@ -28,6 +28,7 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
+use core::fmt;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
@@ -432,6 +433,12 @@ pub fn set_program(id: H256, program: ActiveProgram) {
 
 #[derive(Debug)]
 pub struct PageIsNotAllocatedErr(pub PageNumber);
+
+impl fmt::Display for PageIsNotAllocatedErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} is not alloced for current program", self.0)
+    }
+}
 
 pub fn set_program_and_pages_data(
     id: H256,

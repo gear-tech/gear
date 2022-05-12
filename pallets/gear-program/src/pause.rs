@@ -113,8 +113,8 @@ impl<T: Config> pallet::Pallet<T> {
         if let Err(err) =
             common::set_program_and_pages_data(program_id, paused_program.program, memory_pages)
         {
-            log::error!("Wrong page with data number: {:?}", err.0);
-            return Err(Error::<T>::WrongPageWithDataNumber.into());
+            log::error!("{}", err);
+            return Err(Error::<T>::NotAllocedPageWithData.into());
         }
 
         wait_list.into_iter().for_each(|(msg_id, d)| {
