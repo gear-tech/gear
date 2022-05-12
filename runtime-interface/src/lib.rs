@@ -316,21 +316,24 @@ fn test_mprotect_pages_vec() {
 
     unsafe {
         let sig_handler = signal::SigHandler::SigAction(handle_sigsegv);
-        let sig_action =
-            signal::SigAction::new(sig_handler, signal::SaFlags::SA_SIGINFO, signal::SigSet::empty());
+        let sig_action = signal::SigAction::new(
+            sig_handler,
+            signal::SaFlags::SA_SIGINFO,
+            signal::SigSet::empty(),
+        );
         signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
         signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
 
         for p in pages_to_protect.iter() {
             let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
-            let _ =  *(addr as *mut u8);
-            let x =  *(addr as *mut u8);
+            let _ = *(addr as *mut u8);
+            let x = *(addr as *mut u8);
             // value must be changed to 100 in sig handler
             assert_eq!(x, NEW_VALUE);
         }
         for p in pages_unprotected.iter() {
             let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
-            let x =  *(addr as *mut u8);
+            let x = *(addr as *mut u8);
             // value must be the same as had been set
             assert_eq!(x, OLD_VALUE);
         }
