@@ -31,9 +31,12 @@ use gear_core::{
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear_messenger::Pallet as MessengerPallet;
-use sp_runtime::offchain::{
-    storage_lock::{StorageLock, Time},
-    Duration,
+use sp_runtime::{
+    offchain::{
+        storage_lock::{StorageLock, Time},
+        Duration,
+    },
+    traits::ValidateUnsigned,
 };
 
 pub(crate) fn init_logger() {
@@ -116,18 +119,13 @@ fn decode_validate_usage_call(encoded: &[u8]) -> crate::Call<Test> {
     let mut encoded = <&[u8]>::clone(&encoded);
     let extrinsic: Extrinsic = Decode::decode(&mut encoded).unwrap();
 
-    let call = extrinsic.call;
-    let inner = match call {
+    let inner = match extrinsic.call {
         mock::Call::Usage(inner) => inner,
         _ => unreachable!(),
     };
 
     assert!(
-        <Usage as sp_runtime::traits::ValidateUnsigned>::validate_unsigned(
-            TransactionSource::Local,
-            &inner,
-        )
-        .is_ok()
+        <Usage as ValidateUnsigned>::validate_unsigned(TransactionSource::Local, &inner,).is_ok()
     );
 
     inner
@@ -232,7 +230,7 @@ fn ocw_double_charge() {
     let (mut ext, pool) = with_offchain_ext();
     ext.execute_with(|| {
         // Reserve some currency on users' accounts
-        for i in 1u64..=10 {
+        for i in 1..=10 {
             assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&i, 20_000));
         }
 
