@@ -153,6 +153,8 @@ jobs:
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --exclude "gear-test" --release
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -172,8 +174,6 @@ jobs:
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
