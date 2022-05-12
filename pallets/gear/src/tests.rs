@@ -381,7 +381,8 @@ fn unused_gas_released_back_works() {
 }
 
 #[test]
-fn start_export() {
+fn restrict_start_section() {
+    // This test checks, that code with start section cannot be handled in process queue.
     let wat = r#"
 	(module
 		(import "env" "memory" (memory 1))
@@ -442,7 +443,7 @@ fn lazy_pages() {
             i32.store
 
             ;; write access wasm page 2
-            ;; but here we access two native pages, if native page is less then 16kiB
+            ;; here we access two native pages, if native page is less or equal to 16kiB
             i32.const 0x23ffe
             i32.const 0x42
             i32.store
