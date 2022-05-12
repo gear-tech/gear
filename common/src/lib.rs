@@ -436,7 +436,11 @@ pub struct PageIsNotAllocatedErr(pub PageNumber);
 
 impl fmt::Display for PageIsNotAllocatedErr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Page #{:?} is not allocated for current program", self.0.0)
+        write!(
+            f,
+            "Page #{:?} is not allocated for current program",
+            self.0 .0
+        )
     }
 }
 
