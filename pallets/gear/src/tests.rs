@@ -380,6 +380,37 @@ fn unused_gas_released_back_works() {
     })
 }
 
+#[test]
+fn start_export() {
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(start $start)
+		(func $init)
+        (func $handle)
+        (func $start
+            unreachable
+        )
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            5_000_000,
+            0,
+        )
+        .expect_err("Must throw err, because code contains start section");
+    });
+}
+
 #[cfg(unix)]
 #[cfg(feature = "lazy-pages")]
 #[test]
