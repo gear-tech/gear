@@ -127,7 +127,7 @@ unsafe fn sys_mprotect_interval(
         return Err(MprotectError::PageError);
     }
     log::trace!(
-        "mprotect native page: {:#x}, size: {:#x}, mask {:#x}",
+        "mprotect native mem interval: {:#x}, size: {:#x}, mask {:#x}",
         addr,
         size,
         prot_mask
@@ -146,6 +146,54 @@ unsafe fn sys_mprotect_interval(
 ) -> Result<(), MprotectError> {
     log::error!("unsupported OS for pages protectection");
     Err(MprotectError::OsError)
+}
+
+#[cfg(feature = "std")]
+fn mprotect_pages_vec(mem_addr: u64, pages: &[u32], protect: bool) -> Result<(), MprotectError> {
+    if pages.is_empty() {
+        return Ok(());
+    }
+
+    let mprotect = |start, count, protect: bool| unsafe {
+        let addr = mem_addr + (start * PageNumber::size()) as u64;
+        let size = count * PageNumber::size();
+        sys_mprotect_interval(addr, size, !protect, !protect, false)
+    };
+
+    // Collects continuous intervals of memory from lazy pages to protect them.
+    let mut start = pages[0] as usize; // Can't panic as we've checked `pages` is not empty
+    let mut count = 1;
+    for page in pages.into_iter().skip(1) {
+        if start + count == *page as usize {
+            count = count.saturating_add(1);
+        } else {
+            mprotect(start, count, protect)?;
+            start = *page as _;
+            count = 1;
+        }
+    }
+    mprotect(start, count, protect)
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_mprotect_pages_vec() {
+    use gear_core::memory::WasmPageNumber;
+
+    let mut v = vec![0u8; 3 * WasmPageNumber::size()];
+    let buff = v.as_mut_ptr() as usize;
+    let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
+        * WasmPageNumber::size()) as u64;
+
+    mprotect_pages_vec(page_begin + 1, &[0, 1, 2, 3], true)
+        .expect_err("Must fail because page_begin + 1 is not aligned addr");
+
+    let pages: Vec<u32> = WasmPageNumber(2)
+        .to_gear_pages_iter()
+        .map(|p| p.0)
+        .collect();
+    mprotect_pages_vec(page_begin, &pages, true).expect("Must be correct");
+    mprotect_pages_vec(page_begin, &pages, false).expect("Must be correct");
 }
 
 /// !!! Note: Will be expanded as gear_ri
@@ -182,29 +230,7 @@ pub trait GearRI {
     /// else allows read and write accesses.
     fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
         let lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
-        if lazy_pages.is_empty() {
-            return Ok(());
-        }
-
-        let mprotect = |start, count, protect: bool| unsafe {
-            let addr = wasm_mem_addr + (start * PageNumber::size()) as u64;
-            let size = count * PageNumber::size();
-            sys_mprotect_interval(addr, size, !protect, !protect, false)
-        };
-
-        // Collects continuous intervals of memory from lazy pages to protect them.
-        let mut start = lazy_pages[0] as usize; // Can't panic as we've checked `lazy_pages` is not empty
-        let mut count = 1;
-        for page in lazy_pages.into_iter().skip(1) {
-            if start + count == page as usize {
-                count = count.saturating_add(1);
-            } else {
-                mprotect(start, count, protect)?;
-                start = page as _;
-                count = 1;
-            }
-        }
-        mprotect(start, count, protect)
+        mprotect_pages_vec(wasm_mem_addr, &lazy_pages, protect)
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
