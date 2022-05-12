@@ -260,9 +260,32 @@ pub trait GearRI {
 }
 
 #[cfg(feature = "std")]
+#[cfg(unix)]
 #[test]
 fn test_mprotect_pages_vec() {
     use gear_core::memory::WasmPageNumber;
+    use libc::{c_void, siginfo_t};
+    use nix::sys::signal;
+
+    const OLD_VALUE: u8 = 99;
+    const NEW_VALUE: u8 = 100;
+
+    extern "C" fn handle_sigsegv(_: i32, info: *mut siginfo_t, _: *mut c_void) {
+        unsafe {
+            let mem = (*info).si_addr() as usize;
+            let ps = page_size::get();
+            let addr = ((mem / ps) * ps) as *mut c_void;
+            if libc::mprotect(addr, ps, libc::PROT_WRITE) != 0 {
+                panic!("Cannot set protection: {}", errno::errno());
+            }
+            for p in 0..ps / PageNumber::size() {
+                *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
+            }
+            if libc::mprotect(addr, ps, libc::PROT_READ) != 0 {
+                panic!("Cannot set protection: {}", errno::errno());
+            }
+        }
+    }
 
     let mut v = vec![0u8; 3 * WasmPageNumber::size()];
     let buff = v.as_mut_ptr() as usize;
@@ -272,10 +295,46 @@ fn test_mprotect_pages_vec() {
     mprotect_pages_vec(page_begin + 1, &[0, 1, 2, 3], true)
         .expect_err("Must fail because page_begin + 1 is not aligned addr");
 
-    let pages: Vec<u32> = WasmPageNumber(2)
-        .to_gear_pages_iter()
-        .map(|p| p.0)
-        .collect();
-    mprotect_pages_vec(page_begin, &pages, true).expect("Must be correct");
-    mprotect_pages_vec(page_begin, &pages, false).expect("Must be correct");
+    let pages_to_protect = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23];
+    let pages_unprotected = [
+        4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
+    ];
+
+    // Set [OLD_VALUE] as value for each first byte of gear pages
+    unsafe {
+        for p in pages_to_protect.iter() {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            *(addr as *mut u8) = OLD_VALUE;
+        }
+        for p in pages_unprotected.iter() {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            *(addr as *mut u8) = OLD_VALUE;
+        }
+    }
+
+    mprotect_pages_vec(page_begin, &pages_to_protect, true).expect("Must be correct");
+
+    unsafe {
+        let sig_handler = signal::SigHandler::SigAction(handle_sigsegv);
+        let sig_action =
+            signal::SigAction::new(sig_handler, signal::SaFlags::SA_SIGINFO, signal::SigSet::empty());
+        signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
+        signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
+
+        for p in pages_to_protect.iter() {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            let _ =  *(addr as *mut u8);
+            let x =  *(addr as *mut u8);
+            // value must be changed to 100 in sig handler
+            assert_eq!(x, NEW_VALUE);
+        }
+        for p in pages_unprotected.iter() {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            let x =  *(addr as *mut u8);
+            // value must be the same as had been set
+            assert_eq!(x, OLD_VALUE);
+        }
+    }
+
+    mprotect_pages_vec(page_begin, &pages_to_protect, false).expect("Must be correct");
 }
