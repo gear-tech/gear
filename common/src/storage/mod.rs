@@ -2,9 +2,13 @@ pub(crate) mod complex;
 pub(crate) mod complicated;
 pub(crate) mod primitives;
 
-pub use complex::*;
-pub use complicated::*;
-pub use primitives::*;
+pub mod new {
+    use super::{complex, complicated, primitives};
+
+    pub use complex::*;
+    pub use complicated::*;
+    pub use primitives::*;
+}
 
 mod counter;
 mod deque;

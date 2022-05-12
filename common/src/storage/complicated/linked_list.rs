@@ -41,7 +41,7 @@ pub trait LinkedList {
     type Value;
     type Error;
 
-    fn mutate_values<F: FnOnce(Self::Value) -> Self::Value>(f: F);
+    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(f: F);
 
     // Very expensive operation! Use DoubleLinkedList instead!
     fn pop_back() -> Result<Option<Self::Value>, Self::Error>;
@@ -97,12 +97,10 @@ where
     type Value = Value;
     type Error = Error;
 
-    fn mutate_values<F: FnOnce(Self::Value) -> Self::Value>(f: F) {
-        MS::mutate_values(|n| {
-            Some(LinkedNode {
-                next: n.next,
-                value: f(n.value),
-            })
+    fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(mut f: F) {
+        MS::mutate_values(|n| LinkedNode {
+            next: n.next,
+            value: f(n.value),
         })
     }
 
