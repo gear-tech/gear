@@ -18,7 +18,9 @@
 
 use codec::Encode;
 use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
+use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
@@ -2543,6 +2545,65 @@ fn gas_spent_precalculated() {
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
 
         assert_eq!(gas_spent_1, gas_spent_2);
+    });
+}
+
+#[test]
+fn test_two_contracts_composition_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Initial value in all gas trees is 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+
+        let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
+        let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
+        let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            MUL_CONST_WASM_BINARY.to_vec(),
+            b"contract_a".to_vec(),
+            50_u64.encode(),
+            400_000_000,
+            0,
+        ));
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            MUL_CONST_WASM_BINARY.to_vec(),
+            b"contract_b".to_vec(),
+            75_u64.encode(),
+            400_000_000,
+            0,
+        ));
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            COMPOSE_WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            (
+                <[u8; 32]>::from(contract_a_id),
+                <[u8; 32]>::from(contract_b_id)
+            )
+                .encode(),
+            400_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            compose_id,
+            100_u64.to_le_bytes().to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(4, None);
+
+        // Gas total issuance should have gone back to 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
     });
 }
 
