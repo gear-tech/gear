@@ -493,7 +493,7 @@ impl EnvExt for Ext {
 
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
-        
+
         if 0 < packet.value() && packet.value() < self.existential_deposit {
             return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };

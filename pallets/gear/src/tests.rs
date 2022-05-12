@@ -264,7 +264,7 @@ fn send_message_expected_failure() {
             USER_1.into_origin(),
             EMPTY_PAYLOAD.to_vec(),
             1000,
-            1
+            1000
         ));
         assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
@@ -1105,7 +1105,7 @@ fn send_reply_value_claiming_works() {
 
         let user_messages_data = [
             // gas limit, value
-            (1_000_000, 100),
+            (1_000_000, 1000),
             (20_000_000, 2000),
         ];
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
@@ -1611,7 +1611,7 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            100
+            1000
         ));
         let skipped_message_id = get_last_message_id();
         assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
@@ -2643,13 +2643,13 @@ fn test_two_contracts_composition_works() {
 // Before introducing this test, submit_program extrinsic didn't check the value. 
 // Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
 //
-// User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with 
-// values during the init message processing, internal checks will result in errors (either, because sending value 
-// Y <= X < ED is not allowed, or because of Y > X, when X < ED). 
-// However, in this same situation of program being initialized and sending some message with value, if program send 
-// init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further 
+// User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with
+// values during the init message processing, internal checks will result in errors (either, because sending value
+// Y <= X < ED is not allowed, or because of Y > X, when X < ED).
+// However, in this same situation of program being initialized and sending some message with value, if program send
+// init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further
 // to manager, although having value less than ED. On manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
-// But it's is not preferable to enter that `if` clause. 
+// But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value() {
     init_logger();
@@ -2667,15 +2667,14 @@ fn test_create_program_with_value() {
             Error::<Test>::ValueLessThanMinimal,
         );
     })
-
 }
 
 mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use frame_support::traits::tokens::currency::Currency;
-    use sp_runtime::traits::UniqueSaturatedInto;
     use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
+    use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::convert::TryFrom;
 
     use super::{

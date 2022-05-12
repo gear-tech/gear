@@ -38,7 +38,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessages {
-    Init(u64),
+    Init(u128),
 }
 
 #[cfg(not(feature = "std"))]
@@ -75,14 +75,14 @@ mod wasm {
     // pub unsafe extern "C" fn handle() {
     //     match msg::load().expect("provided invalid payload") {
     //         CreateProgram::Default => {
-                // let submitted_code = CHILD_CODE_HASH.into();
-                // let new_program_id = prog::create_program_with_gas(
-                //     submitted_code,
-                //     COUNTER.to_le_bytes(),
-                //     [],
-                //     100_000,
-                //     0,
-                // );
+    // let submitted_code = CHILD_CODE_HASH.into();
+    // let new_program_id = prog::create_program_with_gas(
+    //     submitted_code,
+    //     COUNTER.to_le_bytes(),
+    //     [],
+    //     100_000,
+    //     0,
+    // );
     //             msg::send_with_gas(new_program_id, b"", 100_001, 0).unwrap();
 
     //             COUNTER += 1;
