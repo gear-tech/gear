@@ -110,6 +110,7 @@ jobs:
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+          components: llvm-tools-preview
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -151,7 +152,7 @@ jobs:
           tar -xf /tmp/build_target.tar
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked
+        run: ./scripts/gear.sh build gear --locked --exclude "gear-test"
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
