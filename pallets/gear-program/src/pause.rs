@@ -114,7 +114,7 @@ impl<T: Config> pallet::Pallet<T> {
             common::set_program_and_pages_data(program_id, paused_program.program, memory_pages)
         {
             log::error!("{}", err);
-            return Err(Error::<T>::NotAllocedPageWithData.into());
+            return Err(Error::<T>::NotAllocatedPageWithData.into());
         }
 
         wait_list.into_iter().for_each(|(msg_id, d)| {
