@@ -70,8 +70,8 @@ gtest() {
 }
 
 # $1 - ROOT DIR
-rtest_debug() {
-  ./target/debug/gear-node runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+rtest() {
+  ./target/release/gear-node runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
 }
 
 pallet_test() {
@@ -86,7 +86,7 @@ runtime_upgrade_test() {
   DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" ./target/debug/gear-node --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" ./target/release/gear-node --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"
