@@ -381,6 +381,7 @@ fn unused_gas_released_back_works() {
 }
 
 #[cfg(unix)]
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
     use gear_core::memory::{PageNumber, WasmPageNumber};
