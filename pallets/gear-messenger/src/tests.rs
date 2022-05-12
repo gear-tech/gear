@@ -1,10 +1,15 @@
 use super::*;
 use crate::mock::*;
-use common::storage::{Messenger as Mgr, StorageDeque as SDq, *};
+use common::storage::new::*;
 use gear_core::{
     ids::MessageId,
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+
+type SentOf = <Pallet<Test> as Messenger>::Sent;
+type DequeuedOf = <Pallet<Test> as Messenger>::Dequeued;
+type QueueProcessingOf = <Pallet<Test> as Messenger>::QueueProcessing;
+type QueueOf = <Pallet<Test> as Messenger>::Queue;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -18,36 +23,36 @@ fn sent_impl_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial state of the block.
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 0);
+        assert_eq!(SentOf::get(), 0);
 
         // Bottom overflow check.
-        <Pallet<Test> as Mgr>::Sent::decrease();
+        SentOf::decrease();
 
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 0);
+        assert_eq!(SentOf::get(), 0);
 
         // Increasing/decreasing check.
-        <Pallet<Test> as Mgr>::Sent::increase();
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 1);
+        SentOf::increase();
+        assert_eq!(SentOf::get(), 1);
 
-        <Pallet<Test> as Mgr>::Sent::increase();
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 2);
+        SentOf::increase();
+        assert_eq!(SentOf::get(), 2);
 
-        <Pallet<Test> as Mgr>::Sent::decrease();
+        SentOf::decrease();
 
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 1);
+        assert_eq!(SentOf::get(), 1);
 
         // Clear check.
-        <Pallet<Test> as Mgr>::Sent::clear();
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 0);
+        SentOf::reset();
+        assert_eq!(SentOf::get(), 0);
 
         // Value updates for future blocks.
-        <Pallet<Test> as Mgr>::Sent::increase();
+        SentOf::increase();
 
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 1);
+        assert_eq!(SentOf::get(), 1);
 
         run_to_block(2);
 
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 0);
+        assert_eq!(SentOf::get(), 0);
     });
 }
 
@@ -60,36 +65,36 @@ fn dequeued_impl_works_manually() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial state of the block.
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
+        assert_eq!(DequeuedOf::get(), 0);
 
         // Bottom overflow check.
-        <Pallet<Test> as Mgr>::Dequeued::decrease();
+        DequeuedOf::decrease();
 
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
+        assert_eq!(DequeuedOf::get(), 0);
 
         // Increasing/decreasing check.
-        <Pallet<Test> as Mgr>::Dequeued::increase();
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 1);
+        DequeuedOf::increase();
+        assert_eq!(DequeuedOf::get(), 1);
 
-        <Pallet<Test> as Mgr>::Dequeued::increase();
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 2);
+        DequeuedOf::increase();
+        assert_eq!(DequeuedOf::get(), 2);
 
-        <Pallet<Test> as Mgr>::Dequeued::decrease();
+        DequeuedOf::decrease();
 
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 1);
+        assert_eq!(DequeuedOf::get(), 1);
 
         // Clear check.
-        <Pallet<Test> as Mgr>::Dequeued::clear();
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
+        DequeuedOf::reset();
+        assert_eq!(DequeuedOf::get(), 0);
 
         // Value updates for future blocks.
-        <Pallet<Test> as Mgr>::Sent::increase();
+        SentOf::increase();
 
-        assert_eq!(<Pallet<Test> as Mgr>::Sent::get(), 1);
+        assert_eq!(SentOf::get(), 1);
 
         run_to_block(2);
 
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
+        assert_eq!(DequeuedOf::get(), 0);
     });
 }
 
@@ -101,37 +106,28 @@ fn queue_processing_impl_works_manually() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial state of the block.
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
+        assert!(QueueProcessingOf::allowed());
 
         // Invariants always.
-        assert_ne!(
-            <Pallet<Test> as Mgr>::QueueProcessing::allowed(),
-            <Pallet<Test> as Mgr>::QueueProcessing::denied()
-        );
+        assert_ne!(QueueProcessingOf::allowed(), QueueProcessingOf::denied());
 
         // Denying check.
-        <Pallet<Test> as Mgr>::QueueProcessing::deny();
-        assert!(!<Pallet<Test> as Mgr>::QueueProcessing::allowed());
-        assert_ne!(
-            <Pallet<Test> as Mgr>::QueueProcessing::allowed(),
-            <Pallet<Test> as Mgr>::QueueProcessing::denied()
-        );
+        QueueProcessingOf::deny();
+        assert!(!QueueProcessingOf::allowed());
+        assert_ne!(QueueProcessingOf::allowed(), QueueProcessingOf::denied());
 
         // Allowing check.
-        <Pallet<Test> as Mgr>::QueueProcessing::allow();
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
-        assert_ne!(
-            <Pallet<Test> as Mgr>::QueueProcessing::allowed(),
-            <Pallet<Test> as Mgr>::QueueProcessing::denied()
-        );
+        QueueProcessingOf::allow();
+        assert!(QueueProcessingOf::allowed());
+        assert_ne!(QueueProcessingOf::allowed(), QueueProcessingOf::denied());
 
         // Value updates for future blocks.
-        <Pallet<Test> as Mgr>::QueueProcessing::deny();
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::denied());
+        QueueProcessingOf::deny();
+        assert!(QueueProcessingOf::denied());
 
         run_to_block(2);
 
-        assert!(!<Pallet<Test> as Mgr>::QueueProcessing::denied());
+        assert!(!QueueProcessingOf::denied());
     });
 }
 
@@ -140,10 +136,10 @@ fn queue_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial state of the block.
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 0);
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
-        assert!(<<Pallet<Test> as Mgr>::Queue as SDq>::is_empty().expect("Algorithmic error"));
+        assert_eq!(DequeuedOf::get(), 0);
+        assert_eq!(QueueOf::len(), 0);
+        assert!(QueueProcessingOf::allowed());
+        assert!(QueueOf::is_empty());
 
         // Dispatch constructor.
         let dispatch_with_id = |id: MessageId| {
@@ -169,92 +165,85 @@ fn queue_works() {
         let id_5: MessageId = 5.into();
 
         // Pop from empty queue.
-        assert!(<<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
-            .expect("Algorithmic error")
-            .is_none());
+        assert!(QueueOf::dequeue().expect("Algorithmic error").is_none());
 
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 0);
-        assert!(<<Pallet<Test> as Mgr>::Queue as SDq>::is_empty().expect("Algorithmic error"));
+        assert_eq!(DequeuedOf::get(), 0);
+        assert_eq!(QueueOf::len(), 0);
+        assert!(QueueOf::is_empty());
 
         // Push an element in empty queue.
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_back(dispatch_with_id(id_1))
-            .expect("Algorithmic error");
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 1);
-        assert!(!<<Pallet<Test> as Mgr>::Queue as SDq>::is_empty().expect("Algorithmic error"));
+        QueueOf::queue(dispatch_with_id(id_1)).expect("Algorithmic error");
+        assert_eq!(DequeuedOf::get(), 0);
+        assert_eq!(QueueOf::len(), 1);
+        assert!(!QueueOf::is_empty());
 
         // Pop from single-element queue.
         assert_eq!(
             id_1,
-            <<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
+            QueueOf::dequeue()
                 .expect("Algorithmic error")
                 .expect("No dispatches found")
                 .id()
         );
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 1);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 0);
-        assert!(<<Pallet<Test> as Mgr>::Queue as SDq>::is_empty().expect("Algorithmic error"));
+        assert_eq!(DequeuedOf::get(), 1);
+        assert_eq!(QueueOf::len(), 0);
+        assert!(QueueOf::is_empty());
 
         // Push back many elements in empty queue.
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_back(dispatch_with_id(id_2))
-            .expect("Algorithmic error");
+        QueueOf::queue(dispatch_with_id(id_2)).expect("Algorithmic error");
 
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_back(dispatch_with_id(id_3))
-            .expect("Algorithmic error");
+        QueueOf::queue(dispatch_with_id(id_3)).expect("Algorithmic error");
 
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_back(dispatch_with_id(id_4))
-            .expect("Algorithmic error");
+        QueueOf::queue(dispatch_with_id(id_4)).expect("Algorithmic error");
 
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_back(dispatch_with_id(id_5))
-            .expect("Algorithmic error");
+        QueueOf::queue(dispatch_with_id(id_5)).expect("Algorithmic error");
 
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 1);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 4);
+        assert_eq!(DequeuedOf::get(), 1);
+        assert_eq!(QueueOf::len(), 4);
 
         // Dequeued resets for future blocks.
         run_to_block(2);
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 4);
+        assert_eq!(DequeuedOf::get(), 0);
+        assert_eq!(QueueOf::len(), 4);
 
         // Pop 2 of 4 messages.
         assert_eq!(
             id_2,
-            <<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
+            QueueOf::dequeue()
                 .expect("Algorithmic error")
                 .expect("No dispatches found")
                 .id()
         );
 
-        let dispatch_3 = <<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
+        let dispatch_3 = QueueOf::dequeue()
             .expect("Algorithmic error")
             .expect("No dispatches found");
 
         assert_eq!(id_3, dispatch_3.id());
 
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 2);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 2);
+        assert_eq!(DequeuedOf::get(), 2);
+        assert_eq!(QueueOf::len(), 2);
 
         // Push front used only for requeueing element,
         // which was already in queue in current block,
         // because it decreased dequeued amount.
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
+        assert!(QueueProcessingOf::allowed());
 
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_front(dispatch_3).expect("Algorithmic error");
+        QueueOf::requeue(dispatch_3).expect("Algorithmic error");
 
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::denied());
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 1);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 3);
+        assert!(QueueProcessingOf::denied());
+        assert_eq!(DequeuedOf::get(), 1);
+        assert_eq!(QueueOf::len(), 3);
 
         // Reset QueueProcessing deny.
         run_to_block(3);
 
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::allowed());
+        assert!(QueueProcessingOf::allowed());
 
         // Make the only one message be in queue.
         assert_eq!(
             id_3,
-            <<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
+            QueueOf::dequeue()
                 .expect("Algorithmic error")
                 .expect("No dispatches found")
                 .id()
@@ -262,31 +251,31 @@ fn queue_works() {
 
         assert_eq!(
             id_4,
-            <<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
+            QueueOf::dequeue()
                 .expect("Algorithmic error")
                 .expect("No dispatches found")
                 .id()
         );
 
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 1);
+        assert_eq!(QueueOf::len(), 1);
 
         // Reset dequeued amount.
         run_to_block(4);
 
         // Push front works on queue with one element
-        let dispatch_5 = <<Pallet<Test> as Mgr>::Queue as SDq>::pop_front()
+        let dispatch_5 = QueueOf::dequeue()
             .expect("Algorithmic error")
             .expect("No dispatches found");
 
         assert_eq!(id_5, dispatch_5.id());
 
-        assert!(<<Pallet<Test> as Mgr>::Queue as SDq>::is_empty().expect("Algorithmic error"));
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 1);
+        assert!(QueueOf::is_empty());
+        assert_eq!(DequeuedOf::get(), 1);
 
-        <<Pallet<Test> as Mgr>::Queue as SDq>::push_front(dispatch_5).expect("Algorithmic error");
+        QueueOf::requeue(dispatch_5).expect("Algorithmic error");
 
-        assert!(<Pallet<Test> as Mgr>::QueueProcessing::denied());
-        assert_eq!(<Pallet<Test> as Mgr>::Dequeued::get(), 0);
-        assert_eq!(<<Pallet<Test> as Mgr>::Queue as SDq>::Length::get(), 1);
+        assert!(QueueProcessingOf::denied());
+        assert_eq!(DequeuedOf::get(), 0);
+        assert_eq!(QueueOf::len(), 1);
     });
 }

@@ -1,5 +1,7 @@
 use crate::storage::primitives::{Callback, Counted, EmptyCallback, MapStorage, ValueStorage};
+use codec::{Decode, Encode};
 use core::marker::PhantomData;
+use scale_info::TypeInfo;
 
 pub trait LinkedListCallbacks {
     type Value;
@@ -27,10 +29,9 @@ pub trait LinkedListError {
     fn tail_should_be() -> Self;
 
     fn tail_should_not_be() -> Self;
-
-    fn remove_all_failed() -> Self;
 }
 
+#[derive(Encode, Decode, TypeInfo)]
 pub struct LinkedNode<K, V> {
     pub next: Option<K>,
     pub value: V,
@@ -52,7 +53,7 @@ pub trait LinkedList {
 
     fn push_front(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
-    fn remove_all() -> Result<(), Self::Error>;
+    fn remove_all();
 }
 
 pub struct LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>(
@@ -225,12 +226,11 @@ where
         }
     }
 
-    fn remove_all() -> Result<(), Self::Error> {
+    fn remove_all() {
         HVS::kill();
         TVS::kill();
-        MS::remove_all()
-            .map(|_| Callbacks::OnRemoveAll::call())
-            .map_err(|_| Self::Error::remove_all_failed())
+        MS::remove_all();
+        Callbacks::OnRemoveAll::call();
     }
 }
 

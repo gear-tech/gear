@@ -31,315 +31,193 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::storage::{
-        Callback as GearCallback, DequeError as GearDequeError, Messenger as GearMessenger,
-        NextKey, Node, StorageCounter as GearStorageCounter, StorageDeque as GearStorageDeque,
-        StorageFlag as GearStorageFlag, StorageMap as GearStorageMap,
-        StorageValue as GearStorageValue,
-    };
-    use frame_support::{
-        pallet_prelude::*,
-        traits::{ConstBool, StorageVersion},
-    };
+    use common::storage::new::*;
+    use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
-    use gear_core::message::StoredDispatch;
-    use scale_info::TypeInfo;
-    use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
+    use gear_core::{
+        ids::MessageId,
+        message::{StoredDispatch, StoredMessage},
+    };
+    use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
     const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
-        /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>>
-            + IsType<<Self as frame_system::Config>::Event>
-            + TryInto<Event<Self>>;
-    }
+    pub trait Config: frame_system::Config {}
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
     #[pallet::storage_version(MESSENGER_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
-    #[pallet::event]
-    pub enum Event<T> {}
-
     #[pallet::error]
     pub enum Error<T> {
-        MessageDequeFlagsCorrupted,
-        MessageDequeElementsCorrupted,
+        QueueDuplicateKey,
+        QueueElementNotFound,
+        QueueHeadShouldBe,
+        QueueHeadShouldNotBe,
+        QueueTailHasNextKey,
+        QueueTailParentNotFound,
+        QueueTailShouldBe,
+        QueueTailShouldNotBe,
+        QueueRemoveAllFailed,
+        MailboxDuplicateKey,
+        MailboxElementNotFound,
     }
 
-    impl<T> From<GearDequeError> for Error<T> {
-        fn from(err: GearDequeError) -> Self {
-            use GearDequeError::*;
-
-            match err {
-                ElementNotFound | DuplicateElementKey | HeadNotFoundInElements => {
-                    Self::MessageDequeElementsCorrupted
-                }
-                _ => Self::MessageDequeFlagsCorrupted,
-            }
-        }
-    }
-
-    /// Numeric type defining the maximum amount of messages in queue.
-    pub type LengthType = u128;
-
-    /// Key for having access for messages in storage.
-    ///
-    /// Used instead of `MessageId` for space saving.
-    #[derive(TypeInfo, Encode, Decode, Debug, Clone)]
-    pub struct MessageKey(LengthType);
-
-    impl<V> NextKey<V> for MessageKey {
-        fn first(_target: &V) -> Self {
-            Self(Default::default())
+    impl<T: crate::Config> LinkedListError for Error<T> {
+        fn duplicate_key() -> Self {
+            Self::QueueDuplicateKey
         }
 
-        fn next(&self, _target: &V) -> Self {
-            if self.0 == LengthType::MAX {
-                Self(0)
-            } else {
-                Self(self.0 + 1)
-            }
-        }
-    }
-
-    #[pallet::storage]
-    type Head<T> = StorageValue<_, MessageKey>;
-
-    /// Accessor type for head of the deque.
-    pub struct HeadImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageValue for HeadImpl<T> {
-        type Value = MessageKey;
-
-        fn get() -> Option<Self::Value> {
-            Head::<T>::get()
+        fn element_not_found() -> Self {
+            Self::QueueElementNotFound
         }
 
-        fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
-            Head::<T>::mutate(f)
+        fn head_should_be() -> Self {
+            Self::QueueHeadShouldBe
         }
 
-        fn remove() -> Option<Self::Value> {
-            Head::<T>::take()
+        fn head_should_not_be() -> Self {
+            Self::QueueHeadShouldNotBe
         }
 
-        fn set(value: Self::Value) -> Option<Self::Value> {
-            Head::<T>::mutate(|v| v.replace(value))
+        fn tail_has_next_key() -> Self {
+            Self::QueueTailHasNextKey
+        }
+
+        fn tail_parent_not_found() -> Self {
+            Self::QueueTailParentNotFound
+        }
+
+        fn tail_should_be() -> Self {
+            Self::QueueTailShouldBe
+        }
+
+        fn tail_should_not_be() -> Self {
+            Self::QueueTailShouldNotBe
         }
     }
 
-    #[pallet::storage]
-    type Tail<T> = StorageValue<_, MessageKey>;
-
-    /// Accessor type for tail of the deque.
-    pub struct TailImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageValue for TailImpl<T> {
-        type Value = MessageKey;
-
-        fn get() -> Option<Self::Value> {
-            Tail::<T>::get()
+    impl<T: crate::Config> MailboxError for Error<T> {
+        fn duplicate_key() -> Self {
+            Self::MailboxDuplicateKey
         }
 
-        fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
-            Tail::<T>::mutate(f)
+        fn element_not_found() -> Self {
+            Self::MailboxElementNotFound
         }
-
-        fn remove() -> Option<Self::Value> {
-            Tail::<T>::take()
-        }
-
-        fn set(value: Self::Value) -> Option<Self::Value> {
-            Tail::<T>::mutate(|v| v.replace(value))
-        }
-    }
-
-    #[pallet::storage]
-    type Length<T> = StorageValue<_, LengthType, ValueQuery>;
-
-    /// Accessor type for length of the deque.
-    pub struct LengthImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageCounter for LengthImpl<T> {
-        type Value = LengthType;
-
-        fn get() -> Self::Value {
-            Length::<T>::get()
-        }
-
-        fn increase() {
-            Length::<T>::mutate(|v| *v = v.saturating_add(1))
-        }
-
-        fn decrease() {
-            Length::<T>::mutate(|v| *v = v.saturating_sub(1))
-        }
-
-        fn clear() {
-            let _prev = Length::<T>::take();
-        }
-    }
-
-    #[pallet::storage]
-    type Dispatches<T> = StorageMap<_, Identity, MessageKey, Node<MessageKey, StoredDispatch>>;
-
-    /// Accessor type for elements of the deque.
-    pub struct DispatchImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageMap for DispatchImpl<T> {
-        type Key = MessageKey;
-        type Value = Node<MessageKey, StoredDispatch>;
-
-        fn contains(key: &Self::Key) -> bool {
-            Dispatches::<T>::contains_key(key)
-        }
-
-        fn get(key: &Self::Key) -> Option<Self::Value> {
-            Dispatches::<T>::get(key)
-        }
-
-        fn mutate<R>(key: Self::Key, f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
-            Dispatches::<T>::mutate(key, f)
-        }
-
-        fn remove(key: Self::Key) -> Option<Self::Value> {
-            Dispatches::<T>::take(key)
-        }
-
-        fn set(key: Self::Key, value: Self::Value) -> Option<Self::Value> {
-            Dispatches::<T>::mutate(key, |v| v.replace(value))
-        }
-    }
-
-    /// Callback function accessor for `pop_front` action.
-    pub struct OnPopFrontCallback<T>(PhantomData<T>);
-
-    impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPopFrontCallback<T> {
-        fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
-            <Pallet<T> as GearMessenger>::Dequeued::increase();
-        }
-    }
-
-    /// Callback function accessor for `push_front` action.
-    pub struct OnPushFrontCallback<T>(PhantomData<T>);
-
-    impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPushFrontCallback<T> {
-        fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
-            <Pallet<T> as GearMessenger>::Dequeued::decrease();
-            <Pallet<T> as GearMessenger>::QueueProcessing::deny();
-        }
-    }
-
-    /// Deque type itself. Contains all methods by aggregating all accessors.
-    ///
-    /// Never call `push_front` for priority queueing.
-    /// This method should be used only for requeueing of the element which already was in the queue before.
-    /// It triggers callback of decrementing `Dequeued` and denying `QueueProcessing`.
-    pub struct DequeImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageDeque for DequeImpl<T> {
-        type Key = MessageKey;
-        type Value = StoredDispatch;
-
-        type Error = Error<T>;
-
-        type HeadKey = HeadImpl<T>;
-        type TailKey = TailImpl<T>;
-        type Elements = DispatchImpl<T>;
-        type Length = LengthImpl<T>;
-
-        type OnPopFront = OnPopFrontCallback<T>;
-        type OnPushFront = OnPushFrontCallback<T>;
-        type OnPushBack = ();
     }
 
     /// Numeric type defining the maximum amount of messages can be sent
     /// from outside (extrinsics) or processed in single block.
-    pub type MessengerCapacity = u32;
+    pub type Capacity = u32;
 
     #[pallet::storage]
-    type Sent<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    type Head<T> = StorageValue<_, MessageId>;
 
-    /// Accessor type for amount for messages sent from outside during the block.
-    pub struct SentImpl<T>(PhantomData<T>);
+    common::wrap_storage_value!(storage: Head, name: HeadWrap, value: MessageId);
 
-    impl<T: Config> GearStorageCounter for SentImpl<T> {
-        type Value = MessengerCapacity;
+    #[pallet::storage]
+    type Tail<T> = StorageValue<_, MessageId>;
 
-        fn get() -> Self::Value {
-            Sent::<T>::get()
-        }
+    common::wrap_storage_value!(storage: Tail, name: TailWrap, value: MessageId);
 
-        fn increase() {
-            Sent::<T>::mutate(|v| *v = v.saturating_add(1))
-        }
+    #[pallet::storage]
+    type Dispatches<T> =
+        CountedStorageMap<_, Identity, MessageId, LinkedNode<MessageId, StoredDispatch>>;
 
-        fn decrease() {
-            Sent::<T>::mutate(|v| *v = v.saturating_sub(1))
-        }
+    common::wrap_counted_storage_map!(
+        storage: Dispatches,
+        name: DispatchesWrap,
+        key: MessageId,
+        value: LinkedNode<MessageId, StoredDispatch>,
+        length: Capacity
+    );
 
-        fn clear() {
-            let _prev = Sent::<T>::take();
+    #[pallet::storage]
+    type Sent<T> = StorageValue<_, Capacity>;
+
+    common::wrap_storage_value!(storage: Sent, name: SentWrap, value: Capacity);
+
+    #[pallet::storage]
+    type Dequeued<T> = StorageValue<_, Capacity>;
+
+    common::wrap_storage_value!(storage: Dequeued, name: DequeuedWrap, value: Capacity);
+
+    #[pallet::storage]
+    type QueueProcessing<T> = StorageValue<_, bool>;
+
+    common::wrap_storage_value!(
+        storage: QueueProcessing,
+        name: QueueProcessingWrap,
+        value: bool
+    );
+
+    /// Callback function accessor for `pop_front` action.
+    pub struct OnPopFront<V, T>(PhantomData<(V, T)>);
+
+    impl<V, T: Messenger> Callback<V> for OnPopFront<V, T> {
+        fn call(_arg: &V) {
+            T::Dequeued::increase();
         }
     }
 
-    #[pallet::storage]
-    type Dequeued<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    /// Callback function accessor for `push_front` action.
+    pub struct OnPushFront<V, T>(PhantomData<(V, T)>);
 
-    /// Accessor type for amount for messages dequeued and appropriately
-    /// processed (executed, skipped, etc.) during the block.
-    pub struct DequeuedImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageCounter for DequeuedImpl<T> {
-        type Value = MessengerCapacity;
-
-        fn get() -> Self::Value {
-            Dequeued::<T>::get()
-        }
-
-        fn increase() {
-            Dequeued::<T>::mutate(|v| *v = v.saturating_add(1))
-        }
-
-        fn decrease() {
-            Dequeued::<T>::mutate(|v| *v = v.saturating_sub(1))
-        }
-
-        fn clear() {
-            let _prev = Dequeued::<T>::take();
+    impl<V, T: Messenger> Callback<V> for OnPushFront<V, T> {
+        fn call(_arg: &V) {
+            T::Dequeued::decrease();
+            T::QueueProcessing::deny();
         }
     }
 
-    #[pallet::storage]
-    type QueueProcessing<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+    pub struct Callbacks<V, T>(PhantomData<(V, T)>);
 
-    /// Accessor type for flag showing may the queue processing be continued during the block.
-    pub struct QueueProcessingImpl<T>(PhantomData<T>);
+    impl<V, T: Messenger> LinkedListCallbacks for Callbacks<V, T> {
+        type Value = V;
 
-    impl<T: Config> GearStorageFlag for QueueProcessingImpl<T> {
-        fn allow() {
-            QueueProcessing::<T>::put(true);
-        }
-
-        fn deny() {
-            QueueProcessing::<T>::put(false);
-        }
-
-        fn allowed() -> bool {
-            QueueProcessing::<T>::get()
-        }
+        type OnPopBack = ();
+        type OnPopFront = OnPopFront<V, T>;
+        type OnPushBack = ();
+        type OnPushFront = OnPushFront<V, T>;
+        type OnRemoveAll = ();
     }
 
-    impl<T: Config> GearMessenger for Pallet<T> {
-        type Sent = SentImpl<T>;
-        type Dequeued = DequeuedImpl<T>;
-        type QueueProcessing = QueueProcessingImpl<T>;
-        type Queue = DequeImpl<T>;
+    /// Message processing centralized behaviour.
+    impl<T: crate::Config> Messenger for Pallet<T> {
+        type Capacity = Capacity;
+        type MailboxedMessage = StoredMessage;
+        type QueuedDispatch = StoredDispatch;
+        type Error = Error<T>;
+
+        /// Amount of messages sent from outside.
+        type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;
+
+        /// Amount of messages dequeued.
+        type Dequeued = CounterImpl<Self::Capacity, DequeuedWrap<T>>;
+
+        /// Allowance of queue processing.
+        type QueueProcessing = TogglerImpl<QueueProcessingWrap<T>>;
+
+        /// Message queue store.
+        type Queue = QueueImpl<
+            LinkedListImpl<
+                MessageId,
+                Self::QueuedDispatch,
+                Self::Error,
+                HeadWrap<T>,
+                TailWrap<T>,
+                DispatchesWrap<T>,
+                Callbacks<Self::QueuedDispatch, Self>,
+            >,
+            QueueKeyGen,
+        >;
+
+        // /// Users mailbox store.
+        // type Mailbox: Mailbox<Value = Self::MailboxedMessage, Error = Self::Error>;
     }
 
     #[pallet::hooks]
@@ -349,15 +227,15 @@ pub mod pallet {
             let mut weight = 0;
 
             // Removes value from storage. Single DB write.
-            <Self as GearMessenger>::Sent::clear();
+            <Self as Messenger>::Sent::reset();
             weight += T::DbWeight::get().writes(1);
 
             // Removes value from storage. Single DB write.
-            <Self as GearMessenger>::Dequeued::clear();
+            <Self as Messenger>::Dequeued::reset();
             weight += T::DbWeight::get().writes(1);
 
             // Puts value in storage. Single DB write.
-            <Self as GearMessenger>::QueueProcessing::allow();
+            <Self as Messenger>::QueueProcessing::allow();
             weight += T::DbWeight::get().writes(1);
 
             weight

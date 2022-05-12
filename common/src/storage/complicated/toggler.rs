@@ -21,7 +21,7 @@ impl<VS: ValueStorage<Value = bool>> Toggler for TogglerImpl<VS> {
     }
 
     fn allowed() -> bool {
-        VS::get() == Some(true)
+        VS::get() != Some(false)
     }
 
     fn deny() {

@@ -18,7 +18,7 @@ pub trait MapStorage {
 
     fn remove(key: Self::Key);
 
-    fn remove_all() -> Result<(), u32>;
+    fn remove_all();
 
     fn take(key: Self::Key) -> Option<Self::Value>;
 }
@@ -27,9 +27,9 @@ pub trait MapStorage {
 #[macro_export]
 macro_rules! wrap_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty) => {
-        pub(crate) struct $name<T>(PhantomData<T>);
+        pub struct $name<T>(PhantomData<T>);
 
-        impl<T: crate::Config> MapStorage for $storage<T> {
+        impl<T: crate::Config> MapStorage for $name<T> {
             type Key = $key;
             type Value = $val;
 
@@ -58,15 +58,66 @@ macro_rules! wrap_storage_map {
                 $storage::<T>::remove(key)
             }
 
-            fn remove_all() -> Result<(), u32> {
-                match $storage::<T>::remove_all(None) {
-                    sp_io::KillStorageResult::AllRemoved(..) => Ok(()),
-                    sp_io::KillStorageResult::SomeRemaining(amount) => Err(amount),
-                }
+            fn remove_all() {
+                $storage::<T>::remove_all(None);
             }
 
             fn take(key: Self::Key) -> Option<Self::Value> {
                 $storage::<T>::take(key)
+            }
+        }
+    };
+}
+
+#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[macro_export]
+macro_rules! wrap_counted_storage_map {
+    (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty, length: $len: ty) => {
+        pub struct $name<T>(PhantomData<T>);
+
+        impl<T: crate::Config> MapStorage for $name<T> {
+            type Key = $key;
+            type Value = $val;
+
+            fn contains_key(key: &Self::Key) -> bool {
+                $storage::<T>::contains_key(key)
+            }
+
+            fn get(key: &Self::Key) -> Option<Self::Value> {
+                $storage::<T>::get(key)
+            }
+
+            fn insert(key: Self::Key, value: Self::Value) {
+                $storage::<T>::insert(key, value)
+            }
+
+            fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(key: Self::Key, f: F) -> R {
+                $storage::<T>::mutate(key, f)
+            }
+
+            fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(mut f: F) {
+                let f = |v| Some(f(v));
+                $storage::<T>::translate_values(f)
+            }
+
+            fn remove(key: Self::Key) {
+                $storage::<T>::remove(key)
+            }
+
+            fn remove_all() {
+                $storage::<T>::remove_all()
+            }
+
+            fn take(key: Self::Key) -> Option<Self::Value> {
+                $storage::<T>::take(key)
+            }
+        }
+
+        impl<T: crate::Config> Counted for $name<T> {
+            type Length = $len;
+
+            fn len() -> Self::Length {
+                $storage::<T>::count() as Self::Length
             }
         }
     };

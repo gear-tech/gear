@@ -41,7 +41,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
     }
 );
 
@@ -90,9 +90,7 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
-}
+impl pallet_gear_messenger::Config for Test {}
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

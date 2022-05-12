@@ -10,9 +10,9 @@ pub trait KeyFor {
     fn key_for(value: &Self::Value) -> Self::Key;
 }
 
-pub struct QueueKey;
+pub struct QueueKeyGen;
 
-impl KeyFor for QueueKey {
+impl KeyFor for QueueKeyGen {
     type Key = MessageId;
     type Value = StoredDispatch;
 
@@ -21,9 +21,9 @@ impl KeyFor for QueueKey {
     }
 }
 
-pub struct MailboxKey;
+pub struct MailboxKeyGen;
 
-impl KeyFor for MailboxKey {
+impl KeyFor for MailboxKeyGen {
     type Key = (ProgramId, MessageId);
     type Value = StoredMessage;
 
