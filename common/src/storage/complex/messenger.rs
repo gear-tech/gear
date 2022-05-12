@@ -2,13 +2,14 @@ use crate::storage::complex::Queue;
 use crate::storage::complex::{Mailbox, MailboxError};
 use crate::storage::complicated::{Counter, LinkedListError, Toggler};
 use crate::storage::primitives::Counted;
+use core::fmt::Debug;
 
 /// Message processing centralized behaviour.
 pub trait Messenger {
     type Capacity;
     type MailboxedMessage;
     type QueuedDispatch;
-    type Error: MailboxError + LinkedListError;
+    type Error: MailboxError + LinkedListError + Debug;
 
     /// Amount of messages sent from outside.
     type Sent: Counter<Value = Self::Capacity>;

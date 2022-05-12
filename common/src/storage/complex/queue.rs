@@ -11,6 +11,8 @@ pub trait Queue {
     fn queue(value: Self::Value) -> Result<(), Self::Error>;
 
     fn requeue(value: Self::Value) -> Result<(), Self::Error>;
+
+    fn remove_all();
 }
 
 pub struct QueueImpl<T: LinkedList, KeyGen: KeyFor<Key = T::Key, Value = T::Value>>(
@@ -33,6 +35,10 @@ impl<T: LinkedList, KeyGen: KeyFor<Key = T::Key, Value = T::Value>> Queue for Qu
     fn requeue(value: Self::Value) -> Result<(), Self::Error> {
         let key = KeyGen::key_for(&value);
         T::push_front(key, value)
+    }
+
+    fn remove_all() {
+        T::remove_all()
     }
 }
 
