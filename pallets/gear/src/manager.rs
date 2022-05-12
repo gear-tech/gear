@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
-    MessageInfo, Pallet,
+    pallet::Reason, Authorship, Config, DequeuedOf, DispatchOutcome, Event, ExecutionResult,
+    GearProgramPallet, MessageInfo, Pallet, QueueOf, SentOf,
 };
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
 use common::{
-    storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
+    storage::new::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
 };
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
@@ -38,7 +38,6 @@ use gear_core::{
     program::Program as NativeProgram,
 };
 use pallet_gas::Pallet as GasPallet;
-use pallet_gear_messenger::Pallet as MessengerPallet;
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
@@ -178,9 +177,9 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
-                                |e| unreachable!("Message queue corrupted! {:?}", e),
-                            );
+                            QueueOf::<T>::queue(m).unwrap_or_else(|e| {
+                                unreachable!("Message queue corrupted! {:?}", e)
+                            });
                         }
                     });
 
@@ -212,9 +211,9 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
-                                |e| unreachable!("Message queue corrupted! {:?}", e),
-                            );
+                            QueueOf::<T>::queue(m).unwrap_or_else(|e| {
+                                unreachable!("Message queue corrupted! {:?}", e)
+                            });
                         }
                     });
 
@@ -295,7 +294,7 @@ where
         let program_id = id_exited.into_origin();
 
         for message in common::remove_program_waitlist(program_id) {
-            <MessengerPallet<T> as Messenger>::Queue::push_back(message)
+            QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
@@ -382,7 +381,7 @@ where
                 let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+            QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             let message = dispatch.into_parts().1;
@@ -463,7 +462,7 @@ where
                 }
             };
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+            QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
@@ -578,9 +577,9 @@ where
             gas_burned,
         );
 
-        <MessengerPallet<T> as Messenger>::Sent::increase();
+        SentOf::<T>::increase();
         GasPallet::<T>::decrease_gas_allowance(gas_burned);
-        <MessengerPallet<T> as Messenger>::Queue::push_front(dispatch)
+        QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 }

@@ -16,15 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Encode;
-use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
-use demo_distributor::{Request, WASM_BINARY};
-use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
-use frame_support::{assert_noop, assert_ok};
-use frame_system::Pallet as SystemPallet;
-use gear_core::{code::Code, ids::CodeId};
-use pallet_balances::{self, Pallet as BalancesPallet};
-
 use super::{
     manager::HandleKind,
     mock::{
@@ -34,7 +25,14 @@ use super::{
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, Mailbox,
     MessageInfo, Pallet as GearPallet, Reason,
 };
-
+use codec::Encode;
+use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use demo_distributor::{Request, WASM_BINARY};
+use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+use frame_support::{assert_noop, assert_ok};
+use frame_system::Pallet as SystemPallet;
+use gear_core::{code::Code, ids::CodeId};
+use pallet_balances::{self, Pallet as BalancesPallet};
 use utils::*;
 
 #[test]
