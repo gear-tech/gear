@@ -3,6 +3,7 @@ use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::env::current_dir;
 use std::collections::BTreeMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand};
 
@@ -43,6 +44,10 @@ enum Commands {
     GetCrateList,
 }
 
+fn current_time_since_epoch_secs() -> i32 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i32
+}
+
 fn main() {
     let (db, commit) = match Cli::parse().command {
         Commands::GetCrateList => {
@@ -61,7 +66,7 @@ fn main() {
     let db_connection = SqliteConnection::establish(database_url)
         .expect("failed to open DB");
 
-    let result = process_jsons(db_connection, current_directory, &CRATE_NAMES, &commit);
+    let result = process_jsons(db_connection, current_directory, &CRATE_NAMES, &commit, current_time_since_epoch_secs());
     for (name, stats) in result {
         println!("name = {}", name);
         let table = tabled::Table::new(stats);
@@ -70,7 +75,7 @@ fn main() {
     }
 }
 
-fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, crate_names: &[&'a str], commit: &str) -> BTreeMap<&'a str, Vec<TestStats>> {
+fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, crate_names: &[&'a str], commit: &str, current_time: i32) -> BTreeMap<&'a str, Vec<TestStats>> {
     let mut result = BTreeMap::new();
     for (crate_name, json_path) in crate_names.iter()
         .map(|&crate_name| {
@@ -80,7 +85,7 @@ fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, c
             (crate_name, p)
         })
     {
-        let stats = process_json(&connection, crate_name, commit, &json_path);
+        let stats = process_json(&connection, crate_name, commit, &json_path, current_time);
         result.insert(crate_name, stats);
     }
 
@@ -197,7 +202,7 @@ fn process_test(connection: &SqliteConnection, crate_name: &str, test_exec_time:
     }
 }
 
-fn process_json(connection: &SqliteConnection, crate_name: &str, commit: &str, json_path: &Path) -> Vec<TestStats> {
+fn process_json(connection: &SqliteConnection, crate_name: &str, commit: &str, json_path: &Path, current_time: i32) -> Vec<TestStats> {
     let mut result = Vec::with_capacity(1_000);
 
     for line in read_lines(json_path).expect(&format!("failed to read lines from '{}'", json_path.display())) {
@@ -223,7 +228,7 @@ fn process_json(connection: &SqliteConnection, crate_name: &str, commit: &str, j
         let new_test_execution = NewTestExecution {
             test_id,
             commit_hash: commit,
-            date_time: 1_000_000,
+            date_time: current_time,
             exec_time: (test.exec_time * 1_000_000_000.0) as i64,
         };
 
