@@ -16,50 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::{Decode, Encode};
-
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
-
-use gear_common::{Origin, STORAGE_MESSAGE_PREFIX};
+use gear_common::{storage::Messenger, storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
-use gear_runtime::{Gear, Runtime, System};
-
+use gear_runtime::{Gas, Gear, GearMessenger, Runtime, System};
 use pallet_gear_debug::DebugData;
-
-use sp_core::H256;
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
 pub fn get_dispatch_queue() -> Vec<StoredDispatch> {
-    #[derive(Decode, Encode)]
-    struct Node {
-        value: StoredDispatch,
-        next: Option<H256>,
-    }
-
-    let mq_head_key = [STORAGE_MESSAGE_PREFIX, b"head"].concat();
-    let mut dispatch_queue = vec![];
-
-    if let Some(head) = sp_io::storage::get(&mq_head_key) {
-        let mut next_id = H256::from_slice(&head[..]);
-        loop {
-            let next_node_key = [STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-            if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                dispatch_queue.push(current_node.value);
-                match current_node.next {
-                    Some(h) => next_id = h,
-                    None => break,
-                }
-            }
-        }
-    }
-
-    dispatch_queue
+    <MessengerPallet<Runtime> as Messenger>::Queue::iter()
+        .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
+        .collect()
 }
 
 pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
-    while !gear_common::StorageQueue::<StoredDispatch>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
+    let need_to_continue = || {
+        !<MessengerPallet<Runtime> as Messenger>::Queue::is_empty()
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
+    };
+
+    while need_to_continue() {
         run_to_block(System::block_number() + 1, None);
         // Parse data from events
         for event in System::events() {
@@ -87,7 +65,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Runtime> {
         balances: vec![(
             AccountId32::unchecked_from(1000001.into_origin()),
-            (<Runtime as pallet_gear::Config>::BlockGasLimit::get() * 10) as u128,
+            (<Runtime as pallet_gas::Config>::BlockGasLimit::get() * 10) as u128,
         )],
     }
     .assimilate_storage(&mut t)
@@ -103,9 +81,11 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
+        Gas::on_initialize(System::block_number());
+        GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
         let remaining_weight =
-            remaining_weight.unwrap_or_else(<Runtime as pallet_gear::Config>::BlockGasLimit::get);
+            remaining_weight.unwrap_or_else(<Runtime as pallet_gas::Config>::BlockGasLimit::get);
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }

@@ -75,6 +75,11 @@ pub fn get_released_pages() -> Vec<u32> {
     RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|x| *x.0).collect())
 }
 
+/// Returns whether lazy pages env is enabled
+pub fn is_lazy_pages_enabled() -> bool {
+    LAZY_PAGES_ENABLED.with(|x| *x.borrow())
+}
+
 #[derive(Debug)]
 pub struct GetReleasedPageError;
 

@@ -1,40 +1,33 @@
 #![no_std]
+#![feature(alloc_error_handler)]
 
-use gstd::{debug, msg, prelude::*};
+#[cfg(target_arch = "wasm32")]
+extern crate galloc;
 
-static mut MESSAGE_LOG: Vec<String> = vec![];
+use core::str;
+use galloc::prelude::vec;
+use gcore::msg;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    debug!("Hello from ping handle");
+    let mut bytes = vec![0; msg::size()];
+    msg::load(&mut bytes);
 
-    let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message");
-
-    match new_msg.as_str() {
-        "PING" => {
-            msg::reply_bytes("PONG", 0).unwrap();
+    if let Ok(received_msg) = str::from_utf8(&bytes) {
+        if received_msg == "PING" {
+            let _ = msg::reply(b"PONG", 0);
         }
-        "PING_REPLY_WITH_GAS" => {
-            msg::reply_with_gas(b"pong reply with gas message", 1, 0).unwrap();
-        }
-        "PING_REPLY_COMMIT_WITH_GAS" => {
-            msg::reply_push(b"pong Part 1 ").unwrap();
-            msg::reply_push(b"pong Part 2").unwrap();
-            msg::reply_commit_with_gas(1, 0).unwrap();
-        }
-        _ => {}
-    }
-
-    MESSAGE_LOG.push(new_msg);
-
-    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
-
-    for log in MESSAGE_LOG.iter() {
-        debug!(log);
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn init() {
-    debug!("Hello from ping init");
+#[cfg(target_arch = "wasm32")]
+#[alloc_error_handler]
+pub fn oom(_: core::alloc::Layout) -> ! {
+    core::arch::wasm32::unreachable()
+}
+
+#[cfg(target_arch = "wasm32")]
+#[panic_handler]
+fn panic(_: &core::panic::PanicInfo) -> ! {
+    core::arch::wasm32::unreachable();
 }

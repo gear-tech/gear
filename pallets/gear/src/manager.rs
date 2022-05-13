@@ -20,8 +20,11 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
     MessageInfo, Pallet,
 };
+use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
-use common::{ActiveProgram, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program};
+use common::{
+    storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
+};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -30,10 +33,12 @@ use frame_support::traits::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::PageNumber,
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
+use pallet_gas::Pallet as GasPallet;
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
@@ -72,50 +77,50 @@ where
 {
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
-        let program = common::get_program(id).and_then(|p| {
-            let is_initialized = p.is_initialized();
-            p.try_into().ok().and_then(|p: ActiveProgram| {
-                let code_id = CodeId::from_origin(p.code_hash);
-                T::CodeStorage::get_code(code_id).map(|c| {
-                    NativeProgram::from_parts(
-                        ProgramId::from_origin(id),
-                        c,
-                        p.persistent_pages,
-                        is_initialized,
-                    )
-                })
-            })
-        })?;
+    pub fn get_executable_actor(&self, id: H256, with_pages: bool) -> Option<ExecutableActor> {
+        let active: ActiveProgram = common::get_program(id)?.try_into().ok()?;
+        let program = {
+            let code_id = CodeId::from_origin(active.code_hash);
+            let code = T::CodeStorage::get_code(code_id)?;
+            NativeProgram::from_parts(
+                ProgramId::from_origin(id),
+                code,
+                active.allocations,
+                matches!(active.state, ProgramState::Initialized),
+            )
+        };
 
         let balance =
             <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
                 .unique_saturated_into();
+        let pages_data = if with_pages {
+            common::get_program_data_for_pages(id, active.pages_with_data.iter())
+        } else {
+            Default::default()
+        };
 
-        Some(ExecutableActor { program, balance })
+        Some(ExecutableActor {
+            program,
+            balance,
+            pages_data,
+        })
     }
 
-    pub fn set_program(
-        &self,
-        program_id: ProgramId,
-        code_id: CodeId,
-        static_pages: WasmPageNumber,
-        message_id: H256,
-    ) {
+    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: H256) {
         assert!(
             T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",
         );
 
-        // An empty program has been just constructed: it contains no persistent pages.
+        // An empty program has been just constructed: it contains no mem allocations.
         let program = common::ActiveProgram {
-            static_pages,
-            persistent_pages: Default::default(),
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
             code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
         };
 
-        common::set_program(program_id.into_origin(), program, Default::default());
+        common::set_program(program_id.into_origin(), program);
     }
 }
 
@@ -124,8 +129,6 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
-        Pallet::<T>::message_handled();
-
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
@@ -175,7 +178,9 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            common::queue_dispatch(m);
+                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
+                                |e| unreachable!("Message queue corrupted! {:?}", e),
+                            );
                         }
                     });
 
@@ -207,7 +212,9 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            common::queue_dispatch(m);
+                            <MessengerPallet<T> as Messenger>::Queue::push_back(m).unwrap_or_else(
+                                |e| unreachable!("Message queue corrupted! {:?}", e),
+                            );
                         }
                     });
 
@@ -242,26 +249,35 @@ where
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
-        Pallet::<T>::decrease_gas_allowance(amount);
+        GasPallet::<T>::decrease_gas_allowance(amount);
 
         match T::GasHandler::spend(message_id, amount) {
             Ok(_) => {
-                if let Some(origin) = T::GasHandler::get_origin(message_id) {
-                    let charge = T::GasPrice::gas_price(amount);
-                    if let Some(author) = Authorship::<T>::author() {
-                        let _ = <T as Config>::Currency::repatriate_reserved(
-                            &<T::AccountId as Origin>::from_origin(origin),
-                            &author,
-                            charge,
-                            BalanceStatus::Free,
-                        );
+                match T::GasHandler::get_origin(message_id) {
+                    Ok(maybe_origin) => {
+                        if let Some(origin) = maybe_origin {
+                            let charge = T::GasPrice::gas_price(amount);
+                            if let Some(author) = Authorship::<T>::author() {
+                                let _ = <T as Config>::Currency::repatriate_reserved(
+                                    &<T::AccountId as Origin>::from_origin(origin),
+                                    &author,
+                                    charge,
+                                    BalanceStatus::Free,
+                                );
+                            }
+                        } else {
+                            log::debug!(
+                                target: "essential",
+                                "Failed to get limit of {:?}",
+                                message_id,
+                            );
+                        }
                     }
-                } else {
-                    log::debug!(
-                        target: "essential",
-                        "Failed to get limit of {:?}",
-                        message_id,
-                    );
+                    Err(_err) => {
+                        // We only can get an error here if the gas tree is invalidated
+                        // TODO: handle appropriately
+                        unreachable!("Can never happen unless gas tree corrupted");
+                    }
                 }
             }
             Err(err) => {
@@ -279,7 +295,8 @@ where
         let program_id = id_exited.into_origin();
 
         for message in common::remove_program_waitlist(program_id) {
-            common::queue_dispatch(message);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
         let res = common::set_program_terminated_status(program_id);
@@ -301,16 +318,28 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
-        if let Some((neg_imbalance, external)) = T::GasHandler::consume(message_id) {
-            let gas_left = neg_imbalance.peek();
-            log::debug!("Unreserve balance on message processed: {}", gas_left);
+        match T::GasHandler::consume(message_id) {
+            Err(_e) => {
+                // We only can get an error here if the gas tree is invalidated
+                // TODO: handle appropriately
+                unreachable!("Can never happen unless gas tree corrupted");
+            }
+            Ok(maybe_outcome) => {
+                if let Some((neg_imbalance, external)) = maybe_outcome {
+                    let gas_left = neg_imbalance.peek();
 
-            let refund = T::GasPrice::gas_price(gas_left);
+                    if gas_left > 0 {
+                        log::debug!("Unreserve balance on message processed: {}", gas_left);
 
-            let _ = <T as Config>::Currency::unreserve(
-                &<T::AccountId as Origin>::from_origin(external),
-                refund,
-            );
+                        let refund = T::GasPrice::gas_price(gas_left);
+
+                        let _ = <T as Config>::Currency::unreserve(
+                            &<T::AccountId as Origin>::from_origin(external),
+                            refund,
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -352,7 +381,9 @@ where
             } else {
                 let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
-            common::queue_dispatch(dispatch);
+
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             let message = dispatch.into_parts().1;
 
@@ -366,8 +397,6 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        Pallet::<T>::message_handled();
-
         common::insert_waiting_message(
             dispatch.destination().into_origin(),
             dispatch.id().into_origin(),
@@ -396,22 +425,31 @@ where
 
             match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
                 Ok(_) => {
-                    if let Some(origin) = T::GasHandler::get_origin(message_id.into_origin()) {
-                        let charge = T::GasPrice::gas_price(chargeable_amount);
-                        if let Some(author) = Authorship::<T>::author() {
-                            let _ = <T as Config>::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(origin),
-                                &author,
-                                charge,
-                                BalanceStatus::Free,
-                            );
+                    match T::GasHandler::get_origin(message_id.into_origin()) {
+                        Ok(maybe_origin) => {
+                            if let Some(origin) = maybe_origin {
+                                let charge = T::GasPrice::gas_price(chargeable_amount);
+                                if let Some(author) = Authorship::<T>::author() {
+                                    let _ = <T as Config>::Currency::repatriate_reserved(
+                                        &<T::AccountId as Origin>::from_origin(origin),
+                                        &author,
+                                        charge,
+                                        BalanceStatus::Free,
+                                    );
+                                }
+                            } else {
+                                log::debug!(
+                                    target: "essential",
+                                    "Failed to get limit of {:?}",
+                                    message_id,
+                                );
+                            }
                         }
-                    } else {
-                        log::debug!(
-                            target: "essential",
-                            "Failed to get limit of {:?}",
-                            message_id,
-                        );
+                        Err(_err) => {
+                            // We only can get an error here if the gas tree is invalidated
+                            // TODO: handle appropriately
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
                     }
                 }
                 Err(err) => {
@@ -425,7 +463,8 @@ where
                 }
             };
 
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
@@ -437,30 +476,41 @@ where
         }
     }
 
-    fn update_page(
+    fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        page_number: PageNumber,
-        data: Option<Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, Vec<u8>>,
     ) {
         let program_id = program_id.into_origin();
-
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");
-
-        if let Program::Active(prog) = program {
-            let mut persistent_pages = prog.persistent_pages;
-
-            if let Some(data) = data {
-                persistent_pages.insert(page_number);
-                common::set_program_page(program_id, page_number, data);
-            } else {
-                persistent_pages.remove(&page_number);
-                common::remove_program_page(program_id, page_number);
+        if let Program::Active(mut program) = program {
+            for (page, data) in pages_data {
+                common::set_program_page_data(program_id, page, data);
+                program.pages_with_data.insert(page);
             }
+            common::set_program(program_id, program);
+        }
+    }
 
-            common::set_program_persistent_pages(program_id, persistent_pages);
-        };
+    fn update_allocations(
+        &mut self,
+        program_id: ProgramId,
+        allocations: BTreeSet<gear_core::memory::WasmPageNumber>,
+    ) {
+        let program_id = program_id.into_origin();
+        let program = common::get_program(program_id)
+            .expect("page update guaranteed to be called only for existing and active program");
+        if let Program::Active(mut program) = program {
+            let removed_pages = program.allocations.difference(&allocations);
+            for page in removed_pages.flat_map(|p| p.to_gear_pages_iter()) {
+                if program.pages_with_data.remove(&page) {
+                    common::remove_program_page_data(program_id, page);
+                }
+            }
+            program.allocations = allocations;
+            common::set_program(program_id, program);
+        }
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
@@ -501,15 +551,10 @@ where
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = T::CodeStorage::get_code(code_id) {
+        if T::CodeStorage::get_code(code_id).is_some() {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    self.set_program(
-                        candidate_id,
-                        code_id,
-                        code.static_pages(),
-                        init_message.into_origin(),
-                    );
+                    self.set_program(candidate_id, code_id, init_message.into_origin());
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -529,12 +574,13 @@ where
         log::debug!(
             "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
-            Pallet::<T>::gas_allowance(),
+            GasPallet::<T>::gas_allowance(),
             gas_burned,
         );
 
-        Pallet::<T>::stop_processing();
-        Pallet::<T>::decrease_gas_allowance(gas_burned);
-        common::queue_dispatch_first(dispatch);
+        <MessengerPallet<T> as Messenger>::Sent::increase();
+        GasPallet::<T>::decrease_gas_allowance(gas_burned);
+        <MessengerPallet<T> as Messenger>::Queue::push_front(dispatch)
+            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 }

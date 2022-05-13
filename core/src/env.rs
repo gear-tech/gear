@@ -18,10 +18,10 @@
 
 //! Environment for running a module.
 
-use crate::costs::RuntimeCosts;
-use crate::memory::{Memory, WasmPageNumber};
 use crate::{
+    costs::RuntimeCosts,
     ids::{MessageId, ProgramId},
+    memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::rc::Rc;

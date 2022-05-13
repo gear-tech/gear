@@ -91,7 +91,9 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = ();
+}
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

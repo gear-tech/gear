@@ -52,6 +52,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -122,6 +124,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -247,6 +251,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -317,6 +323,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Install: grcov"
         run: |

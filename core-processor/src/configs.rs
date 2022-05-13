@@ -26,7 +26,7 @@ const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
-const LOAD_PAGE_COST: u64 = 200;
+const LOAD_PAGE_COST: u64 = 3000;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]

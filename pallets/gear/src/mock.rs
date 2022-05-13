@@ -18,11 +18,13 @@
 
 use crate as pallet_gear;
 use crate::{ext::LazyPagesExt, manager::ExtManager};
+use common::lazy_pages;
 use common::Origin as _;
 use core_processor::configs::AllocationsConfig;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
+    Ext,
 };
 use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
@@ -58,6 +60,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -136,14 +139,19 @@ impl pallet_gear::Config for Test {
     type GasHandler = Gas;
     type WeightInfo = ();
     type Schedule = MySchedule;
-    type BlockGasLimit = BlockGasLimit;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
 }
 
-impl pallet_gas::Config for Test {}
+impl pallet_gas::Config for Test {
+    type BlockGasLimit = BlockGasLimit;
+}
+
+impl pallet_gear_messenger::Config for Test {
+    type Event = Event;
+}
 
 pub struct FixedBlockAuthor;
 
@@ -202,10 +210,12 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
+        Gas::on_initialize(System::block_number());
+        GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
 
         let remaining_weight =
-            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+            remaining_weight.unwrap_or(<Test as pallet_gas::Config>::BlockGasLimit::get());
 
         log::debug!(
             "🧱 Running on_idle block #{} with weight {}",
@@ -220,7 +230,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
 pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
-    let initial_gas = <Test as pallet_gear::Config>::BlockGasLimit::get();
+    let initial_gas = <Test as pallet_gas::Config>::BlockGasLimit::get();
 
     let message = Message::new(
         Default::default(),
@@ -232,8 +242,10 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         None,
     );
 
+    let lazy_pages_enabled = cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
+
     let actor = ext_manager
-        .get_executable_actor(dest)
+        .get_executable_actor(dest, !lazy_pages_enabled)
         .expect("Can't find a program");
 
     let dispatch = Dispatch::new(DispatchKind::Handle, message);
@@ -254,18 +266,33 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
 
-    let journal = core_processor::process::<LazyPagesExt, SandboxEnvironment<LazyPagesExt>>(
-        Some(actor),
-        dispatch.into_stored().into_incoming(initial_gas),
-        block_info,
-        allocations_config,
-        existential_deposit,
-        ProgramId::from_origin(source),
-        ProgramId::from_origin(dest),
-        u64::MAX,
-        <Test as pallet_gear::Config>::OutgoingLimit::get(),
-        schedule.host_fn_weights.into_core(),
-    );
+    let journal = if lazy_pages_enabled {
+        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+            Some(actor),
+            dispatch.into_stored().into_incoming(initial_gas),
+            block_info,
+            allocations_config,
+            existential_deposit,
+            ProgramId::from_origin(source),
+            ProgramId::from_origin(dest),
+            u64::MAX,
+            <Test as pallet_gear::Config>::OutgoingLimit::get(),
+            schedule.host_fn_weights.into_core(),
+        )
+    } else {
+        core_processor::process::<Ext, SandboxEnvironment<_>>(
+            Some(actor),
+            dispatch.into_stored().into_incoming(initial_gas),
+            block_info,
+            allocations_config,
+            existential_deposit,
+            ProgramId::from_origin(source),
+            ProgramId::from_origin(dest),
+            u64::MAX,
+            <Test as pallet_gear::Config>::OutgoingLimit::get(),
+            schedule.host_fn_weights.into_core(),
+        )
+    };
 
     let mut gas_burned: u64 = 0;
     let mut gas_to_send: u64 = 0;

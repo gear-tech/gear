@@ -165,6 +165,7 @@ fn process_success(
         page_update,
         program_id,
         context_store,
+        allocations,
         ..
     } = dispatch_result;
 
@@ -217,6 +218,13 @@ fn process_success(
             page_number,
             data,
         })
+    }
+
+    if let Some(allocations) = allocations {
+        journal.push(JournalNote::UpdateAllocations {
+            program_id,
+            allocations,
+        });
     }
 
     match kind {
@@ -277,13 +285,15 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
 
     let program_id = actor.program.id();
 
-    match executor::execute_wasm::<A, E>(
+    let exec_result = executor::execute_wasm::<A, E>(
         actor,
         dispatch.clone(),
         execution_context,
         execution_settings,
         msg_ctx_settings,
-    ) {
+    );
+
+    match exec_result {
         Ok(res) => match res.kind {
             DispatchResultKind::Trap(reason) => process_error(
                 res.dispatch,

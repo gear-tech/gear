@@ -57,7 +57,7 @@ pub enum TerminationReason {
 
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
-    pub pages: BTreeSet<PageNumber>,
+    pub allocations: BTreeSet<WasmPageNumber>,
     pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
     pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
@@ -111,7 +111,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 

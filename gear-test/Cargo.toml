@@ -7,16 +7,16 @@ license = "GPL-3.0"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "3.1.15", features = ["derive"] }
+clap = { version = "3.1.18", features = ["derive"] }
 derive_more = "0.99"
 env_logger = "0.9"
 colored = "2.0.0"
 regex = "^1.5"
-serde_yaml = "0.8.23"
+serde_yaml = "0.8.24"
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
-log = "0.4.16"
+log = "0.4.17"
 rayon = "1.5"
 wasm-instrument = { version = "0.1" }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
