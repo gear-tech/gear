@@ -58,6 +58,12 @@ fn main() {
         .expect("failed to open DB");
 
     let result = process_jsons(db_connection, current_directory, &CRATE_NAMES);
+    for (name, stats) in result {
+        println!("name = {}", name);
+        let table = tabled::Table::new(stats);
+        println!("{}", table);
+        println!("");
+    }
 }
 
 fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, crate_names: &[&'a str]) -> BTreeMap<&'a str, Vec<TestStats>> {
@@ -92,14 +98,40 @@ struct TestStats {
     min: i64,
     max: i64,
     median: i64,
+    current: i64,
 }
 
-fn process_test(connection: &SqliteConnection, crate_name: &str, test: &TestExecTime) -> (i32, Option<TestStats>) {
+impl tabled::Tabled for TestStats {
+    const LENGTH: usize = 6;
+
+    fn fields(&self) -> Vec<String> {
+        let comparing_display = |value: i64| {
+            let current = self.current;
+            let sign: &str = if current == value {
+                "=="
+            } else if current > value {
+                ">"
+            } else {
+                "<"
+            };
+
+            format!("{} ({})", value, sign)
+        };
+
+        vec![self.name.clone(), self.current.to_string(), comparing_display(self.median), comparing_display(self.average), comparing_display(self.min), comparing_display(self.max)]
+    }
+
+    fn headers() -> Vec<String> {
+        vec!["name".to_owned(), "current".to_owned(), "median".to_owned(), "average".to_owned(), "min".to_owned(), "max".to_owned()]
+    }
+}
+
+fn process_test(connection: &SqliteConnection, crate_name: &str, test_exec_time: &TestExecTime) -> (i32, Option<TestStats>) {
     use crate::schema::tests::dsl as tests_dsl;
 
     let test_id = tests_dsl::tests
         .filter(tests_dsl::crate_name.eq(crate_name))
-        .filter(tests_dsl::test_name.eq(&test.name))
+        .filter(tests_dsl::test_name.eq(&test_exec_time.name))
         .load::<Test>(connection);
 
     if let Some(test) = test_id.ok().and_then(|mut v| v.pop()) {
@@ -126,7 +158,7 @@ fn process_test(connection: &SqliteConnection, crate_name: &str, test: &TestExec
         let median = query
             .load::<i64>(connection)
             .expect("failed to select median");
-        
+
         let median = if median.len() > 1 {
             median[0] / 2 + median[1] / 2 + median[0] % 2 + median[1] % 2
         } else {
@@ -139,11 +171,12 @@ fn process_test(connection: &SqliteConnection, crate_name: &str, test: &TestExec
             min,
             max,
             median,
+            current: (1_000_000_000.0 * test_exec_time.exec_time) as i64,
         }))
     } else {
         let new_test = NewTest {
             crate_name,
-            test_name: &test.name,
+            test_name: &test_exec_time.name,
         };
 
         diesel::insert_into(crate::schema::tests::table)
