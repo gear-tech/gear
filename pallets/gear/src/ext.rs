@@ -53,6 +53,20 @@ impl CoreError for Error {
             _ => None,
         }
     }
+
+    fn into_ext_error(self) -> Result<ExtError, Self> {
+        match self {
+            Error::Core(core) => Ok(core),
+            err => Err(err),
+        }
+    }
+
+    fn as_ext_error(&self) -> Option<&ExtError> {
+        match self {
+            Error::Core(core) => Some(core),
+            _ => None,
+        }
+    }
 }
 
 impl From<ExtError> for Error {

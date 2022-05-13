@@ -28,7 +28,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
+    BackendError, BackendReport, Environment, ErrorSavingExt, ExtInfo, HostPointer, IntoExtInfo,
+    TerminationReason,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
@@ -42,7 +43,7 @@ use wasmtime::{
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
-    pub ext: ClonedExtCarrier<E>,
+    pub ext: ClonedExtCarrier<ErrorSavingExt<E>>,
     pub termination_reason: Option<TerminationReason>,
 }
 
@@ -69,7 +70,7 @@ pub enum WasmtimeEnvironmentError {
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: Store<StoreData<E>>,
-    ext: ExtCarrier<E>,
+    ext: ExtCarrier<ErrorSavingExt<E>>,
     memory: WasmtimeMemory,
     instance: Instance,
 }
@@ -106,6 +107,7 @@ where
             ..
         } = self;
         ext.into_inner()
+            .inner
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                 memory.read(&mut store, offset, buffer)
             })
@@ -130,7 +132,7 @@ where
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
-        let ext_carrier = ExtCarrier::new(ext);
+        let ext_carrier = ExtCarrier::new(ErrorSavingExt::new(ext));
 
         let engine = Engine::default();
         let store_data = StoreData {
@@ -146,7 +148,7 @@ where
                 return Err(BackendError {
                     reason: WasmtimeEnvironmentError::CreateEnvMemory,
                     description: Some(e.to_string().into()),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
                 })
             }
         };
@@ -199,6 +201,7 @@ where
         funcs.insert("gr_leave", funcs::leave(&mut store));
         funcs.insert("gr_wait", funcs::wait(&mut store));
         funcs.insert("gr_wake", funcs::wake(&mut store, memory));
+        funcs.insert("gr_error", funcs::error(&mut store, memory));
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,
@@ -206,7 +209,7 @@ where
                 return Err(BackendError {
                     reason: WasmtimeEnvironmentError::ModuleCreation,
                     description: Some(e.to_string().into()),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
                 })
             }
         };
@@ -219,7 +222,7 @@ where
                     description: import
                         .name()
                         .map(|v| format!("Function {:?} is not env", v).into()),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
                 });
             }
             imports.push((import.name(), Option::<Extern>::None));
@@ -244,7 +247,7 @@ where
                     reason: WasmtimeEnvironmentError::MissingImport,
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
                 });
             }
         }
@@ -255,7 +258,7 @@ where
                 return Err(BackendError {
                     reason: WasmtimeEnvironmentError::InstanceCreation,
                     description: Some(e.to_string().into()),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
                 })
             }
         };
@@ -265,7 +268,7 @@ where
             return Err(BackendError {
                 reason: WasmtimeEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
             });
         }
 
@@ -364,6 +367,6 @@ where
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        self.ext.into_inner().into_gas_amount()
+        self.ext.into_inner().inner.into_gas_amount()
     }
 }

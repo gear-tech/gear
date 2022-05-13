@@ -25,7 +25,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, HostPointer, IntoExtInfo, TerminationReason,
+    BackendError, BackendReport, Environment, ErrorSavingExt, HostPointer, IntoExtInfo,
+    TerminationReason,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -63,7 +64,7 @@ pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
 }
 
 pub(crate) struct Runtime<E: Ext> {
-    pub ext: ExtCarrier<E>,
+    pub ext: ExtCarrier<ErrorSavingExt<E>>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
 }
@@ -100,7 +101,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
-        let ext_carrier = ExtCarrier::new(ext);
+        let ext_carrier = ExtCarrier::new(ErrorSavingExt::new(ext));
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
@@ -108,7 +109,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::CreateEnvMemory,
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext_carrier.into_inner().inner.into_gas_amount(),
                 })
             }
         };
@@ -149,6 +150,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_leave", funcs::leave);
         env_builder.add_host_func("env", "gr_wait", funcs::wait);
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
+        env_builder.add_host_func("env", "gr_error", funcs::error);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
         let mut runtime = Runtime {
@@ -163,7 +165,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::ModuleInstantiation,
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
+                    gas_amount: runtime.ext.into_inner().inner.into_gas_amount(),
                 })
             }
         };
@@ -174,7 +176,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::GetWasmExports,
                     description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
+                    gas_amount: runtime.ext.into_inner().inner.into_gas_amount(),
                 })
             }
         };
@@ -184,7 +186,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             return Err(BackendError {
                 reason: SandboxEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: runtime.ext.into_inner().into_gas_amount(),
+                gas_amount: runtime.ext.into_inner().inner.into_gas_amount(),
             });
         }
 
@@ -236,6 +238,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
         let info = ext
             .into_inner()
+            .inner
             .into_ext_info(|ptr, buff| memory.read(ptr, buff))
             .map_err(|(reason, gas_amount)| BackendError {
                 reason: SandboxEnvironmentError::Memory(reason),
@@ -279,6 +282,6 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        self.runtime.ext.into_inner().into_gas_amount()
+        self.runtime.ext.into_inner().inner.into_gas_amount()
     }
 }

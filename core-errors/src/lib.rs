@@ -22,10 +22,14 @@ use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
 
-pub trait CoreError: fmt::Display + fmt::Debug {
+pub trait CoreError: Sized + fmt::Display + fmt::Debug {
     fn from_termination_reason(reason: TerminationReason) -> Self;
 
     fn as_termination_reason(&self) -> Option<TerminationReason>;
+
+    fn into_ext_error(self) -> Result<ExtError, Self>;
+
+    fn as_ext_error(&self) -> Option<&ExtError>;
 }
 
 /// Error using messages.
@@ -78,7 +82,7 @@ pub enum MessageError {
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display, Encode, Decode)]
 pub enum MemoryError {
     /// Memory is over.
     ///
@@ -107,7 +111,7 @@ pub enum MemoryError {
     NotAllPagesInBegin,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Encode, Decode)]
 pub enum TerminationReason {
     Exit,
     Leave,
@@ -115,7 +119,7 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display, Encode, Decode)]
 pub enum ExtError {
     #[display(fmt = "Allocation error: {}", _0)]
     Alloc(MemoryError),
@@ -153,5 +157,13 @@ impl CoreError for ExtError {
             ExtError::TerminationReason(reason) => Some(*reason),
             _ => None,
         }
+    }
+
+    fn into_ext_error(self) -> Result<ExtError, Self> {
+        Ok(self)
+    }
+
+    fn as_ext_error(&self) -> Option<&ExtError> {
+        Some(self)
     }
 }

@@ -1411,6 +1411,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-syscall-error"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
@@ -2238,7 +2248,9 @@ dependencies = [
 name = "gcore"
 version = "0.1.0"
 dependencies = [
+ "gear-core-errors",
  "hex-literal",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2249,6 +2261,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2260,6 +2273,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "log",
+ "parity-scale-codec",
  "parity-wasm 0.42.2",
  "sp-sandbox",
 ]
@@ -2273,6 +2287,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "log",
+ "parity-scale-codec",
  "wasmtime 0.35.1",
 ]
 
@@ -2645,6 +2660,7 @@ dependencies = [
  "futures 0.3.21",
  "galloc",
  "gcore",
+ "gear-core-errors",
  "gstd-codegen",
  "hex",
  "parity-scale-codec",
