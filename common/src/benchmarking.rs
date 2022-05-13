@@ -149,5 +149,6 @@ pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber
             state: ProgramState::Initialized,
         },
         persistent_pages_data,
-    );
+    )
+    .expect("invalid persistent_pages_data");
 }
