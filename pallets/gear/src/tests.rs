@@ -474,7 +474,7 @@ fn lazy_pages() {
                 code,
                 salt,
                 EMPTY_PAYLOAD.to_vec(),
-                5_000_000,
+                500_000_000,
                 0,
             )
             .map(|_| prog_id);
@@ -482,7 +482,7 @@ fn lazy_pages() {
             res.expect("submit result was asserted")
         };
 
-        run_to_block(2, Some(10_000_000));
+        run_to_block(2, Some(1_000_000_000));
         log::debug!("submit done {:?}", pid);
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
@@ -490,13 +490,13 @@ fn lazy_pages() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000,
+            100_000_000,
             100,
         );
         log::debug!("res = {:?}", res);
         assert_ok!(res);
 
-        run_to_block(3, Some(10_000_000));
+        run_to_block(3, Some(1_000_000_000));
 
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
@@ -1242,7 +1242,7 @@ fn distributor_distribute() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            2_000_000_000,
             0,
         ));
 
@@ -1252,7 +1252,7 @@ fn distributor_distribute() {
             Origin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
-            20_000_000,
+            200_000_000,
             0,
         ));
 
@@ -1670,7 +1670,7 @@ fn exit_init() {
                 code,
                 vec![],
                 Vec::new(),
-                1_000_000_000u64,
+                2_000_000_000,
                 0u128
             ),
             Error::<Test>::ProgramAlreadyExists,
@@ -1816,7 +1816,7 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(
-                vec![(child_code_hash, b"some_data".to_vec(), 3000)] // too little gas
+                vec![(child_code_hash, b"some_data".to_vec(), 300_000)] // too little gas
             )
             .encode(),
             4_000_000_000,
@@ -1837,8 +1837,8 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 10_000),
-                (child_code_hash, b"salt2".to_vec(), 10_000),
+                (child_code_hash, b"salt1".to_vec(), 1_000_000),
+                (child_code_hash, b"salt2".to_vec(), 1_000_000),
             ])
             .encode(),
             4_000_000_000,
@@ -1851,8 +1851,8 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt3".to_vec(), 3000), // too little gas
-                (child_code_hash, b"salt4".to_vec(), 3000), // too little gas
+                (child_code_hash, b"salt3".to_vec(), 300_000), // too little gas
+                (child_code_hash, b"salt4".to_vec(), 300_000), // too little gas
             ])
             .encode(),
             4_000_000_000,
@@ -1887,7 +1887,7 @@ fn test_create_program_duplicate() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            2_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -1900,9 +1900,9 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 100_000),])
+            CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 10_000_000),])
                 .encode(),
-            2_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(4, None);
@@ -1919,8 +1919,8 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
-            2_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
+            50_000_000_000,
             0,
         ));
         run_to_block(5, None);
@@ -1929,8 +1929,8 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_2),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
-            2_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
+            50_000_000_000,
             0,
         ));
         run_to_block(6, None);
@@ -1948,7 +1948,7 @@ fn test_create_program_duplicate() {
                 child_code,
                 b"salt1".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
-                2_000_000_000,
+                10_000_000_000,
                 0,
             ),
             Error::<Test>::ProgramAlreadyExists,
@@ -1987,8 +1987,8 @@ fn test_create_program_duplicate_in_one_execution() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 10_000), // could be successful init
-                (child_code_hash, b"salt1".to_vec(), 10_000), // duplicate
+                (child_code_hash, b"salt1".to_vec(), 1_000_000), // could be successful init
+                (child_code_hash, b"salt1".to_vec(), 1_000_000), // duplicate
             ])
             .encode(),
             2_000_000_000,
@@ -2013,7 +2013,7 @@ fn test_create_program_duplicate_in_one_execution() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
             2_000_000_000,
             0,
         ));
@@ -2076,10 +2076,10 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child1_code_hash, b"salt1".to_vec(), 10_000),
+                (child1_code_hash, b"salt1".to_vec(), 1_000_000),
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
-                (child1_code_hash, b"salt2".to_vec(), 1000),
+                (child1_code_hash, b"salt2".to_vec(), 100_000),
             ])
             .encode(),
             5_000_000_000,
@@ -2094,9 +2094,9 @@ fn test_create_program_miscellaneous() {
             CreateProgram::Custom(vec![
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 3000),
+                (child2_code_hash, b"salt1".to_vec(), 300_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt2".to_vec(), 10_000),
+                (child2_code_hash, b"salt2".to_vec(), 1_000_000),
             ])
             .encode(),
             5_000_000_000,
@@ -2110,9 +2110,9 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 10_000),
+                (child2_code_hash, b"salt1".to_vec(), 1_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt3".to_vec(), 10_000),
+                (child2_code_hash, b"salt3".to_vec(), 1_000_000),
             ])
             .encode(),
             5_000_000_000,
@@ -2183,7 +2183,7 @@ fn exit_handle() {
                 code,
                 vec![],
                 Vec::new(),
-                200_000_000u64,
+                2_000_000_000,
                 0u128
             ),
             Error::<Test>::ProgramAlreadyExists,
@@ -2467,7 +2467,7 @@ fn gas_spent_vs_balance() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000,
+            1_000_000_000,
             0,
         ));
 
@@ -2652,7 +2652,7 @@ mod utils {
     };
     use common::Origin as _;
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 5_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
 

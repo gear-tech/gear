@@ -20,6 +20,7 @@ use crate as pallet_gear;
 use crate::{ext::LazyPagesExt, manager::ExtManager};
 use common::lazy_pages;
 use common::Origin as _;
+use core_processor::configs::AllocationsConfig;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
@@ -125,7 +126,7 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockGasLimit: u64 = 50_000_000_000;
+    pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;
     pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
@@ -189,9 +190,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (USER_1, 100_000_000_000_u128),
-            (USER_2, 50_000_000_000_u128),
-            (USER_3, 100_000_000_000_u128),
+            (USER_1, 500_000_000_000_u128),
+            (USER_2, 200_000_000_000_u128),
+            (USER_3, 500_000_000_000_u128),
             (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],
@@ -255,6 +256,13 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     };
 
     let schedule = <Test as pallet_gear::Config>::Schedule::get();
+    let allocations_config = AllocationsConfig {
+        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+        init_cost: schedule.memory_weights.initial_cost,
+        alloc_cost: schedule.memory_weights.allocation_cost,
+        mem_grow_cost: schedule.memory_weights.grow_cost,
+        load_page_cost: schedule.memory_weights.load_cost,
+    };
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
 
@@ -263,6 +271,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             Some(actor),
             dispatch.into_stored().into_incoming(initial_gas),
             block_info,
+            allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
             ProgramId::from_origin(dest),
@@ -275,6 +284,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             Some(actor),
             dispatch.into_stored().into_incoming(initial_gas),
             block_info,
+            allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
             ProgramId::from_origin(dest),

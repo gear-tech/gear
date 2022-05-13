@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::common::ExecutionErrorReason;
+use crate::configs::AllocationsConfig;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
@@ -50,6 +51,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     maybe_actor: Option<ExecutableActor>,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
+    allocations_config: AllocationsConfig,
     existential_deposit: u128,
     origin: ProgramId,
     // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
@@ -64,6 +66,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             actor,
             dispatch,
             block_info,
+            allocations_config,
             existential_deposit,
             origin,
             gas_allowance,
@@ -259,6 +262,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
+    allocations_config: AllocationsConfig,
     existential_deposit: u128,
     origin: ProgramId,
     gas_allowance: u64,
@@ -267,8 +271,12 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
-    let execution_settings =
-        ExecutionSettings::new(block_info, existential_deposit, host_fn_weights);
+    let execution_settings = ExecutionSettings::new(
+        block_info,
+        existential_deposit,
+        allocations_config,
+        host_fn_weights,
+    );
     let execution_context = ExecutionContext {
         origin,
         gas_allowance,
