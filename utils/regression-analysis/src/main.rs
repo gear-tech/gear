@@ -61,7 +61,7 @@ fn main() {
     let db_connection = SqliteConnection::establish(database_url)
         .expect("failed to open DB");
 
-    let result = process_jsons(db_connection, current_directory, &CRATE_NAMES);
+    let result = process_jsons(db_connection, current_directory, &CRATE_NAMES, &commit);
     for (name, stats) in result {
         println!("name = {}", name);
         let table = tabled::Table::new(stats);
@@ -70,7 +70,7 @@ fn main() {
     }
 }
 
-fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, crate_names: &[&'a str]) -> BTreeMap<&'a str, Vec<TestStats>> {
+fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, crate_names: &[&'a str], commit: &str) -> BTreeMap<&'a str, Vec<TestStats>> {
     let mut result = BTreeMap::new();
     for (crate_name, json_path) in crate_names.iter()
         .map(|&crate_name| {
@@ -80,7 +80,7 @@ fn process_jsons<'a>(connection: SqliteConnection, current_directory: PathBuf, c
             (crate_name, p)
         })
     {
-        let stats = process_json(&connection, crate_name, &json_path);
+        let stats = process_json(&connection, crate_name, commit, &json_path);
         result.insert(crate_name, stats);
     }
 
@@ -197,7 +197,7 @@ fn process_test(connection: &SqliteConnection, crate_name: &str, test_exec_time:
     }
 }
 
-fn process_json(connection: &SqliteConnection, crate_name: &str, json_path: &Path) -> Vec<TestStats> {
+fn process_json(connection: &SqliteConnection, crate_name: &str, commit: &str, json_path: &Path) -> Vec<TestStats> {
     let mut result = Vec::with_capacity(1_000);
 
     for line in read_lines(json_path).expect(&format!("failed to read lines from '{}'", json_path.display())) {
@@ -222,7 +222,7 @@ fn process_json(connection: &SqliteConnection, crate_name: &str, json_path: &Pat
         
         let new_test_execution = NewTestExecution {
             test_id,
-            commit_hash: "sldkfsd",
+            commit_hash: commit,
             date_time: 1_000_000,
             exec_time: (test.exec_time * 1_000_000_000.0) as i64,
         };
