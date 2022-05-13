@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::env::current_dir;
 use std::collections::BTreeMap;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 #[macro_use]
 extern crate diesel;
@@ -23,37 +23,41 @@ const CRATE_NAMES: [&str; 2] = ["pallet-gear", "pallet-gas"];
 
 no_arg_sql_function!(last_insert_rowid, diesel::sql_types::Integer, "Represents the SQL last_insert_rowid() function");
 
-#[derive(Debug, Parser)]
-// #[clap(group(
-//     ArgGroup::new("opposite")
-//         // .required(true)
-//         .conflicts_with("supported_crates_group")
-//         .args(&["db", "input"]),
-// ))]
-pub struct Args {
-    /// Path to the database with benchmarks.
-    #[clap(long)]
-    db: std::path::PathBuf,
+#[derive(Parser)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Commands,
+}
 
-    #[clap(long, group = "supported_crates_group")]
-    supported_crates: bool,
-
-    // TODO: commit and 'dry-run' option
+#[derive(Subcommand)]
+enum Commands {
+    /// Run process. Collect statistics of the available executions and
+    /// append new data
+    Run {
+        #[clap(long)]
+        db: PathBuf,
+        #[clap(long)]
+        commit: String,
+    },
+    /// Returns the list of crates
+    GetCrateList,
 }
 
 fn main() {
-    let args = Args::parse();
-    if args.supported_crates {
-        for crate_name in CRATE_NAMES {
-            println!("{}", crate_name);
-        }
+    let (db, commit) = match Cli::parse().command {
+        Commands::GetCrateList => {
+            for crate_name in CRATE_NAMES {
+                println!("{}", crate_name);
+            }
 
-        return;
-    }
+            return;
+        },
+        Commands::Run { db, commit } => (db, commit),
+    };
 
     let current_directory = current_dir().expect("failed to get current working directory");
 
-    let database_url = args.db.as_path().to_str().expect("failed to get database url");
+    let database_url = db.as_path().to_str().expect("failed to get database url");
     let db_connection = SqliteConnection::establish(database_url)
         .expect("failed to open DB");
 
