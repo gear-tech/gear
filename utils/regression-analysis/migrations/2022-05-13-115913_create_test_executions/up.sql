@@ -1,8 +1,8 @@
 -- Your SQL goes here
 CREATE TABLE test_executions (
-  id BIGINT PRIMARY KEY NOT NULL,
+  id INTEGER PRIMARY KEY NOT NULL,
   -- FK
-  test_id BIGINT NOT NULL,
+  test_id INTEGER NOT NULL,
   commit_hash VARCHAR NOT NULL,
   date_time INTEGER NOT NULL,
   exec_time BIGINT NOT NULL

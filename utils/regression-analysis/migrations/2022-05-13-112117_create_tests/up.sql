@@ -1,6 +1,6 @@
 -- Your SQL goes here
 CREATE TABLE tests (
-  id BIGINT PRIMARY KEY NOT NULL,
+  id INTEGER PRIMARY KEY NOT NULL,
   crate_name VARCHAR NOT NULL,
   test_name VARCHAR NOT NULL
 );
