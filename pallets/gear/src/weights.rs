@@ -873,16 +873,16 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes((5 as Weight).saturating_mul(r as Weight)))
 	}
 	fn initial_cost() -> Weight {
-		50_000_000 as Weight
+		500_000 as Weight
 	}
 	fn allocation_cost() -> Weight {
-		100_000_000 as Weight
+		1_000_000 as Weight
 	}
 	fn grow_cost() -> Weight {
-		100_000_000 as Weight
+		1_000_000 as Weight
 	}
 	fn load_cost() -> Weight {
-		10_000_000 as Weight
+		300_000 as Weight
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(8_410_000 as Weight)
