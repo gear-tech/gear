@@ -829,12 +829,12 @@ pub mod pallet {
                         }
                     };
                     let allocations_config = AllocationsConfig {
-                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
-                    init_cost: schedule.memory_weights.initial_cost,
-                    alloc_cost: schedule.memory_weights.allocation_cost,
-                    mem_grow_cost: schedule.memory_weights.grow_cost,
-                    load_page_cost: schedule.memory_weights.load_cost,
-                };
+                        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                        init_cost: schedule.memory_weights.initial_cost,
+                        alloc_cost: schedule.memory_weights.allocation_cost,
+                        mem_grow_cost: schedule.memory_weights.grow_cost,
+                        load_page_cost: schedule.memory_weights.load_cost,
+                    };
                     let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
                         maybe_active_actor,
                         dispatch.into_incoming(gas_limit),
