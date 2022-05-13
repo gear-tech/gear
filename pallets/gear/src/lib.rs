@@ -106,7 +106,7 @@ pub mod pallet {
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-        configs::BlockInfo,
+        configs::{AllocationsConfig, BlockInfo},
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -564,10 +564,19 @@ pub mod pallet {
                     .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
+                let allocations_config = AllocationsConfig {
+                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                    init_cost: schedule.memory_weights.initial_cost,
+                    alloc_cost: schedule.memory_weights.allocation_cost,
+                    mem_grow_cost: schedule.memory_weights.grow_cost,
+                    load_page_cost: schedule.memory_weights.load_cost,
+                };
+
                 let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
                     Some(actor),
                     queued_dispatch.into_incoming(initial_gas),
                     block_info,
+                    allocations_config,
                     existential_deposit,
                     ProgramId::from_origin(source),
                     actor_id,
@@ -819,11 +828,18 @@ pub mod pallet {
                             unreachable!("Can never happen unless gas tree corrupted");
                         }
                     };
-
+                    let allocations_config = AllocationsConfig {
+                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                    init_cost: schedule.memory_weights.initial_cost,
+                    alloc_cost: schedule.memory_weights.allocation_cost,
+                    mem_grow_cost: schedule.memory_weights.grow_cost,
+                    load_page_cost: schedule.memory_weights.load_cost,
+                };
                     let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
                         maybe_active_actor,
                         dispatch.into_incoming(gas_limit),
                         block_info,
+                        allocations_config,
                         existential_deposit,
                         ProgramId::from_origin(origin),
                         program_id,
