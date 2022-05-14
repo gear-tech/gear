@@ -40,12 +40,12 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 pub enum SendMessage {
     Init(u128),
     // First value is custom destination id
-    Handle(u64, u128)
+    Handle(u64, u128),
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{Vec, msg, prog};
+    use gstd::{msg, prog, Vec};
 
     use super::SendMessage;
 
@@ -69,13 +69,13 @@ mod wasm {
                         100_000,
                         value,
                     );
-    
+
                     COUNTER += 1;
                 }
                 SendMessage::Handle(receiver, value) => {
                     let _ = msg::send(receiver.into(), b"", value);
                 }
             }
-        }        
+        }
     }
 }
