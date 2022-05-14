@@ -24,7 +24,7 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::{code::Code, ids::CodeId};
+use gear_core::{code::Code, ids::{CodeId, MessageId, ProgramId}};
 use pallet_balances::{self, Pallet as BalancesPallet};
 
 use super::{
@@ -491,7 +491,7 @@ fn lazy_pages() {
             pid,
             EMPTY_PAYLOAD.to_vec(),
             100_000_000,
-            100,
+            1000,
         );
         log::debug!("res = {:?}", res);
         assert_ok!(res);
@@ -2648,24 +2648,125 @@ fn test_two_contracts_composition_works() {
 // Y <= X < ED is not allowed, or because of Y > X, when X < ED).
 // However, in this same situation of program being initialized and sending some message with value, if program send
 // init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further
-// to manager, although having value less than ED. On manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
+// to manager, although having value less than ED. 
+//
+// Note: on manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
 // But it's is not preferable to enter that `if` clause.
 #[test]
-fn test_create_program_with_value() {
+fn test_create_program_with_different_values() {
+    use demo_init_with_value::{SendMessage, WASM_BINARY};
+
     init_logger();
     new_test_ext().execute_with(|| {
-        let ed = get_ed();
+        let ed = get_ed();        // Ids of custom destinations
+        let msg_receiver_1 = 5u64;
+        let msg_receiver_2 = 6u64;
+
+        // Submit the code
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+        ));
+
+        // Can't initialize program with value less than ED
         assert_noop!(
             GearPallet::<Test>::submit_program(
                 Origin::signed(USER_1).into(),
                 ProgramCodeKind::Default.to_bytes(),
-                DEFAULT_SALT.to_vec(),
+                b"test0".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
                 10_000_000,
                 ed - 1,
             ),
             Error::<Test>::ValueLessThanMinimal,
         );
+
+        // Simple passing test with values
+        assert_ok!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                WASM_BINARY.to_vec(),
+                b"test1".to_vec(),
+                // Sending 500 value with "handle" messages. This should not fail.
+                // Must be stated, that "handle" messages send value to some non-existing address
+                // so messages will go to mailbox
+                vec![
+                    SendMessage::Handle(msg_receiver_1, 500),
+                    SendMessage::Handle(msg_receiver_2, 500),
+                    SendMessage::Init(0),
+                ].encode(),
+                10_000_000_000,
+                1000,
+            )
+        );
+
+        run_to_block(2, None);
+
+        // init messages sent by user and by program
+        check_dequeued(2);
+        // programs deployed by user and by program
+        check_init_success(2);
+
+        let origin_msg_id = MessageId::generate_from_user(
+            1, 
+            ProgramId::from_origin(USER_1.into_origin()), 
+            0
+        );
+        let msg1_mailbox = MessageId::generate_outgoing(origin_msg_id, 0);
+        let msg2_mailbox = MessageId::generate_outgoing(origin_msg_id, 1);
+        assert!(Mailbox::<Test>::contains_key(msg_receiver_1, msg1_mailbox));
+        assert!(Mailbox::<Test>::contains_key(msg_receiver_2, msg2_mailbox));
+
+        SystemPallet::<Test>::reset_events();
+
+        // Trying to send init message from program with value less than ED.
+        assert_ok!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                WASM_BINARY.to_vec(),
+                b"test2".to_vec(),
+                // First two messages won't fail, because provided values are in a valid range
+                // The last message value (which is the value of init message) will end execution with trap
+                vec![
+                    SendMessage::Handle(msg_receiver_1, 0),
+                    SendMessage::Handle(msg_receiver_2, 0),
+                    SendMessage::Init(ed-1),
+                ].encode(),
+                10_000_000_000,
+                1000,
+            )
+        );
+
+        run_to_block(3, None);
+
+        // User's message execution will result in trap, because program tries
+        // to send init message with value in invalid range. As a result, 1 dispatch
+        // is dequeued (user's  message) and one message is sent to mailbox.
+        let mailbox_msg_id = MessageId::from_origin(get_last_message_id());
+        assert!(Mailbox::<Test>::contains_key(USER_1, mailbox_msg_id));
+        // This check means, that program's invalid init message didn't reach the queue.
+        check_dequeued(1);
+
+        // There definitely should be event with init failure reason
+        let expected_failure_reason = "Value of the message is less than existence deposit, but greater than 0".to_string().into_bytes();
+        let reason = SystemPallet::<Test>::events()
+            .iter()
+            .filter_map(|e| {
+                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
+                    Some(reason.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .pop()
+            .expect("no init failure events");
+
+        if let Reason::Dispatch(actual_failure_reason) = reason {
+            assert_eq!(actual_failure_reason, expected_failure_reason);
+        } else {
+            panic!("error reason is of wrong type")
+        }
     })
 }
 
@@ -2875,20 +2976,23 @@ mod utils {
     }
 
     pub(super) fn get_last_message_id() -> H256 {
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        match event {
-            Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-            Event::Log(msg) => msg.id().into_origin(),
-            Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-            _ => unreachable!("expect sending"),
-        }
+        SystemPallet::<Test>::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
+                Event::Log(msg) => Some(msg.id().into_origin()),
+                Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
+                _ => None,
+            })
+            .expect("can't find message send event")
     }
 
     #[derive(Debug, Copy, Clone)]

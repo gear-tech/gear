@@ -37,15 +37,17 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum SendMessages {
+pub enum SendMessage {
     Init(u128),
+    // First value is custom destination id
+    Handle(u64, u128)
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{debug, msg, prog, CodeHash};
+    use gstd::{Vec, msg, prog};
 
-    use super::SendMessages;
+    use super::SendMessage;
 
     static mut COUNTER: i32 = 0;
 
@@ -55,46 +57,25 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {
-        match msg::load().expect("provided invalid payload") {
-            SendMessages::Init(value) => {
-                let submitted_code = CHILD_CODE_HASH.into();
-                let _ = prog::create_program_with_gas(
-                    submitted_code,
-                    COUNTER.to_le_bytes(),
-                    [],
-                    100_000,
-                    value,
-                );
-
-                COUNTER += 1;
+        let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
+        for msg_data in data {
+            match msg_data {
+                SendMessage::Init(value) => {
+                    let submitted_code = CHILD_CODE_HASH.into();
+                    let _ = prog::create_program_with_gas(
+                        submitted_code,
+                        COUNTER.to_le_bytes(),
+                        [],
+                        100_000,
+                        value,
+                    );
+    
+                    COUNTER += 1;
+                }
+                SendMessage::Handle(receiver, value) => {
+                    let _ = msg::send(receiver.into(), b"", value);
+                }
             }
-        }
+        }        
     }
-
-    // #[no_mangle]
-    // pub unsafe extern "C" fn handle() {
-    //     match msg::load().expect("provided invalid payload") {
-    //         CreateProgram::Default => {
-    // let submitted_code = CHILD_CODE_HASH.into();
-    // let new_program_id = prog::create_program_with_gas(
-    //     submitted_code,
-    //     COUNTER.to_le_bytes(),
-    //     [],
-    //     100_000,
-    //     0,
-    // );
-    //             msg::send_with_gas(new_program_id, b"", 100_001, 0).unwrap();
-
-    //             COUNTER += 1;
-    //         }
-    //         CreateProgram::Custom(custom_child_data) => {
-    //             for (code_hash, salt, gas_limit) in custom_child_data {
-    //                 let submitted_code = code_hash.into();
-    //                 let new_program_id =
-    //                     prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0);
-    //                 let msg_id = msg::send_with_gas(new_program_id, b"", 100_001, 0).unwrap();
-    //             }
-    //         }
-    //     };
-    // }
 }

@@ -4853,6 +4853,7 @@ dependencies = [
  "demo-exit-handle",
  "demo-exit-init",
  "demo-init-wait",
+ "demo-init-with-value",
  "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
