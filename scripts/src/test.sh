@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+. $(dirname "$SELF")/src/common.sh
+
 test_usage() {
   cat << EOF
 
@@ -33,26 +35,17 @@ js_test() {
   node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
+# $1 - ROOT DIR
+# $2 - yamls list (optional)
 gtest() {
   ROOT_DIR="$1"
   shift
 
-  if [ -n "$1" ]
-  then
-    has_yamls=$(echo "$1" | grep "yamls=" || true)
-  else
-    has_yamls=""
-  fi
+  YAMLS=$(parse_yamls_list "$1")
 
-  if  [ -n "$has_yamls" ]
+  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
+  if [ -n "$is_yamls_arg" ]
   then
-    if ! hash perl 2>/dev/null
-    then
-      echo "Can not parse yamls without \"perl\" installed =("
-      exit 1
-    fi
-
-    YAMLS=$(echo $1 | perl -ne 'print $1 if /yamls=(.*)/s')
     shift
   fi
 
@@ -65,8 +58,18 @@ gtest() {
 }
 
 # $1 - ROOT DIR
+# $2 - yamls list (optional)
 rtest() {
-  ./target/release/gear-node runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+  ROOT_DIR="$1"
+
+  YAMLS=$(parse_yamls_list "$2")
+
+  if [ -z "$YAMLS" ]
+  then
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
+  fi
+
+  $ROOT_DIR/target/release/gear-node runtime-spec-tests $YAMLS -l0
 }
 
 pallet_test() {
