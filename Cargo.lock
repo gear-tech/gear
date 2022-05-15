@@ -802,9 +802,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.17"
+version = "3.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47582c09be7c8b32c0ab3a6181825ababb713fde6fff20fc573a3870dd45c6a0"
+checksum = "d2dbdf4bdacb33466e854ce889eee8dfd5729abf7ccd7664d0a2d60cd384440b"
 dependencies = [
  "atty",
  "bitflags",
@@ -819,9 +819,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.1.7"
+version = "3.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3aab4734e083b809aaf5794e14e756d1c798d2c69c7f7de7a09a2f5214993c1"
+checksum = "25320346e922cffe59c0bbc5410c8d8784509efb321488971081313cb1e1a33c"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -1326,6 +1326,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-compose"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
@@ -1357,6 +1367,16 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+]
+
+[[package]]
+name = "demo-mul-by-const"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -4805,10 +4825,12 @@ name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
  "demo-btree",
+ "demo-compose",
  "demo-distributor",
  "demo-exit-handle",
  "demo-exit-init",
  "demo-init-wait",
+ "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
  "env_logger",
@@ -4949,6 +4971,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "hex-literal",
+ "log",
  "pallet-balances",
  "parity-scale-codec",
  "primitive-types",

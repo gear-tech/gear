@@ -184,7 +184,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         allocations_context,
         message_context,
         settings.block_info,
-        settings.config,
+        settings.allocations_config,
         settings.existential_deposit,
         None,
         context.origin,

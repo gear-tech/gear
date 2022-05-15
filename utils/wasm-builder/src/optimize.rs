@@ -1,6 +1,6 @@
 use anyhow::Result;
 use colored::Colorize;
-use std::{ffi::OsStr, fs::metadata, os::unix::prelude::OsStrExt, path::PathBuf, process::Command};
+use std::{ffi::OsStr, fs::metadata, path::PathBuf, process::Command};
 
 pub struct OptimizationResult {
     pub dest_wasm: PathBuf,
@@ -23,7 +23,7 @@ pub fn optimize_wasm(
         "{}-opt.wasm",
         source
             .file_name()
-            .unwrap_or_else(|| OsStr::from_bytes(b"program"))
+            .unwrap_or_else(|| OsStr::new("program"))
             .to_str()
             .unwrap()
     ));

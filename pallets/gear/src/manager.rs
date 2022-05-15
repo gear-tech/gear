@@ -119,7 +119,7 @@ where
             state: common::ProgramState::Uninitialized { message_id },
         };
 
-        common::set_program_and_pages_data(program_id.into_origin(), program, Default::default());
+        common::set_program(program_id.into_origin(), program);
     }
 }
 

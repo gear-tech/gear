@@ -75,7 +75,8 @@ fn pause_program_works() {
                 state: ProgramState::Initialized,
             },
             memory_pages.clone(),
-        );
+        )
+        .expect("memory pages is not valid");
 
         let msg_id_1 = H256::from_low_u64_be(1);
         common::insert_waiting_message(
@@ -144,7 +145,7 @@ fn pause_program_twice_fails() {
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
-        common::set_program_and_pages_data(
+        common::set_program(
             program_id,
             ActiveProgram {
                 allocations: Default::default(),
@@ -152,7 +153,6 @@ fn pause_program_twice_fails() {
                 code_hash,
                 state: ProgramState::Initialized,
             },
-            Default::default(),
         );
 
         run_to_block(2, None);
@@ -178,7 +178,7 @@ fn pause_terminated_program_fails() {
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id = H256::from_low_u64_be(1);
-        common::set_program_and_pages_data(
+        common::set_program(
             program_id,
             ActiveProgram {
                 allocations: Default::default(),
@@ -186,7 +186,6 @@ fn pause_terminated_program_fails() {
                 code_hash,
                 state: ProgramState::Initialized,
             },
-            Default::default(),
         );
 
         run_to_block(2, None);
@@ -466,7 +465,8 @@ mod utils {
                 },
             },
             memory_pages.clone(),
-        );
+        )
+        .expect("memory_pages has invalid pages number");
 
         // init message
         let init_msg = StoredDispatch::new(

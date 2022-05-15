@@ -356,13 +356,11 @@ where
                         } else {
                             parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
                         }
-                    }
 
-                    if parent_node.refs() == 0 {
-                        consume_parent_node = true;
-                    }
+                        if parent_node.refs() == 0 {
+                            consume_parent_node = true;
+                        }
 
-                    if delete_current_node {
                         // Update parent node
                         GasTree::<T>::mutate(parent, |value| {
                             *value = Some(parent_node);
@@ -401,12 +399,11 @@ where
                             if let Some(inner_value) = node.inner_value_mut() {
                                 *inner_value = 0
                             };
-
-                            // Save current node
-                            GasTree::<T>::mutate(key, |value| {
-                                *value = Some(node);
-                            });
                         }
+                        // Save current node
+                        GasTree::<T>::mutate(key, |value| {
+                            *value = Some(node);
+                        });
                     }
 
                     // now check if the parent node can be consumed as well
