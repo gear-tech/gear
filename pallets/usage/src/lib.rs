@@ -21,7 +21,6 @@
 #[macro_use]
 extern crate alloc;
 
-use common::ValueTree;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -47,7 +46,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{storage::*, GasPrice, Origin, PaymentProvider};
+    use common::{storage::new::*, GasPrice, Origin, PaymentProvider, ValueTree};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -56,9 +55,8 @@ pub mod pallet {
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
     use gear_core::{
         ids::MessageId,
-        message::{ReplyMessage, ReplyPacket},
+        message::{ReplyMessage, ReplyPacket, StoredDispatch},
     };
-    use pallet_gear_messenger::Pallet as MessengerPallet;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -70,6 +68,8 @@ pub mod pallet {
     };
     use sp_std::convert::TryInto;
     use sp_std::prelude::*;
+
+    pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 
     #[pallet::config]
     pub trait Config:
@@ -108,6 +108,8 @@ pub mod pallet {
         /// The fraction of the collected wait list rent an external submitter will get as a reward
         #[pallet::constant]
         type ExternalSubmitterRewardFraction: Get<Perbill>;
+
+        type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
     }
 
     type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
@@ -389,7 +391,7 @@ pub mod pallet {
                                     trap_message_id.into_origin(),
                                 );
 
-                                <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                                QueueOf::<T>::queue(dispatch)
                                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                             } else {
                                 pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)

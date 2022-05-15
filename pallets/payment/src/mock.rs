@@ -52,7 +52,7 @@ construct_runtime!(
         Authorship: pallet_authorship::{Pallet, Storage},
         TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         GearPayment: pallet_gear_payment::{Pallet, Storage},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
     }
@@ -170,6 +170,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -182,9 +183,7 @@ impl pallet_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
 }
 
-impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
-}
+impl pallet_gear_messenger::Config for Test {}
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
 
@@ -217,12 +216,9 @@ impl Contains<Call> for ExtraFeeFilter {
     }
 }
 
-type QueueLength =
-    <<GearMessenger as common::storage::Messenger>::Queue as common::storage::StorageDeque>::Length;
-
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
-    type MessageQueueLength = QueueLength;
+    type Messenger = GearMessenger;
 }
 
 // Build genesis storage according to the mock runtime.

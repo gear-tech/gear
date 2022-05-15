@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    pallet::Reason, Authorship, Config, DequeuedOf, DispatchOutcome, Event, ExecutionResult,
-    GearProgramPallet, MessageInfo, Pallet, QueueOf, SentOf,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
+    MessageInfo, Pallet, QueueOf, SentOf,
 };
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
