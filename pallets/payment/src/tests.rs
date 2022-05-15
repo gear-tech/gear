@@ -20,7 +20,7 @@
 
 use crate::{mock::*, Config, CustomChargeTransactionPayment, QueueOf};
 use codec::Encode;
-use common::storage::new::*;
+use common::storage::*;
 use frame_support::{
     assert_ok,
     weights::{DispatchInfo, GetDispatchInfo, PostDispatchInfo, Weight},

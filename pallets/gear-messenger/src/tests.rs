@@ -1,6 +1,6 @@
 use super::*;
 use crate::mock::*;
-use common::storage::new::*;
+use common::storage::*;
 use gear_core::{
     ids::MessageId,
     message::{DispatchKind, StoredDispatch, StoredMessage},

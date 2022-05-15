@@ -32,7 +32,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, storage::new::*, CodeStorage, Origin, Program};
+    use common::{self, storage::*, CodeStorage, Origin, Program};
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,

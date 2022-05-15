@@ -19,7 +19,7 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo, QueueOf};
 use codec::Decode;
-use common::{self, storage::new::*, Origin as _, ValueTree};
+use common::{self, storage::*, Origin as _, ValueTree};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency, unsigned::TransactionSource};
 use gear_core::{

@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::storage::new::*;
+use common::storage::*;
 use frame_support::{
     pallet_prelude::*,
     traits::Contains,

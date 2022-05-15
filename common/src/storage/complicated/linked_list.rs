@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::storage::primitives::{
-    Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage,
-};
+use crate::storage::{Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage};
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
 use scale_info::TypeInfo;

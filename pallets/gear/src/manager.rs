@@ -23,7 +23,7 @@ use crate::{
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
 use common::{
-    storage::new::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
+    storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
 };
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,

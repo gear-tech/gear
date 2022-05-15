@@ -18,7 +18,7 @@
 
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
-use gear_common::{storage::new::*, Origin};
+use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 use gear_runtime::{Gas, Gear, GearMessenger, Runtime, System};
 use pallet_gear_debug::DebugData;

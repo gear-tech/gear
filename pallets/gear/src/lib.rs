@@ -47,7 +47,7 @@ pub use weights::WeightInfo;
 
 use common::{
     self,
-    storage::new::{Counter, Messenger, Queue, Toggler},
+    storage::{Counter, Messenger, Queue, Toggler},
     CodeStorage,
 };
 use frame_support::{

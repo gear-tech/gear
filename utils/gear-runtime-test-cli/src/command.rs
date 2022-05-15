@@ -23,7 +23,7 @@ use crate::{
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{storage::new::*, CodeStorage, Origin as _, ValueTree};
+use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},

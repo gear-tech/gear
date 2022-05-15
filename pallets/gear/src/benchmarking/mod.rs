@@ -37,9 +37,7 @@ use crate::{
     Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{
-    benchmarking, lazy_pages, storage::new::*, CodeMetadata, CodeStorage, Origin, ValueTree,
-};
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
 use core_processor::{
     common::ExecutableActor,
     configs::{AllocationsConfig, BlockInfo},
