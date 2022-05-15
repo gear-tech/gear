@@ -139,6 +139,10 @@ impl<MB: Mailbox> UserMailbox<MB> {
         MB::contains(&self.0, message_id)
     }
 
+    pub fn collect(self) -> crate::Vec<MB::Value> {
+        MB::collect_of(self.0)
+    }
+
     pub fn remove(self, message_id: MB::Key2) -> Result<MB::Value, MB::Error> {
         MB::remove(self.0, message_id)
     }
