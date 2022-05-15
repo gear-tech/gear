@@ -357,6 +357,7 @@ impl pallet_gear::Config for Runtime {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -364,6 +365,7 @@ impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_usage::Config for Runtime {
@@ -375,15 +377,14 @@ impl pallet_usage::Config for Runtime {
     type MaxBatchSize = ConstU32<100>;
     type TrapReplyExistentialGasLimit = ConstU64<6000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Runtime {
     type BlockGasLimit = BlockGasLimit;
 }
 
-impl pallet_gear_messenger::Config for Runtime {
-    type Event = Event;
-}
+impl pallet_gear_messenger::Config for Runtime {}
 
 pub struct ExtraFeeFilter;
 impl Contains<Call> for ExtraFeeFilter {
@@ -416,12 +417,9 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
     }
 }
 
-type QueueLength =
-    <<GearMessenger as gear_common::storage::Messenger>::Queue as gear_common::storage::StorageDeque>::Length;
-
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
-    type MessageQueueLength = QueueLength;
+    type Messenger = GearMessenger;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

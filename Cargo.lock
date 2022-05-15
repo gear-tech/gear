@@ -2483,7 +2483,6 @@ dependencies = [
  "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
- "pallet-gear-messenger",
  "parity-scale-codec",
  "rayon",
  "sc-cli",

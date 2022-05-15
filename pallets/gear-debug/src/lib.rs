@@ -32,11 +32,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{
-        self,
-        storage::{Messenger, StorageDeque},
-        CodeStorage, Origin, Program,
-    };
+    use common::{self, storage::new::*, CodeStorage, Origin, Program};
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
@@ -47,13 +43,14 @@ pub mod pallet {
         memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
-    use pallet_gear_messenger::Pallet as MessengerPallet;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
+    pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear_messenger::Config {
+    pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::Event>
@@ -64,6 +61,8 @@ pub mod pallet {
 
         /// Storage with codes for proograms
         type CodeStorage: CodeStorage;
+
+        type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
     }
 
     #[pallet::pallet]
@@ -182,7 +181,7 @@ pub mod pallet {
 
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
+            let dispatch_queue = QueueOf::<T>::iter()
                 .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
                 .collect();
 
@@ -241,8 +240,7 @@ pub mod pallet {
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
 
-            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|d| remap_with(d, &programs_map))
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<T>::mutate_values(|d| remap_with(d, &programs_map));
         }
     }
 

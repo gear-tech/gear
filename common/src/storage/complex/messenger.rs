@@ -1,7 +1,7 @@
+use crate::storage::complex::MailboxError;
 use crate::storage::complex::Queue;
-use crate::storage::complex::{Mailbox, MailboxError};
 use crate::storage::complicated::{Counter, LinkedListError, Toggler};
-use crate::storage::primitives::Counted;
+use crate::storage::primitives::{Counted, IterableMap};
 use core::fmt::Debug;
 
 /// Message processing centralized behaviour.
@@ -22,7 +22,8 @@ pub trait Messenger {
 
     /// Message queue store.
     type Queue: Queue<Value = Self::QueuedDispatch, Error = Self::Error>
-        + Counted<Length = Self::Capacity>;
+        + Counted<Length = Self::Capacity>
+        + IterableMap<Result<Self::QueuedDispatch, Self::Error>>;
 
     // /// Users mailbox store.
     // type Mailbox: Mailbox<Value = Self::MailboxedMessage, Error = Self::Error>;

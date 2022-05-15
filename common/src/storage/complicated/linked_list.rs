@@ -1,4 +1,6 @@
-use crate::storage::primitives::{Callback, Counted, EmptyCallback, MapStorage, ValueStorage};
+use crate::storage::primitives::{
+    Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage,
+};
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
 use scale_info::TypeInfo;
@@ -234,7 +236,7 @@ where
     }
 }
 
-pub struct LinkedListDrain<Key, Value, Error, HVS, TVS, MS, Callbacks>(
+pub struct LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>(
     Option<Key>,
     PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
 )
@@ -247,112 +249,7 @@ where
     Callbacks: LinkedListCallbacks<Value = Value>;
 
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
-    for LinkedListDrain<Key, Value, Error, HVS, TVS, MS, Callbacks>
-where
-    Key: Clone + PartialEq,
-    Error: LinkedListError,
-    HVS: ValueStorage<Value = Key>,
-    TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
-{
-    type Item = Result<(Key, Value), Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let current = self.0.take()?;
-
-        if let Some(node) = MS::take(current.clone()) {
-            self.0 = node.next;
-
-            Some(Ok((current, node.value)))
-        } else {
-            self.0 = None;
-
-            Some(Err(Error::element_not_found()))
-        }
-    }
-}
-
-pub struct LinkedListIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>(
-    Option<Key>,
-    PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
-)
-where
-    Key: Clone + PartialEq,
-    Error: LinkedListError,
-    HVS: ValueStorage<Value = Key>,
-    TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>;
-
-impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
-    for LinkedListIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>
-where
-    Key: Clone + PartialEq,
-    Error: LinkedListError,
-    HVS: ValueStorage<Value = Key>,
-    TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
-{
-    type Item = Result<(Key, Value), Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let current = self.0.take()?;
-
-        if let Some(node) = MS::get(&current) {
-            self.0 = node.next;
-
-            Some(Ok((current, node.value)))
-        } else {
-            self.0 = None;
-
-            Some(Err(Error::element_not_found()))
-        }
-    }
-}
-
-pub struct LinkedListKeyIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>(
-    LinkedListIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>,
-)
-where
-    Key: Clone + PartialEq,
-    Error: LinkedListError,
-    HVS: ValueStorage<Value = Key>,
-    TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>;
-
-impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
-    for LinkedListKeyIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>
-where
-    Key: Clone + PartialEq,
-    Error: LinkedListError,
-    HVS: ValueStorage<Value = Key>,
-    TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
-{
-    type Item = Result<Key, Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|r| r.map(|v| v.0))
-    }
-}
-
-pub struct LinkedListValueIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>(
-    LinkedListIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>,
-)
-where
-    Key: Clone + PartialEq,
-    Error: LinkedListError,
-    HVS: ValueStorage<Value = Key>,
-    TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>;
-
-impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
-    for LinkedListValueIterator<Key, Value, Error, HVS, TVS, MS, Callbacks>
+    for LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
     Key: Clone + PartialEq,
     Error: LinkedListError,
@@ -364,6 +261,83 @@ where
     type Item = Result<Value, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|r| r.map(|v| v.1))
+        let current = self.0.take()?;
+
+        if let Some(node) = MS::take(current) {
+            if let Some(k) = node.next.as_ref() {
+                HVS::put(k.clone())
+            }
+
+            self.0 = node.next;
+
+            Some(Ok(node.value))
+        } else {
+            HVS::kill();
+            TVS::kill();
+            self.0 = None;
+
+            Some(Err(Error::element_not_found()))
+        }
+    }
+}
+
+pub struct LinkedListIter<Key, Value, Error, HVS, TVS, MS, Callbacks>(
+    Option<Key>,
+    PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
+)
+where
+    Key: Clone + PartialEq,
+    Error: LinkedListError,
+    HVS: ValueStorage<Value = Key>,
+    TVS: ValueStorage<Value = Key>,
+    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
+    Callbacks: LinkedListCallbacks<Value = Value>;
+
+impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
+    for LinkedListIter<Key, Value, Error, HVS, TVS, MS, Callbacks>
+where
+    Key: Clone + PartialEq,
+    Error: LinkedListError,
+    HVS: ValueStorage<Value = Key>,
+    TVS: ValueStorage<Value = Key>,
+    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
+    Callbacks: LinkedListCallbacks<Value = Value>,
+{
+    type Item = Result<Value, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let current = self.0.take()?;
+
+        if let Some(node) = MS::get(&current) {
+            self.0 = node.next;
+
+            Some(Ok(node.value))
+        } else {
+            self.0 = None;
+
+            Some(Err(Error::element_not_found()))
+        }
+    }
+}
+
+impl<Key, Value, Error, HVS, TVS, MS, Callbacks> IterableMap<Result<Value, Error>>
+    for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
+where
+    Key: Clone + PartialEq,
+    Error: LinkedListError,
+    HVS: ValueStorage<Value = Key>,
+    TVS: ValueStorage<Value = Key>,
+    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
+    Callbacks: LinkedListCallbacks<Value = Value>,
+{
+    type DrainIter = LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>;
+    type Iter = LinkedListIter<Key, Value, Error, HVS, TVS, MS, Callbacks>;
+
+    fn drain() -> Self::DrainIter {
+        LinkedListDrainIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS, Callbacks)>)
+    }
+
+    fn iter() -> Self::Iter {
+        LinkedListIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS, Callbacks)>)
     }
 }
