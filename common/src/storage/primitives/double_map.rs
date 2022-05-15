@@ -23,7 +23,9 @@ pub trait DoubleMapStorage {
 
     fn contains_key(key1: &Self::Key1, key2: &Self::Key2) -> bool;
 
-    fn count_of(key1: &Self::Key1) -> usize;
+    fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value>;
+
+    fn count_of(key: &Self::Key1) -> usize;
 
     fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value>;
 
@@ -67,8 +69,12 @@ macro_rules! wrap_storage_double_map {
                 $storage::<T>::contains_key(key1, key2)
             }
 
-            fn count_of(key1: &Self::Key1) -> usize {
-                $storage::<T>::iter_key_prefix(key1).count()
+            fn collect_of(key: Self::Key1) -> Vec<Self::Value> {
+                $storage::<T>::iter_prefix_values(key).collect()
+            }
+
+            fn count_of(key: &Self::Key1) -> usize {
+                $storage::<T>::iter_key_prefix(key).count()
             }
 
             fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {

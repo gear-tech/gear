@@ -38,13 +38,21 @@ pub trait Mailbox {
     type Value;
     type Error: MailboxError;
 
-    fn count_of(key1: &Self::Key1) -> usize;
-
     fn contains(key1: &Self::Key1, key2: &Self::Key2) -> bool;
+
+    fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value>;
+
+    fn count_of(key: &Self::Key1) -> usize;
 
     fn insert(value: Self::Value) -> Result<(), Self::Error>;
 
+    fn is_empty(user_id: &Self::Key1) -> bool {
+        Self::count_of(user_id) == 0
+    }
+
     fn remove(key1: Self::Key1, key2: Self::Key2) -> Result<Self::Value, Self::Error>;
+
+    fn remove_all();
 }
 
 pub struct MailboxImpl<T, Error, Callbacks, KeyGen>(PhantomData<(T, Error, Callbacks, KeyGen)>)
@@ -66,12 +74,16 @@ where
     type Value = T::Value;
     type Error = Error;
 
-    fn count_of(user_id: &Self::Key1) -> usize {
-        T::count_of(user_id)
-    }
-
     fn contains(user_id: &Self::Key1, message_id: &Self::Key2) -> bool {
         T::contains_key(user_id, message_id)
+    }
+
+    fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value> {
+        T::collect_of(key)
+    }
+
+    fn count_of(user_id: &Self::Key1) -> usize {
+        T::count_of(user_id)
     }
 
     fn insert(message: Self::Value) -> Result<(), Self::Error> {
@@ -93,6 +105,10 @@ where
                 msg
             })
             .ok_or_else(Self::Error::element_not_found)
+    }
+
+    fn remove_all() {
+        T::remove_all()
     }
 }
 

@@ -45,11 +45,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{
-    self,
-    storage::{Counter, Messenger, Queue, Toggler},
-    CodeStorage,
-};
+use common::{storage::*, CodeStorage};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
@@ -75,6 +71,7 @@ pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
 
@@ -169,6 +166,8 @@ pub mod pallet {
 
         type Messenger: Messenger<
             Capacity = u32,
+            MailboxFirstKey = Self::AccountId,
+            MailboxSecondKey = MessageId,
             MailboxedMessage = StoredMessage,
             QueuedDispatch = StoredDispatch,
         >;
@@ -283,11 +282,6 @@ pub mod pallet {
         pub program_id: H256,
         pub origin: H256,
     }
-
-    #[pallet::storage]
-    #[pallet::getter(fn mailbox)]
-    pub type Mailbox<T: Config> =
-        StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -434,17 +428,15 @@ pub mod pallet {
         //
         // We also remove messages from mailbox for cases of out of rent (in `pallet-usage`)
         // and once program initialized or failed it's inititalization.
-        pub fn insert_to_mailbox(user: H256, message: StoredMessage) {
-            let user_id = &<T::AccountId as Origin>::from_origin(user);
-
-            <Mailbox<T>>::insert(user_id, message.id(), message);
+        pub fn insert_to_mailbox(_user: H256, message: StoredMessage) {
+            let _ = MailboxOf::<T>::insert(message);
         }
 
         pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<StoredMessage> {
-            let user_id = &<T::AccountId as Origin>::from_origin(user);
+            let user_id = <T::AccountId as Origin>::from_origin(user);
             let message_id = MessageId::from_origin(message_id);
 
-            <Mailbox<T>>::take(user_id, message_id)
+            MailboxOf::<T>::remove(user_id, message_id).ok()
         }
 
         pub fn remove_and_claim_from_mailbox(
@@ -1358,7 +1350,7 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
-            <Mailbox<T>>::remove_all(None);
+            <T as Config>::Messenger::reset();
             GearProgramPallet::<T>::reset_storage();
             common::reset_storage();
 

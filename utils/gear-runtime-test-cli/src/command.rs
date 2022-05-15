@@ -19,7 +19,7 @@
 #![allow(unused_must_use)]
 
 use crate::{
-    util::{get_dispatch_queue, new_test_ext, process_queue, QueueOf},
+    util::{get_dispatch_queue, new_test_ext, process_queue, MailboxOf, QueueOf},
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
@@ -73,7 +73,7 @@ impl GearRuntimeTestCmd {
                 new_test_ext().execute_with(|| {
                     gear_common::reset_storage();
                     let output = run_fixture(test, fixture);
-                    pallet_gear::Mailbox::<Runtime>::drain();
+                    MailboxOf::<Runtime>::remove_all();
 
                     println!("Fixture {}: {}", fixture.title.bold(), output);
                     if !output.contains("Ok") && !output.contains("Skip") {

@@ -38,7 +38,7 @@ pub mod pallet {
         ids::MessageId,
         message::{StoredDispatch, StoredMessage},
     };
-    use sp_std::{convert::TryInto, marker::PhantomData};
+    use sp_std::{convert::TryInto, marker::PhantomData, vec::Vec};
 
     /// The current storage version.
     const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -213,9 +213,12 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type Capacity = Capacity;
+        type Error = Error<T>;
+
+        type MailboxFirstKey = T::AccountId;
+        type MailboxSecondKey = MessageId;
         type MailboxedMessage = StoredMessage;
         type QueuedDispatch = StoredDispatch;
-        type Error = Error<T>;
 
         /// Amount of messages sent from outside.
         type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;

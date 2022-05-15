@@ -26,9 +26,12 @@ use core::fmt::Debug;
 /// Message processing centralized behaviour.
 pub trait Messenger {
     type Capacity;
+    type Error: MailboxError + LinkedListError + Debug;
+
+    type MailboxFirstKey;
+    type MailboxSecondKey;
     type MailboxedMessage;
     type QueuedDispatch;
-    type Error: MailboxError + LinkedListError + Debug;
 
     /// Amount of messages sent from outside.
     type Sent: Counter<Value = Self::Capacity>;
@@ -45,5 +48,18 @@ pub trait Messenger {
         + IterableMap<Result<Self::QueuedDispatch, Self::Error>>;
 
     /// Users mailbox store.
-    type Mailbox: Mailbox<Value = Self::MailboxedMessage, Error = Self::Error>;
+    type Mailbox: Mailbox<
+        Key1 = Self::MailboxFirstKey,
+        Key2 = Self::MailboxSecondKey,
+        Value = Self::MailboxedMessage,
+        Error = Self::Error,
+    >;
+
+    fn reset() {
+        Self::Sent::reset();
+        Self::Dequeued::reset();
+        Self::QueueProcessing::allow();
+        Self::Queue::remove_all();
+        Self::Mailbox::remove_all();
+    }
 }

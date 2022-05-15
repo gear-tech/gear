@@ -23,3 +23,12 @@ pub trait IterableMap<Item> {
     fn drain() -> Self::DrainIter;
     fn iter() -> Self::Iter;
 }
+
+pub trait IterableDoubleMap<Item> {
+    type Key;
+    type DrainIter: Iterator<Item = Item>;
+    type Iter: Iterator<Item = Item>;
+
+    fn drain(key: Self::Key) -> Self::DrainIter;
+    fn iter(key: Self::Key) -> Self::Iter;
+}

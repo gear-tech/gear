@@ -25,6 +25,7 @@ use pallet_gear_debug::DebugData;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
 pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;
+pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Mailbox;
 
 pub fn get_dispatch_queue() -> Vec<StoredDispatch> {
     QueueOf::<Runtime>::iter()
