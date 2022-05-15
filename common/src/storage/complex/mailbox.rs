@@ -38,7 +38,7 @@ pub trait Mailbox {
     type Value;
     type Error: MailboxError;
 
-    fn elements_with(key1: &Self::Key1) -> usize;
+    fn count_of(key1: &Self::Key1) -> usize;
 
     fn contains(key1: &Self::Key1, key2: &Self::Key2) -> bool;
 
@@ -66,8 +66,8 @@ where
     type Value = T::Value;
     type Error = Error;
 
-    fn elements_with(user_id: &Self::Key1) -> usize {
-        T::elements_with(user_id)
+    fn count_of(user_id: &Self::Key1) -> usize {
+        T::count_of(user_id)
     }
 
     fn contains(user_id: &Self::Key1, message_id: &Self::Key2) -> bool {
@@ -112,7 +112,7 @@ pub struct UserMailbox<MB: Mailbox>(MB::Key1, PhantomData<MB>);
 
 impl<MB: Mailbox> UserMailbox<MB> {
     pub fn len(&self) -> usize {
-        MB::elements_with(&self.0)
+        MB::count_of(&self.0)
     }
 
     pub fn is_empty(&self) -> bool {

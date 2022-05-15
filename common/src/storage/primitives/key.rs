@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::marker::PhantomData;
+
+use crate::Origin;
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    ids::MessageId,
     message::{StoredDispatch, StoredMessage},
 };
 
@@ -39,13 +42,16 @@ impl KeyFor for QueueKeyGen {
     }
 }
 
-pub struct MailboxKeyGen;
+pub struct MailboxKeyGen<T>(PhantomData<T>);
 
-impl KeyFor for MailboxKeyGen {
-    type Key = (ProgramId, MessageId);
+impl<T: Origin> KeyFor for MailboxKeyGen<T> {
+    type Key = (T, MessageId);
     type Value = StoredMessage;
 
     fn key_for(value: &Self::Value) -> Self::Key {
-        (value.destination(), value.id())
+        (
+            T::from_origin(value.destination().into_origin()),
+            value.id(),
+        )
     }
 }

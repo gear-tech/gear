@@ -31,7 +31,7 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::storage::*;
+    use common::{storage::*, Origin};
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
     use gear_core::{
@@ -155,6 +155,18 @@ pub mod pallet {
         value: bool
     );
 
+    #[pallet::storage]
+    type Mailbox<T: Config> =
+        StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
+
+    common::wrap_storage_double_map!(
+        storage: Mailbox,
+        name: MailboxWrap,
+        key1: T::AccountId,
+        key2: MessageId,
+        value: StoredMessage
+    );
+
     /// Callback function accessor for `pop_front` action.
     pub struct OnPopFront<V, T>(PhantomData<(V, T)>);
 
@@ -174,9 +186,9 @@ pub mod pallet {
         }
     }
 
-    pub struct Callbacks<V, T>(PhantomData<(V, T)>);
+    pub struct QueueCallbacks<V, T>(PhantomData<(V, T)>);
 
-    impl<V, T: Messenger> LinkedListCallbacks for Callbacks<V, T> {
+    impl<V, T: Messenger> LinkedListCallbacks for QueueCallbacks<V, T> {
         type Value = V;
 
         type OnPopBack = ();
@@ -186,8 +198,20 @@ pub mod pallet {
         type OnRemoveAll = ();
     }
 
+    pub struct MailBoxCallbacks<V, T>(PhantomData<(V, T)>);
+
+    impl<V, T: Messenger> MailboxCallbacks for MailBoxCallbacks<V, T> {
+        type Value = V;
+
+        type OnInsert = ();
+        type OnRemove = ();
+    }
+
     /// Message processing centralized behaviour.
-    impl<T: crate::Config> Messenger for Pallet<T> {
+    impl<T: crate::Config> Messenger for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         type Capacity = Capacity;
         type MailboxedMessage = StoredMessage;
         type QueuedDispatch = StoredDispatch;
@@ -211,17 +235,25 @@ pub mod pallet {
                 HeadWrap<T>,
                 TailWrap<T>,
                 DispatchesWrap<T>,
-                Callbacks<Self::QueuedDispatch, Self>,
+                QueueCallbacks<Self::QueuedDispatch, Self>,
             >,
             QueueKeyGen,
         >;
 
-        // /// Users mailbox store.
-        // type Mailbox: Mailbox<Value = Self::MailboxedMessage, Error = Self::Error>;
+        /// Users mailbox store.
+        type Mailbox = MailboxImpl<
+            MailboxWrap<T>,
+            Self::Error,
+            MailBoxCallbacks<Self::MailboxedMessage, Self>,
+            MailboxKeyGen<T::AccountId>,
+        >;
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             let mut weight = 0;

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::storage::{
-    complex::{MailboxError, Queue},
+    complex::{Mailbox, MailboxError, Queue},
     complicated::{Counter, LinkedListError, Toggler},
     primitives::{Counted, IterableMap},
 };
@@ -44,6 +44,6 @@ pub trait Messenger {
         + Counted<Length = Self::Capacity>
         + IterableMap<Result<Self::QueuedDispatch, Self::Error>>;
 
-    // /// Users mailbox store.
-    // type Mailbox: Mailbox<Value = Self::MailboxedMessage, Error = Self::Error>;
+    /// Users mailbox store.
+    type Mailbox: Mailbox<Value = Self::MailboxedMessage, Error = Self::Error>;
 }
