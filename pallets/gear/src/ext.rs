@@ -79,6 +79,7 @@ impl fmt::Display for Error {
 /// Ext with lazy pages support
 pub struct LazyPagesExt {
     inner: Ext,
+    fresh_allocations: BTreeSet<WasmPageNumber>,
 }
 
 impl IntoExtInfo for LazyPagesExt {
@@ -165,6 +166,7 @@ impl ProcessorExt for LazyPagesExt {
                 program_candidates_data,
                 host_fn_weights,
             },
+            fresh_allocations: Default::default(),
         }
     }
 
@@ -224,9 +226,6 @@ impl EnvExt for LazyPagesExt {
         let old_mem_addr = mem.get_wasm_memory_begin_addr();
         lazy_pages::remove_lazy_pages_prot(old_mem_addr)?;
 
-        // Save current allocations in order to add new allocations to lazy pages
-        let old_allocations = self.inner.allocations_context.allocations().clone();
-
         let result = self
             .inner
             .allocations_context
@@ -235,15 +234,24 @@ impl EnvExt for LazyPagesExt {
 
         let page_number = self.inner.return_and_store_err(result)?;
 
-        // Add new allocations to lazy pages
+        // Add new allocations to lazy pages.
+        // All pages except ones which has been already allocated,
+        // during current execution.
+        // This is because only such pages contains Default (zeros in web asm) page data.
+        // Pages which has been already allocated may contain garbage.
         let id = self.inner.program_id.into_origin();
-        let new_allocations = self.inner.allocations_context.allocations();
-        for page in new_allocations
-            .difference(&old_allocations)
-            .flat_map(|p| p.to_gear_pages_iter())
-        {
-            log::debug!("add {:?} to lazy pages", page);
-            save_page_lazy_info(id, page);
+        for page_num in page_number.0..(page_number + pages_num).0 {
+            let wasm_page = WasmPageNumber(page_num);
+            if self.inner.allocations_context.is_init_page(wasm_page)
+                || self.fresh_allocations.contains(&wasm_page)
+            {
+                continue;
+            }
+            self.fresh_allocations.insert(wasm_page);
+            wasm_page.to_gear_pages_iter().for_each(|page| {
+                log::trace!("add {:?} to lazy pages", page);
+                save_page_lazy_info(id, page);
+            });
         }
 
         // Protect all lazy pages including new allocations

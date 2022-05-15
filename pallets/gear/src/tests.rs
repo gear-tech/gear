@@ -415,6 +415,242 @@ fn restrict_start_section() {
 #[cfg(unix)]
 #[cfg(feature = "lazy-pages")]
 #[test]
+fn memory_access_cases() {
+    // This test access different pages in linear wasm memory
+    // and check that lazy-pages (see gear-lazy-pages) works correct:
+    // For each page, which has been loaded from storage <=> page has been accessed.
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "alloc" (func $alloc (param i32) (result i32)))
+    (import "env" "free" (func $free (param i32)))
+    (export "handle" (func $handle))
+    (export "init" (func $init))
+    (func $init
+        ;; allocate 3 pages in init, so mem will contain 4 pages: 0, 1, 2, 3
+        (block
+            i32.const 0x0
+            i32.const 0x3
+            call $alloc
+            i32.const 0x1
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; free page 2, so pages 0, 1, 3 is allocated now
+        (block
+            i32.const 0x2
+            call $free
+        )
+        ;; access page 1 and change it, so it will have data in storage
+        (block
+            i32.const 0x10001
+            i32.const 0x42
+            i32.store
+        )
+    )
+    (func $handle
+        (block
+            i32.const 0x0
+            i32.load
+            i32.eqz
+            br_if 0
+
+            ;; second run check that pages are in correct state
+
+            ;; 1st page
+            (block
+                i32.const 0x10001
+                i32.load
+                i32.const 0x142
+                i32.eq
+                br_if 0
+                unreachable
+            )
+
+            ;; 2nd page
+            (block
+                i32.const 0x20001
+                i32.load
+                i32.const 0x42
+                i32.eq
+                br_if 0
+                unreachable
+            )
+
+            ;; 3th page
+            (block
+                i32.const 0x30001
+                i32.load
+                i32.const 0x42
+                i32.eq
+                br_if 0
+                unreachable
+            )
+
+            br 1
+        )
+
+        ;; in first run access pages
+
+        ;; alloc 2nd page
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 2
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; We freed 2nd page in init, so data will be default
+        (block
+            i32.const 0x20001
+            i32.load
+            i32.eqz
+            br_if 0
+            unreachable
+        )
+        ;; change 2nd page data
+        i32.const 0x20001
+        i32.const 0x42
+        i32.store
+        ;; free 2nd page
+        i32.const 2
+        call $free
+        ;; alloc it again
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 2
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; write the same value
+        i32.const 0x20001
+        i32.const 0x42
+        i32.store
+
+        ;; 3th page. We have not access it yet, so data will be default
+        (block
+            i32.const 0x30001
+            i32.load
+            i32.eqz
+            br_if 0
+            unreachable
+        )
+        ;; change 3th page data
+        i32.const 0x30001
+        i32.const 0x42
+        i32.store
+        ;; free 3th page
+        i32.const 3
+        call $free
+        ;; then alloc it again
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 3
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; write the same value
+        i32.const 0x30001
+        i32.const 0x42
+        i32.store
+
+        ;; 1st page. We have accessed this page before
+        (block
+            i32.const 0x10001
+            i32.load
+            i32.const 0x42
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; change 1st page data
+        i32.const 0x10001
+        i32.const 0x142
+        i32.store
+        ;; free 1st page
+        i32.const 1
+        call $free
+        ;; then alloc it again
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 1
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; write the same value
+        i32.const 0x10001
+        i32.const 0x142
+        i32.store
+
+        ;; set new handle case
+        i32.const 0x0
+        i32.const 0x1
+        i32.store
+    )
+)
+"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = {
+            let code = ProgramCodeKind::Custom(wat).to_bytes();
+            let salt = DEFAULT_SALT.to_vec();
+            let prog_id = generate_program_id(&code, &salt);
+            let res = GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1),
+                code,
+                salt,
+                EMPTY_PAYLOAD.to_vec(),
+                500_000_000,
+                0,
+            )
+            .map(|_| prog_id);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_block(2, Some(1_000_000_000));
+        log::debug!("submit done {:?}", pid);
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+
+        // First handle: access pages
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            100,
+        );
+        log::debug!("res = {:?}", res);
+        assert_ok!(res);
+
+        run_to_block(3, Some(1_000_000_000));
+
+        // Second handle: check pages data
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            100,
+        );
+        log::debug!("res = {:?}", res);
+        assert_ok!(res);
+
+        run_to_block(4, Some(1_000_000_000));
+    });
+}
+
+#[cfg(unix)]
+#[cfg(feature = "lazy-pages")]
+#[test]
 fn lazy_pages() {
     use gear_core::memory::{PageNumber, WasmPageNumber};
     use gear_runtime_interface as gear_ri;
@@ -427,6 +663,7 @@ fn lazy_pages() {
 	(module
 		(import "env" "memory" (memory 1))
         (import "env" "alloc" (func $alloc (param i32) (result i32)))
+        (import "env" "free" (func $free (param i32)))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
 		(func $init
