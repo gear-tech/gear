@@ -18,7 +18,6 @@
 
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
@@ -30,7 +29,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, Memory, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{ExtError, TerminationReason};
@@ -75,7 +74,7 @@ pub trait ProcessorExt {
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, Vec<u8>>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 }
@@ -167,7 +166,7 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(
-        _memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        _memory_pages: &mut BTreeMap<PageNumber, Vec<u8>>,
         _wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         unreachable!()

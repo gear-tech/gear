@@ -26,7 +26,6 @@ pub mod funcs;
 
 use alloc::{
     borrow::Cow,
-    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
@@ -35,7 +34,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
 use gear_core_errors::ExtError;
@@ -111,7 +110,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &BTreeMap<PageNumber, Vec<u8>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 

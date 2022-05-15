@@ -68,9 +68,10 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
 
         let accessed_page = PageNumber::from(((mem as usize - wasm_mem_begin) / gear_ps) as u32);
         log::debug!(
-            "mem={:?} accessed={:?} pages={:?} page_native_addr={:#x}",
+            "mem={:?} accessed={:?},{:?} pages={:?} page_native_addr={:#x}",
             mem,
             accessed_page,
+            accessed_page.to_wasm_page(),
             res.0 .0..res.0 .0 + res.1 as u32,
             res.2
         );

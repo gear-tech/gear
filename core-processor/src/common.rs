@@ -268,9 +268,7 @@ pub struct ExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: Option<ExecutionErrorReason>,
-    /// Triggered by gas allowance exceed.
-    pub allowance_exceed: bool,
+    pub reason: ExecutionErrorReason,
 }
 
 /// Reason of execution error
@@ -318,6 +316,9 @@ pub enum ExecutionErrorReason {
     /// Ext works with lazy pages, but lazy pages env is not enabled
     #[display(fmt = "Ext works with lazy pages, but lazy pages env is not enabled")]
     LazyPagesInconsistentState,
+    /// Page with data is not allocated for program
+    #[display(fmt = "Page with data is not allocated for program: {:?}", _0)]
+    PageIsNotAllocated(PageNumber),
 }
 
 /// Executable actor.

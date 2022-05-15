@@ -30,11 +30,11 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, Memory, PageNumber, WasmPageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, TerminationReason};
-use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
+use sp_std::{collections::btree_map::BTreeMap, vec, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -186,7 +186,7 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, Vec<u8>>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)

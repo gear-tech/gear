@@ -18,24 +18,9 @@
 
 //! Module for programs.
 
-use crate::{
-    code::InstrumentedCode,
-    ids::ProgramId,
-    memory::{PageBuf, PageNumber, WasmPageNumber},
-};
-use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet};
+use crate::{code::InstrumentedCode, ids::ProgramId, memory::WasmPageNumber};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use core::array::TryFromSliceError;
-
-/// A program error
-#[derive(Debug, Clone, Copy)]
-pub enum Error {
-    /// Failed to convert PageBuf from slice
-    TryFromSlice(TryFromSliceError),
-}
-
-/// Type alias for map of persistent pages.
-pub type PersistentPageMap = BTreeMap<PageNumber, Option<Box<PageBuf>>>;
 
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
@@ -153,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    /// Test that Program constructor fails when pages can't be converted into PageBuf.
+    /// Test static pages.
     fn program_memory() {
         let wat = r#"
             (module
@@ -181,8 +166,5 @@ mod tests {
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());
-
-        // no allocations because we do not set them in new
-        assert_eq!(program.get_allocations().len(), 0);
     }
 }

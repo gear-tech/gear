@@ -38,9 +38,6 @@ const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
 pub use gear_core_errors::MemoryError as Error;
 
-/// Page buffer.
-pub type PageBuf = [u8; GEAR_PAGE_SIZE];
-
 /// Page number.
 #[derive(
     Clone,
