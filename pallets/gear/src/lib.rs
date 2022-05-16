@@ -599,7 +599,7 @@ pub mod pallet {
                         u64::MAX,
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
-                        None
+                        None,
                     )
                 };
 

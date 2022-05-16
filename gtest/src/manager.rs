@@ -22,6 +22,7 @@ use crate::{
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_core::message::GasLimit;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -441,15 +442,16 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    pub fn process_custom_function(
+    pub(crate) fn process_custom_function(
         &mut self,
-        dispatch: IncomingDispatch,
-        program_id: ProgramId,
+        dispatch: StoredDispatch,
         func_name: &str,
+        gas_limit: GasLimit,
     ) -> RunResult {
+        let destination = dispatch.destination();
         let (actor, balance) = self
             .actors
-            .get_mut(&program_id)
+            .get_mut(&destination)
             .expect("No actor with such program id");
 
         let executable_actor = actor
@@ -458,11 +460,12 @@ impl ExtManager {
         let message_id = dispatch.message().id();
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             Some(executable_actor),
-            dispatch,
+            dispatch.into_incoming(gas_limit),
             self.block_info,
+            Default::default(),
             crate::EXISTENTIAL_DEPOSIT,
             self.origin,
-            program_id,
+            destination,
             u64::MAX,
             OUTGOING_LIMIT,
             Default::default(),

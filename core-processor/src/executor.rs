@@ -254,27 +254,27 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Running backend.
     let BackendReport { termination, info } =
-        match env.execute(kind.into_entry(), |wasm_memory_addr| {
-            // accessed lazy pages old data will be added to `initial_pages`
-            // TODO: if post execution actions err is connected, with removing pages protections,
-            // then we should panic here, because protected pages may cause UB later, during err handling,
-            // if somebody will try to access this pages.
-            if A::is_lazy_pages_enabled() {
-                A::lazy_pages_post_execution_actions(&mut pages_initial_data, wasm_memory_addr)
-            } else {
-                Ok(())
-            }
-        }) {
-            Ok(report) => report,
-            Err(e) => {
-                return Err(ExecutionError {
-                    program_id,
-                    gas_amount: e.gas_amount.clone(),
-                    reason: Some(ExecutionErrorReason::Backend(e.to_string())),
-                    allowance_exceed: false,
-                })
-            }
-        };
+        match env.execute(kind, |wasm_memory_addr| {
+        // accessed lazy pages old data will be added to `initial_pages`
+        // TODO: if post execution actions err is connected, with removing pages protections,
+        // then we should panic here, because protected pages may cause UB later, during err handling,
+        // if somebody will try to access this pages.
+        if A::is_lazy_pages_enabled() {
+            A::lazy_pages_post_execution_actions(&mut pages_initial_data, wasm_memory_addr)
+        } else {
+            Ok(())
+        }
+    }) {
+        Ok(report) => report,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: e.gas_amount.clone(),
+                reason: Some(ExecutionErrorReason::Backend(e.to_string())),
+                allowance_exceed: false,
+            })
+        }
+    };
 
     log::trace!("term reason = {:?}", termination);
 
