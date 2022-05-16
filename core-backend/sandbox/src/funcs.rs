@@ -86,8 +86,6 @@ pub enum FuncError<E> {
     NoReplyContext,
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
 }
 
 impl<E> From<ExtCarrierWithError> for FuncError<E> {
@@ -758,7 +756,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        ctx.trap = Some(FuncError::ForbiddenFunction);
+        ctx.trap = Some(FuncError::Core(E::Error::from_termination_reason(
+            TerminationReason::ForbiddenFunction,
+        )));
         Err(HostError)
     }
 }

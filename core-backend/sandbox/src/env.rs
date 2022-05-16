@@ -33,7 +33,7 @@ use gear_core::{
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use gear_core_errors::TerminationReason as CoreTerminationReason;
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::{CoreError, ExtError, MemoryError};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -259,6 +259,12 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
                     Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
                     Some(CoreTerminationReason::GasAllowanceExceeded) => {
                         Some(TerminationReason::GasAllowanceExceeded)
+                    }
+                    Some(CoreTerminationReason::ForbiddenFunction) => {
+                        Some(TerminationReason::Trap {
+                            explanation: Some(ExtError::ForbiddenFunction),
+                            description: None,
+                        })
                     }
                     None => None,
                 }

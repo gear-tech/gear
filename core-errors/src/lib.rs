@@ -113,6 +113,7 @@ pub enum TerminationReason {
     Leave,
     Wait,
     GasAllowanceExceeded,
+    ForbiddenFunction,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
@@ -141,6 +142,8 @@ pub enum ExtError {
     NotEnoughValue,
     #[display(fmt = "{}", _0)]
     Message(MessageError),
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 impl CoreError for ExtError {
