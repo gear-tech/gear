@@ -317,7 +317,7 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Ext works with lazy pages, but lazy pages env is not enabled")]
     LazyPagesInconsistentState,
     /// Page with data is not allocated for program
-    #[display(fmt = "Page with data is not allocated for program: {:?}", _0)]
+    #[display(fmt = "{:?} is not allocated for program", _0)]
     PageIsNotAllocated(PageNumber),
 }
 
