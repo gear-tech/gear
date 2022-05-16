@@ -18,7 +18,7 @@
 
 //! Lazy pages support in unix.
 
-use gear_core::memory::{PageNumber, WasmPageNumber};
+use gear_core::memory::{PageNumber, WasmPageNumber, page_buf_from_vec_u8};
 use libc::{c_void, siginfo_t};
 use nix::sys::signal;
 
@@ -127,7 +127,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
             // page had been changed after last page allocation or after execution start.
             let _ = released_pages
                 .borrow_mut()
-                .insert(page, buffer_as_slice.to_vec());
+                .insert(page, Some(page_buf_from_vec_u8(buffer_as_slice.to_vec()).unwrap()));
         });
     }
 }
