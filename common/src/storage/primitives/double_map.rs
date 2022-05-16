@@ -49,8 +49,9 @@ pub trait DoubleMapStorage {
     /// Inserts value with given keys.
     fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value);
 
-    /// Mutates value by `Option` reference, which stored (or not in `None` case)
-    /// under given keys with given function.
+    /// Mutates value by `Option` reference, which stored
+    /// (or not in `None` case) under given keys
+    /// with given function.
     ///
     /// May return generic type value.
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
