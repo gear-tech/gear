@@ -30,7 +30,7 @@ pub unsafe extern "C" fn handle() {
                 submitted_code,
                 COUNTER.to_le_bytes(),
                 b"unique",
-                10_000,
+                10_000_000_000,
                 0,
             );
             debug!("A new program is created {:?}", new_program_id);
@@ -45,7 +45,7 @@ pub unsafe extern "C" fn handle() {
                 submitted_code,
                 (COUNTER - 1).to_le_bytes(),
                 b"not_unique",
-                10_000,
+                10_000_000_000,
                 0,
             );
             debug!("A new program is created {:?}", new_program_id);

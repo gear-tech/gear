@@ -106,7 +106,7 @@ impl pallet_authorship::Config for Test {
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
     pub const OutgoingLimit: u32 = 1024;
-    pub const BlockGasLimit: u64 = 100_000_000;
+    pub const BlockGasLimit: u64 = 10_000_000_000;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -175,7 +175,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(1, 100_000_000_u128), (2, 2_u128), (BLOCK_AUTHOR, 1_u128)],
+        balances: vec![
+            (1, 100_000_000_000_u128),
+            (2, 2_u128),
+            (BLOCK_AUTHOR, 1_u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();

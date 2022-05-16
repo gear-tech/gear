@@ -120,9 +120,13 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
             res.unwrap()
         );
 
-        RELEASED_LAZY_PAGES.with(|rpages| {
-            let res = rpages.borrow_mut().insert(page, buffer_as_slice.to_vec());
-            assert!(res.is_none(), "Any page cannot be released twice");
+        RELEASED_LAZY_PAGES.with(|released_pages| {
+            // Some pages can be released many times, when page has been free and then allocated.
+            // We save here the most fresh data for these pages, in order to identify wether
+            // page had been changed after last page allocation or after execution start.
+            let _ = released_pages
+                .borrow_mut()
+                .insert(page, buffer_as_slice.to_vec());
         });
     }
 }
