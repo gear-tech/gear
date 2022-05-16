@@ -106,7 +106,7 @@ pub mod pallet {
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-        configs::BlockInfo,
+        configs::{AllocationsConfig, BlockInfo},
         Ext, Processor,
     };
     use frame_support::{
@@ -565,8 +565,17 @@ pub mod pallet {
                     .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
+                let allocations_config = AllocationsConfig {
+                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                    init_cost: schedule.memory_weights.initial_cost,
+                    alloc_cost: schedule.memory_weights.allocation_cost,
+                    mem_grow_cost: schedule.memory_weights.grow_cost,
+                    load_page_cost: schedule.memory_weights.load_cost,
+                };
+
                 let processor = Processor::new()
                     .block_info(block_info)
+                    .allocations_config(allocations_config)
                     .existential_deposit(existential_deposit)
                     .origin(ProgramId::from_origin(source))
                     .program_id(actor_id)
@@ -830,11 +839,20 @@ pub mod pallet {
                         }
                     };
 
+                    let allocations_config = AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                        init_cost: schedule.memory_weights.initial_cost,
+                        alloc_cost: schedule.memory_weights.allocation_cost,
+                        mem_grow_cost: schedule.memory_weights.grow_cost,
+                        load_page_cost: schedule.memory_weights.load_cost,
+                    };
+
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
                             maybe_active_actor,
                             dispatch.into_incoming(gas_limit),
                             block_info,
+                            allocations_config,
                             existential_deposit,
                             ProgramId::from_origin(origin),
                             program_id,
@@ -847,6 +865,7 @@ pub mod pallet {
                             maybe_active_actor,
                             dispatch.into_incoming(gas_limit),
                             block_info,
+                            allocations_config,
                             existential_deposit,
                             ProgramId::from_origin(origin),
                             program_id,

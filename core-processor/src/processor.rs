@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::common::ExecutionErrorReason;
+use crate::configs::AllocationsConfig;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
@@ -46,6 +47,7 @@ enum SuccessfulDispatchResultKind {
 /// Wrapper for processing the [`IncomingDispatch`].
 pub struct Processor {
     block_info: BlockInfo,
+    allocations_config: AllocationsConfig,
     existential_deposit: u128,
     origin: ProgramId,
     program_id: ProgramId,
@@ -59,6 +61,7 @@ impl Default for Processor {
     fn default() -> Self {
         Self {
             block_info: Default::default(),
+            allocations_config: Default::default(),
             existential_deposit: 0,
             origin: Default::default(),
             program_id: Default::default(),
@@ -76,6 +79,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     maybe_actor: Option<ExecutableActor>,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
+    allocations_config: AllocationsConfig,
     existential_deposit: u128,
     origin: ProgramId,
     // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
@@ -86,6 +90,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
 ) -> Vec<JournalNote> {
     Processor::new()
         .block_info(block_info)
+        .allocations_config(allocations_config)
         .existential_deposit(existential_deposit)
         .origin(origin)
         .program_id(program_id)
@@ -104,6 +109,12 @@ impl Processor {
     /// Set the block info (see [`BlockInfo`] for details) and return self.
     pub fn block_info(mut self, block_info: BlockInfo) -> Self {
         self.block_info = block_info;
+        self
+    }
+
+    /// Set the allocations config info (see [`AllocationsConfig`] for details) and return self.
+    pub fn allocations_config(mut self, allocations_config: AllocationsConfig) -> Self {
+        self.allocations_config = allocations_config;
         self
     }
 
@@ -356,6 +367,7 @@ impl Processor {
         let execution_settings = ExecutionSettings::new(
             self.block_info,
             self.existential_deposit,
+            self.allocations_config,
             self.host_fn_weights,
             self.forbidden_funcs,
         );

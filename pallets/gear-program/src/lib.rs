@@ -99,6 +99,7 @@ pub mod pallet {
     pub enum Error<T> {
         PausedProgramNotFound,
         WrongMemoryPages,
+        NotAllocatedPageWithData,
         ResumeProgramNotEnoughValue,
         WrongWaitList,
     }

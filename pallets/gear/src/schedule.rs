@@ -87,6 +87,9 @@ pub struct Schedule<T: Config> {
 
     /// The weights for each imported function a program is allowed to call.
     pub host_fn_weights: HostFnWeights<T>,
+
+    /// The weights for memory interaction.
+    pub memory_weights: MemoryWeights<T>,
 }
 
 /// Describes the upper limits on various metrics.
@@ -347,6 +350,28 @@ pub struct HostFnWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
+/// Describes the weight for memory interaction.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct MemoryWeights<T: Config> {
+    /// Weight of initial page.
+    pub initial_cost: Weight,
+
+    /// Weight of allocated page.
+    pub allocation_cost: Weight,
+
+    /// Weight of growing page.
+    pub grow_cost: Weight,
+
+    /// Weight of loading page.
+    pub load_cost: Weight,
+
+    /// The type parameter is used in the default implementation.
+    #[codec(skip)]
+    pub _phantom: PhantomData<T>,
+}
+
 macro_rules! replace_token {
     ($_in:tt $replacement:tt) => {
         $replacement
@@ -436,7 +461,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 16,
+            memory_pages: 512,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -451,7 +476,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 2,
+            version: 3,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 2),
             i64store: cost_instr!(instr_i64store, 2),
@@ -575,6 +600,18 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
             gas: cost_batched!(gas),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> Default for MemoryWeights<T> {
+    fn default() -> Self {
+        Self {
+            initial_cost: <T as super::pallet::Config>::WeightInfo::initial_cost(),
+            allocation_cost: <T as super::pallet::Config>::WeightInfo::allocation_cost(),
+            grow_cost: <T as super::pallet::Config>::WeightInfo::grow_cost(),
+            load_cost: <T as super::pallet::Config>::WeightInfo::load_cost(),
             _phantom: PhantomData,
         }
     }
