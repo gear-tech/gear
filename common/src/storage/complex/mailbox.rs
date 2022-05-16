@@ -37,6 +37,7 @@ pub trait Mailbox {
     type Key2;
     type Value;
     type Error: MailboxError;
+    type OutputError: From<Self::Error>;
 
     fn contains(key1: &Self::Key1, key2: &Self::Key2) -> bool;
 
@@ -44,28 +45,33 @@ pub trait Mailbox {
 
     fn count_of(key: &Self::Key1) -> usize;
 
-    fn insert(value: Self::Value) -> Result<(), Self::Error>;
+    fn insert(value: Self::Value) -> Result<(), Self::OutputError>;
 
     fn is_empty(user_id: &Self::Key1) -> bool {
         Self::count_of(user_id) == 0
     }
 
-    fn remove(key1: Self::Key1, key2: Self::Key2) -> Result<Self::Value, Self::Error>;
+    fn remove(key1: Self::Key1, key2: Self::Key2) -> Result<Self::Value, Self::OutputError>;
 
     fn remove_all();
 }
 
-pub struct MailboxImpl<T, Error, Callbacks, KeyGen>(PhantomData<(T, Error, Callbacks, KeyGen)>)
+pub struct MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>(
+    PhantomData<(T, Error, OutputError, Callbacks, KeyGen)>,
+)
 where
     T: DoubleMapStorage,
     Error: MailboxError,
+    OutputError: From<Error>,
     Callbacks: MailboxCallbacks<Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>;
 
-impl<T, Error, Callbacks, KeyGen> Mailbox for MailboxImpl<T, Error, Callbacks, KeyGen>
+impl<T, Error, OutputError, Callbacks, KeyGen> Mailbox
+    for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
 where
     T: DoubleMapStorage,
     Error: MailboxError,
+    OutputError: From<Error>,
     Callbacks: MailboxCallbacks<Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
 {
@@ -73,6 +79,7 @@ where
     type Key2 = T::Key2;
     type Value = T::Value;
     type Error = Error;
+    type OutputError = OutputError;
 
     fn contains(user_id: &Self::Key1, message_id: &Self::Key2) -> bool {
         T::contains_key(user_id, message_id)
@@ -86,11 +93,11 @@ where
         T::count_of(user_id)
     }
 
-    fn insert(message: Self::Value) -> Result<(), Self::Error> {
+    fn insert(message: Self::Value) -> Result<(), Self::OutputError> {
         let (key1, key2) = KeyGen::key_for(&message);
 
         if Self::contains(&key1, &key2) {
-            return Err(Self::Error::duplicate_key());
+            return Err(Self::Error::duplicate_key().into());
         }
 
         Callbacks::OnInsert::call(&message);
@@ -98,13 +105,17 @@ where
         Ok(())
     }
 
-    fn remove(user_id: Self::Key1, message_id: Self::Key2) -> Result<Self::Value, Self::Error> {
+    fn remove(
+        user_id: Self::Key1,
+        message_id: Self::Key2,
+    ) -> Result<Self::Value, Self::OutputError> {
         T::take(user_id, message_id)
             .map(|msg| {
                 Callbacks::OnRemove::call(&msg);
                 msg
             })
             .ok_or_else(Self::Error::element_not_found)
+            .map_err(Into::into)
     }
 
     fn remove_all() {
@@ -112,10 +123,11 @@ where
     }
 }
 
-impl<T, Error, Callbacks, KeyGen> MailboxImpl<T, Error, Callbacks, KeyGen>
+impl<T, Error, OutputError, Callbacks, KeyGen> MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
 where
     T: DoubleMapStorage,
     Error: MailboxError,
+    OutputError: From<Error>,
     Callbacks: MailboxCallbacks<Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
 {
@@ -143,7 +155,7 @@ impl<MB: Mailbox> UserMailbox<MB> {
         MB::collect_of(self.0)
     }
 
-    pub fn remove(self, message_id: MB::Key2) -> Result<MB::Value, MB::Error> {
+    pub fn remove(self, message_id: MB::Key2) -> Result<MB::Value, MB::OutputError> {
         MB::remove(self.0, message_id)
     }
 }

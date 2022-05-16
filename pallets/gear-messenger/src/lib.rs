@@ -214,6 +214,7 @@ pub mod pallet {
     {
         type Capacity = Capacity;
         type Error = Error<T>;
+        type OutputError = DispatchError;
 
         type MailboxFirstKey = T::AccountId;
         type MailboxSecondKey = MessageId;
@@ -240,6 +241,7 @@ pub mod pallet {
                 DispatchesWrap<T>,
                 QueueCallbacks<Self::QueuedDispatch, Self>,
             >,
+            DispatchError,
             QueueKeyGen,
         >;
 
@@ -247,6 +249,7 @@ pub mod pallet {
         type Mailbox = MailboxImpl<
             MailboxWrap<T>,
             Self::Error,
+            DispatchError,
             MailBoxCallbacks<Self::MailboxedMessage, Self>,
             MailboxKeyGen<T::AccountId>,
         >;

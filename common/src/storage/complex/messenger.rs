@@ -27,6 +27,7 @@ use core::fmt::Debug;
 pub trait Messenger {
     type Capacity;
     type Error: MailboxError + LinkedListError + Debug;
+    type OutputError: From<Self::Error> + Debug;
 
     type MailboxFirstKey;
     type MailboxSecondKey;
@@ -43,9 +44,9 @@ pub trait Messenger {
     type QueueProcessing: Toggler;
 
     /// Message queue store.
-    type Queue: Queue<Value = Self::QueuedDispatch, Error = Self::Error>
+    type Queue: Queue<Value = Self::QueuedDispatch, Error = Self::Error, OutputError = Self::OutputError>
         + Counted<Length = Self::Capacity>
-        + IterableMap<Result<Self::QueuedDispatch, Self::Error>>;
+        + IterableMap<Result<Self::QueuedDispatch, Self::OutputError>>;
 
     /// Users mailbox store.
     type Mailbox: Mailbox<
@@ -53,6 +54,7 @@ pub trait Messenger {
         Key2 = Self::MailboxSecondKey,
         Value = Self::MailboxedMessage,
         Error = Self::Error,
+        OutputError = Self::OutputError,
     >;
 
     fn reset() {

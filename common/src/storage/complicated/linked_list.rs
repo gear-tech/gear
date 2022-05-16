@@ -286,6 +286,7 @@ where
 
             self.0 = node.next;
 
+            Callbacks::OnPopFront::call(&node.value);
             Some(Ok(node.value))
         } else {
             HVS::kill();
@@ -297,27 +298,24 @@ where
     }
 }
 
-pub struct LinkedListIter<Key, Value, Error, HVS, TVS, MS, Callbacks>(
+pub struct LinkedListIter<Key, Value, Error, HVS, TVS, MS>(
     Option<Key>,
-    PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
+    PhantomData<(Error, HVS, TVS, MS)>,
 )
 where
     Key: Clone + PartialEq,
     Error: LinkedListError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
-    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>;
+    MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>;
 
-impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
-    for LinkedListIter<Key, Value, Error, HVS, TVS, MS, Callbacks>
+impl<Key, Value, Error, HVS, TVS, MS> Iterator for LinkedListIter<Key, Value, Error, HVS, TVS, MS>
 where
     Key: Clone + PartialEq,
     Error: LinkedListError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
 {
     type Item = Result<Value, Error>;
 
@@ -347,13 +345,13 @@ where
     Callbacks: LinkedListCallbacks<Value = Value>,
 {
     type DrainIter = LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>;
-    type Iter = LinkedListIter<Key, Value, Error, HVS, TVS, MS, Callbacks>;
+    type Iter = LinkedListIter<Key, Value, Error, HVS, TVS, MS>;
 
     fn drain() -> Self::DrainIter {
         LinkedListDrainIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS, Callbacks)>)
     }
 
     fn iter() -> Self::Iter {
-        LinkedListIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS, Callbacks)>)
+        LinkedListIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS)>)
     }
 }
