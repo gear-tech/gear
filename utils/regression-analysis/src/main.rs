@@ -10,6 +10,9 @@ use clap::{Parser, Subcommand};
 #[macro_use]
 extern crate diesel;
 
+#[macro_use]
+extern crate diesel_migrations;
+
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 
@@ -48,6 +51,8 @@ fn current_time_since_epoch_secs() -> i32 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i32
 }
 
+diesel_migrations::embed_migrations!();
+
 fn main() {
     let (db, commit) = match Cli::parse().command {
         Commands::GetCrateList => {
@@ -65,6 +70,9 @@ fn main() {
     let database_url = db.as_path().to_str().expect("failed to get database url");
     let db_connection = SqliteConnection::establish(database_url)
         .expect("failed to open DB");
+
+    embedded_migrations::run_with_output(&db_connection, &mut std::io::stdout())
+        .expect("failed to run migrations");
 
     let result = process_jsons(db_connection, current_directory, &CRATE_NAMES, &commit, current_time_since_epoch_secs());
     for (name, stats) in result {
