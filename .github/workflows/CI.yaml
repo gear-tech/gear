@@ -123,7 +123,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake libsqlite3-dev libsqlite3-0
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -148,6 +148,15 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
 
+      - name: "Test (regressions): pallets"
+        id: regressions_analysis
+        if: ${{ github.ref != 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          cp /root/cache/test-executions.db /tmp/
+          for crate in `./target/release/regression-analysis get-crate-list`; do cargo test --lib -p $crate -- -Z unstable-options --report-time --format json > $crate; done
+          ./target/release/regression-analysis run --db /tmp/test-executions.db --commit $GITHUB_SHA
+
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
@@ -156,6 +165,11 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Cache: regressions"
+        if: ${{ steps.regressions_analysis.outcome == 'success' }}
+        run: |
+          mv /tmp/test-executions.db /root/cache/
 
       - name: "Cache: Pack"
         if: ${{ github.ref == 'refs/heads/master' }}
