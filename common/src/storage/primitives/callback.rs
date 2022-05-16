@@ -33,3 +33,9 @@ pub trait EmptyCallback {
 impl EmptyCallback for () {
     fn call() {}
 }
+
+pub trait FallibleCallback<T, R = ()> {
+    type Error;
+
+    fn call(arg: &T) -> Result<R, Self::Error>;
+}

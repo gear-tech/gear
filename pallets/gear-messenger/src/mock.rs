@@ -90,7 +90,9 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_gear_messenger::Config for Test {}
+impl pallet_gear_messenger::Config for Test {
+    type Currency = ();
+}
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {

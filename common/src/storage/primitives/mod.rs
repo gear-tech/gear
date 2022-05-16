@@ -26,7 +26,7 @@ mod key;
 mod map;
 mod value;
 
-pub use callback::{Callback, EmptyCallback};
+pub use callback::{Callback, EmptyCallback, FallibleCallback};
 pub use counted::Counted;
 pub use double_map::DoubleMapStorage;
 pub use iterable::{IterableDoubleMap, IterableMap};

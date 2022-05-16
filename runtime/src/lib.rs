@@ -384,7 +384,9 @@ impl pallet_gas::Config for Runtime {
     type BlockGasLimit = BlockGasLimit;
 }
 
-impl pallet_gear_messenger::Config for Runtime {}
+impl pallet_gear_messenger::Config for Runtime {
+    type Currency = Balances;
+}
 
 pub struct ExtraFeeFilter;
 impl Contains<Call> for ExtraFeeFilter {

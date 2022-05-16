@@ -150,7 +150,9 @@ impl pallet_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
 }
 
-impl pallet_gear_messenger::Config for Test {}
+impl pallet_gear_messenger::Config for Test {
+    type Currency = Balances;
+}
 
 pub struct FixedBlockAuthor;
 

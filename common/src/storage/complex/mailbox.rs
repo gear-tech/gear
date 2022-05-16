@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::storage::primitives::{Callback, DoubleMapStorage, KeyFor};
+use crate::storage::primitives::{Callback, DoubleMapStorage, FallibleCallback, KeyFor};
 use core::marker::PhantomData;
 
-pub trait MailboxCallbacks {
+pub trait MailboxCallbacks<OutputError> {
     type Value;
 
     type OnInsert: Callback<Self::Value>;
-    type OnRemove: Callback<Self::Value>;
+    type OnRemove: FallibleCallback<Self::Value, Error = OutputError>;
 }
 
 pub trait MailboxError {
@@ -63,7 +63,7 @@ where
     T: DoubleMapStorage,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<Value = T::Value>,
+    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>;
 
 impl<T, Error, OutputError, Callbacks, KeyGen> Mailbox
@@ -72,7 +72,7 @@ where
     T: DoubleMapStorage,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<Value = T::Value>,
+    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
 {
     type Key1 = T::Key1;
@@ -109,13 +109,12 @@ where
         user_id: Self::Key1,
         message_id: Self::Key2,
     ) -> Result<Self::Value, Self::OutputError> {
-        T::take(user_id, message_id)
-            .map(|msg| {
-                Callbacks::OnRemove::call(&msg);
-                msg
-            })
-            .ok_or_else(Self::Error::element_not_found)
-            .map_err(Into::into)
+        if let Some(msg) = T::take(user_id, message_id) {
+            Callbacks::OnRemove::call(&msg)?;
+            Ok(msg)
+        } else {
+            Err(Self::Error::element_not_found().into())
+        }
     }
 
     fn remove_all() {
@@ -128,7 +127,7 @@ where
     T: DoubleMapStorage,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<Value = T::Value>,
+    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
 {
     pub fn of(user_id: T::Key1) -> UserMailbox<Self> {

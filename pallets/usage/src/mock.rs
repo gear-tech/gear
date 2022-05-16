@@ -155,7 +155,9 @@ parameter_types! {
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
 }
 
-impl pallet_gear_messenger::Config for Test {}
+impl pallet_gear_messenger::Config for Test {
+    type Currency = Balances;
+}
 
 impl pallet_usage::Config for Test {
     type Event = Event;

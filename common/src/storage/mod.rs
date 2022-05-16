@@ -11,6 +11,6 @@ pub use complicated::{
     TogglerImpl,
 };
 pub use primitives::{
-    Callback, Counted, DoubleMapStorage, EmptyCallback, IterableMap, KeyFor, MailboxKeyGen,
-    MapStorage, QueueKeyGen, ValueStorage,
+    Callback, Counted, DoubleMapStorage, EmptyCallback, FallibleCallback, IterableMap, KeyFor,
+    MailboxKeyGen, MapStorage, QueueKeyGen, ValueStorage,
 };

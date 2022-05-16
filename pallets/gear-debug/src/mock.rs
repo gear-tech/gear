@@ -142,7 +142,9 @@ impl pallet_gear::Config for Test {
     type Messenger = GearMessenger;
 }
 
-impl pallet_gear_messenger::Config for Test {}
+impl pallet_gear_messenger::Config for Test {
+    type Currency = Balances;
+}
 
 impl pallet_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;

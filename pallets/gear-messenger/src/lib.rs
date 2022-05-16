@@ -32,7 +32,12 @@ pub use pallet::*;
 pub mod pallet {
     use super::*;
     use common::{storage::*, Origin};
-    use frame_support::{pallet_prelude::*, traits::StorageVersion};
+    use frame_support::{
+        dispatch::DispatchError,
+        pallet_prelude::*,
+        sp_runtime::traits::UniqueSaturatedInto,
+        traits::{BalanceStatus, ReservableCurrency, StorageVersion},
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::MessageId,
@@ -44,7 +49,9 @@ pub mod pallet {
     const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        type Currency: ReservableCurrency<Self::AccountId>;
+    }
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
@@ -186,25 +193,53 @@ pub mod pallet {
         }
     }
 
-    pub struct QueueCallbacks<V, T>(PhantomData<(V, T)>);
+    pub struct QueueCallbacks<T>(PhantomData<T>);
 
-    impl<V, T: Messenger> LinkedListCallbacks for QueueCallbacks<V, T> {
-        type Value = V;
+    impl<T: Messenger> LinkedListCallbacks for QueueCallbacks<T> {
+        type Value = T::QueuedDispatch;
 
         type OnPopBack = ();
-        type OnPopFront = OnPopFront<V, T>;
+        type OnPopFront = OnPopFront<Self::Value, T>;
         type OnPushBack = ();
-        type OnPushFront = OnPushFront<V, T>;
+        type OnPushFront = OnPushFront<Self::Value, T>;
         type OnRemoveAll = ();
     }
 
-    pub struct MailBoxCallbacks<V, T>(PhantomData<(V, T)>);
+    pub struct OnRemove<T, M>(PhantomData<(T, M)>);
 
-    impl<V, T: Messenger> MailboxCallbacks for MailBoxCallbacks<V, T> {
-        type Value = V;
+    impl<T: Config, M: Messenger> FallibleCallback<StoredMessage> for OnRemove<T, M>
+    where
+        T::AccountId: Origin,
+    {
+        type Error = DispatchError;
+
+        fn call(message: &StoredMessage) -> Result<(), Self::Error> {
+            if message.value() > 0 {
+                // Assuming the programs has enough balance
+                <T as Config>::Currency::repatriate_reserved(
+                    &<T::AccountId as Origin>::from_origin(message.source().into_origin()),
+                    &<T::AccountId as Origin>::from_origin(message.destination().into_origin()),
+                    message.value().unique_saturated_into(),
+                    BalanceStatus::Free,
+                )?;
+            }
+
+            Ok(())
+        }
+    }
+
+    pub struct MailBoxCallbacks<T, M>(PhantomData<(T, M)>);
+
+    impl<T, M> MailboxCallbacks<M::OutputError> for MailBoxCallbacks<T, M>
+    where
+        T: Config,
+        T::AccountId: Origin,
+        M: Messenger<MailboxedMessage = StoredMessage, OutputError = DispatchError>,
+    {
+        type Value = M::MailboxedMessage;
 
         type OnInsert = ();
-        type OnRemove = ();
+        type OnRemove = OnRemove<T, M>;
     }
 
     /// Message processing centralized behaviour.
@@ -239,7 +274,7 @@ pub mod pallet {
                 HeadWrap<T>,
                 TailWrap<T>,
                 DispatchesWrap<T>,
-                QueueCallbacks<Self::QueuedDispatch, Self>,
+                QueueCallbacks<Self>,
             >,
             DispatchError,
             QueueKeyGen,
@@ -250,7 +285,7 @@ pub mod pallet {
             MailboxWrap<T>,
             Self::Error,
             DispatchError,
-            MailBoxCallbacks<Self::MailboxedMessage, Self>,
+            MailBoxCallbacks<T, Self>,
             MailboxKeyGen<T::AccountId>,
         >;
     }

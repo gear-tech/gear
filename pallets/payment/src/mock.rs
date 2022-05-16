@@ -183,7 +183,9 @@ impl pallet_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
 }
 
-impl pallet_gear_messenger::Config for Test {}
+impl pallet_gear_messenger::Config for Test {
+    type Currency = Balances;
+}
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
 
