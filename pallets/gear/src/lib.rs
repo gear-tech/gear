@@ -227,10 +227,6 @@ pub mod pallet {
         ///
         /// Occurs if a program with some specific program id already exists in program storage.
         ProgramAlreadyExists,
-        /// No message in the mailbox.
-        ///
-        /// The user tried to reply on message that was not found in his personal mailbox.
-        NoMessageInMailbox,
         /// Program is terminated
         ///
         /// Program init ended up with failure, so such message destination is unavailable anymore
