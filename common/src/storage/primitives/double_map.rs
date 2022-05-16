@@ -16,27 +16,50 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for double map storing primitive.
+//!
+//! This primitive defines interface of interaction
+//! with globally stored double-key map (Key1 -> Key2 -> Value).
+
+/// Represents logic of managing globally stored
+/// double-key map for more complicated logic.
+///
+/// In fact, represents custom implementation/wrapper
+/// around of Substrate's `StorageDoubleMap` with `OptionQuery`.
 pub trait DoubleMapStorage {
+    /// Map's first key type.
     type Key1;
+    /// Map's second key type.
     type Key2;
+    /// Map's stored value type.
     type Value;
 
-    fn contains_key(key1: &Self::Key1, key2: &Self::Key2) -> bool;
-
+    /// Returns `Vec` of values, which share the given first key.
     fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value>;
 
+    /// Returns bool, defining does map contain value under given keys.
+    fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool;
+
+    /// Returns amount of second keys and values under given first key.
     fn count_of(key: &Self::Key1) -> usize;
 
+    /// Gets value stored under given keys, if present.
     fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value>;
 
+    /// Inserts value with given keys.
     fn insert(key1: Self::Key1, key2: Self::Key2, value: Self::Value);
 
+    /// Mutates value by `Option` reference, which stored (or not in `None` case)
+    /// under given keys with given function.
+    ///
+    /// May return generic type value.
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(
         key1: Self::Key1,
         key2: Self::Key2,
         f: F,
     ) -> R;
 
+    /// Works the same as `Self::mutate`, but triggers if value present.
     fn mutate_exists<R, F: FnOnce(&mut Self::Value) -> R>(
         key1: Self::Key1,
         key2: Self::Key2,
@@ -45,15 +68,30 @@ pub trait DoubleMapStorage {
         Self::mutate(key1, key2, |opt_val| opt_val.as_mut().map(f))
     }
 
+    /// Mutates all stored values with given convert function.
     fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(f: F);
 
+    /// Removes value stored under the given keys.
     fn remove(key1: Self::Key1, key2: Self::Key2);
 
+    /// Removes all values.
     fn remove_all();
 
+    /// Gets value stored under given keys, if present,
+    /// and removes it from storage.
     fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value>;
 }
 
+/// Creates new type with specified name and key1-key2-value types and
+/// implements `DoubleMapStorage` for it based on specified storage,
+/// which is a `Substrate`'s `StorageDoubleMap`.
+///
+/// This macro main purpose is to follow newtype pattern
+/// and avoid `Substrate` dependencies in `gear_common`.
+///
+/// Requires `PhantomData` be in scope: from `std`, `core` or `sp_std`.
+///
+/// Requires `Config` be in scope of the crate root where it called.
 #[allow(unknown_lints, clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_double_map {
@@ -65,7 +103,7 @@ macro_rules! wrap_storage_double_map {
             type Key2 = $key2;
             type Value = $val;
 
-            fn contains_key(key1: &Self::Key1, key2: &Self::Key2) -> bool {
+            fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool {
                 $storage::<T>::contains_key(key1, key2)
             }
 

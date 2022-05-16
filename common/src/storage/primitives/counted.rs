@@ -16,11 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for counting primitive.
+//!
+//! Counting primitives are able to return the information
+//! about amount of elements they contain.
+
+/// Represents default counting logic, by providing ability
+/// to return length of the object as specified (associated) type
+/// or answer the question is the object empty.
 pub trait Counted {
+    /// Returning length type.
     type Length: Default + PartialEq;
 
+    /// Returns current Self's amount of elements as `Length` type.
     fn len() -> Self::Length;
 
+    /// Returns bool, defining if Self doesn't contain elements.
     fn is_empty() -> bool {
         Self::len() == Default::default()
     }

@@ -16,31 +16,70 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for map storing primitive.
+//!
+//! This primitive defines interface of interaction
+//! with globally stored single-key map (Key -> Value).
+
+/// Represents logic of managing globally stored
+/// single-key map for more complicated logic.
+///
+/// In fact, represents custom implementation/wrapper
+/// around of Substrate's `StorageMap` with `OptionQuery`.
 pub trait MapStorage {
+    /// Map's key type.
     type Key;
+    /// Map's stored value type.
     type Value;
 
+    /// Returns bool, defining does map contain value under given key.
     fn contains_key(key: &Self::Key) -> bool;
 
+    /// Gets value stored under given key, if present.
     fn get(key: &Self::Key) -> Option<Self::Value>;
 
+    /// Inserts value with given key.
     fn insert(key: Self::Key, value: Self::Value);
 
+    /// Mutates value by `Option` reference, which stored (or not in `None` case)
+    /// under given key with given function.
+    ///
+    /// May return generic type value.
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(key: Self::Key, f: F) -> R;
 
+    /// Works the same as `Self::mutate`, but triggers if value present.
     fn mutate_exists<R, F: FnOnce(&mut Self::Value) -> R>(key: Self::Key, f: F) -> Option<R> {
         Self::mutate(key, |opt_val| opt_val.as_mut().map(f))
     }
 
+    /// Mutates all stored values with given convert function.
     fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(f: F);
 
+    /// Removes value stored under the given key.
     fn remove(key: Self::Key);
 
+    /// Removes all values.
     fn remove_all();
 
+    /// Gets value stored under given key, if present,
+    /// and removes it from storage.
     fn take(key: Self::Key) -> Option<Self::Value>;
 }
 
+/// Creates new type with specified name and key-value types and implements
+/// `MapStorage` for it based on specified storage,
+/// which is a `Substrate`'s `StorageMap`.
+///
+/// This macro main purpose is to follow newtype pattern
+/// and avoid `Substrate` dependencies in `gear_common`.
+///
+/// Requires `PhantomData` be in scope: from `std`, `core` or `sp_std`.
+///
+/// Requires `Config` be in scope of the crate root where it called.
+///
+/// Has two implementations to provide auto addition of `Counted` logic
+/// (for `Substrate`'s `CountedStorageMap`) due to storage's
+/// arguments difference.
 #[allow(unknown_lints, clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_map {
@@ -90,6 +129,10 @@ macro_rules! wrap_storage_map {
     };
 }
 
+/// Same as `wrap_storage_map!`, but with length type parameter
+/// to auto-impl `Counted` trait of `gear_common` storage primitives.
+///
+/// Better to use Rust's numeric types as `Length`.
 #[allow(unknown_lints, clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_counted_storage_map {

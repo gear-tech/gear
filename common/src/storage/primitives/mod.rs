@@ -16,8 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Storage primitives: Value, Map, DoubleMap, CountedMap, Callback.
+//! Gear storage primitives.
+//!
+//! Contains basic behaviour of interaction with globaly shared data,
+//! which could be used directly for common purposes or be a part of
+//! some consistent logic.
 
+// Private modules declaration.
 mod callback;
 mod counted;
 mod double_map;
@@ -26,6 +31,7 @@ mod key;
 mod map;
 mod value;
 
+// Public exports from primitive's modules.
 pub use callback::{Callback, EmptyCallback, FallibleCallback};
 pub use counted::Counted;
 pub use double_map::DoubleMapStorage;

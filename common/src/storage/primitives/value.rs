@@ -16,28 +16,60 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for single-value storing primitive.
+//!
+//! This primitive defines interface of interaction
+//! with globally stored single-value.
+
+/// Represents logic of managing globally stored
+/// value for more complicated logic.
+///
+/// In fact, represents custom implementation/wrapper
+/// around of Substrate's `ValueStorage` with `OptionQuery`.
 pub trait ValueStorage {
+    /// Stored value type.
     type Value;
 
+    /// Returns bool, defining does value present.
     fn exists() -> bool;
 
+    /// Gets stored value, if present.
     fn get() -> Option<Self::Value>;
 
+    /// Removes stored value.
     fn kill();
 
+    /// Mutates stored value by `Option` reference, which stored
+    /// (or not in `None` case) with given function.
+    ///
+    /// May return generic type value.
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(f: F) -> R;
 
+    /// Works the same as `Self::mutate`, but triggers if value present.
     fn mutate_exists<R, F: FnOnce(&mut Self::Value) -> R>(f: F) -> Option<R> {
         Self::mutate(|opt_val| opt_val.as_mut().map(f))
     }
 
+    /// Stores given value.
     fn put(value: Self::Value);
 
+    /// Stores given value and returns previous one, if present.
     fn set(value: Self::Value) -> Option<Self::Value>;
 
+    /// Gets stored value, if present, and removes it from storage.
     fn take() -> Option<Self::Value>;
 }
 
+/// Creates new type with specified name and value type and implements
+/// `ValueStorage` for it based on specified storage,
+/// which is a `Substrate`'s `StorageValue`.
+///
+/// This macro main purpose is to follow newtype pattern
+/// and avoid `Substrate` dependencies in `gear_common`.
+///
+/// Requires `PhantomData` be in scope: from `std`, `core` or `sp_std`.
+///
+/// Requires `Config` be in scope of the crate root where it called.
 #[allow(unknown_lints, clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_value {

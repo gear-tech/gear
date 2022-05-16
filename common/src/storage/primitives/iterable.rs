@@ -16,19 +16,46 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub trait IterableMap<Item> {
+//! Module for map's iterator primitives.
+//!
+//! Map's iterators primitives declares the ability
+//! to iter throuhg defined generic `Item` over the map
+//! with specified (associated) types of iterators
+//! for drain or just iter elements.
+//!
+//! `DrainIter` used for element's removal
+//! on each iteration, while `Iter` used for
+//! just checking them.
+
+/// Represents iterable logic for double key maps
+/// (Key1 -> Key2 -> Value).
+///
+/// Returns the iterators over specified (associated)
+/// type of the first key's items.
+pub trait IterableDoubleMap<Item> {
+    /// Map's first key type.
+    type Key;
+    /// Removal iterator type.
     type DrainIter: Iterator<Item = Item>;
+    /// Getting iterator type.
     type Iter: Iterator<Item = Item>;
 
-    fn drain() -> Self::DrainIter;
-    fn iter() -> Self::Iter;
+    /// Creates the removal iterator over double map Items.
+    fn drain(key: Self::Key) -> Self::DrainIter;
+    /// Creates the getting iterator over double map Items.
+    fn iter(key: Self::Key) -> Self::Iter;
 }
 
-pub trait IterableDoubleMap<Item> {
-    type Key;
+/// Represents iterable logic for single key maps
+/// (Key -> Value).
+pub trait IterableMap<Item> {
+    /// Removal iterator type.
     type DrainIter: Iterator<Item = Item>;
+    /// Getting iterator type.
     type Iter: Iterator<Item = Item>;
 
-    fn drain(key: Self::Key) -> Self::DrainIter;
-    fn iter(key: Self::Key) -> Self::Iter;
+    /// Creates the removal iterator over map Items.
+    fn drain() -> Self::DrainIter;
+    /// Creates the getting iterator over map Items.
+    fn iter() -> Self::Iter;
 }

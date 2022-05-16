@@ -82,7 +82,7 @@ where
     type OutputError = OutputError;
 
     fn contains(user_id: &Self::Key1, message_id: &Self::Key2) -> bool {
-        T::contains_key(user_id, message_id)
+        T::contains_keys(user_id, message_id)
     }
 
     fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value> {
