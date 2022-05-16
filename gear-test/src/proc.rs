@@ -102,9 +102,11 @@ where
         Some(ExecutableActor {
             program,
             balance: 0,
+            pages_data: Default::default(),
         }),
         message.into(),
         block_info,
+        Default::default(),
         EXISTENTIAL_DEPOSIT,
         Default::default(),
         program_id,
@@ -177,7 +179,7 @@ where
         let message_id = MessageId::from(nonce);
         let id = program.id.to_program_id();
 
-        let _ = init_program::<E, JH>(
+        init_program::<E, JH>(
             InitMessage {
                 id,
                 code,
@@ -288,6 +290,7 @@ where
                     }),
                     dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
+                    Default::default(),
                     EXISTENTIAL_DEPOSIT,
                     Default::default(),
                     program_id,
@@ -326,6 +329,7 @@ where
                     height: counter,
                     timestamp,
                 },
+                Default::default(),
                 EXISTENTIAL_DEPOSIT,
                 Default::default(),
                 program_id,

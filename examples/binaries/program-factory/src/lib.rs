@@ -64,10 +64,10 @@ mod wasm {
                     submitted_code,
                     COUNTER.to_le_bytes(),
                     [],
-                    100_000,
+                    1_000_000,
                     0,
                 );
-                msg::send_with_gas(new_program_id, b"", 100_001, 0).unwrap();
+                msg::send_with_gas(new_program_id, b"", 1_000_001, 0).unwrap();
 
                 COUNTER += 1;
             }
@@ -76,7 +76,7 @@ mod wasm {
                     let submitted_code = code_hash.into();
                     let new_program_id =
                         prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0);
-                    let msg_id = msg::send_with_gas(new_program_id, b"", 100_001, 0).unwrap();
+                    let msg_id = msg::send_with_gas(new_program_id, b"", 1_000_001, 0).unwrap();
                 }
             }
         };

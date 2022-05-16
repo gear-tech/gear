@@ -19,16 +19,24 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, DAGBasedLedger, Origin as _};
+use common::{
+    self,
+    storage::{Messenger, StorageDeque},
+    Origin as _, ValueTree,
+};
 use core::convert::TryInto;
-use frame_support::{assert_ok, traits::ReservableCurrency};
+use frame_support::{assert_ok, traits::ReservableCurrency, unsigned::TransactionSource};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
-use sp_runtime::offchain::{
-    storage_lock::{StorageLock, Time},
-    Duration,
+use pallet_gear_messenger::Pallet as MessengerPallet;
+use sp_runtime::{
+    offchain::{
+        storage_lock::{StorageLock, Time},
+        Duration,
+    },
+    traits::ValidateUnsigned,
 };
 
 pub(crate) fn init_logger() {
@@ -105,6 +113,22 @@ fn wait_list_contents() -> Vec<(StoredDispatch, u32)> {
         },
     )
     .collect()
+}
+
+fn decode_validate_usage_call(encoded: &[u8]) -> crate::Call<Test> {
+    let mut encoded = <&[u8]>::clone(&encoded);
+    let extrinsic: Extrinsic = Decode::decode(&mut encoded).unwrap();
+
+    let inner = match extrinsic.call {
+        mock::Call::Usage(inner) => inner,
+        _ => unreachable!(),
+    };
+
+    assert!(
+        <Usage as ValidateUnsigned>::validate_unsigned(TransactionSource::Local, &inner,).is_ok()
+    );
+
+    inner
 }
 
 #[test]
@@ -197,6 +221,72 @@ fn ocw_interval_maintained() {
         );
         // Another transaction added to the pool
         assert_eq!(pool.read().transactions.len(), 6);
+    })
+}
+
+#[test]
+fn ocw_double_charge() {
+    init_logger();
+    let (mut ext, pool) = with_offchain_ext();
+    ext.execute_with(|| {
+        // Reserve some currency on users' accounts
+        for i in 1..=10 {
+            assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&i, 20_000));
+        }
+
+        let block_author_balance = Balances::free_balance(&BLOCK_AUTHOR);
+
+        // Assert the tx pool is empty
+        assert_eq!(pool.read().transactions.len(), 0);
+
+        // Pretend the network has been up for a while
+        run_to_block(10);
+
+        // Expected number of batches needed to scan the entire wait list
+        let num_batches = 1u32;
+
+        // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
+        let num_entries = <Test as Config>::MaxBatchSize::get()
+            .saturating_mul(num_batches)
+            .saturating_sub(1) as u64;
+        assert_eq!(num_entries, 9);
+        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
+
+        run_to_block_with_ocw(14);
+
+        assert_eq!(pool.read().transactions.len(), 1);
+
+        let unsigned = decode_validate_usage_call(&pool.read().transactions[0]);
+        let payees_list = match unsigned {
+            crate::Call::collect_waitlist_rent { payees_list } => payees_list,
+            _ => unreachable!(),
+        };
+
+        // emulate malicious validator: send one more unsigned extrinsic with the same argument
+        assert_ok!(Usage::send_transaction(payees_list.clone()));
+
+        assert_eq!(pool.read().transactions.len(), 2);
+
+        run_to_block_with_ocw(15);
+
+        assert_eq!(pool.read().transactions.len(), 2);
+
+        // calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            payees_list.clone()
+        ));
+
+        let expected_balance = block_author_balance + 9_000;
+        assert_eq!(Balances::reserved_balance(&1), 11_000);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), expected_balance);
+
+        // call the unsigned extrinsic second time
+        assert_ok!(Usage::collect_waitlist_rent(Origin::none(), payees_list));
+
+        // check that there is no double charging
+        assert_eq!(Balances::reserved_balance(&1), 11_000);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), expected_balance);
     })
 }
 
@@ -531,7 +621,10 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let message = common::dequeue_dispatch().unwrap();
+        let message = <MessengerPallet<Test> as Messenger>::Queue::pop_front()
+            .expect("Storage corrupted")
+            .expect("No messages in queue");
+
         assert_eq!(message.source(), 1.into());
         assert_eq!(message.destination(), 1.into());
         assert_eq!(
@@ -542,12 +635,14 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
-                .0,
+                .unwrap(),
             1000
         );
 
         // Second trap reply message
-        let message = common::dequeue_dispatch().unwrap();
+        let message = <MessengerPallet<Test> as Messenger>::Queue::pop_front()
+            .expect("Storage corrupted")
+            .expect("No messages in queue");
         assert_eq!(message.source(), 2.into());
         assert_eq!(message.destination(), 2.into());
         assert_eq!(
@@ -558,7 +653,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
-                .0,
+                .unwrap(),
             500
         );
     });

@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-log = { version = "0.4.16", default-features = false }
+log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 wasm-instrument = { version = "0.1", default-features = false }
 
@@ -28,6 +28,7 @@ gear-backend-common = { path = "../../core-backend/common", default-features = f
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 pallet-gas = { path = "../gas", default-features = false }
+pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 
 # Substrate deps
@@ -59,6 +60,8 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
+demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
+demo-compose = { path = "../../examples/binaries/compose" }
 page_size = "0.4.2"
 
 [features]
@@ -95,3 +98,4 @@ runtime-benchmarks = [
 	"rand_pcg",
 ]
 try-runtime = ["frame-support/try-runtime"]
+lazy-pages = []

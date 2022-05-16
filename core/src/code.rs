@@ -46,6 +46,8 @@ pub enum CodeError {
     ///
     /// The only possible reason for that might be OOM.
     Encode,
+    /// We restrict start sections in smart contracts.
+    StartSectionIsFound,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -73,6 +75,11 @@ impl Code {
     {
         let module: Module = wasm_instrument::parity_wasm::deserialize_buffer(&raw_code)
             .map_err(|_| CodeError::Decode)?;
+
+        if module.start_section().is_some() {
+            log::debug!("Found start section in contract code, which is not allowed");
+            return Err(CodeError::StartSectionIsFound);
+        }
 
         // get initial memory size from memory import.
         let static_pages = WasmPageNumber(

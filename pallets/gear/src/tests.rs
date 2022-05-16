@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, CodeStorage, DAGBasedLedger, GasPrice as _, Origin as _};
+use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
+use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
@@ -31,8 +33,8 @@ use super::{
         calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance,
-    GearProgramPallet, Mailbox, MessageInfo, Pallet as GearPallet, Reason,
+    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, Mailbox,
+    MessageInfo, Pallet as GearPallet, Reason,
 };
 
 use utils::*;
@@ -45,7 +47,7 @@ fn unstoppable_block_execution_works() {
         let executions_amount = 10;
         let balance_for_each_execution = user_balance / executions_amount;
 
-        assert!(balance_for_each_execution < <Test as Config>::BlockGasLimit::get());
+        assert!(balance_for_each_execution < <Test as pallet_gas::Config>::BlockGasLimit::get());
 
         let program_id = {
             let res = submit_program_default(USER_2, ProgramCodeKind::Default);
@@ -80,7 +82,7 @@ fn unstoppable_block_execution_works() {
             Event::MessagesDequeued(executions_amount as u32).into(),
         );
 
-        assert_eq!(GasAllowance::<Test>::get(), 0);
+        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1) as u64,
@@ -112,7 +114,7 @@ fn submit_program_expected_failure() {
         );
 
         // Gas limit is too high
-        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
         assert_noop!(
             GearPallet::<Test>::submit_program(
                 Origin::signed(USER_1),
@@ -215,7 +217,7 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - GasAllowance::<Test>::get();
+        let actual_gas_burned = remaining_weight - pallet_gas::Pallet::<Test>::gas_allowance();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
@@ -267,7 +269,7 @@ fn send_message_expected_failure() {
         assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         // Gas limit too high
-        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
         assert_noop!(
             GearPallet::<Test>::send_message(
                 Origin::signed(USER_1),
@@ -319,7 +321,8 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
-            <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
+            <Test as pallet_gas::Config>::BlockGasLimit::get()
+                - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert_eq!(
             BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
@@ -365,7 +368,8 @@ fn unused_gas_released_back_works() {
 
         run_to_block(2, None);
         let user1_actual_msgs_spends = GasPrice::gas_price(
-            <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
+            <Test as pallet_gas::Config>::BlockGasLimit::get()
+                - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
         assert_eq!(
@@ -378,10 +382,43 @@ fn unused_gas_released_back_works() {
     })
 }
 
+#[test]
+fn restrict_start_section() {
+    // This test checks, that code with start section cannot be handled in process queue.
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(start $start)
+		(func $init)
+        (func $handle)
+        (func $start
+            unreachable
+        )
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            5_000_000,
+            0,
+        )
+        .expect_err("Must throw err, because code contains start section");
+    });
+}
+
 #[cfg(unix)]
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber};
+    use gear_core::memory::{PageNumber, WasmPageNumber};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -408,7 +445,7 @@ fn lazy_pages() {
             i32.store
 
             ;; write access wasm page 2
-            ;; but here we access two native pages, if native page is less then 16kiB
+            ;; here we access two native pages, if native page is less or equal to 16kiB
             i32.const 0x23ffe
             i32.const 0x42
             i32.store
@@ -437,7 +474,7 @@ fn lazy_pages() {
                 code,
                 salt,
                 EMPTY_PAYLOAD.to_vec(),
-                5_000_000,
+                500_000_000,
                 0,
             )
             .map(|_| prog_id);
@@ -445,7 +482,7 @@ fn lazy_pages() {
             res.expect("submit result was asserted")
         };
 
-        run_to_block(2, Some(10_000_000));
+        run_to_block(2, Some(1_000_000_000));
         log::debug!("submit done {:?}", pid);
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
@@ -453,13 +490,13 @@ fn lazy_pages() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000,
+            100_000_000,
             100,
         );
         log::debug!("res = {:?}", res);
         assert_ok!(res);
 
-        run_to_block(3, Some(10_000_000));
+        run_to_block(3, Some(1_000_000_000));
 
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
@@ -476,7 +513,10 @@ fn lazy_pages() {
         // Checks that released pages + lazy pages == all pages
         let all_pages = {
             let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
-            wasm_pages_to_pages_set(all_wasm_pages.iter())
+            all_wasm_pages
+                .iter()
+                .flat_map(|p| p.to_gear_pages_iter())
+                .collect()
         };
         let mut res_pages = lazy_pages;
         res_pages.extend(released_pages.iter());
@@ -585,7 +625,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 791822625 + 6228260 - 1; // calc gas pid1 + pid2 - 1
+        let remaining_weight = 791822425 + 6228060 - 1; // calc gas pid1 + pid2 - 1
 
         // Submit programs and get their ids
         let pid1 = {
@@ -687,7 +727,7 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         // Equals 0 due to trying execution of msg2.
-        assert_eq!(GasAllowance::<Test>::get(), 0);
+        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
 
         let real_gas_to_burn = expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2;
         let last_block_allowance = real_gas_to_burn + 1;
@@ -706,7 +746,7 @@ fn block_gas_limit_works() {
 
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
         assert_eq!(
-            GasAllowance::<Test>::get(),
+            pallet_gas::Pallet::<Test>::gas_allowance(),
             last_block_allowance - real_gas_to_burn
         );
     });
@@ -1202,7 +1242,7 @@ fn distributor_distribute() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            2_000_000_000,
             0,
         ));
 
@@ -1212,7 +1252,7 @@ fn distributor_distribute() {
             Origin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
-            20_000_000,
+            200_000_000,
             0,
         ));
 
@@ -1630,7 +1670,7 @@ fn exit_init() {
                 code,
                 vec![],
                 Vec::new(),
-                1_000_000_000u64,
+                2_000_000_000,
                 0u128
             ),
             Error::<Test>::ProgramAlreadyExists,
@@ -1776,7 +1816,7 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(
-                vec![(child_code_hash, b"some_data".to_vec(), 3000)] // too little gas
+                vec![(child_code_hash, b"some_data".to_vec(), 300_000)] // too little gas
             )
             .encode(),
             4_000_000_000,
@@ -1797,8 +1837,8 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 10_000),
-                (child_code_hash, b"salt2".to_vec(), 10_000),
+                (child_code_hash, b"salt1".to_vec(), 1_000_000),
+                (child_code_hash, b"salt2".to_vec(), 1_000_000),
             ])
             .encode(),
             4_000_000_000,
@@ -1811,8 +1851,8 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt3".to_vec(), 3000), // too little gas
-                (child_code_hash, b"salt4".to_vec(), 3000), // too little gas
+                (child_code_hash, b"salt3".to_vec(), 300_000), // too little gas
+                (child_code_hash, b"salt4".to_vec(), 300_000), // too little gas
             ])
             .encode(),
             4_000_000_000,
@@ -1847,7 +1887,7 @@ fn test_create_program_duplicate() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            2_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -1860,9 +1900,9 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 100_000),])
+            CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 10_000_000),])
                 .encode(),
-            2_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(4, None);
@@ -1879,8 +1919,8 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
-            2_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
+            50_000_000_000,
             0,
         ));
         run_to_block(5, None);
@@ -1889,8 +1929,8 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_2),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
-            2_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
+            50_000_000_000,
             0,
         ));
         run_to_block(6, None);
@@ -1908,7 +1948,7 @@ fn test_create_program_duplicate() {
                 child_code,
                 b"salt1".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
-                2_000_000_000,
+                10_000_000_000,
                 0,
             ),
             Error::<Test>::ProgramAlreadyExists,
@@ -1947,8 +1987,8 @@ fn test_create_program_duplicate_in_one_execution() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 10_000), // could be successful init
-                (child_code_hash, b"salt1".to_vec(), 10_000), // duplicate
+                (child_code_hash, b"salt1".to_vec(), 1_000_000), // could be successful init
+                (child_code_hash, b"salt1".to_vec(), 1_000_000), // duplicate
             ])
             .encode(),
             2_000_000_000,
@@ -1973,7 +2013,7 @@ fn test_create_program_duplicate_in_one_execution() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
             2_000_000_000,
             0,
         ));
@@ -2036,10 +2076,10 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child1_code_hash, b"salt1".to_vec(), 10_000),
+                (child1_code_hash, b"salt1".to_vec(), 1_000_000),
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
-                (child1_code_hash, b"salt2".to_vec(), 1000),
+                (child1_code_hash, b"salt2".to_vec(), 100_000),
             ])
             .encode(),
             5_000_000_000,
@@ -2054,9 +2094,9 @@ fn test_create_program_miscellaneous() {
             CreateProgram::Custom(vec![
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 3000),
+                (child2_code_hash, b"salt1".to_vec(), 300_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt2".to_vec(), 10_000),
+                (child2_code_hash, b"salt2".to_vec(), 1_000_000),
             ])
             .encode(),
             5_000_000_000,
@@ -2070,9 +2110,9 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 10_000),
+                (child2_code_hash, b"salt1".to_vec(), 1_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt3".to_vec(), 10_000),
+                (child2_code_hash, b"salt3".to_vec(), 1_000_000),
             ])
             .encode(),
             5_000_000_000,
@@ -2143,7 +2183,7 @@ fn exit_handle() {
                 code,
                 vec![],
                 Vec::new(),
-                200_000_000u64,
+                2_000_000_000,
                 0u128
             ),
             Error::<Test>::ProgramAlreadyExists,
@@ -2381,8 +2421,7 @@ fn resume_program_works() {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
-        let memory_pages = common::get_program_pages(program_id, program.persistent_pages)
-            .expect("program exists, so do pages");
+        let memory_pages = common::get_program_pages_data(program_id, &program);
 
         assert_ok!(GearProgram::pause_program(program_id));
 
@@ -2428,7 +2467,7 @@ fn gas_spent_vs_balance() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000,
+            1_000_000_000,
             0,
         ));
 
@@ -2542,6 +2581,65 @@ fn gas_spent_precalculated() {
     });
 }
 
+#[test]
+fn test_two_contracts_composition_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Initial value in all gas trees is 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+
+        let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
+        let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
+        let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            MUL_CONST_WASM_BINARY.to_vec(),
+            b"contract_a".to_vec(),
+            50_u64.encode(),
+            400_000_000,
+            0,
+        ));
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            MUL_CONST_WASM_BINARY.to_vec(),
+            b"contract_b".to_vec(),
+            75_u64.encode(),
+            400_000_000,
+            0,
+        ));
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            COMPOSE_WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            (
+                <[u8; 32]>::from(contract_a_id),
+                <[u8; 32]>::from(contract_b_id)
+            )
+                .encode(),
+            400_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            compose_id,
+            100_u64.to_le_bytes().to_vec(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(4, None);
+
+        // Gas total issuance should have gone back to 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+    });
+}
+
 mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use gear_core::ids::{CodeId, MessageId, ProgramId};
@@ -2554,7 +2652,7 @@ mod utils {
     };
     use common::Origin as _;
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 5_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
 

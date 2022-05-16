@@ -168,7 +168,7 @@ impl<'a> Program<'a> {
         let (code, _) = code_and_id.into_parts();
         let program = CoreProgram::new(program_id, code);
 
-        Self::program_with_id(system, id, InnerProgram::new(program))
+        Self::program_with_id(system, id, InnerProgram::new(program, Default::default()))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {

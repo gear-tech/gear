@@ -21,6 +21,7 @@ use crate::proc;
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
+use core_processor::common::ExecutableActor;
 use core_processor::{
     common::{CollectState, JournalHandler},
     Ext,
@@ -30,7 +31,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
-use gear_core::memory::{pages_to_wasm_pages_set, PageNumber};
+use gear_core::memory::PageNumber;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::*,
@@ -340,22 +341,14 @@ pub fn check_allocations(
         let target_program_id = exp.id.to_program_id();
         if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
             let actual_pages = program
-                .get_pages()
+                .get_allocations()
                 .iter()
-                .filter(|(page, _buf)| match exp.filter {
-                    Some(AllocationFilter::Static) => {
-                        **page < program.static_pages().to_gear_pages()
-                    }
-                    Some(AllocationFilter::Dynamic) => {
-                        **page >= program.static_pages().to_gear_pages()
-                    }
+                .filter(|page| match exp.filter {
+                    Some(AllocationFilter::Static) => **page < program.static_pages(),
+                    Some(AllocationFilter::Dynamic) => **page >= program.static_pages(),
                     None => true,
                 })
-                .map(|(page, _buf)| *page)
                 .collect::<BTreeSet<_>>();
-
-            let actual_pages =
-                pages_to_wasm_pages_set(actual_pages.iter()).expect("unexpected pages");
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
@@ -402,6 +395,7 @@ pub fn check_allocations(
                 }
             }
         } else {
+            log::error!("Program not found");
             errors.push(format!(
                 "Expectation error (Program id not found: {})",
                 exp.id.to_program_id()
@@ -417,16 +411,16 @@ pub fn check_allocations(
 }
 
 pub fn check_memory(
-    program_storage: &mut Vec<Program>,
+    actors: &Vec<ExecutableActor>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for p in &mut *program_storage {
-            if p.id() == case.id.to_program_id() {
-                let page = case.address / PageNumber::size();
-                if let Some(page_buf) = p.get_page_data((page as u32).into()) {
-                    let begin_byte = case.address - page * PageNumber::size();
+        for actor in actors {
+            if actor.program.id() == case.id.to_program_id() {
+                let page = PageNumber::new_from_addr(case.address);
+                if let Some(page_buf) = actor.pages_data.get(&page) {
+                    let begin_byte = case.address - page.offset();
                     let end_byte = begin_byte + case.bytes.len();
                     if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
@@ -619,12 +613,12 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let mut progs: Vec<Program> = final_state
+                        let actors: Vec<ExecutableActor> = final_state
                             .actors
                             .into_iter()
-                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
+                            .filter_map(|(_, actor_opt)| actor_opt)
                             .collect();
-                        if let Err(mem_errors) = check_memory(&mut progs, mem) {
+                        if let Err(mem_errors) = check_memory(&actors, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
                         }

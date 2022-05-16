@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod lazy_pages;
-pub mod storage_queue;
+pub mod storage;
 
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
@@ -28,10 +28,16 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
+use core::fmt;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
     weights::{IdentityFee, WeightToFeePolynomial},
+};
+use gear_core::{
+    ids::{CodeId, MessageId, ProgramId},
+    memory::{PageNumber, WasmPageNumber},
+    message::StoredDispatch,
 };
 use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
@@ -43,24 +49,10 @@ use sp_std::{
     prelude::*,
 };
 
-use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
-    message::StoredDispatch,
-};
-
-pub use storage_queue::Iterator;
-pub use storage_queue::StorageQueue;
-
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
-pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
-pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
-pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
-
-pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
 pub type ExitCode = i32;
 
@@ -159,7 +151,7 @@ pub trait PaymentProvider<AccountId> {
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
 /// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
 /// however, the intended use is very close to the UTxO based ledger model.
-pub trait DAGBasedLedger {
+pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
@@ -180,6 +172,9 @@ pub trait DAGBasedLedger {
     /// leading to a decrease in the total supply of the underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
 
+    /// Error type
+    type Error;
+
     /// The total amount of value currently in circulation.
     fn total_supply() -> Self::Balance;
 
@@ -190,30 +185,39 @@ pub trait DAGBasedLedger {
         origin: Self::ExternalOrigin,
         key: Self::Key,
         amount: Self::Balance,
-    ) -> Result<Self::PositiveImbalance, DispatchError>;
+    ) -> Result<Self::PositiveImbalance, Self::Error>;
 
-    /// Get the external origin for a key, if the latter exists.
-    fn get_origin(key: Self::Key) -> Option<Self::ExternalOrigin>;
+    /// The external origin for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
-    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::Key)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error>;
 
     /// Consume underlying value.
     ///
     /// If `key` does not identify any value or the value can't be fully consumed due to
-    /// being a part of other value or itself having unconsumed parts, return None,
+    /// being a part of other value or itself having unconsumed parts, return `None`,
     /// else the corresponding piece of value is destroyed and imbalance is created.
-    fn consume(key: Self::Key) -> Option<(Self::NegativeImbalance, Self::ExternalOrigin)>;
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn consume(
+        key: Self::Key,
+    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>;
 
     /// Burns underlying value.
     ///
     /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
     /// In case of a success, this indicates the entire value supply becomes over-collateralized,
     /// hence negative imbalance.
-    fn spend(
-        key: Self::Key,
-        amount: Self::Balance,
-    ) -> Result<Self::NegativeImbalance, DispatchError>;
+    fn spend(key: Self::Key, amount: Self::Balance)
+        -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///
@@ -232,6 +236,8 @@ pub trait DAGBasedLedger {
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
 }
+
+type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum Program {
@@ -289,8 +295,10 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
-    pub static_pages: WasmPageNumber,
-    pub persistent_pages: BTreeSet<PageNumber>,
+    /// Set of wasm pages numbers, which is allocated by the program.
+    pub allocations: BTreeSet<WasmPageNumber>,
+    /// Set of gear pages numbers, which has data in storage.
+    pub pages_with_data: BTreeSet<PageNumber>,
     pub code_hash: H256,
     pub state: ProgramState,
 }
@@ -400,76 +408,76 @@ pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
-pub fn get_program_pages(
-    id: H256,
-    pages: BTreeSet<PageNumber>,
-) -> Option<BTreeMap<PageNumber, Vec<u8>>> {
-    let mut persistent_pages = BTreeMap::new();
-    for page_num in pages {
-        let key = page_key(id, page_num);
-
-        persistent_pages.insert(page_num, sp_io::storage::get(&key)?);
-    }
-    Some(persistent_pages)
+pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<PageNumber, Vec<u8>> {
+    get_program_data_for_pages(id, program.pages_with_data.iter())
 }
 
-pub fn set_program(
+/// Returns data for all pages from `pages` arg, which has data in storage.
+pub fn get_program_data_for_pages<'a>(
+    id: H256,
+    pages: impl Iterator<Item = &'a PageNumber>,
+) -> BTreeMap<PageNumber, Vec<u8>> {
+    pages
+        .map(|p| {
+            let key = page_key(id, *p);
+            (*p, sp_io::storage::get(&key))
+        })
+        .filter_map(|(page, data)| data.map(|data| (page, data)))
+        .collect()
+}
+
+pub fn set_program(id: H256, program: ActiveProgram) {
+    log::trace!("set program with id = {}", id);
+    sp_io::storage::set(&program_key(id), &Program::Active(program).encode());
+}
+
+#[derive(Debug)]
+pub struct PageIsNotAllocatedErr(pub PageNumber);
+
+impl fmt::Display for PageIsNotAllocatedErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Page #{:?} is not allocated for current program",
+            self.0 .0
+        )
+    }
+}
+
+pub fn set_program_and_pages_data(
     id: H256,
     program: ActiveProgram,
     persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
-) {
+) -> Result<(), PageIsNotAllocatedErr> {
     for (page_num, page_buf) in persistent_pages {
+        if !program.allocations.contains(&page_num.to_wasm_page()) {
+            return Err(PageIsNotAllocatedErr(page_num));
+        }
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
-    sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
+    set_program(id, program);
+    Ok(())
 }
 
 pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
-pub fn clear_dispatch_queue() {
-    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
-}
-
-pub fn dequeue_dispatch() -> Option<StoredDispatch> {
-    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    dispatch_queue.dequeue()
-}
-
-pub fn queue_dispatch(dispatch: StoredDispatch) {
-    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.id();
-    dispatch_queue.queue(dispatch, id.into_origin());
-}
-
-pub fn queue_dispatch_first(dispatch: StoredDispatch) {
-    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.id();
-    dispatch_queue.queue_first(dispatch, id.into_origin());
-}
-
-pub fn dispatch_iter() -> Iterator<StoredDispatch> {
-    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
-}
-
-pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<PageNumber>) {
+pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) {
     if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.persistent_pages = persistent_pages;
+        prog.allocations = allocations;
         sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 
-pub fn set_program_page(program_id: H256, page_num: PageNumber, page_buf: Vec<u8>) {
-    let page_key = page_key(program_id, page_num);
-
+pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: Vec<u8>) {
+    let page_key = page_key(program_id, page);
     sp_io::storage::set(&page_key, &page_buf);
 }
 
-pub fn remove_program_page(program_id: H256, page_num: PageNumber) {
+pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
     let page_key = page_key(program_id, page_num);
-
     sp_io::storage::clear(&page_key);
 }
 
@@ -530,13 +538,11 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
-    sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
 
-    // TODO (871) remove next lines after runtime upgraded
-    pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
-    pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
-    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
+    // TODO: Remove this legacy after next runtime upgrade.
+    sp_io::storage::clear_prefix(b"g::msg::", None);
+    sp_io::storage::clear_prefix(b"g::gas_tree", None);
+    sp_io::storage::clear_prefix(b"g::code::", None);
+    sp_io::storage::clear_prefix(b"g::code::orig", None);
 }

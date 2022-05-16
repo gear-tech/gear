@@ -18,14 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[macro_use]
-extern crate alloc;
-
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
 pub mod weights;
 
 #[cfg(test)]
@@ -37,23 +32,28 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Origin, Program};
+    use common::{
+        self,
+        storage::{Messenger, StorageDeque},
+        CodeStorage, Origin, Program,
+    };
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        ids::ProgramId,
+        ids::{CodeId, ProgramId},
         memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
+    use pallet_gear_messenger::Pallet as MessengerPallet;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_gear_messenger::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::Event>
@@ -61,6 +61,9 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        /// Storage with codes for proograms
+        type CodeStorage: CodeStorage;
     }
 
     #[pallet::pallet]
@@ -147,26 +150,41 @@ pub mod pallet {
         next: Option<H256>,
     }
 
+    fn remap_with(dispatch: StoredDispatch, progs: &BTreeMap<H256, H256>) -> StoredDispatch {
+        let (kind, msg, context) = dispatch.into_parts();
+        let mut source = msg.source().into_origin();
+        let mut destination = msg.destination().into_origin();
+
+        for (k, v) in progs.iter() {
+            let k = *k;
+            let v = *v;
+
+            if k == destination {
+                destination = v;
+            }
+
+            if v == source {
+                source = k;
+            }
+        }
+
+        let message = StoredMessage::new(
+            msg.id(),
+            ProgramId::from_origin(source),
+            ProgramId::from_origin(destination),
+            (*msg.payload()).to_vec(),
+            msg.value(),
+            msg.reply(),
+        );
+
+        StoredDispatch::new(kind, message, context)
+    }
+
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-            let mut dispatch_queue = vec![];
-
-            if let Some(head) = sp_io::storage::get(&mq_head_key) {
-                let mut next_id = H256::from_slice(&head[..]);
-                loop {
-                    let next_node_key =
-                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                        let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        dispatch_queue.push(current_node.value);
-                        match current_node.next {
-                            Some(h) => next_id = h,
-                            None => break,
-                        }
-                    }
-                }
-            }
+            let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
+                .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
+                .collect();
 
             let programs = PrefixIterator::<(H256, Program)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
@@ -178,18 +196,31 @@ pub mod pallet {
                     Ok((program_id, program))
                 },
             )
-            .map(|(id, p)| ProgramDetails {
-                id,
-                state: if let Program::Active(active) = p {
-                    ProgramState::Active(ProgramInfo {
-                        static_pages: active.static_pages,
-                        persistent_pages: common::get_program_pages(id, active.persistent_pages)
-                            .expect("active program exists, therefore pages do"),
-                        code_hash: active.code_hash,
-                    })
-                } else {
-                    ProgramState::Terminated
-                },
+            .map(|(id, p)| {
+                let active = match p {
+                    Program::Active(active) => active,
+                    _ => {
+                        return ProgramDetails {
+                            id,
+                            state: ProgramState::Terminated,
+                        }
+                    }
+                };
+                let code_id = CodeId::from_origin(active.code_hash);
+                let static_pages = match T::CodeStorage::get_code(code_id) {
+                    Some(code) => code.static_pages(),
+                    None => WasmPageNumber(0),
+                };
+                ProgramDetails {
+                    id,
+                    state: {
+                        ProgramState::Active(ProgramInfo {
+                            static_pages,
+                            persistent_pages: common::get_program_pages_data(id, &active),
+                            code_hash: active.code_hash,
+                        })
+                    },
+                }
             })
             .collect();
 
@@ -209,58 +240,9 @@ pub mod pallet {
 
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
-            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
 
-            if let Some(head) = sp_io::storage::get(&mq_head_key) {
-                let mut next_id = H256::from_slice(&head[..]);
-                loop {
-                    let next_node_key =
-                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                        let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        for (k, v) in programs_map.iter() {
-                            if *k == current_node.value.destination().into_origin() {
-                                current_node.value = StoredDispatch::new(
-                                    current_node.value.kind(),
-                                    StoredMessage::new(
-                                        current_node.value.id(),
-                                        current_node.value.source(),
-                                        ProgramId::from_origin(*v),
-                                        (*current_node.value.payload()).to_vec(),
-                                        current_node.value.value(),
-                                        current_node.value.reply(),
-                                    ),
-                                    current_node.value.context().clone(),
-                                );
-
-                                sp_io::storage::set(&next_node_key, &current_node.encode());
-                            }
-
-                            if *v == current_node.value.source().into_origin() {
-                                current_node.value = StoredDispatch::new(
-                                    current_node.value.kind(),
-                                    StoredMessage::new(
-                                        current_node.value.id(),
-                                        ProgramId::from_origin(*k),
-                                        current_node.value.destination(),
-                                        (*current_node.value.payload()).to_vec(),
-                                        current_node.value.value(),
-                                        current_node.value.reply(),
-                                    ),
-                                    current_node.value.context().clone(),
-                                );
-
-                                sp_io::storage::set(&next_node_key, &current_node.encode());
-                            }
-                        }
-
-                        match current_node.next {
-                            Some(h) => next_id = h,
-                            None => break,
-                        }
-                    }
-                }
-            }
+            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|d| remap_with(d, &programs_map))
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
     }
 

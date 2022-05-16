@@ -18,7 +18,7 @@
 
 use super::*;
 use common::{benchmarking, Origin};
-use gear_core::memory::{wasm_pages_to_pages_set, WasmPageNumber};
+use gear_core::memory::{PageNumber, WasmPageNumber};
 use sp_runtime::traits::UniqueSaturatedInto;
 
 #[allow(unused)]
@@ -42,8 +42,8 @@ benchmarks! {
         benchmarking::set_program(program_id, code, q.into());
 
         let wasm_pages = (0..q).map(WasmPageNumber).collect::<Vec<WasmPageNumber>>();
-        let pages = wasm_pages_to_pages_set(wasm_pages.iter());
-        let memory_pages = common::get_program_pages(program_id, pages).unwrap();
+        let pages: Vec<PageNumber> = wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()).collect();
+        let memory_pages = common::get_program_data_for_pages(program_id, pages.iter());
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();
     }: _(RawOrigin::Signed(caller), program_id, memory_pages, Default::default(), 10_000u32.into())

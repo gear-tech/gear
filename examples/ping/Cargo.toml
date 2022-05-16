@@ -9,4 +9,5 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-gstd = { path = "../../gstd", features = ["debug"] }
+galloc = { path = "../../galloc", default-features = false }
+gcore = { path = "../../gcore", default-features = false }

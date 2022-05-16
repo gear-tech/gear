@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::common::ExecutionErrorReason;
+use crate::configs::AllocationsConfig;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
@@ -50,6 +51,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     maybe_actor: Option<ExecutableActor>,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
+    allocations_config: AllocationsConfig,
     existential_deposit: u128,
     origin: ProgramId,
     // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
@@ -65,6 +67,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             actor,
             dispatch,
             block_info,
+            allocations_config,
             existential_deposit,
             origin,
             gas_allowance,
@@ -164,6 +167,7 @@ fn process_success(
         page_update,
         program_id,
         context_store,
+        allocations,
         ..
     } = dispatch_result;
 
@@ -218,6 +222,13 @@ fn process_success(
         })
     }
 
+    if let Some(allocations) = allocations {
+        journal.push(JournalNote::UpdateAllocations {
+            program_id,
+            allocations,
+        });
+    }
+
     match kind {
         Exit(value_destination) => {
             journal.push(JournalNote::ExitDispatch {
@@ -253,6 +264,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
+    allocations_config: AllocationsConfig,
     existential_deposit: u128,
     origin: ProgramId,
     gas_allowance: u64,
@@ -262,8 +274,12 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
-    let execution_settings =
-        ExecutionSettings::new(block_info, existential_deposit, host_fn_weights);
+    let execution_settings = ExecutionSettings::new(
+        block_info,
+        existential_deposit,
+        allocations_config,
+        host_fn_weights,
+    );
     let execution_context = ExecutionContext {
         origin,
         gas_allowance,
@@ -272,14 +288,16 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
 
     let program_id = actor.program.id();
 
-    match executor::execute_wasm::<A, E>(
+    let exec_result = executor::execute_wasm::<A, E>(
         actor,
         dispatch.clone(),
         execution_context,
         execution_settings,
         msg_ctx_settings,
         entry_point,
-    ) {
+    );
+
+    match exec_result {
         Ok(res) => match res.kind {
             DispatchResultKind::Trap(reason) => process_error(
                 res.dispatch,

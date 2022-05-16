@@ -45,22 +45,11 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{
-    self, CodeMetadata, CodeStorage, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
-};
-use core_processor::{
-    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-    configs::BlockInfo,
-};
-
-use alloc::format;
-
+use common::{self, storage::*, CodeStorage};
 use frame_support::{
-    dispatch::{DispatchError, DispatchResultWithPostInfo},
-    traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency, StorageVersion},
+    traits::{Currency, StorageVersion},
     weights::Weight,
 };
-
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
@@ -68,11 +57,12 @@ use gear_core::{
     message::*,
     program::Program as NativeProgram,
 };
+use pallet_gas::Pallet as GasPallet;
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::convert::TryInto;
-use sp_std::{fmt::Debug, prelude::*};
+use sp_std::{convert::TryInto, fmt::Debug, prelude::*};
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
@@ -106,10 +96,25 @@ impl DebugInfo for () {
 pub mod pallet {
     use super::*;
 
-    use frame_support::pallet_prelude::*;
+    use crate::{
+        ext::LazyPagesExt,
+        manager::{ExtManager, HandleKind},
+    };
+    use alloc::format;
+    use common::{
+        self, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState, ValueTree,
+    };
+    use core_processor::{
+        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
+        configs::{AllocationsConfig, BlockInfo},
+        Ext,
+    };
+    use frame_support::{
+        dispatch::{DispatchError, DispatchResultWithPostInfo},
+        pallet_prelude::*,
+        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+    };
     use frame_system::pallet_prelude::*;
-
-    use crate::manager::{ExtManager, HandleKind};
 
     #[pallet::config]
     pub trait Config:
@@ -117,6 +122,8 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_timestamp::Config
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
+        + pallet_gas::Config
+        + pallet_gear_messenger::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -128,7 +135,12 @@ pub mod pallet {
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
 
         /// Implementation of a ledger to account for gas creation and consumption
-        type GasHandler: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>;
+        type GasHandler: ValueTree<
+            ExternalOrigin = H256,
+            Key = H256,
+            Balance = u64,
+            Error = DispatchError,
+        >;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -136,10 +148,6 @@ pub mod pallet {
         /// Cost schedule and limits.
         #[pallet::constant]
         type Schedule: Get<Schedule<Self>>;
-
-        /// The maximum amount of gas that can be used within a single block.
-        #[pallet::constant]
-        type BlockGasLimit: Get<u64>;
 
         /// The maximum amount of messages that can be produced in single run.
         #[pallet::constant]
@@ -234,6 +242,8 @@ pub mod pallet {
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
+        /// Messages storage corrupted.
+        MessagesStorageCorrupted,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -262,42 +272,6 @@ pub mod pallet {
         pub origin: H256,
     }
 
-    #[pallet::type_value]
-    pub fn DefaultForGasLimit<T: Config>() -> u64 {
-        T::BlockGasLimit::get()
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn gas_allowance)]
-    pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
-
-    #[pallet::type_value]
-    pub fn ZeroU128() -> u128 {
-        0
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn messages_sent)]
-    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery, ZeroU128>;
-
-    #[pallet::type_value]
-    pub fn ZeroU32() -> u32 {
-        0
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn total_handled)]
-    pub type TotalHandled<T: Config> = StorageValue<_, u32, ValueQuery, ZeroU32>;
-
-    #[pallet::type_value]
-    pub fn True() -> bool {
-        true
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn can_process_queue)]
-    pub type CanProcessQueue<T: Config> = StorageValue<_, bool, ValueQuery, True>;
-
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
@@ -318,9 +292,7 @@ pub mod pallet {
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             log::debug!(target: "runtime::gear::hooks", "🚧 Initialization of block #{:?}", bn);
 
-            // Reset block gas allowance
-            GasAllowance::<T>::put(T::BlockGasLimit::get());
-            T::DbWeight::get().writes(1)
+            0
         }
 
         /// Finalization
@@ -347,11 +319,11 @@ pub mod pallet {
             );
 
             // Adjust the block gas allowance based on actual remaining weight
-            MessagesSent::<T>::put(0);
-            TotalHandled::<T>::put(0);
-            CanProcessQueue::<T>::put(true);
-            GasAllowance::<T>::put(remaining_weight.saturating_sub(T::DbWeight::get().writes(3)));
-            let weight = T::DbWeight::get().writes(4);
+            GasPallet::<T>::update_gas_allowance(
+                remaining_weight.saturating_sub(T::DbWeight::get().writes(1)),
+            );
+
+            let weight = T::DbWeight::get().writes(1);
             weight.saturating_add(Self::process_queue())
         }
     }
@@ -385,7 +357,6 @@ pub mod pallet {
                     Error::<T>::FailedToConstructProgram
                 })?;
 
-            let static_pages = code.static_pages();
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
@@ -422,7 +393,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
+            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
@@ -432,7 +403,8 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .map_err(|_| "Unable to push message")?;
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id,
@@ -498,7 +470,7 @@ pub mod pallet {
 
             let dispatch = match kind {
                 HandleKind::Init(ref code) => {
-                    let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
+                    let program_id = ProgramId::generate(CodeId::generate(code), b"gas_spent_salt");
 
                     let schedule = T::Schedule::get();
                     let code = Code::try_new(
@@ -510,16 +482,10 @@ pub mod pallet {
 
                     let code_and_id = CodeAndId::new(code);
                     let code_id = code_and_id.code_id();
-                    let static_pages = code_and_id.code().static_pages();
 
                     let _ = Self::set_code_with_metadata(code_and_id, source);
 
-                    ExtManager::<T>::default().set_program(
-                        program_id,
-                        code_id,
-                        static_pages,
-                        root_message_id,
-                    );
+                    ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
                     Dispatch::new(
                         DispatchKind::Init,
@@ -565,14 +531,17 @@ pub mod pallet {
                 }
             };
 
-            let initial_gas = T::BlockGasLimit::get();
+            let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
                 .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
 
             let dispatch = dispatch.into_stored();
 
-            common::clear_dispatch_queue();
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::clear()
+                .map_err(|_| b"Failed to clear MQ".to_vec())?;
+
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .map_err(|_| b"Messages storage corrupted".to_vec())?;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -584,32 +553,63 @@ pub mod pallet {
 
             let mut max_gas_spent = 0;
 
-            while let Some(queued_dispatch) = common::dequeue_dispatch() {
+            while let Some(queued_dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+                .map_err(|_| b"MQ storage corrupted".to_vec())?
+            {
                 let actor_id = queued_dispatch.destination();
+
+                let lazy_pages_enabled =
+                    cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
+
                 let actor = ext_manager
-                    .get_executable_actor(actor_id.into_origin())
+                    .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-                let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    Some(actor),
-                    queued_dispatch.into_incoming(initial_gas),
-                    block_info,
-                    existential_deposit,
-                    ProgramId::from_origin(source),
-                    actor_id,
-                    u64::MAX,
-                    T::OutgoingLimit::get(),
-                    schedule.host_fn_weights.clone().into_core(),
-                    None,
-                );
+                let allocations_config = AllocationsConfig {
+                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                    init_cost: schedule.memory_weights.initial_cost,
+                    alloc_cost: schedule.memory_weights.allocation_cost,
+                    mem_grow_cost: schedule.memory_weights.grow_cost,
+                    load_page_cost: schedule.memory_weights.load_cost,
+                };
+
+                let journal = if lazy_pages_enabled {
+                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(initial_gas),
+                        block_info,
+                        allocations_config,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                        None,
+                    )
+                } else {
+                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(initial_gas),
+                        block_info,
+                        allocations_config,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                        None
+                    )
+                };
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
-                let (remaining_gas, _) =
-                    T::GasHandler::get_limit(root_message_id).ok_or_else(|| {
+                let remaining_gas = T::GasHandler::get_limit(root_message_id)
+                    .map_err(|_| {
+                        b"Internal error: unable to get gas limit after execution".to_vec()
+                    })?
+                    .ok_or_else(|| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
@@ -642,18 +642,6 @@ pub mod pallet {
             Ok(max_gas_spent)
         }
 
-        pub(crate) fn decrease_gas_allowance(gas_charge: u64) {
-            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
-        }
-
-        pub(crate) fn message_handled() {
-            TotalHandled::<T>::mutate(|x| *x = x.saturating_add(1));
-        }
-
-        pub(crate) fn stop_processing() {
-            CanProcessQueue::<T>::mutate(|x| *x = false);
-        }
-
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: H256) -> bool {
             common::get_program(program_id)
@@ -670,12 +658,12 @@ pub mod pallet {
 
         /// Returns MessageId for newly created user message.
         pub fn next_message_id(user_id: H256) -> H256 {
-            let nonce = Self::messages_sent();
-            MessagesSent::<T>::mutate(|x| *x = x.saturating_add(1));
+            let nonce = <MessengerPallet<T> as Messenger>::Sent::get();
+            <MessengerPallet<T> as Messenger>::Sent::increase();
             let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
             let user_id = ProgramId::from_origin(user_id);
 
-            MessageId::generate_from_user(block_number, user_id, nonce).into_origin()
+            MessageId::generate_from_user(block_number, user_id, nonce.into()).into_origin()
         }
 
         /// Message Queue processing.
@@ -688,7 +676,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let weight = Self::gas_allowance() as Weight;
+            let weight = GasPallet::<T>::gas_allowance() as Weight;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -702,42 +690,62 @@ pub mod pallet {
                 T::DebugInfo::remap_id();
             }
 
-            while Self::can_process_queue() {
-                if let Some(dispatch) = common::dequeue_dispatch() {
+            while <MessengerPallet<T> as Messenger>::QueueProcessing::allowed() {
+                if let Some(dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
+                {
                     let msg_id = dispatch.id().into_origin();
-                    let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
-                        limit
-                    } else {
-                        log::debug!(
-                            target: "essential",
-                            "No gas handler for message: {:?} to {:?}",
-                            dispatch.id(),
-                            dispatch.destination(),
-                        );
+                    let gas_limit: u64;
+                    match T::GasHandler::get_limit(msg_id) {
+                        Ok(maybe_limit) => {
+                            if let Some(limit) = maybe_limit {
+                                gas_limit = limit;
+                            } else {
+                                log::debug!(
+                                    target: "essential",
+                                    "No gas handler for message: {:?} to {:?}",
+                                    dispatch.id(),
+                                    dispatch.destination(),
+                                );
 
-                        common::queue_dispatch(dispatch);
+                                <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                                    .unwrap_or_else(|e| {
+                                        unreachable!("Message queue corrupted! {:?}", e)
+                                    });
 
-                        // Since we requeue the message without GasHandler we have to take
-                        // into account that there can left only such messages in the queue.
-                        // So stop processing when there is not enough gas/weight.
-                        let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
-                        Self::decrease_gas_allowance(consumed);
-                        if Self::gas_allowance() < consumed {
-                            break;
+                                // Since we requeue the message without GasHandler we have to take
+                                // into account that there can left only such messages in the queue.
+                                // So stop processing when there is not enough gas/weight.
+                                let consumed =
+                                    T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
+
+                                GasPallet::<T>::decrease_gas_allowance(consumed);
+
+                                if GasPallet::<T>::gas_allowance() < consumed {
+                                    break;
+                                }
+
+                                continue;
+                            };
                         }
-
-                        continue;
+                        Err(_err) => {
+                            // We only can get an error here if the gas tree is invalidated
+                            // TODO: handle appropriately
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
                     };
 
                     log::debug!(
-                        "Processing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
+                        "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
                         dispatch.id(),
                         dispatch.destination(),
                         gas_limit,
-                        Self::gas_allowance(),
+                        GasPallet::<T>::gas_allowance(),
                     );
 
                     let schedule = T::Schedule::get();
+                    let lazy_pages_enabled =
+                        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
@@ -790,10 +798,10 @@ pub mod pallet {
                                 continue;
                             }
 
-                            let native_program = NativeProgram::from_parts(
+                            let program = NativeProgram::from_parts(
                                 program_id,
                                 code,
-                                prog.persistent_pages,
+                                prog.allocations,
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
@@ -802,38 +810,80 @@ pub mod pallet {
                             )
                             .unique_saturated_into();
 
+                            let pages_data = if lazy_pages_enabled {
+                                Default::default()
+                            } else {
+                                common::get_program_data_for_pages(
+                                    program_id.into_origin(),
+                                    prog.pages_with_data.iter(),
+                                )
+                            };
+
                             Some(ExecutableActor {
-                                program: native_program,
+                                program,
                                 balance,
+                                pages_data,
                             })
                         } else {
                             log::debug!("Program '{:?}' is not active", program_id,);
-
                             None
                         }
                     } else {
                         None
                     };
 
-                    let origin = <T as Config>::GasHandler::get_origin(msg_id).expect(
-                        "Gas node is guaranteed to exist for the key due to earlier checks",
-                    );
+                    let origin = match <T as Config>::GasHandler::get_origin(msg_id) {
+                        Ok(maybe_origin) => {
+                            // NOTE: intentional expect.
+                            // Given gas tree is valid, a node with such id exists and has origin
+                            maybe_origin.expect(
+                                "Gas node is guaranteed to exist for the key due to earlier checks",
+                            )
+                        }
+                        Err(_err) => {
+                            // Error can only be due to invalid gas tree
+                            // TODO: handle appropriately
+                            unreachable!("Can never happen unless gas tree corrupted");
+                        }
+                    };
 
-                    let journal = core_processor::process::<
-                        ext::LazyPagesExt,
-                        SandboxEnvironment<ext::LazyPagesExt>,
-                    >(
-                        maybe_active_actor,
-                        dispatch.into_incoming(gas_limit),
-                        block_info,
-                        existential_deposit,
-                        ProgramId::from_origin(origin),
-                        program_id,
-                        Self::gas_allowance(),
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.into_core(),
-                        None,
-                    );
+                    let allocations_config = AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                        init_cost: schedule.memory_weights.initial_cost,
+                        alloc_cost: schedule.memory_weights.allocation_cost,
+                        mem_grow_cost: schedule.memory_weights.grow_cost,
+                        load_page_cost: schedule.memory_weights.load_cost,
+                    };
+
+                    let journal = if lazy_pages_enabled {
+                        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                            maybe_active_actor,
+                            dispatch.into_incoming(gas_limit),
+                            block_info,
+                            allocations_config,
+                            existential_deposit,
+                            ProgramId::from_origin(origin),
+                            program_id,
+                            GasPallet::<T>::gas_allowance(),
+                            T::OutgoingLimit::get(),
+                            schedule.host_fn_weights.into_core(),
+                            None,
+                        )
+                    } else {
+                        core_processor::process::<Ext, SandboxEnvironment<_>>(
+                            maybe_active_actor,
+                            dispatch.into_incoming(gas_limit),
+                            block_info,
+                            allocations_config,
+                            existential_deposit,
+                            ProgramId::from_origin(origin),
+                            program_id,
+                            GasPallet::<T>::gas_allowance(),
+                            T::OutgoingLimit::get(),
+                            schedule.host_fn_weights.into_core(),
+                            None,
+                        )
+                    };
 
                     core_processor::handle_journal(journal, &mut ext_manager);
 
@@ -849,13 +899,13 @@ pub mod pallet {
                 }
             }
 
-            let total_handled = Self::total_handled();
+            let total_handled = <MessengerPallet<T> as Messenger>::Dequeued::get();
 
             if total_handled > 0 {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));
             }
 
-            weight.saturating_sub(Self::gas_allowance())
+            weight.saturating_sub(GasPallet::<T>::gas_allowance())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -931,6 +981,7 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
+        #[frame_support::transactional]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1002,6 +1053,7 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
+        #[frame_support::transactional]
         pub fn submit_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
@@ -1014,7 +1066,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= T::BlockGasLimit::get(),
+                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1066,7 +1118,6 @@ pub mod pallet {
             let origin = who.into_origin();
 
             let code_id = code_and_id.code_id();
-            let static_pages = code_and_id.code().static_pages();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
@@ -1076,7 +1127,7 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin).into_origin();
 
-            ExtManager::<T>::default().set_program(program_id, code_id, static_pages, message_id);
+            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
@@ -1086,7 +1137,8 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            common::queue_dispatch(dispatch);
+            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id,
@@ -1130,7 +1182,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= T::BlockGasLimit::get(),
+                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1172,9 +1224,10 @@ pub mod pallet {
                 let origin = who.into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
-                common::queue_dispatch(
+                <MessengerPallet<T> as Messenger>::Queue::push_back(
                     message.into_stored_dispatch(ProgramId::from_origin(origin)),
-                );
+                )
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id: message_id.into_origin(),
@@ -1221,7 +1274,7 @@ pub mod pallet {
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
-                gas_limit <= T::BlockGasLimit::get(),
+                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1256,11 +1309,12 @@ pub mod pallet {
                 let origin = who.into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
-                common::queue_dispatch(message.into_stored_dispatch(
+                <MessengerPallet<T> as Messenger>::Queue::push_back(message.into_stored_dispatch(
                     ProgramId::from_origin(origin),
                     destination,
                     original_message.id(),
-                ));
+                ))
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id: message_id.into_origin(),

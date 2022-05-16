@@ -32,27 +32,28 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    manager::{ExtManager, HandleKind},
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     Pallet as Gear, *,
 };
 use codec::Encode;
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
+use core_processor::{
+    common::ExecutableActor,
+    configs::{AllocationsConfig, BlockInfo},
+};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
-use frame_support::traits::Get;
+use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
-
-use sp_std::prelude::*;
-use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
-
-use common::{benchmarking, CodeStorage, Origin};
 use gear_core::ids::{MessageId, ProgramId};
-
+use pallet_gear_messenger::Pallet as MessengerPallet;
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, UniqueSaturatedInto},
     Perbill,
 };
-
-use frame_support::traits::Currency;
+use sp_std::prelude::*;
+use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
@@ -147,6 +148,11 @@ where
     T: Config,
     T::AccountId: Origin,
 {
+    assert!(
+        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages(),
+        "Suppose to run benchs only with lazy pages"
+    );
+
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = 1;
     let root_message_id = MessageId::from(bn).into_origin();
@@ -161,19 +167,13 @@ where
             )
             .map_err(|_| "Code failed to load: {}")?;
 
-            let static_pages = code.static_pages();
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source)?;
 
             let program_id = ProgramId::generate(code_id, b"salt");
-            ExtManager::<T>::default().set_program(
-                program_id,
-                code_id,
-                static_pages,
-                root_message_id,
-            );
+            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
             Dispatch::new(
                 DispatchKind::Init,
@@ -224,8 +224,10 @@ where
 
     let dispatch = dispatch.into_stored();
 
-    common::clear_dispatch_queue();
-    common::queue_dispatch(dispatch);
+    <MessengerPallet<T> as Messenger>::Queue::clear()
+        .map_err(|_| "Unable to clear message queue")?;
+    <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+        .map_err(|_| "Unable to push message")?;
 
     let block_info = BlockInfo {
         height: 1,
@@ -234,10 +236,14 @@ where
 
     let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-    if let Some(queued_dispatch) = common::dequeue_dispatch() {
+    let maybe_dispatch = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+        .map_err(|_| "Unable to pop message")?;
+
+    if let Some(queued_dispatch) = maybe_dispatch {
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
-            .get_executable_actor(actor_id.into_origin())
+            // get actor without pages data because of lazy pages enabled
+            .get_executable_actor(actor_id.into_origin(), false)
             .ok_or("Program not found in the storage")?;
         Ok(Exec {
             ext_manager,
@@ -300,7 +306,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
     }: _(origin, code, salt, vec![], 100_000_000_u64, value)
     verify {
-        assert!(common::dequeue_dispatch().is_some());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
     }
 
     send_message {
@@ -313,7 +319,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_dispatch().is_some());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
     }
 
     send_reply {
@@ -338,7 +344,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_dispatch().is_some());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
     }
 
     initial_allocation {
@@ -352,7 +358,7 @@ benchmarks! {
         Gear::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_dispatch().is_none());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(None)));
     }
 
     alloc_in_handle {
@@ -366,7 +372,7 @@ benchmarks! {
         Gear::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_dispatch().is_none());
+        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(None)));
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the
@@ -430,6 +436,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -508,6 +521,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -553,6 +573,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -586,6 +613,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -619,6 +653,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -652,6 +693,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -687,6 +735,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -720,6 +775,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -753,6 +815,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -798,6 +867,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -854,6 +930,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -914,6 +997,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -959,6 +1049,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1004,6 +1101,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1050,6 +1154,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1108,6 +1219,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1166,6 +1284,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1236,6 +1361,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1306,6 +1438,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1366,6 +1505,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1424,6 +1570,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1474,6 +1627,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1522,6 +1682,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1572,6 +1739,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1629,6 +1803,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1676,6 +1857,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1723,6 +1911,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1790,6 +1985,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,
@@ -1870,6 +2072,13 @@ benchmarks! {
                     maybe_actor,
                     dispatch,
                     block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
                     existential_deposit,
                     origin,
                     program_id,

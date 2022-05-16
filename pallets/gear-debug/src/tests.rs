@@ -24,7 +24,7 @@ use common::{self, Origin as _};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::WasmPageNumber,
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::DebugInfo;
@@ -92,7 +92,7 @@ fn debug_mode_works() {
             code_1.clone(),
             b"salt".to_vec(),
             Vec::new(),
-            1_000_000_u64,
+            100_000_000_u64,
             0_u128,
         )
         .expect("Failed to submit program");
@@ -112,9 +112,7 @@ fn debug_mode_works() {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
-                        persistent_pages: (0..static_pages.to_gear_pages().0)
-                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                            .collect(),
+                        persistent_pages: Default::default(),
                         code_hash: generate_code_hash(&code_1),
                     }),
                 }],
@@ -127,7 +125,7 @@ fn debug_mode_works() {
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
-            1_000_000_u64,
+            100_000_000_u64,
             0_u128,
         )
         .expect("Failed to submit program");
@@ -144,9 +142,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: (0..static_pages.to_gear_pages().0)
-                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                                .collect(),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -154,9 +150,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: (0..static_pages.to_gear_pages().0)
-                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                                .collect(),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -169,7 +163,7 @@ fn debug_mode_works() {
             Origin::signed(1),
             program_id_1,
             vec![],
-            1_000_000_u64,
+            100_000_000_u64,
             0_u128,
         )
         .expect("Failed to send message");
@@ -180,7 +174,7 @@ fn debug_mode_works() {
             Origin::signed(1),
             program_id_2,
             vec![],
-            1_000_000_u64,
+            100_000_000_u64,
             0_u128,
         )
         .expect("Failed to send message");
@@ -224,9 +218,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: (0..static_pages.to_gear_pages().0)
-                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                                .collect(),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -234,9 +226,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: (0..static_pages.to_gear_pages().0)
-                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                                .collect(),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -257,9 +247,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: (0..WasmPageNumber(20).to_gear_pages().0)
-                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                                .collect(),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -267,9 +255,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: (0..static_pages.to_gear_pages().0)
-                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                                .collect(),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
