@@ -161,7 +161,9 @@ fn mprotect_pages_vec(mem_addr: u64, pages: &[u32], protect: bool) -> Result<(),
     };
 
     // Collects continuous intervals of memory from lazy pages to protect them.
-    let mut start = *pages.first().expect("We checked that `pages` are not empty") as usize;
+    let mut start = *pages
+        .first()
+        .expect("We checked that `pages` are not empty") as usize;
     let mut count = 1;
     for page in pages.iter().skip(1) {
         if start + count == *page as usize {
