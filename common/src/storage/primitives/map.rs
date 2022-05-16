@@ -41,9 +41,8 @@ pub trait MapStorage {
     /// Inserts value with given key.
     fn insert(key: Self::Key, value: Self::Value);
 
-    /// Mutates value by `Option` reference, which stored
-    /// (or not in `None` case) under given key
-    /// with given function.
+    /// Mutates value by `Option` reference, which stored (or not
+    /// in `None` case) under given key with given function.
     ///
     /// May return generic type value.
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(key: Self::Key, f: F) -> R;
