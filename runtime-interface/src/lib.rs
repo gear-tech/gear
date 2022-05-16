@@ -161,7 +161,7 @@ fn mprotect_pages_vec(mem_addr: u64, pages: &[u32], protect: bool) -> Result<(),
     };
 
     // Collects continuous intervals of memory from lazy pages to protect them.
-    let mut start = pages[0] as usize; // Can't panic as we've checked `pages` is not empty
+    let mut start = *pages.first().expect("We checked that `pages` are not empty") as usize;
     let mut count = 1;
     for page in pages.iter().skip(1) {
         if start + count == *page as usize {
@@ -300,13 +300,9 @@ fn test_mprotect_pages_vec() {
         4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
     ];
 
-    // Set [OLD_VALUE] as value for each first byte of gear pages
+    // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
-        for p in pages_to_protect.iter() {
-            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
-            *(addr as *mut u8) = OLD_VALUE;
-        }
-        for p in pages_unprotected.iter() {
+        for p in pages_to_protect.iter().chain(pages_unprotected.iter()) {
             let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
@@ -328,13 +324,13 @@ fn test_mprotect_pages_vec() {
             let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
             let _ = *(addr as *mut u8);
             let x = *(addr as *mut u8);
-            // value must be changed to 100 in sig handler
+            // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
         for p in pages_unprotected.iter() {
             let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
-            // value must be the same as had been set
+            // value must not be changed
             assert_eq!(x, OLD_VALUE);
         }
     }

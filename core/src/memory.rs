@@ -331,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    /// Test that PageNumbers subtract correctly
+    /// Test that WasmPageNumber set transforms correctly to PageNumber set.
     fn wasm_pages_to_gear_pages() {
         let wasm_pages: Vec<WasmPageNumber> =
             [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();
