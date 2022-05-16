@@ -34,7 +34,7 @@ use self::{
 use crate::{
     manager::{ExtManager, HandleKind},
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    Pallet as Gear, QueueOf, *,
+    MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
 use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
@@ -200,8 +200,11 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let msg = Gear::<T>::remove_from_mailbox(source, msg_id)
-                .ok_or("Internal error: unable to find message in mailbox")?;
+            let msg = MailboxOf::<T>::remove(
+                <T::AccountId as Origin>::from_origin(source),
+                MessageId::from_origin(msg_id),
+            )
+            .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
@@ -326,19 +329,16 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program(program_id, code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).into_origin();
-        Gear::<T>::insert_to_mailbox(
-            caller.clone().into_origin(),
-            gear_core::message::StoredMessage::new(
-                MessageId::from_origin(original_message_id),
-                ProgramId::from_origin(program_id),
-                ProgramId::from_origin(caller.clone().into_origin()),
-                Default::default(),
-                0,
-                None,
-            )
-        );
+        MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
+            MessageId::from_origin(original_message_id),
+            ProgramId::from_origin(program_id),
+            ProgramId::from_origin(caller.clone().into_origin()),
+            Default::default(),
+            0,
+            None,
+        )).expect("Error during mailbox insertation");
         let payload = vec![0_u8; p as usize];
-    }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
+    }: _(RawOrigin::Signed(caller), MessageId::from_origin(original_message_id), payload, 100_000_000_u64, 10_000_u32.into())
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -1603,7 +1603,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertation");
         let Exec {
             mut ext_manager,
             maybe_actor,
@@ -1715,7 +1715,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertation");
         let Exec {
             mut ext_manager,
             maybe_actor,

@@ -18,7 +18,7 @@
 
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
-    MessageInfo, Pallet, QueueOf, SentOf,
+    MailboxOf, MessageInfo, Pallet, QueueOf, SentOf,
 };
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
@@ -235,9 +235,7 @@ where
                     Reason::Dispatch(reason.unwrap_or_default().into_bytes()),
                 )
             }
-            CoreDispatchOutcome::NoExecution(message_id) => {
-                Event::MessageNotExecuted(message_id.into_origin())
-            }
+            CoreDispatchOutcome::NoExecution(message_id) => Event::MessageNotExecuted(message_id),
         };
 
         Pallet::<T>::deposit_event(event);
@@ -389,9 +387,11 @@ where
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            Pallet::<T>::insert_to_mailbox(message.destination().into_origin(), message.clone());
-
-            Pallet::<T>::deposit_event(Event::Log(message));
+            if MailboxOf::<T>::insert(message.clone()).is_ok() {
+                Pallet::<T>::deposit_event(Event::Log(message));
+            } else {
+                log::debug!("Error occured in mailbox insertation")
+            }
         }
     }
 

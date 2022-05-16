@@ -199,7 +199,7 @@ pub mod pallet {
         // TODO: will be replaced by more comprehensive stats
         MessagesDequeued(u32),
         /// Value and gas has been claimed from a message in mailbox by the addressee
-        ClaimedValueFromMailbox(H256),
+        ClaimedValueFromMailbox(MessageId),
         /// A message has been added to the wait list
         AddedToWaitList(StoredDispatch),
         /// A message has been removed from the wait list
@@ -209,7 +209,7 @@ pub mod pallet {
         /// Pallet associated storage has been wiped.
         DatabaseWiped,
         /// Message was not executed
-        MessageNotExecuted(H256),
+        MessageNotExecuted(MessageId),
     }
 
     // Gear pallet error.
@@ -421,39 +421,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        pub fn insert_to_mailbox(_user: H256, message: StoredMessage) {
-            // let user_id = &<T::AccountId as Origin>::from_origin(user);
-
-            let _ = MailboxOf::<T>::insert(message);
-        }
-
-        pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<StoredMessage> {
-            let user_id = <T::AccountId as Origin>::from_origin(user);
-            let message_id = MessageId::from_origin(message_id);
-
-            MailboxOf::<T>::remove(user_id, message_id).ok()
-        }
-
-        pub fn remove_and_claim_from_mailbox(
-            user_id: &T::AccountId,
-            message_id: H256,
-        ) -> Result<StoredMessage, DispatchError> {
-            let message = Self::remove_from_mailbox(user_id.clone().into_origin(), message_id)
-                .ok_or(Error::<T>::NoMessageInMailbox)?;
-
-            if message.value() > 0 {
-                // Assuming the programs has enough balance
-                <T as Config>::Currency::repatriate_reserved(
-                    &<T::AccountId as Origin>::from_origin(message.source().into_origin()),
-                    user_id,
-                    message.value().unique_saturated_into(),
-                    BalanceStatus::Free,
-                )?;
-            }
-
-            Ok(message)
-        }
-
         pub fn get_gas_spent(
             source: H256,
             kind: HandleKind,
@@ -511,9 +478,11 @@ pub mod pallet {
                     ),
                 ),
                 HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = Self::remove_from_mailbox(source, msg_id).ok_or_else(|| {
-                        b"Internal error: unable to find message in mailbox".to_vec()
-                    })?;
+                    let msg = MailboxOf::<T>::remove(
+                        <T::AccountId as Origin>::from_origin(source),
+                        MessageId::from_origin(msg_id),
+                    )
+                    .map_err(|_| b"Internal error: unable to find message in mailbox".to_vec())?;
                     Dispatch::new(
                         DispatchKind::Reply,
                         Message::new(
@@ -1227,7 +1196,8 @@ pub mod pallet {
                 // and no gas tree needs to be created
                 let origin = who.into_origin();
                 let message = message.into_stored(ProgramId::from_origin(origin));
-                Self::insert_to_mailbox(destination.into_origin(), message.clone());
+
+                MailboxOf::<T>::insert(message.clone())?;
                 Self::deposit_event(Event::Log(message));
             }
 
@@ -1250,7 +1220,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
-            reply_to_id: H256,
+            reply_to_id: MessageId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1273,7 +1243,7 @@ pub mod pallet {
             );
 
             // Claim outstanding value from the original message first
-            let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
+            let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
             let destination = original_message.source();
 
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
@@ -1319,7 +1289,8 @@ pub mod pallet {
                     destination,
                     original_message.id(),
                 );
-                Self::insert_to_mailbox(destination.into_origin(), message.clone());
+
+                MailboxOf::<T>::insert(message.clone())?;
                 Self::deposit_event(Event::Log(message));
             }
 
@@ -1330,11 +1301,9 @@ pub mod pallet {
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
-            message_id: H256,
+            message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            let _ = Self::remove_and_claim_from_mailbox(&who, message_id)?;
+            let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
 
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 

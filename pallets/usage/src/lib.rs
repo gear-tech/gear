@@ -55,7 +55,7 @@ pub mod pallet {
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
     use gear_core::{
         ids::MessageId,
-        message::{ReplyMessage, ReplyPacket, StoredDispatch},
+        message::{ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     };
     use sp_core::offchain::Duration;
     use sp_runtime::{
@@ -70,6 +70,7 @@ pub mod pallet {
     use sp_std::prelude::*;
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+    pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 
     #[pallet::config]
     pub trait Config:
@@ -109,7 +110,7 @@ pub mod pallet {
         #[pallet::constant]
         type ExternalSubmitterRewardFraction: Get<Perbill>;
 
-        type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
+        type Messenger: Messenger<QueuedDispatch = StoredDispatch, MailboxedMessage = StoredMessage>;
     }
 
     type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
@@ -393,9 +394,9 @@ pub mod pallet {
 
                                 QueueOf::<T>::queue(dispatch)
                                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                            } else {
-                                pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)
-                            }
+                            } else if MailboxOf::<T>::insert(dispatch.into_parts().1).is_err() {
+                                    log::debug!("Duplicate mailbox message");
+                                }
 
                             // Consume the corresponding node
                             match T::GasHandler::consume(msg_id.into_origin()) {

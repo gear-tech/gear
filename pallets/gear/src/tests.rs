@@ -33,7 +33,10 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::{code::Code, ids::CodeId};
+use gear_core::{
+    code::Code,
+    ids::{CodeId, MessageId},
+};
 use pallet_balances::{self, Pallet as BalancesPallet};
 use utils::*;
 
@@ -761,12 +764,12 @@ fn mailbox_works() {
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
         let mailbox_message = {
-            let res = GearPallet::<Test>::remove_from_mailbox(USER_1.into_origin(), reply_to_id);
-            assert!(res.is_some());
+            let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
+            assert!(res.is_ok());
             res.expect("was asserted previously")
         };
 
-        assert_eq!(mailbox_message.id().into_origin(), reply_to_id);
+        assert_eq!(mailbox_message.id(), reply_to_id);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
@@ -913,7 +916,7 @@ fn events_logging_works() {
 
             let init_msg_info = MessageInfo {
                 program_id,
-                message_id,
+                message_id: message_id.into_origin(),
                 origin: USER_1.into_origin(),
             };
 
@@ -946,7 +949,7 @@ fn events_logging_works() {
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
-                message_id,
+                message_id: message_id.into_origin(),
                 origin: USER_1.into_origin(),
             };
 
@@ -1002,12 +1005,10 @@ fn send_reply_works() {
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
-        let message_id = get_last_message_id();
+        let expected_reply_message_id = get_last_message_id();
 
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let expected_reply_message_id = message_id;
-
         let event = match SystemPallet::<Test>::events()
             .last()
             .map(|r| r.event.clone())
@@ -1024,7 +1025,10 @@ fn send_reply_works() {
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
-        assert_eq!(expected_reply_message_id, actual_reply_message_id);
+        assert_eq!(
+            expected_reply_message_id,
+            MessageId::from_origin(actual_reply_message_id)
+        );
     })
 }
 
@@ -1036,12 +1040,12 @@ fn send_reply_failure_to_claim_from_mailbox() {
         assert_noop!(
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
-                5.into_origin(), // non existent `reply_to_id`
+                MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 0
             ),
-            Error::<Test>::NoMessageInMailbox
+            pallet_gear_messenger::Error::<Test>::MailboxElementNotFound
         );
 
         let prog_id = {
@@ -1448,7 +1452,7 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id().into_origin();
+        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
         assert_eq!(MailboxOf::<Test>::count_of(&USER_1), 1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
@@ -1486,7 +1490,7 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id().into_origin();
+        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1552,7 +1556,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id().into_origin();
+        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -2282,7 +2286,7 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id().into_origin();
+        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -2383,7 +2387,7 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id().into_origin();
+        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -2689,7 +2693,7 @@ mod utils {
     // 2) runs to block 2 all the messages place to message queue/storage
     //
     // Returns id of the message in the mailbox
-    pub(super) fn setup_mailbox_test_state(user: AccountId) -> H256 {
+    pub(super) fn setup_mailbox_test_state(user: AccountId) -> MessageId {
         let prog_id = {
             let res = submit_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
@@ -2707,7 +2711,7 @@ mod utils {
         block_num: BlockNumber,
         gas_limit: u64,
         value: u128,
-    ) -> H256 {
+    ) -> MessageId {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(sender),
             prog_id,
@@ -2731,7 +2735,7 @@ mod utils {
             );
         }
 
-        MessageId::generate_outgoing(MessageId::from_origin(message_id), 0).into_origin()
+        MessageId::generate_outgoing(message_id, 0)
     }
 
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
@@ -2819,7 +2823,7 @@ mod utils {
         program_id
     }
 
-    pub(super) fn get_last_message_id() -> H256 {
+    pub(super) fn get_last_message_id() -> MessageId {
         let event = match SystemPallet::<Test>::events()
             .last()
             .map(|r| r.event.clone())
@@ -2829,9 +2833,13 @@ mod utils {
         };
 
         match event {
-            Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-            Event::Log(msg) => msg.id().into_origin(),
-            Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+            Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => {
+                MessageId::from_origin(message_id)
+            }
+            Event::Log(msg) => msg.id(),
+            Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => {
+                MessageId::from_origin(message_id)
+            }
             _ => unreachable!("expect sending"),
         }
     }
