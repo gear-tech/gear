@@ -183,6 +183,7 @@ jobs:
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
           --ignore "examples/*"
+          --ignore "core-backend/wasmtime/*"
           --ignore "utils/*"
           --ignore "target/*"
           --ignore "gear-test/*"
