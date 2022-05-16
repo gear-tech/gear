@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{PageNumber, WasmPageNumber, new_zeroed_page_buf};
+use gear_core::memory::{new_zeroed_page_buf, PageNumber, WasmPageNumber};
 use parity_wasm::elements::*;
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;

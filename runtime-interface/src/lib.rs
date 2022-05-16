@@ -21,7 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use gear_core::memory::{PageBuf, page_buf_from_vec_u8};
+use gear_core::memory::{page_buf_from_vec_u8, PageBuf};
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
@@ -259,7 +259,8 @@ pub trait GearRI {
 
     #[version(3)]
     fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
-        let data = gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)?;
+        let data =
+            gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)?;
         Ok(page_buf_from_vec_u8(data).unwrap())
     }
 

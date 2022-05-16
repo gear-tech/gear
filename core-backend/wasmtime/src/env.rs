@@ -32,7 +32,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{PageNumber, WasmPageNumber, PageBuf},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryAccessError, MemoryType,

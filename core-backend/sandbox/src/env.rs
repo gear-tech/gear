@@ -28,7 +28,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, PageNumber, WasmPageNumber, PageBuf},
+    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use gear_core_errors::TerminationReason as CoreTerminationReason;
 use gear_core_errors::{CoreError, MemoryError};

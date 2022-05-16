@@ -44,7 +44,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageNumber, WasmPageNumber, PageBuf},
+        memory::{PageBuf, PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use pallet_gear_messenger::Pallet as MessengerPallet;

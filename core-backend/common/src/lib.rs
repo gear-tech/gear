@@ -34,7 +34,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber, PageBuf},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
 use gear_core_errors::ExtError;

@@ -36,7 +36,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber, PageBuf, Error as MemoryError, page_buf_from_vec_u8},
+    memory::{page_buf_from_vec_u8, Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
     message::StoredDispatch,
 };
 use gear_runtime_interface as gear_ri;
@@ -397,7 +397,10 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(id: H256, page_idx: PageNumber) -> Option<Result<PageBuf, MemoryError>> {
+pub fn get_program_page_data(
+    id: H256,
+    page_idx: PageNumber,
+) -> Option<Result<PageBuf, MemoryError>> {
     let key = page_key(id, page_idx);
     let data = sp_io::storage::get(&key)?;
     Some(page_buf_from_vec_u8(data))
@@ -409,7 +412,10 @@ pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
-pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
+pub fn get_program_pages_data(
+    id: H256,
+    program: &ActiveProgram,
+) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
     get_program_data_for_pages(id, program.pages_with_data.iter())
 }
 

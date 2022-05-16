@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber, PageBuf},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,
 };

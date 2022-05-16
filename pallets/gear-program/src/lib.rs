@@ -61,7 +61,7 @@ pub mod pallet {
         },
     };
     use frame_system::pallet_prelude::*;
-    use gear_core::memory::{PageNumber, PageBuf};
+    use gear_core::memory::{PageBuf, PageNumber};
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};
     use weights::WeightInfo;
 

@@ -30,7 +30,9 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageNumber, WasmPageNumber, new_zeroed_page_buf, PageBuf},
+    memory::{
+        new_zeroed_page_buf, AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber,
+    },
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, TerminationReason};

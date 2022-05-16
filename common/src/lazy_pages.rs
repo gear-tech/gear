@@ -19,8 +19,8 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
-use gear_core::{ids::ProgramId, memory::PageBuf};
 use gear_core::memory::PageNumber;
+use gear_core::{ids::ProgramId, memory::PageBuf};
 use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},

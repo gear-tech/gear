@@ -20,7 +20,10 @@ use super::*;
 use codec::{Decode, Encode};
 use common::Origin as _;
 use frame_support::{dispatch::DispatchResult, storage::PrefixIterator};
-use gear_core::{memory::{PageNumber, PageBuf}, message::StoredDispatch};
+use gear_core::{
+    memory::{PageBuf, PageNumber},
+    message::StoredDispatch,
+};
 use scale_info::TypeInfo;
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]

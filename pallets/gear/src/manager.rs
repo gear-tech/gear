@@ -33,7 +33,7 @@ use frame_support::traits::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, PageBuf},
+    memory::{PageBuf, PageNumber},
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
