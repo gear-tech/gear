@@ -44,11 +44,16 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     context: ExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
+    entry_point: Option<&str>,
 ) -> Result<DispatchResult, ExecutionError> {
     let ExecutableActor { program, balance } = actor;
 
     let program_id = program.id();
-    let kind = dispatch.kind();
+    let kind = if let Some(func_name) = entry_point {
+        func_name
+    } else {
+        dispatch.kind().into_entry()
+    };
 
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
@@ -262,28 +267,27 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport { termination, info } =
-        match env.execute(kind.into_entry(), |wasm_memory_addr| {
-            // accessed lazy pages old data will be added to `initial_pages`
-            // TODO: if post execution actions err is connected, with removing pages protections,
-            // then we should panic here, because protected pages may cause UB later, during err handling,
-            // if somebody will try to access this pages.
-            if lazy_pages_enabled {
-                A::post_execution_actions(&mut initial_pages, wasm_memory_addr)
-            } else {
-                Ok(())
-            }
-        }) {
-            Ok(report) => report,
-            Err(e) => {
-                return Err(ExecutionError {
-                    program_id,
-                    gas_amount: e.gas_amount.clone(),
-                    reason: Some(ExecutionErrorReason::Backend(e.to_string())),
-                    allowance_exceed: false,
-                })
-            }
-        };
+    let BackendReport { termination, info } = match env.execute(kind, |wasm_memory_addr| {
+        // accessed lazy pages old data will be added to `initial_pages`
+        // TODO: if post execution actions err is connected, with removing pages protections,
+        // then we should panic here, because protected pages may cause UB later, during err handling,
+        // if somebody will try to access this pages.
+        if lazy_pages_enabled {
+            A::post_execution_actions(&mut initial_pages, wasm_memory_addr)
+        } else {
+            Ok(())
+        }
+    }) {
+        Ok(report) => report,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: e.gas_amount.clone(),
+                reason: Some(ExecutionErrorReason::Backend(e.to_string())),
+                allowance_exceed: false,
+            })
+        }
+    };
 
     log::trace!("term reason = {:?}", termination);
 

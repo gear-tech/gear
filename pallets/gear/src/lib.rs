@@ -603,6 +603,7 @@ pub mod pallet {
                     u64::MAX,
                     T::OutgoingLimit::get(),
                     schedule.host_fn_weights.clone().into_core(),
+                    None,
                 );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
@@ -831,6 +832,7 @@ pub mod pallet {
                         Self::gas_allowance(),
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.into_core(),
+                        None,
                     );
 
                     core_processor::handle_journal(journal, &mut ext_manager);

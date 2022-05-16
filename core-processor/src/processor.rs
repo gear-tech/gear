@@ -57,6 +57,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     gas_allowance: u64,
     outgoing_limit: u32,
     host_fn_weights: HostFnWeights,
+    entry_point: Option<&str>,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -69,6 +70,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             gas_allowance,
             outgoing_limit,
             host_fn_weights,
+            entry_point,
         ),
     }
 }
@@ -256,6 +258,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     gas_allowance: u64,
     outgoing_limit: u32,
     host_fn_weights: HostFnWeights,
+    entry_point: Option<&str>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
@@ -275,6 +278,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         execution_context,
         execution_settings,
         msg_ctx_settings,
+        entry_point,
     ) {
         Ok(res) => match res.kind {
             DispatchResultKind::Trap(reason) => process_error(

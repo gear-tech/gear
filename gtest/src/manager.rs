@@ -26,7 +26,10 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
+    message::{
+        Dispatch, DispatchKind, IncomingDispatch, ReplyMessage, ReplyPacket, StoredDispatch,
+        StoredMessage,
+    },
     program::Program as CoreProgram,
 };
 use std::{
@@ -426,9 +429,49 @@ impl ExtManager {
             u64::MAX,
             OUTGOING_LIMIT,
             Default::default(),
+            None,
         );
 
         core_processor::handle_journal(journal, self);
+    }
+
+    pub fn process_custom_function(
+        &mut self,
+        dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        func_name: &str,
+    ) -> RunResult {
+        let (actor, balance) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("No actor with such program id");
+
+        let executable_actor = actor
+            .get_executable_actor(*balance)
+            .expect("Actor shouldn't be dormant or mock");
+        let message_id = dispatch.message().id();
+        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+            Some(executable_actor),
+            dispatch,
+            self.block_info,
+            crate::EXISTENTIAL_DEPOSIT,
+            self.origin,
+            program_id,
+            u64::MAX,
+            OUTGOING_LIMIT,
+            Default::default(),
+            Some(func_name),
+        );
+
+        core_processor::handle_journal(journal, self);
+
+        RunResult {
+            main_failed: self.main_failed,
+            others_failed: self.others_failed,
+            log: vec![],
+            message_id,
+            total_processed: 1,
+        }
     }
 }
 
@@ -461,6 +504,7 @@ impl JournalHandler for ExtManager {
             self.dispatches.remove(index);
         }
     }
+
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
@@ -477,6 +521,7 @@ impl JournalHandler for ExtManager {
             self.log.push(message);
         }
     }
+
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
         self.message_consumed(dispatch.id());
         self.wait_list
