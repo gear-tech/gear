@@ -34,7 +34,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageNumber, WasmPageNumber, PageBuf},
     message::{ContextStore, Dispatch},
 };
 use gear_core_errors::ExtError;
@@ -57,7 +57,7 @@ pub enum TerminationReason {
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub allocations: BTreeSet<WasmPageNumber>,
-    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
+    pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -110,7 +110,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Vec<u8>>,
+        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 

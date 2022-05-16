@@ -44,7 +44,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageNumber, WasmPageNumber},
+        memory::{PageNumber, WasmPageNumber, PageBuf},
         message::{StoredDispatch, StoredMessage},
     };
     use pallet_gear_messenger::Pallet as MessengerPallet;
@@ -86,7 +86,7 @@ pub mod pallet {
     #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
-        pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
+        pub persistent_pages: BTreeMap<PageNumber, PageBuf>,
         pub code_hash: H256,
     }
 
@@ -211,12 +211,13 @@ pub mod pallet {
                     Some(code) => code.static_pages(),
                     None => WasmPageNumber(0),
                 };
+                let persistent_pages = common::get_program_pages_data(id, &active).unwrap();
                 ProgramDetails {
                     id,
                     state: {
                         ProgramState::Active(ProgramInfo {
                             static_pages,
-                            persistent_pages: common::get_program_pages_data(id, &active),
+                            persistent_pages,
                             code_hash: active.code_hash,
                         })
                     },

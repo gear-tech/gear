@@ -43,7 +43,7 @@ benchmarks! {
 
         let wasm_pages = (0..q).map(WasmPageNumber).collect::<Vec<WasmPageNumber>>();
         let pages: Vec<PageNumber> = wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()).collect();
-        let memory_pages = common::get_program_data_for_pages(program_id, pages.iter());
+        let memory_pages = common::get_program_data_for_pages(program_id, pages.iter()).unwrap();
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();
     }: _(RawOrigin::Signed(caller), program_id, memory_pages, Default::default(), 10_000u32.into())

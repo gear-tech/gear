@@ -25,6 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use gear_core::memory::PageBuf;
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
@@ -68,7 +69,7 @@ pub struct DispatchResult {
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, Vec<u8>>,
+    pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
 }
@@ -182,7 +183,7 @@ pub enum JournalNote {
         /// Number of the page.
         page_number: PageNumber,
         /// New data of the page.
-        data: Vec<u8>,
+        data: PageBuf,
     },
     /// Update allocations set note.
     /// And also removes data for pages which is not in allocations set now.
@@ -244,7 +245,7 @@ pub trait JournalHandler {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
     );
     /// Process [JournalNote::UpdateAllocations].
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>);
@@ -329,7 +330,7 @@ pub struct ExecutableActor {
     /// Program value balance.
     pub balance: u128,
     /// Data which some program allocated pages may have.
-    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
+    pub pages_data: BTreeMap<PageNumber, PageBuf>,
 }
 
 /// Execution context.

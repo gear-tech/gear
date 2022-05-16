@@ -33,7 +33,7 @@ use frame_support::traits::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageNumber, PageBuf},
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
@@ -94,7 +94,7 @@ where
             <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
                 .unique_saturated_into();
         let pages_data = if with_pages {
-            common::get_program_data_for_pages(id, active.pages_with_data.iter())
+            common::get_program_data_for_pages(id, active.pages_with_data.iter()).ok()?
         } else {
             Default::default()
         };
@@ -479,7 +479,7 @@ where
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         let program_id = program_id.into_origin();
         let program = common::get_program(program_id)

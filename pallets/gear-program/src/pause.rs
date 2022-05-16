@@ -20,7 +20,7 @@ use super::*;
 use codec::{Decode, Encode};
 use common::Origin as _;
 use frame_support::{dispatch::DispatchResult, storage::PrefixIterator};
-use gear_core::{memory::PageNumber, message::StoredDispatch};
+use gear_core::{memory::{PageNumber, PageBuf}, message::StoredDispatch};
 use scale_info::TypeInfo;
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]
@@ -36,7 +36,7 @@ fn decode_dispatch_tuple(_key: &[u8], value: &[u8]) -> Result<(StoredDispatch, u
     <(StoredDispatch, u32)>::decode(&mut &*value)
 }
 
-fn memory_pages_hash(pages: &BTreeMap<PageNumber, Vec<u8>>) -> H256 {
+fn memory_pages_hash(pages: &BTreeMap<PageNumber, PageBuf>) -> H256 {
     pages.using_encoded(sp_io::hashing::blake2_256).into()
 }
 
@@ -48,6 +48,7 @@ fn wait_list_hash(wait_list: &BTreeMap<H256, StoredDispatch>) -> H256 {
 pub enum PauseError {
     ProgramNotFound,
     ProgramTerminated,
+    InvalidPageDataSize,
 }
 
 impl<T: Config> pallet::Pallet<T> {
@@ -60,7 +61,10 @@ impl<T: Config> pallet::Pallet<T> {
         let prefix = common::wait_prefix(program_id);
         let previous_key = prefix.clone();
 
-        let pages_data = common::get_program_pages_data(program_id, &program);
+        let pages_data = common::get_program_pages_data(program_id, &program).map_err(|e| {
+            log::error!("{}", e);
+            PauseError::InvalidPageDataSize
+        })?;
 
         let paused_program = PausedProgram {
             program_id,
@@ -93,7 +97,7 @@ impl<T: Config> pallet::Pallet<T> {
 
     pub(super) fn resume_program_impl(
         program_id: H256,
-        memory_pages: BTreeMap<PageNumber, Vec<u8>>,
+        memory_pages: BTreeMap<PageNumber, PageBuf>,
         wait_list: BTreeMap<H256, StoredDispatch>,
         block_number: u32,
     ) -> DispatchResult {

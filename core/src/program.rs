@@ -166,5 +166,8 @@ mod tests {
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2.into());
+
+        // Has no allocations because we do not set them in new
+        assert_eq!(program.get_allocations().len(), 0);
     }
 }

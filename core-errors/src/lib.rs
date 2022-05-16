@@ -103,8 +103,8 @@ pub enum MemoryError {
     MemoryAccessError,
 
     /// There is wasm page, which has not all gear pages in the begin
-    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
-    NotAllPagesInBegin,
+    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    InvalidPageDataSize(usize),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

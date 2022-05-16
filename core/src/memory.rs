@@ -18,7 +18,9 @@
 
 //! Module for memory and allocations context.
 
-use alloc::collections::BTreeSet;
+use core::convert::TryFrom;
+
+use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -35,6 +37,22 @@ const GEAR_PAGE_SIZE: usize = 0x1000;
 
 /// Number of gear pages in one wasm page
 const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+/// Buffer for gear page data.
+pub type PageBuf = Box<[u8; GEAR_PAGE_SIZE]>;
+
+/// Tries to transform vec<u8> into page buffer.
+/// Makes it without any rellocations or memcpy: vector's buffer becames PageBuf without any changes,
+/// except vector's buffer capacity, which is removed.
+pub fn page_buf_from_vec_u8(v: Vec<u8>) -> Result<PageBuf, Error> {
+    Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
+        .map_err(|data| Error::InvalidPageDataSize(data.len()))
+}
+
+/// Returns new page buffer with zeroed data
+pub fn new_zeroed_page_buf() -> PageBuf {
+    PageBuf::new([0u8; GEAR_PAGE_SIZE])
+}
 
 pub use gear_core_errors::MemoryError as Error;
 

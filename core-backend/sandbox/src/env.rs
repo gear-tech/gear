@@ -28,7 +28,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, PageNumber, WasmPageNumber},
+    memory::{Memory, PageNumber, WasmPageNumber, PageBuf},
 };
 use gear_core_errors::TerminationReason as CoreTerminationReason;
 use gear_core_errors::{CoreError, MemoryError};
@@ -79,7 +79,7 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
 
 fn set_pages(
     memory: &mut impl Memory,
-    pages: &BTreeMap<PageNumber, Vec<u8>>,
+    pages: &BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), String> {
     let memory_size = memory.size();
     for (page, buf) in pages {
@@ -87,13 +87,6 @@ fn set_pages(
             return Err(format!(
                 "{:?} is out of memory size: {:?}",
                 page, memory_size
-            ));
-        }
-        if buf.len() != PageNumber::size() {
-            return Err(format!(
-                "Data for page must be {:#x} bytes, but revieved {:#x}",
-                PageNumber::size(),
-                buf.len()
             ));
         }
         memory
@@ -109,7 +102,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Vec<u8>>,
+        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);

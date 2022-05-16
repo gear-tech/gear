@@ -25,7 +25,7 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageNumber, WasmPageNumber, PageBuf},
     message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
@@ -79,7 +79,7 @@ impl Actor {
         matches!(self, Actor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, Vec<u8>>> {
+    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
         match self {
             Actor::Initialized(Program::Genuine(_, pages_data)) => Some(pages_data),
             _ => None,
@@ -116,13 +116,13 @@ impl Actor {
 
 #[derive(Debug)]
 pub(crate) enum Program {
-    Genuine(CoreProgram, BTreeMap<PageNumber, Vec<u8>>),
+    Genuine(CoreProgram, BTreeMap<PageNumber, PageBuf>),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
 
 impl Program {
-    pub(crate) fn new(prog: CoreProgram, pages_data: BTreeMap<PageNumber, Vec<u8>>) -> Self {
+    pub(crate) fn new(prog: CoreProgram, pages_data: BTreeMap<PageNumber, PageBuf>) -> Self {
         Program::Genuine(prog, pages_data)
     }
 
@@ -506,7 +506,7 @@ impl JournalHandler for ExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        mut pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         let (actor, _) = self
             .actors

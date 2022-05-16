@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageNumber, WasmPageNumber, PageBuf},
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,
 };
@@ -198,7 +198,7 @@ impl JournalHandler for InMemoryExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        mut pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         if let Some(actor) = self
             .actors

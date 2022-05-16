@@ -32,7 +32,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageNumber, WasmPageNumber, PageBuf},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryAccessError, MemoryType,
@@ -76,7 +76,7 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
 fn set_pages<T: Ext>(
     mut store: &mut Store<StoreData<T>>,
     memory: &mut WasmtimeMemory,
-    pages: &BTreeMap<PageNumber, Vec<u8>>,
+    pages: &BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), String> {
     let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
     for (page, buf) in pages {
@@ -84,13 +84,6 @@ fn set_pages<T: Ext>(
             return Err(format!(
                 "Memory size {:?} less then {:?}",
                 memory_size, page
-            ));
-        }
-        if buf.len() != PageNumber::size() {
-            return Err(format!(
-                "Data for page must be {:#x} bytes, but revieved {:#x}",
-                PageNumber::size(),
-                buf.len()
             ));
         }
         memory
@@ -136,7 +129,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Vec<u8>>,
+        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);

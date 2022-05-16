@@ -19,7 +19,7 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
-use gear_core::ids::ProgramId;
+use gear_core::{ids::ProgramId, memory::PageBuf};
 use gear_core::memory::PageNumber;
 use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
 use sp_std::{
@@ -37,11 +37,6 @@ pub enum Error {
     VecToPageData,
     #[display(fmt = "Cannot find page data in storage")]
     NoPageDataInStorage,
-    #[display(
-        fmt = "RUNTIME ERROR: released page {:?} already has data in provided page map to core processor",
-        _0
-    )]
-    ReleasedPageHasData(PageNumber),
 }
 
 impl From<MprotectError> for Error {
@@ -99,16 +94,14 @@ pub fn protect_pages_and_init_info(
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
-    memory_pages: &mut BTreeMap<PageNumber, Vec<u8>>,
+    memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     wasm_mem_begin_addr: u64,
 ) -> Result<(), Error> {
     // Loads data for released lazy pages. Data which was before execution.
     let released_pages = gear_ri::get_released_pages();
     for page in released_pages {
         let data = gear_ri::get_released_page_old_data(page)?;
-        if memory_pages.insert(page.into(), data).is_some() {
-            return Err(Error::ReleasedPageHasData(page.into()));
-        };
+        let _ = memory_pages.insert(page.into(), data).is_some();
     }
 
     // Removes protections from lazy pages

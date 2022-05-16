@@ -21,7 +21,7 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{new_zeroed_page_buf, PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use hex_literal::hex;
@@ -50,13 +50,13 @@ fn pause_program_works() {
         let memory_pages = {
             let mut pages = BTreeMap::new();
             for page in wasm_static_pages.to_gear_pages_iter() {
-                pages.insert(page, vec![wasm_static_pages.0 as u8]);
+                pages.insert(page, new_zeroed_page_buf());
             }
             for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
-                pages.insert(page, vec![wasm_static_pages.0 as u8 + 2]);
+                pages.insert(page, new_zeroed_page_buf());
             }
             for i in 0..wasm_static_pages.to_gear_page().0 {
-                pages.insert(i.into(), vec![i as u8]);
+                pages.insert(i.into(), new_zeroed_page_buf());
             }
 
             pages
@@ -76,7 +76,7 @@ fn pause_program_works() {
             },
             memory_pages.clone(),
         )
-        .expect("memory pages is not valid");
+        .expect("memory pages are not valid");
 
         let msg_id_1 = H256::from_low_u64_be(1);
         common::insert_waiting_message(
@@ -125,7 +125,11 @@ fn pause_program_works() {
         assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
-        assert!(common::get_program_data_for_pages(program_id, memory_pages.keys()).is_empty());
+        assert!(
+            common::get_program_data_for_pages(program_id, memory_pages.keys())
+                .unwrap()
+                .is_empty()
+        );
 
         assert!(common::remove_waiting_message(program_id, msg_id_1).is_none());
         assert!(common::remove_waiting_message(program_id, msg_id_2).is_none());
@@ -222,7 +226,11 @@ fn pause_uninitialized_program_works() {
         assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
-        assert!(common::get_program_data_for_pages(program_id, memory_pages.keys()).is_empty());
+        assert!(
+            common::get_program_data_for_pages(program_id, memory_pages.keys())
+                .unwrap()
+                .is_empty()
+        );
 
         assert!(common::remove_waiting_message(program_id, msg_1.id().into_origin()).is_none());
         assert!(common::remove_waiting_message(program_id, msg_2.id().into_origin()).is_none());
@@ -266,7 +274,8 @@ fn resume_uninitialized_program_works() {
         ));
         assert!(!GearProgram::program_paused(program_id));
 
-        let new_memory_pages = common::get_program_data_for_pages(program_id, memory_pages.keys());
+        let new_memory_pages =
+            common::get_program_data_for_pages(program_id, memory_pages.keys()).unwrap();
         assert_eq!(memory_pages, new_memory_pages);
 
         let waiting_init = common::waiting_init_take_messages(program_id);
@@ -412,6 +421,8 @@ fn resume_program_wrong_list_fails() {
 }
 
 mod utils {
+    use gear_core::memory::PageBuf;
+
     use super::*;
 
     pub struct CreateProgramResult {
@@ -420,7 +431,7 @@ mod utils {
         pub init_msg: StoredDispatch,
         pub msg_1: StoredDispatch,
         pub msg_2: StoredDispatch,
-        pub memory_pages: BTreeMap<PageNumber, Vec<u8>>,
+        pub memory_pages: BTreeMap<PageNumber, PageBuf>,
     }
 
     pub fn create_uninitialized_program_messages(
@@ -438,13 +449,13 @@ mod utils {
         let memory_pages = {
             let mut pages = BTreeMap::new();
             for page in wasm_static_pages.to_gear_pages_iter() {
-                pages.insert(page, vec![wasm_static_pages.0 as u8]);
+                pages.insert(page, new_zeroed_page_buf());
             }
             for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
-                pages.insert(page, vec![wasm_static_pages.0 as u8 + 2]);
+                pages.insert(page, new_zeroed_page_buf());
             }
             for i in 0..wasm_static_pages.to_gear_page().0 {
-                pages.insert(i.into(), vec![i as u8]);
+                pages.insert(i.into(), new_zeroed_page_buf());
             }
 
             pages

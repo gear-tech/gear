@@ -30,11 +30,11 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, Memory, PageNumber, WasmPageNumber, new_zeroed_page_buf, PageBuf},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, TerminationReason};
-use sp_std::{collections::btree_map::BTreeMap, vec, vec::Vec};
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -101,8 +101,8 @@ impl IntoExtInfo for LazyPagesExt {
 
         let mut accessed_pages_data = BTreeMap::new();
         for page in accessed_pages {
-            let mut buf = vec![0u8; PageNumber::size()];
-            if let Err(err) = get_page_data(page.offset(), &mut buf) {
+            let mut buf = new_zeroed_page_buf();
+            if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
                 return Err((err, self.into_gas_amount()));
             }
             accessed_pages_data.insert(page, buf);
@@ -186,7 +186,7 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Vec<u8>>,
+        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
