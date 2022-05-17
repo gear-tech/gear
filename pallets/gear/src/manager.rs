@@ -355,7 +355,7 @@ where
             )
             .is_err()
         {
-            // todo [sab] this must be unreachable
+            // TODO this must be unreachable
             log::error!(
                 "Value reservation of amount {:?} failed. Message with id {:?} sent from {:?} will be skipped",
                 dispatch.value(),
@@ -541,7 +541,7 @@ where
                 .map(|_| ())
             } else {
                 let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
-                // todo [sab] this must be unreachable
+                // TODO this must be unreachable
                 if not_freed != 0u128.unique_saturated_into() {
                     log::error!(
                         "Value unreserve failed. Tried to unreserve {:?} amount, but was reserved {:?} amount",
@@ -558,7 +558,7 @@ where
             };
 
             if let Err(e) = res {
-                // todo [sab] this must be unreachable
+                // TODO this must be unreachable
                 log::error!("Failed to send value. Details: {:?}", e)
             }
         } else {
