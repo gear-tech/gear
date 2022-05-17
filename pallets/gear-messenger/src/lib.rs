@@ -47,9 +47,10 @@
 //! ## Usage
 //!
 //! How to use the messaging functionality from the Gear Messenger Pallet:
+//!
 //! 1. Implement it's `Config` for your runtime with specified `Currency` type.
 //!
-//! ```rust
+//! ```ignore
 //! // `runtime/src/lib.rs`
 //! // ... //
 //!
@@ -64,7 +65,7 @@
 //! `gear_common::storage::Messenger` trait,
 //! specifying associated types if needed.
 //!
-//! ```rust
+//! ```ignore
 //! // `some_pallet/src/lib.rs`
 //! // ... //
 //!
@@ -82,15 +83,13 @@
 //!
 //! 3. Declare Gear Messenger Pallet in your `construct_runtime!` macro.
 //!
-//! ```rust
+//! ```ignore
 //! // `runtime/src/lib.rs`
 //! // ... //
 //!
 //! construct_runtime!(
-//!     pub enum Runtime where
-//!
-//!     // ... //
-//!
+//!     pub enum Runtime
+//!         where // ... //
 //!     {
 //!         // ... //
 //!
@@ -106,7 +105,7 @@
 //!
 //! 4. Set `GearMessenger` as your pallet `Config`'s `Messenger type.
 //!
-//! ```rust
+//! ```ignore
 //! // `runtime/src/lib.rs`
 //! // ... //
 //!
