@@ -16,13 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! More difficult (complicated primitives): Counter , Limiter, Flag, LinkedListFrom, DoubleLinkedList, Vec?
+//! Gear storage complicated types.
+//!
+//! Contains more difficult types over gear's storage primitives,
+//! which provides API for more specific business-logic
+//! with globally shared data.
 
+// Private modules declaration.
 mod counter;
 mod limiter;
 mod linked_list;
 mod toggler;
 
+// Public exports from complicated modules.
 pub use counter::{Counter, CounterImpl};
 pub use limiter::{Limiter, LimiterImpl};
 pub use linked_list::{

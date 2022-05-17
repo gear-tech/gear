@@ -16,64 +16,106 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for linked list implementation.
+//!
+//! Linked list based on key value ratio.
+
 use crate::storage::{Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage};
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
 use scale_info::TypeInfo;
 
-pub trait LinkedListCallbacks {
-    type Value;
-
-    type OnPopBack: Callback<Self::Value>;
-    type OnPopFront: Callback<Self::Value>;
-    type OnPushBack: Callback<Self::Value>;
-    type OnPushFront: Callback<Self::Value>;
-    type OnRemoveAll: EmptyCallback;
-}
-
-pub trait LinkedListError {
-    fn duplicate_key() -> Self;
-
-    fn element_not_found() -> Self;
-
-    fn head_should_be() -> Self;
-
-    fn head_should_not_be() -> Self;
-
-    fn tail_has_next_key() -> Self;
-
-    fn tail_parent_not_found() -> Self;
-
-    fn tail_should_be() -> Self;
-
-    fn tail_should_not_be() -> Self;
-}
-
-#[derive(Encode, Decode, TypeInfo)]
-pub struct LinkedNode<K, V> {
-    pub next: Option<K>,
-    pub value: V,
-}
-
+/// Represents deque-like linked list implementation.
 pub trait LinkedList {
+    /// Linked list's elements stored key.
     type Key;
+    /// Linked list's elements stored value.
     type Value;
+    /// Linked list error type.
     type Error;
 
+    /// Mutates all stored value with given function.
     fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(f: F);
 
-    // Very expensive operation! Use DoubleLinkedList instead!
+    /// Removes and returns tail value of the linked list, if present.
+    ///
+    /// Very expensive operation! Use double linked list instead!
     fn pop_back() -> Result<Option<Self::Value>, Self::Error>;
 
+    /// Removes and returns head value of the linked list, if present.
     fn pop_front() -> Result<Option<Self::Value>, Self::Error>;
 
+    /// Inserts value to the end of linked list with given key.
     fn push_back(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
+    /// Inserts value to the beggining of linked list with given key.
     fn push_front(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
+    /// Removes all values.
     fn remove_all();
 }
 
+/// Represents store of linked list's action callbacks.
+pub trait LinkedListCallbacks {
+    /// Callback relative type.
+    ///
+    /// This value should be the main item of linked list,
+    /// which uses this callbacks store.
+    type Value;
+
+    /// Callback on success `pop_back`.
+    type OnPopBack: Callback<Self::Value>;
+    /// Callback on success `pop_front`.
+    type OnPopFront: Callback<Self::Value>;
+    /// Callback on success `push_back`.
+    type OnPushBack: Callback<Self::Value>;
+    /// Callback on success `push_front`.
+    type OnPushFront: Callback<Self::Value>;
+    /// Callback on success `remove_all`.
+    type OnRemoveAll: EmptyCallback;
+}
+
+/// Represents linked list error type.
+///
+/// Contains constructors for all existing errors.
+pub trait LinkedListError {
+    /// Occurs when given key already exists in list.
+    fn duplicate_key() -> Self;
+
+    /// Occurs when element not found in list.
+    fn element_not_found() -> Self;
+
+    /// Occurs when head should contain value,
+    /// but it's empty for some reason.
+    fn head_should_be() -> Self;
+
+    /// Occures when head should be empty,
+    /// but it contains value for some reason.
+    fn head_should_not_be() -> Self;
+
+    /// Occurs when tail element of the linked list
+    /// contains link to the next element.
+    fn tail_has_next_key() -> Self;
+
+    /// Occurs when while searching pre-tail,
+    /// element wasn't found.
+    fn tail_parent_not_found() -> Self;
+
+    /// Occurs when tail should contain value,
+    /// but it's empty for some reason.
+    fn tail_should_be() -> Self;
+
+    /// Occurs when tail should be empty,
+    /// but it contains value for some reason.
+    fn tail_should_not_be() -> Self;
+}
+
+/// `LinkedList` implementation based on `MapStorage` and `ValueStorage`s.
+///
+/// Generic parameters `Key` and `Value` specify data and keys for storing.
+/// Generic perameter `Error` requires `LinkedListError` implementation.
+/// Generic parameter `Callbacks` presents actions for success operations
+/// over linked list.
 pub struct LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>(
     PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
 )
@@ -85,6 +127,20 @@ where
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
     Callbacks: LinkedListCallbacks<Value = Value>;
 
+/// Represents node of the linked list.
+///
+/// Contains value and link to the next node.
+#[derive(Encode, Decode, TypeInfo)]
+pub struct LinkedNode<K, V> {
+    /// Key of the next node of linked list,
+    /// if present.
+    pub next: Option<K>,
+    /// Stored value of current node.
+    pub value: V,
+}
+
+// Implementation of `Counted` trait for `LinkedListImpl` in case,
+// when inner `MapStorage` implements `Counted.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Counted
     for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
@@ -102,6 +158,7 @@ where
     }
 }
 
+// Implementation of `LinkedList` for `LinkedListImpl`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> LinkedList
     for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
@@ -123,7 +180,6 @@ where
         })
     }
 
-    // Very expensive operation! Use DoubleLinkedList instead!
     fn pop_back() -> Result<Option<Self::Value>, Self::Error> {
         if let Some(head_key) = HVS::get() {
             let tail_key = TVS::take().ok_or_else(Self::Error::tail_should_be)?;
@@ -252,6 +308,9 @@ where
     }
 }
 
+/// Drain iterator over linked list's values.
+///
+/// Removes element on each iteration.
 pub struct LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>(
     Option<Key>,
     PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
@@ -264,6 +323,7 @@ where
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
     Callbacks: LinkedListCallbacks<Value = Value>;
 
+// `Iterator` implementation for `LinkedListDrainIter`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
     for LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
@@ -298,6 +358,7 @@ where
     }
 }
 
+/// Common iterator over linked list's values.
 pub struct LinkedListIter<Key, Value, Error, HVS, TVS, MS>(
     Option<Key>,
     PhantomData<(Error, HVS, TVS, MS)>,
@@ -309,6 +370,7 @@ where
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>;
 
+// `Iterator` implementation for `LinkedListIter`.
 impl<Key, Value, Error, HVS, TVS, MS> Iterator for LinkedListIter<Key, Value, Error, HVS, TVS, MS>
 where
     Key: Clone + PartialEq,
@@ -334,6 +396,8 @@ where
     }
 }
 
+// `IterableMap` implementation for LinkedListImpl, returning iterators,
+// presented with `LinkedListIter` and `LinkedListDrainIter`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> IterableMap<Result<Value, Error>>
     for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where

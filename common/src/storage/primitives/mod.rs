@@ -31,7 +31,7 @@ mod key;
 mod map;
 mod value;
 
-// Public exports from primitive's modules.
+// Public exports from primitive modules.
 pub use callback::{Callback, EmptyCallback, FallibleCallback};
 pub use counted::Counted;
 pub use double_map::DoubleMapStorage;
