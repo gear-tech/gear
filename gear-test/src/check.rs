@@ -422,7 +422,7 @@ pub fn check_memory(
                 if let Some(page_buf) = actor.pages_data.get(&page) {
                     let begin_byte = case.address - page.offset();
                     let end_byte = begin_byte + case.bytes.len();
-                    if page_buf[begin_byte..end_byte] != case.bytes {
+                    if page_buf.0[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
                     }
                 } else {

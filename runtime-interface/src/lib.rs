@@ -252,6 +252,7 @@ pub trait GearRI {
     fn get_released_page_old_data(page: u32) -> Vec<u8> {
         gear_lazy_pages::get_released_page_old_data(page)
             .expect("Must have data for released page")
+            .0
             .to_vec()
     }
 
@@ -260,7 +261,7 @@ pub trait GearRI {
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
         gear_lazy_pages::get_released_page_old_data(page)
             .map_err(|_| GetReleasedPageError)
-            .map(|data| data.to_vec())
+            .map(|data| data.0.to_vec())
     }
 
     #[version(3)]

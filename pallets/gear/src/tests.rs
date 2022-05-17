@@ -24,7 +24,7 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::{code::Code, ids::CodeId, memory::page_buf_into_vec_u8};
+use gear_core::{code::Code, ids::CodeId, memory::PageBuf};
 use pallet_balances::{self, Pallet as BalancesPallet};
 
 use super::{
@@ -2425,7 +2425,7 @@ fn resume_program_works() {
         let memory_pages = common::get_program_pages_data(program_id, &program)
             .unwrap()
             .into_iter()
-            .map(|(page, data)| (page, page_buf_into_vec_u8(data)))
+            .map(|(page, data)| (page, data.into_vec()))
             .collect();
 
         assert_ok!(GearProgram::pause_program(program_id));

@@ -87,7 +87,7 @@ fn set_pages<T: Ext>(
             ));
         }
         memory
-            .write(&mut store, page.offset(), &buf[..])
+            .write(&mut store, page.offset(), &buf.0[..])
             .map_err(|e| format!("Cannot write to {:?}: {:?}", page, e))?;
     }
     Ok(())

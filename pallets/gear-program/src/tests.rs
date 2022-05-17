@@ -21,7 +21,7 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{new_zeroed_page_buf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use hex_literal::hex;
@@ -50,13 +50,13 @@ fn pause_program_works() {
         let memory_pages = {
             let mut pages = BTreeMap::new();
             for page in wasm_static_pages.to_gear_pages_iter() {
-                pages.insert(page, new_zeroed_page_buf());
+                pages.insert(page, PageBuf::new_zeroed());
             }
             for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
-                pages.insert(page, new_zeroed_page_buf());
+                pages.insert(page, PageBuf::new_zeroed());
             }
             for i in 0..wasm_static_pages.to_gear_page().0 {
-                pages.insert(i.into(), new_zeroed_page_buf());
+                pages.insert(i.into(), PageBuf::new_zeroed());
             }
 
             pages
@@ -449,13 +449,13 @@ mod utils {
         let memory_pages = {
             let mut pages = BTreeMap::new();
             for page in wasm_static_pages.to_gear_pages_iter() {
-                pages.insert(page, new_zeroed_page_buf());
+                pages.insert(page, PageBuf::new_zeroed());
             }
             for page in (wasm_static_pages + 2.into()).to_gear_pages_iter() {
-                pages.insert(page, new_zeroed_page_buf());
+                pages.insert(page, PageBuf::new_zeroed());
             }
             for i in 0..wasm_static_pages.to_gear_page().0 {
-                pages.insert(i.into(), new_zeroed_page_buf());
+                pages.insert(i.into(), PageBuf::new_zeroed());
             }
 
             pages

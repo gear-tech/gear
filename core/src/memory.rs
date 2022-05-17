@@ -43,24 +43,29 @@ const GEAR_PAGE_SIZE: usize = 0x1000;
 const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
 /// Buffer for gear page data.
-pub type PageBuf = Box<[u8; GEAR_PAGE_SIZE]>;
+/// TODO: impl self debug
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct PageBuf(pub Box<[u8; GEAR_PAGE_SIZE]>);
 
-/// Tries to transform vec<u8> into page buffer.
-/// Makes it without any rellocations or memcpy: vector's buffer becames PageBuf without any changes,
-/// except vector's buffer capacity, which is removed.
-pub fn page_buf_from_vec_u8(v: Vec<u8>) -> Result<PageBuf, Error> {
-    Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
-        .map_err(|data| Error::InvalidPageDataSize(data.len()))
-}
+impl PageBuf {
+    /// Tries to transform vec<u8> into page buffer.
+    /// Makes it without any rellocations or memcpy: vector's buffer becames PageBuf without any changes,
+    /// except vector's buffer capacity, which is removed.
+    pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
+        Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
+            .map_err(|data| Error::InvalidPageDataSize(data.len()))
+            .map(|data| Self(data))
+    }
 
-/// Returns new page buffer with zeroed data.
-pub fn new_zeroed_page_buf() -> PageBuf {
-    PageBuf::new([0u8; GEAR_PAGE_SIZE])
-}
+    /// Returns new page buffer with zeroed data.
+    pub fn new_zeroed() -> PageBuf {
+        Self(Box::<[u8; GEAR_PAGE_SIZE]>::new([0u8; GEAR_PAGE_SIZE]))
+    }
 
-/// Convert page buffer into vector without rellocations.
-pub fn page_buf_into_vec_u8(buf: PageBuf) -> Vec<u8> {
-    (buf as Box<[_]>).into_vec()
+    /// Convert page buffer into vector without rellocations.
+    pub fn into_vec(self) -> Vec<u8> {
+        (self.0 as Box<[_]>).into_vec()
+    }
 }
 
 /// Tries to convert vector data map to page buffer data map.
@@ -70,7 +75,7 @@ pub fn vec_page_data_map_to_page_buf_map(
 ) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
     let mut pages_data_res = BTreeMap::new();
     for (page, data) in pages_data {
-        let data = page_buf_from_vec_u8(data)?;
+        let data = PageBuf::new_from_vec(data)?;
         pages_data_res.insert(page, data);
     }
     Ok(pages_data_res)

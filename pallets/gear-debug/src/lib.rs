@@ -44,7 +44,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{page_buf_into_vec_u8, PageNumber, WasmPageNumber},
+        memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use pallet_gear_messenger::Pallet as MessengerPallet;
@@ -217,7 +217,7 @@ pub mod pallet {
                 let persistent_pages = common::get_program_pages_data(id, &active)
                     .unwrap()
                     .into_iter()
-                    .map(|(page, data)| (page, page_buf_into_vec_u8(data)))
+                    .map(|(page, data)| (page, data.into_vec()))
                     .collect();
                 ProgramDetails {
                     id,

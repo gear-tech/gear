@@ -18,7 +18,7 @@
 
 use super::*;
 
-use gear_core::memory::{new_zeroed_page_buf, PageNumber, WasmPageNumber};
+use gear_core::memory::{PageNumber, WasmPageNumber};
 use parity_wasm::elements::*;
 use sp_io::hashing::blake2_256;
 use sp_std::borrow::ToOwned;
@@ -138,7 +138,7 @@ pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber
     let persistent_pages_data: BTreeMap<PageNumber, PageBuf> = allocations
         .clone()
         .flat_map(|p| p.to_gear_pages_iter())
-        .map(|p| (p, new_zeroed_page_buf()))
+        .map(|p| (p, PageBuf::new_zeroed()))
         .collect();
     super::set_program_and_pages_data(
         program_id,

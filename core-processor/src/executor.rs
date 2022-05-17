@@ -305,7 +305,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = pages_data.get(&page) {
-            if !new_data.eq(initial_data) {
+            if !new_data.0.eq(&initial_data.0) {
                 page_update.insert(page, new_data);
                 log::trace!(
                     "Page {} is new or changed - will be updated in storage",

@@ -90,7 +90,7 @@ fn set_pages(
             ));
         }
         memory
-            .write(page.offset(), &buf[..])
+            .write(page.offset(), &buf.0[..])
             .map_err(|e| format!("Cannot write mem to {:?}: {:?}", page, e))?;
     }
     Ok(())
