@@ -28,8 +28,6 @@ pub trait CoreError: Sized + fmt::Display + fmt::Debug {
     fn as_termination_reason(&self) -> Option<TerminationReason>;
 
     fn into_ext_error(self) -> Result<ExtError, Self>;
-
-    fn as_ext_error(&self) -> Option<&ExtError>;
 }
 
 /// Error using messages.
@@ -161,9 +159,5 @@ impl CoreError for ExtError {
 
     fn into_ext_error(self) -> Result<ExtError, Self> {
         Ok(self)
-    }
-
-    fn as_ext_error(&self) -> Option<&ExtError> {
-        Some(self)
     }
 }

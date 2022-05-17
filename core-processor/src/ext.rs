@@ -208,6 +208,10 @@ impl IntoExtInfo for Ext {
     fn into_gas_amount(self) -> GasAmount {
         self.gas_counter.into()
     }
+
+    fn last_error(&self) -> Option<&ExtError> {
+        self.error_explanation.as_ref()
+    }
 }
 
 impl Ext {

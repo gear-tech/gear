@@ -27,7 +27,7 @@ use core::{
     marker::PhantomData,
     slice::Iter,
 };
-use gear_backend_common::{funcs, ExtErrorProcessor};
+use gear_backend_common::{funcs, ExtErrorProcessor, IntoExtInfo};
 use gear_core::env::ExtCarrierWithError;
 use gear_core::{
     env::Ext,
@@ -106,7 +106,7 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext + 'static> FuncsHandler<E> {
+impl<E: Ext + IntoExtInfo + 'static> FuncsHandler<E> {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
@@ -794,7 +794,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
-            let err = ext.err.take().ok_or(FuncError::SyscallErrorExpected)?;
+            let err = ext.last_error().ok_or(FuncError::SyscallErrorExpected)?;
             let err = err.encode();
             wto(memory, data_ptr, &err)?;
             Ok(())

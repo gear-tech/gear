@@ -32,9 +32,6 @@ use alloc::{
 };
 use codec::Encode;
 use core::fmt;
-use gear_core::costs::RuntimeCosts;
-use gear_core::memory::Memory;
-use gear_core::message::{ExitCode, HandlePacket, InitPacket, ReplyPacket};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -76,7 +73,10 @@ pub trait IntoExtInfo {
         self,
         get_page_data: F,
     ) -> Result<ExtInfo, (T, GasAmount)>;
+
     fn into_gas_amount(self) -> GasAmount;
+
+    fn last_error(&self) -> Option<&ExtError>;
 }
 
 pub struct BackendReport {
@@ -140,19 +140,22 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn into_gas_amount(self) -> GasAmount;
 }
 
-pub struct ExtErrorProcessor<'a, T, E: Ext> {
-    ext: &'a mut ErrorSavingExt<E>,
+pub struct ExtErrorProcessor<'a, T, E> {
+    ext: &'a mut E,
     success: Option<T>,
 }
 
-impl<'a, T, E: Ext> ExtErrorProcessor<'a, T, E> {
-    pub fn new(ext: &'a mut ErrorSavingExt<E>) -> Self {
+impl<'a, T, E> ExtErrorProcessor<'a, T, E>
+where
+    E: Ext + IntoExtInfo,
+{
+    pub fn new(ext: &'a mut E) -> Self {
         Self { ext, success: None }
     }
 
     pub fn with<U, F>(mut self, f: F) -> Result<Self, U>
     where
-        F: FnOnce(&mut ErrorSavingExt<E>) -> Result<T, U>,
+        F: FnOnce(&mut E) -> Result<T, U>,
         U: CoreError,
     {
         match f(self.ext) {
@@ -176,194 +179,8 @@ impl<'a, T, E: Ext> ExtErrorProcessor<'a, T, E> {
 
     pub fn error_len(self) -> u32 {
         self.ext
-            .err
-            .as_ref()
-            .and_then(|err| err.as_ext_error())
+            .last_error()
             .map(|err| err.encoded_size() as u32)
             .unwrap_or(0)
-    }
-}
-
-// TODO: use for issue #911
-pub struct ErrorSavingExt<T: Ext> {
-    pub inner: T,
-    /// Ext error, if available.
-    pub err: Option<ExtError>,
-}
-
-impl<E> ErrorSavingExt<E>
-where
-    E: Ext,
-{
-    pub fn new(inner: E) -> Self {
-        Self { inner, err: None }
-    }
-
-    /// Return result and store error info in field
-    fn return_and_store_err<T>(&mut self, result: Result<T, E::Error>) -> Result<T, E::Error> {
-        result.map_err(|err| {
-            self.err = err.as_ext_error().cloned();
-            err
-        })
-    }
-}
-
-impl<T> Ext for ErrorSavingExt<T>
-where
-    T: Ext,
-{
-    type Error = T::Error;
-
-    fn alloc(
-        &mut self,
-        pages: WasmPageNumber,
-        mem: &mut dyn Memory,
-    ) -> Result<WasmPageNumber, Self::Error> {
-        let res = self.inner.alloc(pages, mem);
-        self.return_and_store_err(res)
-    }
-
-    fn block_height(&mut self) -> Result<u32, Self::Error> {
-        let res = self.inner.block_height();
-        self.return_and_store_err(res)
-    }
-
-    fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
-        let res = self.inner.block_timestamp();
-        self.return_and_store_err(res)
-    }
-
-    fn origin(&mut self) -> Result<ProgramId, Self::Error> {
-        let res = self.inner.origin();
-        self.return_and_store_err(res)
-    }
-
-    fn send_init(&mut self) -> Result<usize, Self::Error> {
-        let res = self.inner.send_init();
-        self.return_and_store_err(res)
-    }
-
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
-        let res = self.inner.send_push(handle, buffer);
-        self.return_and_store_err(res)
-    }
-
-    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
-        let res = self.inner.send_commit(handle, msg);
-        self.return_and_store_err(res)
-    }
-
-    fn send(&mut self, msg: HandlePacket) -> Result<MessageId, Self::Error> {
-        let res = self.inner.send(msg);
-        self.return_and_store_err(res)
-    }
-
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        let res = self.inner.reply_push(buffer);
-        self.return_and_store_err(res)
-    }
-
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        let res = self.inner.reply_commit(msg);
-        self.return_and_store_err(res)
-    }
-
-    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        let res = self.inner.reply(msg);
-        self.return_and_store_err(res)
-    }
-
-    fn reply_to(&mut self) -> Result<Option<(MessageId, ExitCode)>, Self::Error> {
-        let res = self.inner.reply_to();
-        self.return_and_store_err(res)
-    }
-
-    fn source(&mut self) -> Result<ProgramId, Self::Error> {
-        let res = self.inner.source();
-        self.return_and_store_err(res)
-    }
-
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
-        let res = self.inner.exit(value_destination);
-        self.return_and_store_err(res)
-    }
-
-    fn message_id(&mut self) -> Result<MessageId, Self::Error> {
-        let res = self.inner.message_id();
-        self.return_and_store_err(res)
-    }
-
-    fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
-        let res = self.inner.program_id();
-        self.return_and_store_err(res)
-    }
-
-    fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
-        let res = self.inner.free(page);
-        self.return_and_store_err(res)
-    }
-
-    fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
-        let res = self.inner.debug(data);
-        self.return_and_store_err(res)
-    }
-
-    fn leave(&mut self) -> Result<(), Self::Error> {
-        let res = self.inner.leave();
-        self.return_and_store_err(res)
-    }
-
-    fn msg(&mut self) -> &[u8] {
-        self.inner.msg()
-    }
-
-    fn gas(&mut self, amount: u32) -> Result<(), Self::Error> {
-        let res = self.inner.gas(amount);
-        self.return_and_store_err(res)
-    }
-
-    fn charge_gas(&mut self, amount: u32) -> Result<(), Self::Error> {
-        let res = self.inner.charge_gas(amount);
-        self.return_and_store_err(res)
-    }
-
-    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
-        let res = self.inner.charge_gas_runtime(costs);
-        self.return_and_store_err(res)
-    }
-
-    fn refund_gas(&mut self, amount: u32) -> Result<(), Self::Error> {
-        let res = self.inner.refund_gas(amount);
-        self.return_and_store_err(res)
-    }
-
-    fn gas_available(&mut self) -> Result<u64, Self::Error> {
-        let res = self.inner.gas_available();
-        self.return_and_store_err(res)
-    }
-
-    fn value(&mut self) -> Result<u128, Self::Error> {
-        let res = self.inner.value();
-        self.return_and_store_err(res)
-    }
-
-    fn value_available(&mut self) -> Result<u128, Self::Error> {
-        let res = self.inner.value_available();
-        self.return_and_store_err(res)
-    }
-
-    fn wait(&mut self) -> Result<(), Self::Error> {
-        let res = self.inner.wait();
-        self.return_and_store_err(res)
-    }
-
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
-        let res = self.inner.wake(waker_id);
-        self.return_and_store_err(res)
-    }
-
-    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
-        let res = self.inner.create_program(packet);
-        self.return_and_store_err(res)
     }
 }

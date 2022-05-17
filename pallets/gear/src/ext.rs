@@ -60,13 +60,6 @@ impl CoreError for Error {
             err => Err(err),
         }
     }
-
-    fn as_ext_error(&self) -> Option<&ExtError> {
-        match self {
-            Error::Core(core) => Some(core),
-            _ => None,
-        }
-    }
 }
 
 impl From<ExtError> for Error {
@@ -140,6 +133,10 @@ impl IntoExtInfo for LazyPagesExt {
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
         self.inner.gas_counter.into()
+    }
+
+    fn last_error(&self) -> Option<&ExtError> {
+        self.inner.last_error()
     }
 }
 

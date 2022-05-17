@@ -24,7 +24,7 @@ use alloc::string::{FromUtf8Error, ToString};
 use alloc::{string::String, vec};
 use codec::Encode;
 use gear_backend_common::funcs::*;
-use gear_backend_common::{ExtErrorProcessor, TerminationReason};
+use gear_backend_common::{ExtErrorProcessor, IntoExtInfo, TerminationReason};
 use gear_core::env::ExtCarrierWithError;
 use gear_core::{
     env::Ext,
@@ -117,7 +117,7 @@ fn write_to_caller_memory<'a, T: Ext>(
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + 'static,
+    E: Ext + IntoExtInfo + 'static,
 {
     pub fn alloc(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {
@@ -773,7 +773,7 @@ where
             let ext = caller.data().ext.clone();
             ext.with_fallible(|ext| -> Result<(), FuncError<E::Error>> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
-                let err = ext.err.take().ok_or(FuncError::SyscallErrorExpected)?;
+                let err = ext.last_error().ok_or(FuncError::SyscallErrorExpected)?;
                 let err = err.encode();
                 mem_wrap.write(data_ptr as usize, &err)?;
                 Ok(())

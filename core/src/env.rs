@@ -264,10 +264,6 @@ mod tests {
         fn into_ext_error(self) -> Result<ExtError, Self> {
             unreachable!()
         }
-
-        fn as_ext_error(&self) -> Option<&ExtError> {
-            unreachable!()
-        }
     }
 
     // Test function of format `Fn(&mut E: Ext) -> R`
