@@ -54,7 +54,7 @@ impl PageBuf {
     pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
         Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
             .map_err(|data| Error::InvalidPageDataSize(data.len()))
-            .map(|data| Self(data))
+            .map(Self)
     }
 
     /// Returns new page buffer with zeroed data.
