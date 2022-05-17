@@ -140,12 +140,12 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn into_gas_amount(self) -> GasAmount;
 }
 
-pub struct ExtErrorProcessor<'a, E: Ext, T = ()> {
+pub struct ExtErrorProcessor<'a, T, E: Ext> {
     ext: &'a mut ErrorSavingExt<E>,
     success: Option<T>,
 }
 
-impl<'a, E: Ext, T> ExtErrorProcessor<'a, E, T> {
+impl<'a, T, E: Ext> ExtErrorProcessor<'a, T, E> {
     pub fn new(ext: &'a mut ErrorSavingExt<E>) -> Self {
         Self { ext, success: None }
     }
