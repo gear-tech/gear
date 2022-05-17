@@ -20,7 +20,11 @@
 
 use core::convert::TryFrom;
 
-use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -49,9 +53,27 @@ pub fn page_buf_from_vec_u8(v: Vec<u8>) -> Result<PageBuf, Error> {
         .map_err(|data| Error::InvalidPageDataSize(data.len()))
 }
 
-/// Returns new page buffer with zeroed data
+/// Returns new page buffer with zeroed data.
 pub fn new_zeroed_page_buf() -> PageBuf {
     PageBuf::new([0u8; GEAR_PAGE_SIZE])
+}
+
+/// Convert page buffer into vector without rellocations.
+pub fn page_buf_into_vec_u8(buf: PageBuf) -> Vec<u8> {
+    (buf as Box<[_]>).into_vec()
+}
+
+/// Tries to convert vector data map to page buffer data map.
+/// Makes it without buffer rellocations.
+pub fn vec_page_data_map_to_page_buf_map(
+    pages_data: BTreeMap<PageNumber, Vec<u8>>,
+) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
+    let mut pages_data_res = BTreeMap::new();
+    for (page, data) in pages_data {
+        let data = page_buf_from_vec_u8(data)?;
+        pages_data_res.insert(page, data);
+    }
+    Ok(pages_data_res)
 }
 
 pub use gear_core_errors::MemoryError as Error;

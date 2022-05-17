@@ -44,7 +44,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::{CodeId, ProgramId},
-        memory::{PageBuf, PageNumber, WasmPageNumber},
+        memory::{page_buf_into_vec_u8, PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use pallet_gear_messenger::Pallet as MessengerPallet;
@@ -83,10 +83,13 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
+    /// Program debug info.
+    /// TODO: unfortunatelly we cannot store pages data in [PageBuf],
+    /// because polkadot-js api can not support this type.
     #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
-        pub persistent_pages: BTreeMap<PageNumber, PageBuf>,
+        pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
         pub code_hash: H256,
     }
 
@@ -211,7 +214,11 @@ pub mod pallet {
                     Some(code) => code.static_pages(),
                     None => WasmPageNumber(0),
                 };
-                let persistent_pages = common::get_program_pages_data(id, &active).unwrap();
+                let persistent_pages = common::get_program_pages_data(id, &active)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(page, data)| (page, page_buf_into_vec_u8(data)))
+                    .collect();
                 ProgramDetails {
                     id,
                     state: {

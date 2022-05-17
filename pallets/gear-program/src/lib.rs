@@ -61,7 +61,7 @@ pub mod pallet {
         },
     };
     use frame_system::pallet_prelude::*;
-    use gear_core::memory::{PageBuf, PageNumber};
+    use gear_core::memory::{vec_page_data_map_to_page_buf_map, PageNumber};
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};
     use weights::WeightInfo;
 
@@ -102,7 +102,7 @@ pub mod pallet {
         NotAllocatedPageWithData,
         ResumeProgramNotEnoughValue,
         WrongWaitList,
-        InvalidPageDataSize,
+        InvalidPageData,
     }
 
     #[pallet::storage]
@@ -140,15 +140,26 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been resumed.
         ///
         /// - `ProgramResumed(H256)` in the case of success.
+        ///
+        /// TODO: unfortunatelly we cannot pass pages data in [PageBuf],
+        /// because polkadot-js api can not support this type.
         #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(
             origin: OriginFor<T>,
             program_id: H256,
-            memory_pages: BTreeMap<PageNumber, PageBuf>,
+            memory_pages: BTreeMap<PageNumber, Vec<u8>>,
             wait_list: BTreeMap<H256, gear_core::message::StoredDispatch>,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let memory_pages = match vec_page_data_map_to_page_buf_map(memory_pages) {
+                Ok(data) => data,
+                Err(err) => {
+                    log::debug!("resume program recieved wrong pages data: {}", err);
+                    return Err(Error::<T>::InvalidPageData.into());
+                }
+            };
+
             let account = ensure_signed(origin)?;
 
             ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
