@@ -236,9 +236,9 @@ pub mod pallet {
         CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
-        /// Value doesnt cover ExistenceDeposit
+        /// Value doesn't cover ExistenceDeposit
         ValueLessThanMinimal,
-        /// Unable to intrument program code
+        /// Unable to instrument program code
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
@@ -1064,6 +1064,15 @@ pub mod pallet {
             ensure!(
                 gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             let schedule = T::Schedule::get();

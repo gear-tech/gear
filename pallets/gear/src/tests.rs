@@ -657,14 +657,14 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            100
+            1000
         ));
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            100
+            1000
         ));
 
         run_to_block(3, Some(remaining_weight));
@@ -681,7 +681,7 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            200
+            2000
         ));
         let msg1 = get_last_message_id();
 
@@ -691,7 +691,7 @@ fn block_gas_limit_works() {
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             msg2_gas,
-            100
+            1000
         ));
         let _msg2 = get_last_message_id();
 
@@ -701,7 +701,7 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            200
+            2000
         ));
         let _msg3 = get_last_message_id();
 
@@ -2640,8 +2640,40 @@ fn test_two_contracts_composition_works() {
     });
 }
 
+// Before introducing this test, submit_program extrinsic didn't check the value. 
+// Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
+//
+// User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with 
+// values during the init message processing, internal checks will result in errors (either, because sending value 
+// Y <= X < ED is not allowed, or because of Y > X, when X < ED). 
+// However, in this same situation of program being initialized and sending some message with value, if program send 
+// init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further 
+// to manager, although having value less than ED. On manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
+// But it's is not preferable to enter that `if` clause. 
+#[test]
+fn test_create_program_with_value() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let ed = get_ed();
+        assert_noop!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                ProgramCodeKind::Default.to_bytes(),
+                DEFAULT_SALT.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                10_000_000,
+                ed - 1,
+            ),
+            Error::<Test>::ValueLessThanMinimal,
+        );
+    })
+
+}
+
 mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
+    use frame_support::traits::tokens::currency::Currency;
+    use sp_runtime::traits::UniqueSaturatedInto;
     use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
     use sp_std::convert::TryFrom;
@@ -2666,6 +2698,10 @@ mod utils {
             .format_module_path(false)
             .format_level(true)
             .try_init();
+    }
+
+    pub(super) fn get_ed() -> u128 {
+        <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
     }
 
     pub(super) fn check_init_success(expected: u32) {
