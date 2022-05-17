@@ -137,7 +137,7 @@ pub enum ExtError {
     PanicOccurred,
     #[display(fmt = "Value of the message is less than existence deposit, but greater than 0")]
     InsufficientMessageValue,
-    #[display(fmt = "No value left")]
+    #[display(fmt = "Not enough value to send message")]
     NotEnoughValue,
     #[display(fmt = "{}", _0)]
     Message(MessageError),
