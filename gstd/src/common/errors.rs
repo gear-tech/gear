@@ -32,7 +32,6 @@ pub enum ContractError {
     Convert(&'static str),
     Decode(codec::Error),
     ExitCode(i32),
-    Internal(&'static str),
     Ext(ExtError),
 }
 
@@ -42,7 +41,6 @@ impl fmt::Display for ContractError {
             ContractError::Convert(e) => write!(f, "Conversion error: {:?}", e),
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
             ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
-            ContractError::Internal(e) => write!(f, "Internal error: {:?}", e),
             ContractError::Ext(e) => write!(f, "API error: {}", e),
         }
     }
