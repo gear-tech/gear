@@ -2,7 +2,7 @@
 name = "pallet-gear-messenger"
 version = "1.0.0"
 authors = ['Gear Technologies']
-edition = '2018'
+edition = '2021'
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -44,6 +44,7 @@ std = [
 	"log/std",
 	"frame-support/std",
 	"frame-system/std",
+	"frame-benchmarking/std",
 	"scale-info/std",
 	"sp-std/std",
 	"primitive-types/std",

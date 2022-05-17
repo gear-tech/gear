@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module with runtime mock for running tests.
+
 use crate as pallet_gear_messenger;
 use frame_support::{
     construct_runtime, parameter_types,
