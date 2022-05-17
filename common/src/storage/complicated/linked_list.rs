@@ -82,7 +82,7 @@ pub trait LinkedListError {
     /// Occurs when given key already exists in list.
     fn duplicate_key() -> Self;
 
-    /// Occurs when element not found in list.
+    /// Occurs when element wasn't found in storage.
     fn element_not_found() -> Self;
 
     /// Occurs when head should contain value,
@@ -396,7 +396,7 @@ where
     }
 }
 
-// `IterableMap` implementation for LinkedListImpl, returning iterators,
+// `IterableMap` implementation for `LinkedListImpl`, returning iterators,
 // presented with `LinkedListIter` and `LinkedListDrainIter`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> IterableMap<Result<Value, Error>>
     for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>

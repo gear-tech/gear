@@ -24,8 +24,6 @@ mod complicated;
 mod primitives;
 
 // Public exports from private storage modules.
-pub use complex::{
-    Mailbox, MailboxCallbacks, MailboxError, MailboxImpl, Messenger, Queue, QueueImpl, UserMailbox,
-};
+pub use complex::*;
 pub use complicated::*;
 pub use primitives::*;

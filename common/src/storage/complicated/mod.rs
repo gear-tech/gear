@@ -18,7 +18,7 @@
 
 //! Gear storage complicated types.
 //!
-//! Contains more difficult types over gear's storage primitives,
+//! This module contains more difficult types over gear's storage primitives,
 //! which provides API for more specific business-logic
 //! with globally shared data.
 

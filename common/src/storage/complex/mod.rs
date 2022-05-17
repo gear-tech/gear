@@ -16,12 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for complex (containing many elements) storage compoinents: Waitlist, mailbox, queue.
+//! Gear storage complex types.
+//!
+//! This module contains finite-logic elements of gear's
+//! storage types for gear's runtime.
 
+// Private modules declaration.
 mod mailbox;
 mod messenger;
 mod queue;
 
+// Public exports from complex modules.
 pub use mailbox::{Mailbox, MailboxCallbacks, MailboxError, MailboxImpl, UserMailbox};
 pub use messenger::Messenger;
 pub use queue::{Queue, QueueImpl};
