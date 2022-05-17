@@ -355,8 +355,10 @@ where
             )
             .is_err()
         {
-            log::debug!(
-                "Message (from: {:?}) {:?} will be skipped",
+            // todo [sab] this must be unreachable
+            log::error!(
+                "Value reservation of amount {:?} failed. Message with id {:?} sent from {:?} will be skipped",
+                dispatch.value(),
                 message_id,
                 dispatch.message()
             );
@@ -515,38 +517,66 @@ where
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         let from = from.into_origin();
-        if let Some(to) = to {
-            let to = to.into_origin();
+        let value = value.unique_saturated_into();
+        if let Some(to) = to.map(|id| id.into_origin()) {
+            let from_account = <T::AccountId as Origin>::from_origin(from);
+            let to_account = <T::AccountId as Origin>::from_origin(to);
             log::debug!(
-                "Value send of amount {:?} from {:?} to {:?}",
+                "Sending value of amount {:?} from {:?} to {:?}",
                 value,
                 from,
                 to
             );
-            let from = <T::AccountId as Origin>::from_origin(from);
-            let to = <T::AccountId as Origin>::from_origin(to);
-            if <T as Config>::Currency::can_reserve(&to, <T as Config>::Currency::minimum_balance())
-            {
+            let res = if <T as Config>::Currency::can_reserve(
+                &to_account,
+                <T as Config>::Currency::minimum_balance(),
+            ) {
                 // `to` account exists, so we can repatriate reserved value for it.
-                let _ = <T as Config>::Currency::repatriate_reserved(
-                    &from,
-                    &to,
-                    value.unique_saturated_into(),
+                <T as Config>::Currency::repatriate_reserved(
+                    &from_account,
+                    &to_account,
+                    value,
                     BalanceStatus::Free,
-                );
+                )
+                .map(|_| ())
             } else {
-                <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
-                let _ = <T as Config>::Currency::transfer(
-                    &from,
-                    &to,
-                    value.unique_saturated_into(),
+                let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
+                // todo [sab] this must be unreachable
+                if not_freed != 0u128.unique_saturated_into() {
+                    log::error!(
+                        "Value unreserve failed. Tried to unreserve {:?} amount, but was reserved {:?} amount",
+                        value,
+                        value - not_freed,
+                    );
+                }
+                <T as Config>::Currency::transfer(
+                    &from_account,
+                    &to_account,
+                    value,
                     ExistenceRequirement::AllowDeath,
-                );
+                )
+            };
+
+            if let Err(e) = res {
+                // todo [sab] this must be unreachable
+                log::error!("Failed to send value. Details: {:?}", e)
             }
         } else {
-            log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
-            let from = <T::AccountId as Origin>::from_origin(from);
-            <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
+            let from_account = <T::AccountId as Origin>::from_origin(from);
+            let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
+            if not_freed == 0u128.unique_saturated_into() {
+                log::debug!(
+                    "Value amount amount {:?} successfully unreserved from {:?}",
+                    value,
+                    from,
+                );
+            } else {
+                log::error!(
+                    "Value unreserve failed. Tried to unreserve {:?} amount, but was reserved {:?} amount",
+                    value,
+                    value - not_freed,
+                );
+            }
         }
     }
 
