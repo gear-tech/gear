@@ -149,7 +149,7 @@ pub trait PaymentProvider<AccountId> {
 /// Abstraction for a chain of value items each piece of which has an attributed owner and
 /// can be traced up to some root origin.
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
-/// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
+/// <https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs>,
 /// however, the intended use is very close to the UTxO based ledger model.
 pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.

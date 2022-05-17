@@ -126,7 +126,7 @@
 //!
 //! ## Genesis config
 //!
-//! The Gear Messenger Pallet doesn't depend on the [`GenesisConfig`].
+//! The Gear Messenger Pallet doesn't depend on the `GenesisConfig`.
 //!
 //! ## Assumptions
 //!
