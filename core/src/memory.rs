@@ -18,7 +18,10 @@
 
 //! Module for memory and allocations context.
 
-use core::convert::TryFrom;
+use core::{
+    convert::TryFrom,
+    ops::{Deref, DerefMut},
+};
 
 use alloc::{
     boxed::Box,
@@ -26,6 +29,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use core::fmt;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -43,9 +47,32 @@ const GEAR_PAGE_SIZE: usize = 0x1000;
 const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
 /// Buffer for gear page data.
-/// TODO: impl self debug
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-pub struct PageBuf(pub Box<[u8; GEAR_PAGE_SIZE]>);
+#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+pub struct PageBuf(Box<[u8; GEAR_PAGE_SIZE]>);
+
+impl fmt::Debug for PageBuf {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "PageBuf({:?}..{:?})",
+            &self.0[0..10],
+            &self.0[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+        )
+    }
+}
+
+impl Deref for PageBuf {
+    type Target = Box<[u8; GEAR_PAGE_SIZE]>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PageBuf {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl PageBuf {
     /// Tries to transform vec<u8> into page buffer.

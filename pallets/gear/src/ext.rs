@@ -102,7 +102,7 @@ impl IntoExtInfo for LazyPagesExt {
         let mut accessed_pages_data = BTreeMap::new();
         for page in accessed_pages {
             let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = get_page_data(page.offset(), buf.0.as_mut_slice()) {
+            if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
                 return Err((err, self.into_gas_amount()));
             }
             accessed_pages_data.insert(page, buf);

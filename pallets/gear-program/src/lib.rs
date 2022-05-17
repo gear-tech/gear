@@ -129,6 +129,8 @@ pub mod pallet {
     where
         T::AccountId: common::Origin,
     {
+        // TODO: unfortunatelly we cannot pass pages data in [PageBuf],
+        // because polkadot-js api can not support this type.
         /// Resumes a previously paused program
         ///
         /// The origin must be Signed and the sender must have sufficient funds to
@@ -141,8 +143,6 @@ pub mod pallet {
         ///
         /// - `ProgramResumed(H256)` in the case of success.
         ///
-        /// TODO: unfortunatelly we cannot pass pages data in [PageBuf],
-        /// because polkadot-js api can not support this type.
         #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(

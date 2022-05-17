@@ -464,7 +464,7 @@ pub fn set_program_and_pages_data(
             return Err(PageIsNotAllocatedErr(page_num));
         }
         let key = page_key(id, page_num);
-        sp_io::storage::set(&key, page_buf.0.as_slice());
+        sp_io::storage::set(&key, page_buf.as_slice());
     }
     set_program(id, program);
     Ok(())
@@ -483,7 +483,7 @@ pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) 
 
 pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: PageBuf) {
     let page_key = page_key(program_id, page);
-    sp_io::storage::set(&page_key, page_buf.0.as_slice());
+    sp_io::storage::set(&page_key, page_buf.as_slice());
 }
 
 pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {

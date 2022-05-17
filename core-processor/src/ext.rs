@@ -182,7 +182,7 @@ impl IntoExtInfo for Ext {
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
             let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = get_page_data(page.offset(), buf.0.as_mut_slice()) {
+            if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
                 return Err((err, self.gas_counter.into()));
             }
             pages_data.insert(page, buf);
