@@ -201,11 +201,11 @@ jobs:
       - name: "Coverage: Fix report"
         run: ./rust-covfix -o lcov.info lcov.info
         
-      - name: "Coverage: Publish"
-        uses: codecov/codecov-action@v1
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
         with:
-          file: ./lcov.info
-
+          name: code-coverage-report
+          path: lcov.info
 
       - name: "Cache: Pack"
         if: ${{ github.ref == 'refs/heads/master' }}
@@ -272,3 +272,22 @@ jobs:
           draft: false
           fail_on_unmatched_files: true
           files: artifact/*
+
+  publish_coverage:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Download coverage results
+        uses: actions/download-artifact@v3
+        with:
+          name: code-coverage-report
+
+      - name: "Coverage: Publish"
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./lcov.info
