@@ -2643,7 +2643,7 @@ fn test_two_contracts_composition_works() {
     });
 }
 
-// Before introducing this test, submit_program extrinsic didn't check the value. 
+// Before introducing this test, submit_program extrinsic didn't check the value.
 // Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
 //
 // User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with
@@ -2655,7 +2655,7 @@ fn test_two_contracts_composition_works() {
 //
 // Note: on manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
 // But it's is not preferable to enter that `if` clause.
-// todo # 929 After create_program sys-call becomes fallible, tests must be changed 
+// todo # 929 After create_program sys-call becomes fallible, tests must be changed
 #[test]
 fn test_create_program_with_value_lt_ed() {
     use demo_init_with_value::{SendMessage, WASM_BINARY};
@@ -2676,7 +2676,7 @@ fn test_create_program_with_value_lt_ed() {
         // Can't initialize program with value less than ED
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 b"test0".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
@@ -2688,7 +2688,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // Simple passing test with values
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
             // Sending 500 value with "handle" messages. This should not fail.
@@ -2722,7 +2722,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // Trying to send init message from program with value less than ED.
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test2".to_vec(),
             // First two messages won't fail, because provided values are in a valid range
@@ -2776,11 +2776,11 @@ fn test_create_program_with_value_lt_ed() {
 // Before introducing this test, submit_program extrinsic didn't check the value.
 // Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
 //
-// For instance, we have a guarantee that provided init message value is more than ED before executing message. 
-// User sends init message to the program, which, for example, in init function sends different kind of messages. 
-// Because of message value not being checked for init messages, program can send more value amount within init message, 
-// then it has on it's balance. Such message send will end up without any error/trap. So all in all execution will end 
-// up successfully with messages sent from program with total value more than was provided to the program. 
+// For instance, we have a guarantee that provided init message value is more than ED before executing message.
+// User sends init message to the program, which, for example, in init function sends different kind of messages.
+// Because of message value not being checked for init messages, program can send more value amount within init message,
+// then it has on it's balance. Such message send will end up without any error/trap. So all in all execution will end
+// up successfully with messages sent from program with total value more than was provided to the program.
 //
 // Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364).
 // But it's is not preferable to enter that `if` clause.
@@ -2791,8 +2791,8 @@ fn test_create_program_with_exceeding_value() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-         // Submit the code
-         assert_ok!(GearPallet::<Test>::submit_code(
+        // Submit the code
+        assert_ok!(GearPallet::<Test>::submit_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
@@ -2801,12 +2801,12 @@ fn test_create_program_with_exceeding_value() {
         let random_receiver = 1;
         // Trying to send init message from program with value greater than program can send.
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
             vec![
-                SendMessage::Handle(random_receiver, sending_to_program/3),
-                SendMessage::Handle(random_receiver, sending_to_program/3),
+                SendMessage::Handle(random_receiver, sending_to_program / 3),
+                SendMessage::Handle(random_receiver, sending_to_program / 3),
                 SendMessage::Init(sending_to_program + 1),
             ]
             .encode(),
@@ -2822,8 +2822,14 @@ fn test_create_program_with_exceeding_value() {
             MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
         let receiver_mail_msg1 = MessageId::generate_outgoing(origin_msg_id, 0);
         let receiver_mail_msg2 = MessageId::generate_outgoing(origin_msg_id, 1);
-        assert!(!Mailbox::<Test>::contains_key(random_receiver, receiver_mail_msg1));
-        assert!(!Mailbox::<Test>::contains_key(random_receiver, receiver_mail_msg2));
+        assert!(!Mailbox::<Test>::contains_key(
+            random_receiver,
+            receiver_mail_msg1
+        ));
+        assert!(!Mailbox::<Test>::contains_key(
+            random_receiver,
+            receiver_mail_msg2
+        ));
 
         // User's message execution will result in trap, because program tries
         // to send init message with value more than program has. As a result, 1 dispatch
@@ -2834,10 +2840,7 @@ fn test_create_program_with_exceeding_value() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason =
-            "Not enough value to send message"
-                .to_string()
-                .into_bytes();
+        let expected_failure_reason = "Not enough value to send message".to_string().into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {

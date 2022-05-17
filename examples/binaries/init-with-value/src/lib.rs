@@ -66,7 +66,7 @@ mod wasm {
                         submitted_code,
                         COUNTER.to_le_bytes(),
                         [],
-                        100_000,
+                        1_000_001,
                         value,
                     );
 
