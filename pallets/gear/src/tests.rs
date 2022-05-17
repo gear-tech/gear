@@ -2749,9 +2749,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // There definitely should be event with init failure reason
         let expected_failure_reason =
-            "Value of the message is less than existence deposit, but greater than 0"
-                .to_string()
-                .into_bytes();
+            b"Value of the message is less than existence deposit, but greater than 0";
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -2766,7 +2764,7 @@ fn test_create_program_with_value_lt_ed() {
             .expect("no init failure events");
 
         if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(actual_failure_reason, expected_failure_reason);
+            assert_eq!(&actual_failure_reason, expected_failure_reason);
         } else {
             panic!("error reason is of wrong type")
         }
@@ -2840,7 +2838,7 @@ fn test_create_program_with_exceeding_value() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason = "Not enough value to send message".to_string().into_bytes();
+        let expected_failure_reason = b"Not enough value to send message";
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -2855,7 +2853,7 @@ fn test_create_program_with_exceeding_value() {
             .expect("no init failure events");
 
         if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(actual_failure_reason, expected_failure_reason);
+            assert_eq!(&actual_failure_reason, expected_failure_reason);
         } else {
             panic!("error reason is of wrong type")
         }
