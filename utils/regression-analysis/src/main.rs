@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 
@@ -92,6 +92,6 @@ fn main() {
         println!("name = {}", name);
         let table = tabled::Table::new(stats);
         println!("{}", table);
-        println!("");
+        println!();
     }
 }
