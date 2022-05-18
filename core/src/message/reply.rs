@@ -28,7 +28,7 @@ use scale_info::TypeInfo;
 
 /// Message for Reply entry point.
 /// Message type that program sends during execution.
-/// Contains id the message that we replied so we can reproduse whole chain of messages.
+/// Contains the id of the message that we replied to so we can reproduce the whole chain of messages.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyMessage {
     /// Message id.
