@@ -380,8 +380,6 @@ where
                 &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                 dispatch.value().unique_saturated_into(),
             ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
-
-            return;
         }
 
         log::debug!(
