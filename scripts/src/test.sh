@@ -70,13 +70,14 @@ gtest() {
 }
 
 # $1 - ROOT DIR
+# $2 - TARGET DIR
 rtest_debug() {
-  cargo run --package gear-node $CARGO_FLAGS -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+  cargo run --package gear-node $CARGO_FLAGS -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0 --generate-junit "$2"/runtime-test-junit.xml
 }
 
 rtest() {
   CARGO_FLAGS="--release"
-  rtest_debug $1
+  rtest_debug $1 $2
 }
 
 pallet_test() {

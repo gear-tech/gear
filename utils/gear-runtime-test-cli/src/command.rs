@@ -52,7 +52,10 @@ use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 use std::{
     collections::BTreeMap,
     sync::atomic::{AtomicUsize, Ordering},
+    time::Instant,
 };
+
+use regression_common::{TestCase, TestSuite, TestSuites};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -72,20 +75,47 @@ impl GearRuntimeTestCmd {
         let total_failed = AtomicUsize::new(0);
 
         println!("Total fixtures: {}", total_fixtures);
-        tests.par_iter().for_each(|test| {
-            test.fixtures.par_iter().for_each(|fixture| {
+        let executions = tests.par_iter().map(|test| {
+            let fixtures = test.fixtures.par_iter().map(|fixture| {
                 new_test_ext().execute_with(|| {
                     gear_common::reset_storage();
+
+                    let now = Instant::now();
                     let output = run_fixture(test, fixture);
+                    let elapsed = now.elapsed();
+
                     pallet_gear::Mailbox::<Runtime>::drain();
 
                     println!("Fixture {}: {}", fixture.title.bold(), output);
                     if !output.contains("Ok") && !output.contains("Skip") {
                         total_failed.fetch_add(1, Ordering::SeqCst);
                     }
-                });
-            });
-        });
+
+                    TestCase {
+                        name: fixture.title.clone(),
+                        time: elapsed.as_secs_f64().to_string(),
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+            TestSuite {
+                name: test.title.clone(),
+                testcase: fixtures,
+            }
+        })
+        .collect::<Vec<_>>();
+
+        if let Some(ref junit_path) = self.generate_junit {
+            let writer = std::fs::File::create(junit_path)?;
+            quick_xml::se::to_writer(writer, &TestSuites {
+                testsuite: executions,
+            }).map_err(|e| {
+                let mapped: Box<dyn std::error::Error + Send + Sync + 'static> = Box::new(e);
+                mapped
+            })?;
+        }
+
         if total_failed.load(Ordering::SeqCst) == 0 {
             Ok(())
         } else {
