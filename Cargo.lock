@@ -6076,8 +6076,15 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "quick-xml",
- "serde",
+ "regression-common",
  "tabled",
+]
+
+[[package]]
+name = "regression-common"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

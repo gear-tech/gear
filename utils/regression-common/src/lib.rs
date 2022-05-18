@@ -16,33 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeMap;
-use std::str::FromStr;
+use serde::{Deserialize, Serialize};
 
-use common::TestSuites;
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TestCase {
+    pub name: String,
+    pub time: String,
+}
 
-pub fn build_tree<Filter>(
-    filter: Filter,
-    test_suites: TestSuites,
-) -> BTreeMap<String, BTreeMap<String, f64>>
-where
-    Filter: Fn(&str) -> bool,
-{
-    test_suites
-        .testsuite
-        .into_iter()
-        .filter_map(|test_suite| {
-            if !filter(&test_suite.name) {
-                return None;
-            }
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TestSuite {
+    pub name: String,
+    pub testcase: Vec<TestCase>,
+}
 
-            let pallet_suite = test_suite
-                .testcase
-                .into_iter()
-                .map(|test_case| (test_case.name, f64::from_str(&test_case.time).unwrap()))
-                .collect::<BTreeMap<_, _>>();
-
-            Some((test_suite.name, pallet_suite))
-        })
-        .collect::<BTreeMap<_, _>>()
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TestSuites {
+    pub testsuite: Vec<TestSuite>,
 }

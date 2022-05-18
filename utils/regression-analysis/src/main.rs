@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 use clap::Parser;
 
@@ -26,7 +26,7 @@ use quick_xml::de::from_str;
 mod junit_parser;
 mod output;
 
-use junit_parser::TestSuites;
+use common::TestSuites;
 
 const PALLET_NAMES: [&str; 7] = [
     "pallet-gas",
@@ -44,18 +44,29 @@ struct Cli {
     master_junit_xml: PathBuf,
     #[clap(long)]
     current_junit_xml: PathBuf,
+    #[clap(long)]
+    disable_filter: bool,
+}
+
+fn build_tree(disable_filter: bool, path: &Path) -> BTreeMap<String, BTreeMap<String, f64>> {
+    let filter = |pallet_name: &str| {
+        if disable_filter {
+            return true;
+        }
+
+        PALLET_NAMES.iter().any(|&name| name == pallet_name)
+    };
+
+    let junit_xml = std::fs::read_to_string(path).unwrap();
+    let test_suites: TestSuites = from_str(&junit_xml).unwrap();
+    junit_parser::build_tree(filter, test_suites)
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    let junit_xml_master = std::fs::read_to_string(cli.master_junit_xml).unwrap();
-    let test_suites_master: TestSuites = from_str(&junit_xml_master).unwrap();
-    let executions_master = junit_parser::build_tree(&PALLET_NAMES, test_suites_master);
-
-    let junit_xml_current = std::fs::read_to_string(cli.current_junit_xml).unwrap();
-    let test_suites_current: TestSuites = from_str(&junit_xml_current).unwrap();
-    let executions_current = junit_parser::build_tree(&PALLET_NAMES, test_suites_current);
+    let executions_master = build_tree(cli.disable_filter, &cli.master_junit_xml);
+    let executions_current = build_tree(cli.disable_filter, &cli.current_junit_xml);
 
     let compared = executions_current
         .iter()
