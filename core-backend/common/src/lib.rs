@@ -30,7 +30,6 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use codec::Encode;
 use core::fmt;
 use gear_core::{
     env::Ext,

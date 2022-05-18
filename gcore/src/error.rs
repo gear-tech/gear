@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::vec;
-use codec::Decode;
-
 pub use gear_core_errors::{ExtError, MemoryError, MessageError, TerminationReason};
 
+#[cfg(feature = "codec")]
 mod sys {
     extern "C" {
         pub fn gr_error(data: *mut u8);
@@ -39,10 +37,19 @@ impl SyscallError {
         if self.len == 0 {
             Ok(())
         } else {
+            #[cfg(feature = "codec")]
             unsafe {
+                use alloc::vec;
+                use codec::Decode;
+
                 let mut data = vec![0; self.len as usize];
                 sys::gr_error(data.as_mut_ptr());
                 Err(ExtError::decode(&mut data.as_slice()).expect("error decoded successfully"))
+            }
+
+            #[cfg(not(feature = "codec"))]
+            {
+                Err(ExtError::Unknown)
             }
         }
     }

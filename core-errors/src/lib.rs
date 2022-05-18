@@ -18,8 +18,10 @@
 
 #![no_std]
 
+#[cfg(feature = "codec")]
 use codec::{Decode, Encode};
 use core::fmt;
+#[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 pub trait CoreError: Sized + fmt::Display + fmt::Debug {
@@ -31,20 +33,8 @@ pub trait CoreError: Sized + fmt::Display + fmt::Debug {
 }
 
 /// Error using messages.
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Decode,
-    Encode,
-    TypeInfo,
-    derive_more::Display,
-)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
     /// Message limit exceeded.
     #[display(fmt = "Message limit exceeded")]
@@ -80,7 +70,8 @@ pub enum MessageError {
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
     /// Memory is over.
     ///
@@ -109,7 +100,8 @@ pub enum MemoryError {
     NotAllPagesInBegin,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum TerminationReason {
     Exit,
     Leave,
@@ -117,8 +109,11 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
+    #[display(fmt = "Unknown error")]
+    Unknown,
     #[display(fmt = "Allocation error: {}", _0)]
     Alloc(MemoryError),
     #[display(fmt = "Free error: {}", _0)]
@@ -143,6 +138,14 @@ pub enum ExtError {
     NotEnoughValue,
     #[display(fmt = "{}", _0)]
     Message(MessageError),
+}
+
+impl ExtError {
+    /// Size of error encoded in SCALE codec
+    #[cfg(feature = "codec")]
+    pub fn encoded_size(&self) -> usize {
+        Encode::encoded_size(self)
+    }
 }
 
 impl CoreError for ExtError {
