@@ -2749,7 +2749,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // There definitely should be event with init failure reason
         let expected_failure_reason =
-            b"Value of the message is less than existence deposit, but greater than 0";
+            b"Value of the message is less than existential deposit, but greater than 0";
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
