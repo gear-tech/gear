@@ -152,8 +152,8 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/junit.xml /tmp/
-          ./target/release/regression-analysis --master-junit-xml /tmp/junit.xml --current-junit-xml ./target/nextest/ci/junit.xml
+          cp /root/cache/pallet-test-junit.xml /tmp/
+          ./target/release/regression-analysis --master-junit-xml /tmp/pallet-test-junit.xml --current-junit-xml ./target/nextest/ci/junit.xml
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -161,13 +161,22 @@ jobs:
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
+      - name: "Test (regressions): node runtime testsuite"
+        if: ${{ github.ref != 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          cp /root/cache/runtime-test-junit.xml /tmp/
+          ./target/release/regression-analysis --master-junit-xml /tmp/runtime-test-junit.xml --current-junit-xml ./target/runtime-test-junit.xml
+
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Cache: junit.xml"
         if: ${{ github.ref == 'refs/heads/master' }}
         continue-on-error: true
-        run: mv ./target/nextest/ci/junit.xml /root/cache/
+        run: |
+          mv ./target/nextest/ci/junit.xml /root/cache/pallet-test-junit.xml
+          mv ./target/runtime-test-junit.xml /root/cache/
 
       - name: "Cache: Pack"
         if: ${{ github.ref == 'refs/heads/master' }}
