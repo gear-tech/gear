@@ -2306,6 +2306,7 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "env_logger",
  "gear-core-errors",
  "hex",
  "log",

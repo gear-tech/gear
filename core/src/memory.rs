@@ -360,8 +360,8 @@ impl AllocationsContext {
 #[cfg(test)]
 /// This module contains tests of PageNumber struct
 mod tests {
-    use super::{PageNumber, WasmPageNumber};
-    use alloc::vec::Vec;
+    use super::{PageBuf, PageNumber, WasmPageNumber};
+    use alloc::{vec, vec::Vec};
 
     #[test]
     /// Test that PageNumbers add up correctly
@@ -416,5 +416,18 @@ mod tests {
         ];
 
         assert!(gear_pages.eq(&expectation));
+    }
+
+    #[test]
+    fn page_buf() {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("gear_core=debug"))
+            .format_module_path(false)
+            .format_level(true)
+            .try_init()
+            .expect("cannot init logger");
+        let mut data = vec![199u8; PageNumber::size()];
+        data[1] = 2;
+        let page_buf = PageBuf::new_from_vec(data).unwrap();
+        log::debug!("page buff = {:?}", page_buf);
     }
 }

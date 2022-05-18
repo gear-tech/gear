@@ -84,8 +84,8 @@ pub mod pallet {
     pub enum Error<T> {}
 
     /// Program debug info.
-    /// TODO: unfortunatelly we cannot store pages data in [PageBuf],
-    /// because polkadot-js api can not support this type.
+    // TODO: unfortunatelly we cannot store pages data in [PageBuf],
+    // because polkadot-js api can not support this type.
     #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
