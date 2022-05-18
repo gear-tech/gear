@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 galloc = { path = "../galloc" }
-gcore = { path = "../gcore" }
+gcore = { path = "../gcore", features = ["codec"] }
 gstd-codegen = { path = "codegen" }
 gear-core-errors = { path = "../core-errors" }
 
