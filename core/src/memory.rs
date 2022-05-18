@@ -420,11 +420,13 @@ mod tests {
 
     #[test]
     fn page_buf() {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("gear_core=debug"))
-            .format_module_path(false)
-            .format_level(true)
-            .try_init()
-            .expect("cannot init logger");
+        env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("gear_core=debug"),
+        )
+        .format_module_path(false)
+        .format_level(true)
+        .try_init()
+        .expect("cannot init logger");
         let mut data = vec![199u8; PageNumber::size()];
         data[1] = 2;
         let page_buf = PageBuf::new_from_vec(data).unwrap();
