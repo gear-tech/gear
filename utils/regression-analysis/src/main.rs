@@ -59,7 +59,14 @@ enum Commands {
         #[clap(long)]
         disable_filter: bool,
     },
-    Compare,
+    Compare {
+        #[clap(long)]
+        data_path: PathBuf,
+        #[clap(long)]
+        current_junit_path: PathBuf,
+        #[clap(long)]
+        disable_filter: bool,
+    },
 }
 
 fn build_tree(disable_filter: bool, path: &Path) -> BTreeMap<String, BTreeMap<String, f64>> {
@@ -122,14 +129,56 @@ fn collect_data(data_folder_path: &Path, output_path: &Path, disable_filter: boo
     serde_json::to_writer_pretty(writer, &statistics).unwrap();
 }
 
+fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: bool) {
+    let statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> = serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
+    let executions = build_tree(disable_filter, current_junit_path.as_ref());
+    let compared = executions.iter().filter_map(|(key, tests)| {
+        statistics.get(key).map(|test_times| {
+            let test_stats = tests
+                .iter()
+                .filter_map(|(key, &time)| {
+                    test_times.get(key).map(|times| {
+                        let len = times.len();
+                        let len_remainder = len % 2;
+                        let quartile_lower = median(&times[..len / 2]);
+                        let quartile_upper = median(&times[len / 2 + len_remainder..]);
+                        let median = median(times.as_ref());
+
+                        output::Test {
+                            name: key.clone(),
+                            current_time: (1_000_000_000.0 * time) as u64,
+                            median,
+                            quartile_lower,
+                            quartile_upper,
+                            min: *times.first().unwrap(),
+                            max: *times.last().unwrap(),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            (key.clone(), test_stats)
+        })
+    })
+    .collect::<BTreeMap<_, _>>();
+
+    for (name, stats) in compared {
+        println!("name = {}", name);
+        let table = tabled::Table::new(stats);
+        println!("{}", table);
+        println!();
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
         Commands::CollectData { data_folder_path, disable_filter, output_path } => {
             collect_data(&data_folder_path, &output_path, *disable_filter, PREALLOCATE);
-        }
-        Commands::Compare => {
+        },
+        Commands::Compare { data_path, current_junit_path, disable_filter } => {
+            compare(data_path, current_junit_path, *disable_filter);
         }
     }
 }

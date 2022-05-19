@@ -19,27 +19,34 @@
 #[derive(Debug)]
 pub struct Test {
     pub name: String,
-    pub master_time: f64,
-    pub current_time: f64,
+    pub current_time: u64,
+    pub median: u64,
+    pub quartile_lower: u64,
+    pub quartile_upper: u64,
+    pub min: u64,
+    pub max: u64,
 }
 
 impl tabled::Tabled for Test {
-    const LENGTH: usize = 3;
+    const LENGTH: usize = 6;
 
     fn fields(&self) -> Vec<String> {
-        let current = self.current_time;
-        let master = self.master_time;
+        let current = self.current_time as f64;
+        let median = self.median as f64;
 
-        let percent = 100.0 * (current - master) / master;
+        let percent = 100.0 * (current - median) / median;
 
         vec![
             self.name.clone(),
             format!("{}; {:+.2}%", current, percent),
-            master.to_string(),
+            median.to_string(),
+            format!("({}; {})", self.quartile_lower, self.quartile_upper),
+            self.min.to_string(),
+            self.max.to_string(),
         ]
     }
 
     fn headers() -> Vec<String> {
-        vec!["name".to_owned(), "current".to_owned(), "master".to_owned()]
+        vec!["name".to_owned(), "current".to_owned(), "median".to_owned(), "lower/upper quartile".to_owned(), "min".to_owned(), "max".to_owned()]
     }
 }
