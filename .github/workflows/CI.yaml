@@ -176,8 +176,6 @@ jobs:
 
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
@@ -194,6 +192,14 @@ jobs:
           --ignore "target/*"
           --ignore "gear-test/*"
           --ignore "node/*"
+          --ignore "pallets/gear/src/migration.rs"
+          --ignore "pallets/gear/src/weights.rs"
+          --ignore "pallets/gear-debug/src/weights.rs"
+          --ignore "pallets/gear-messenger/migration.rs"
+          --ignore "pallets/gear-program/migration.rs"
+          --ignore "pallets/gear-program/weights/*"
+          --ignore "pallets/usage/src/weights.rs"
+          --ignore "pallets/usage/src/migration.rs"
           --ignore "runtime/*"
           --ignore "gcore/*"
           --ignore "gstd/*"
