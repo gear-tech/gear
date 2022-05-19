@@ -1293,6 +1293,11 @@ pub mod pallet {
             let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
             let destination = original_message.source();
 
+            ensure!(
+                !Self::is_terminated(original_message.source().into_origin()),
+                Error::<T>::ProgramIsTerminated
+            );
+
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
