@@ -87,11 +87,11 @@ pub trait LinkedListError {
 
     /// Occurs when head should contain value,
     /// but it's empty for some reason.
-    fn head_should_be() -> Self;
+    fn head_should_be_set() -> Self;
 
     /// Occures when head should be empty,
     /// but it contains value for some reason.
-    fn head_should_not_be() -> Self;
+    fn head_should_not_be_set() -> Self;
 
     /// Occurs when tail element of the linked list
     /// contains link to the next element.
@@ -103,11 +103,11 @@ pub trait LinkedListError {
 
     /// Occurs when tail should contain value,
     /// but it's empty for some reason.
-    fn tail_should_be() -> Self;
+    fn tail_should_be_set() -> Self;
 
     /// Occurs when tail should be empty,
     /// but it contains value for some reason.
-    fn tail_should_not_be() -> Self;
+    fn tail_should_not_be_set() -> Self;
 }
 
 /// `LinkedList` implementation based on `MapStorage` and `ValueStorage`s.
@@ -182,7 +182,7 @@ where
 
     fn pop_back() -> Result<Option<Self::Value>, Self::Error> {
         if let Some(head_key) = HVS::get() {
-            let tail_key = TVS::take().ok_or_else(Self::Error::tail_should_be)?;
+            let tail_key = TVS::take().ok_or_else(Self::Error::tail_should_be_set)?;
             let tail = MS::take(tail_key.clone()).ok_or_else(Self::Error::element_not_found)?;
 
             let mut next_key = head_key;
@@ -211,7 +211,7 @@ where
             Callbacks::OnPopBack::call(&tail.value);
             Ok(Some(tail.value))
         } else if TVS::exists() {
-            Err(Self::Error::tail_should_not_be())
+            Err(Self::Error::tail_should_not_be_set())
         } else {
             Ok(None)
         }
@@ -224,14 +224,14 @@ where
 
             if let Some(next) = next {
                 HVS::put(next)
-            } else {
-                TVS::kill()
+            } else if TVS::take().is_none() {
+                return Err(Self::Error::tail_should_be_set());
             }
 
             Callbacks::OnPopFront::call(&value);
             Ok(Some(value))
         } else if TVS::exists() {
-            Err(Self::Error::tail_should_not_be())
+            Err(Self::Error::tail_should_not_be_set())
         } else {
             Ok(None)
         }
@@ -259,7 +259,7 @@ where
                 Err(Self::Error::element_not_found())
             }
         } else if HVS::exists() {
-            Err(Self::Error::head_should_not_be())
+            Err(Self::Error::head_should_not_be_set())
         } else {
             HVS::put(key.clone());
             TVS::put(key.clone());
@@ -288,7 +288,7 @@ where
 
             Ok(())
         } else if TVS::exists() {
-            Err(Self::Error::tail_should_not_be())
+            Err(Self::Error::tail_should_not_be_set())
         } else {
             HVS::put(key.clone());
             TVS::put(key.clone());

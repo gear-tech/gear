@@ -198,10 +198,10 @@ pub mod pallet {
         QueueElementNotFound,
         /// Occurs when queue's head should contain value,
         /// but it's empty for some reason.
-        QueueHeadShouldBe,
+        QueueHeadShouldBeSet,
         /// Occures when queue's head should be empty,
         /// but it contains value for some reason.
-        QueueHeadShouldNotBe,
+        QueueHeadShouldNotBeSet,
         /// Occurs when queue's tail element contains link
         /// to the next element.
         QueueTailHasNextKey,
@@ -210,10 +210,10 @@ pub mod pallet {
         QueueTailParentNotFound,
         /// Occurs when queue's tail should contain value,
         /// but it's empty for some reason.
-        QueueTailShouldBe,
+        QueueTailShouldBeSet,
         /// Occurs when queue's tail should be empty,
         /// but it contains value for some reason.
-        QueueTailShouldNotBe,
+        QueueTailShouldNotBeSet,
         /// Occurs when given value already exists in mailbox.
         MailboxDuplicateKey,
         /// Occurs when mailbox's element wasn't found in storage.
@@ -231,12 +231,12 @@ pub mod pallet {
             Self::QueueElementNotFound
         }
 
-        fn head_should_be() -> Self {
-            Self::QueueHeadShouldBe
+        fn head_should_be_set() -> Self {
+            Self::QueueHeadShouldBeSet
         }
 
-        fn head_should_not_be() -> Self {
-            Self::QueueHeadShouldNotBe
+        fn head_should_not_be_set() -> Self {
+            Self::QueueHeadShouldNotBeSet
         }
 
         fn tail_has_next_key() -> Self {
@@ -247,12 +247,12 @@ pub mod pallet {
             Self::QueueTailParentNotFound
         }
 
-        fn tail_should_be() -> Self {
-            Self::QueueTailShouldBe
+        fn tail_should_be_set() -> Self {
+            Self::QueueTailShouldBeSet
         }
 
-        fn tail_should_not_be() -> Self {
-            Self::QueueTailShouldNotBe
+        fn tail_should_not_be_set() -> Self {
+            Self::QueueTailShouldNotBeSet
         }
     }
 

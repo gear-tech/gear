@@ -98,7 +98,7 @@ macro_rules! wrap_storage_double_map {
     (storage: $storage: ident, name: $name: ident, key1: $key1: ty, key2: $key2: ty, value: $val: ty) => {
         pub struct $name<T>(PhantomData<T>);
 
-        impl<T: crate::Config> DoubleMapStorage for MailboxWrap<T> {
+        impl<T: crate::Config> DoubleMapStorage for $name<T> {
             type Key1 = $key1;
             type Key2 = $key2;
             type Value = $val;
