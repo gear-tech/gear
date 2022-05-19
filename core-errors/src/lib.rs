@@ -97,7 +97,7 @@ pub enum MemoryError {
 
     /// There is wasm page, which has not all gear pages in the begin
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
-    InvalidPageDataSize(usize),
+    InvalidPageDataSize(u64),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
