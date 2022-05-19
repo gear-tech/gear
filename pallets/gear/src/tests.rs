@@ -1650,7 +1650,7 @@ fn exit_init() {
             Origin::signed(USER_1),
             code.clone(),
             vec![],
-            Vec::new(),
+            [0].to_vec(),
             50_000_000_000u64,
             0u128
         ));
@@ -2862,6 +2862,57 @@ fn test_create_program_with_exceeding_value() {
         } else {
             panic!("error reason is of wrong type")
         }
+    })
+}
+
+#[test]
+fn test_reply_to_terminated_program() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_exit_init::WASM_BINARY;
+
+        // Deploy program, which sends mail and exits
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            // this input makes it first send message to mailbox and then exit
+            [1].to_vec(),
+            27_100_000_000u64,
+            0
+        ));
+
+        let mail_id = {
+            let original_message_id = MessageId::from_origin(get_last_message_id());
+            MessageId::generate_reply(original_message_id, 0).into_origin()
+        };
+
+        run_to_block(2, None);
+
+        // Check mail in Mailbox
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 1);
+
+        // Send reply
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1),
+                mail_id,
+                EMPTY_PAYLOAD.to_vec(),
+                10_000_000,
+                0
+            ),
+            Error::<Test>::ProgramIsTerminated,
+        );
+
+        // the only way to claim value from terminated destination is a corresponding extrinsic call
+        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+            Origin::signed(USER_1),
+            mail_id,
+        ));
+
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
+
+        SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(mail_id).into())
     })
 }
 

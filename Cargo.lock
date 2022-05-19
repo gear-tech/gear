@@ -1357,6 +1357,7 @@ dependencies = [
 name = "demo-exit-init"
 version = "0.1.0"
 dependencies = [
+ "gcore",
  "gear-wasm-builder",
  "gstd",
 ]
