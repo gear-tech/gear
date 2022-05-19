@@ -2424,7 +2424,12 @@ fn resume_program_works() {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
-        let memory_pages = common::get_program_pages_data(program_id, &program);
+
+        let memory_pages = common::get_program_pages_data(program_id, &program)
+            .unwrap()
+            .into_iter()
+            .map(|(page, data)| (page, data.into_vec()))
+            .collect();
 
         assert_ok!(GearProgram::pause_program(program_id));
 

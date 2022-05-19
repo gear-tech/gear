@@ -766,6 +766,11 @@ pub mod pallet {
                                     code
                                 } else {
                                     // todo: mark code as unable for instrument to skip next time
+                                    log::debug!(
+                                        "Can not instrument code '{:?}' for program '{:?}'",
+                                        code_id,
+                                        program_id
+                                    );
                                     continue;
                                 }
                             } else {
@@ -811,10 +816,19 @@ pub mod pallet {
                             let pages_data = if lazy_pages_enabled {
                                 Default::default()
                             } else {
-                                common::get_program_data_for_pages(
+                                match common::get_program_data_for_pages(
                                     program_id.into_origin(),
                                     prog.pages_with_data.iter(),
-                                )
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!(
+                                            "Page data in storage is in invalid state: {}",
+                                            err
+                                        );
+                                        continue;
+                                    }
+                                }
                             };
 
                             Some(ExecutableActor {

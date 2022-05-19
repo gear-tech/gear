@@ -21,7 +21,6 @@
 use core::fmt;
 
 use alloc::{
-    boxed::Box,
     collections::BTreeMap,
     format,
     string::{String, ToString},
@@ -77,16 +76,19 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
 fn set_pages<T: Ext>(
     mut store: &mut Store<StoreData<T>>,
     memory: &mut WasmtimeMemory,
-    pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+    pages: &BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), String> {
     let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
-    for (num, buf) in pages {
-        if memory_size <= num.to_wasm_page() {
-            return Err(format!("Memory size {:?} less then {:?}", memory_size, num));
+    for (page, buf) in pages {
+        if memory_size <= page.to_wasm_page() {
+            return Err(format!(
+                "Memory size {:?} less then {:?}",
+                memory_size, page
+            ));
         }
         memory
-            .write(&mut store, num.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write to {:?}: {:?}", num, e))?;
+            .write(&mut store, page.offset(), &buf[..])
+            .map_err(|e| format!("Cannot write to {:?}: {:?}", page, e))?;
     }
     Ok(())
 }
@@ -127,7 +129,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);

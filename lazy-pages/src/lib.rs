@@ -22,6 +22,7 @@
 //! During execution data from storage is loaded for all pages, which has been accesed.
 //! See also `handle_sigsegv`.
 
+use gear_core::memory::PageBuf;
 use sp_std::{result::Result, vec::Vec};
 use std::{cell::RefCell, collections::BTreeMap};
 
@@ -45,7 +46,7 @@ thread_local! {
     static LAZY_PAGES_INFO: RefCell<BTreeMap<u32, Vec<u8>>> = RefCell::new(BTreeMap::new());
     /// Page data, which has been in storage before current execution.
     /// For each lazy page, which has been accessed.
-    static RELEASED_LAZY_PAGES: RefCell<BTreeMap<u32, Vec<u8>>> = RefCell::new(BTreeMap::new());
+    static RELEASED_LAZY_PAGES: RefCell<BTreeMap<u32, Option<PageBuf>>> = RefCell::new(BTreeMap::new());
 }
 
 /// Save page key in storage
@@ -84,12 +85,13 @@ pub fn is_lazy_pages_enabled() -> bool {
 pub struct GetReleasedPageError;
 
 /// Returns page data which page has in storage before execution
-pub fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
+pub fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
     RELEASED_LAZY_PAGES.with(|x| {
-        x.borrow()
-            .get(&page)
+        x.borrow_mut()
+            .get_mut(&page)
+            .ok_or(GetReleasedPageError)?
+            .take()
             .ok_or(GetReleasedPageError)
-            .map(|data| data.to_vec())
     })
 }
 
