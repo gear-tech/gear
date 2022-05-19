@@ -33,7 +33,7 @@ js_test() {
   node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
-gtest_debug() {
+gtest() {
   ROOT_DIR="$1"
   shift
 
@@ -61,12 +61,7 @@ gtest_debug() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
   fi
 
-  cargo run --package gear-test $CARGO_FLAGS -- $YAMLS "$@"
-}
-
-gtest() {
-  CARGO_FLAGS="--release"
-  gtest_debug "$1"
+  ./target/release/gear-test $YAMLS "$@"
 }
 
 # $1 - ROOT DIR
