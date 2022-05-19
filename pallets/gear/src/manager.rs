@@ -16,6 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Manager which handles results of message processing.
+//!
+//! Should be mentioned, that if message contains value we have a guarantee that it will be sent further in case of successful execution,
+//! or sent back in case execution ends up with an error. This guarantee is reached by the following conditions:
+//! 1. **Reserve/unreserve model for transferring values**.
+//! Ownership over message value is moved not by simple transfer operation, which decreases **free** balance of sender. That is done by
+//! reserving value before message is executed and repatriating reserved in favor of beneficiary in case of successful execution, or unreserving
+//! in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is **always some
+//! value** to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
+//! corresponding `pallet_balances` functions (`reserve`, `repatriate_reserved`, `unreserve` along with `transfer`) in `pallet_gear` extrinsics,
+//! [`JournalHandler::send_dispatch`] and [`JournalHandler::send_value`] procedures.
+//!
+//! 2. **Balance sufficiency before adding message with value to the queue**.
+//! Before message is added to the queue, sender's balance is checked for having adequate amount of assets to send desired value. For actors, who
+//! can sign transactions, these checks are done in extrinsic calls. For programs these checks are done on core backend level during execution. In details,
+//! when a message is executed, it has some context, which is set from the pallet level, and a part of the context data is program's actual balance (current balance +
+//! value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
+//! by program's balance checks. The check gives guarantee that value reservation call in [`JournalHandler::send_dispatch`] for program's messages won't fail,
+//! because there is always a sufficient balance for the call.
+//!
+//! 3. **Messages's value management considers existential deposit rule**.
+//! It means that before message with value is added to the queue, value is checked to be in the valid range - `{0} ∪ [existential_deposit; +inf)`. This is
+//! crucial for programs. The check gives guarantee that if funds were moved to the program, the program will definitely have an account in `pallet_balances`
+//! registry and will be able then to manage these funds. Without this check, program could receive funds, but won't be able to use them.
+//!
+//! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
+
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
     MessageInfo, Pallet,
@@ -33,7 +60,7 @@ use frame_support::traits::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageBuf, PageNumber},
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
@@ -94,7 +121,7 @@ where
             <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
                 .unique_saturated_into();
         let pages_data = if with_pages {
-            common::get_program_data_for_pages(id, active.pages_with_data.iter())
+            common::get_program_data_for_pages(id, active.pages_with_data.iter()).ok()?
         } else {
             Default::default()
         };
@@ -348,19 +375,11 @@ where
         let gas_limit = dispatch.gas_limit();
         let dispatch = dispatch.into_stored();
 
-        if dispatch.value() != 0
-            && <T as Config>::Currency::reserve(
+        if dispatch.value() != 0 {
+            <T as Config>::Currency::reserve(
                 &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                 dispatch.value().unique_saturated_into(),
-            )
-            .is_err()
-        {
-            log::debug!(
-                "Message (from: {:?}) {:?} will be skipped",
-                message_id,
-                dispatch.message()
-            );
-            return;
+            ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
         }
 
         log::debug!(
@@ -479,7 +498,7 @@ where
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         let program_id = program_id.into_origin();
         let program = common::get_program(program_id)
@@ -515,38 +534,56 @@ where
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         let from = from.into_origin();
-        if let Some(to) = to {
-            let to = to.into_origin();
+        let value = value.unique_saturated_into();
+        if let Some(to) = to.map(|id| id.into_origin()) {
+            let from_account = <T::AccountId as Origin>::from_origin(from);
+            let to_account = <T::AccountId as Origin>::from_origin(to);
             log::debug!(
-                "Value send of amount {:?} from {:?} to {:?}",
+                "Sending value of amount {:?} from {:?} to {:?}",
                 value,
                 from,
                 to
             );
-            let from = <T::AccountId as Origin>::from_origin(from);
-            let to = <T::AccountId as Origin>::from_origin(to);
-            if <T as Config>::Currency::can_reserve(&to, <T as Config>::Currency::minimum_balance())
-            {
+            let res = if <T as Config>::Currency::can_reserve(
+                &to_account,
+                <T as Config>::Currency::minimum_balance(),
+            ) {
                 // `to` account exists, so we can repatriate reserved value for it.
-                let _ = <T as Config>::Currency::repatriate_reserved(
-                    &from,
-                    &to,
-                    value.unique_saturated_into(),
+                <T as Config>::Currency::repatriate_reserved(
+                    &from_account,
+                    &to_account,
+                    value,
                     BalanceStatus::Free,
+                )
+                .map(|_| ())
+            } else {
+                let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
+                if not_freed != 0u128.unique_saturated_into() {
+                    unreachable!("All requested value for unreserve must be freed. For more info, see module docs.");
+                }
+                <T as Config>::Currency::transfer(
+                    &from_account,
+                    &to_account,
+                    value,
+                    ExistenceRequirement::AllowDeath,
+                )
+            };
+
+            res.unwrap_or_else(|_| {
+                unreachable!("Value transfers can't fail. For more info, see module docs.")
+            });
+        } else {
+            let from_account = <T::AccountId as Origin>::from_origin(from);
+            let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
+            if not_freed == 0u128.unique_saturated_into() {
+                log::debug!(
+                    "Value amount amount {:?} successfully unreserved from {:?}",
+                    value,
+                    from,
                 );
             } else {
-                <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
-                let _ = <T as Config>::Currency::transfer(
-                    &from,
-                    &to,
-                    value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
-                );
+                unreachable!("All requested value for unreserve must be freed. For more info, see module docs.");
             }
-        } else {
-            log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
-            let from = <T::AccountId as Origin>::from_origin(from);
-            <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
         }
     }
 

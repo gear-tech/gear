@@ -18,7 +18,6 @@
 
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
@@ -75,7 +74,7 @@ pub trait ProcessorExt {
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 }
@@ -167,7 +166,7 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(
-        _memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
         _wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         unreachable!()
@@ -182,8 +181,8 @@ impl IntoExtInfo for Ext {
         let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
-            let mut buf = alloc::vec![0u8; PageNumber::size()];
-            if let Err(err) = get_page_data(page.offset(), &mut buf) {
+            let mut buf = PageBuf::new_zeroed();
+            if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
                 return Err((err, self.gas_counter.into()));
             }
             pages_data.insert(page, buf);
@@ -319,16 +318,16 @@ impl EnvExt for Ext {
     }
 
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
+
+        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < msg.value() && msg.value() < self.existential_deposit {
             return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };
-
-        self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
-
+        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
-
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
             return self.return_and_store_err(Err(ExtError::NotEnoughValue));
         };
@@ -343,10 +342,15 @@ impl EnvExt for Ext {
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
+
+        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < msg.value() && msg.value() < self.existential_deposit {
             return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
         };
-
+        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
+        if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
+        };
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
             return self.return_and_store_err(Err(ExtError::NotEnoughValue));
         };
@@ -494,6 +498,19 @@ impl EnvExt for Ext {
 
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
+
+        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
+        if 0 < packet.value() && packet.value() < self.existential_deposit {
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
+        };
+        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
+        if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
+        };
+        if self.value_counter.reduce(packet.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
+        };
+
         let code_hash = packet.code_id();
 
         // Send a message for program creation
