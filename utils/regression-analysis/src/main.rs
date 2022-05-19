@@ -17,9 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 
-use clap::Parser;
+use std::path::{Path, PathBuf};
+use std::fs;
+
+use clap::{Parser, Subcommand};
 
 use quick_xml::de::from_str;
 
@@ -38,14 +40,26 @@ const PALLET_NAMES: [&str; 7] = [
     "pallet-usage",
 ];
 
+const PREALLOCATE: usize = 1_000;
+
 #[derive(Parser)]
 struct Cli {
-    #[clap(long)]
-    master_junit_xml: PathBuf,
-    #[clap(long)]
-    current_junit_xml: PathBuf,
-    #[clap(long)]
-    disable_filter: bool,
+    #[clap(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Adds files to myapp
+    CollectData {
+        #[clap(long)]
+        data_folder_path: PathBuf,
+        #[clap(long)]
+        output_path: PathBuf,
+        #[clap(long)]
+        disable_filter: bool,
+    },
+    Compare,
 }
 
 fn build_tree(disable_filter: bool, path: &Path) -> BTreeMap<String, BTreeMap<String, f64>> {
@@ -62,36 +76,60 @@ fn build_tree(disable_filter: bool, path: &Path) -> BTreeMap<String, BTreeMap<St
     junit_parser::build_tree(filter, test_suites)
 }
 
+fn median(values: &[u64]) -> u64 {
+    assert!(!values.is_empty());
+
+    let len = values.len();
+    if len % 2 == 0 {
+        let i = len / 2;
+        values[i - 1] / 2 + values[i + 1] / 2 + values[i - 1] % 2 + values[i + 1] % 2
+    } else {
+        values[len / 2 + 1]
+    }
+}
+
+fn collect_data(data_folder_path: &Path, output_path: &Path, disable_filter: bool, preallocate: usize) {
+    let mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> = BTreeMap::default();
+    for entry in fs::read_dir(data_folder_path).unwrap() {
+        let executions = build_tree(disable_filter, &entry.unwrap().path());
+        executions.iter().for_each(|(key, times)| {
+            if !statistics.contains_key(key) {
+                statistics.insert(key.clone(), Default::default());
+            }
+
+            let previous_times = statistics.get_mut(key).unwrap();
+            times.iter().for_each(|(key, &time)| {
+                let time = (1_000_000_000.0 * time) as u64;
+
+                if let Some(time_vec) = previous_times.get_mut(key) {
+                    let i = match time_vec.binary_search(&time) {
+                        Ok(i) => i,
+                        Err(i) => i,
+                    };
+
+                    time_vec.insert(i, time);
+                } else {
+                    let mut time_vec = Vec::with_capacity(preallocate);
+                    time_vec.push(time);
+
+                    previous_times.insert(key.clone(), time_vec);
+                }
+            });
+        });
+    }
+
+    let writer = std::fs::File::create(output_path).unwrap();
+    serde_json::to_writer_pretty(writer, &statistics).unwrap();
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    let executions_master = build_tree(cli.disable_filter, &cli.master_junit_xml);
-    let executions_current = build_tree(cli.disable_filter, &cli.current_junit_xml);
-
-    let compared = executions_current
-        .iter()
-        .filter_map(|(key, tests_current)| {
-            executions_master.get(key).map(|tests_master| {
-                let tests = tests_current
-                    .iter()
-                    .filter_map(|(key, &master_time)| {
-                        tests_master.get(key).map(|&current_time| output::Test {
-                            name: key.clone(),
-                            master_time,
-                            current_time,
-                        })
-                    })
-                    .collect::<Vec<_>>();
-
-                (key, tests)
-            })
-        })
-        .collect::<BTreeMap<_, _>>();
-
-    for (name, stats) in compared {
-        println!("name = {}", name);
-        let table = tabled::Table::new(stats);
-        println!("{}", table);
-        println!();
+    match &cli.command {
+        Commands::CollectData { data_folder_path, disable_filter, output_path } => {
+            collect_data(&data_folder_path, &output_path, *disable_filter, PREALLOCATE);
+        }
+        Commands::Compare => {
+        }
     }
 }

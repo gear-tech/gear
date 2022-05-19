@@ -6079,6 +6079,7 @@ dependencies = [
  "clap",
  "quick-xml",
  "regression-common",
+ "serde_json",
  "tabled",
 ]
 

@@ -12,3 +12,4 @@ clap = { version = "3.1.18", features = ["derive"] }
 quick-xml = { version = "0.21", features = [ "serialize" ] }
 tabled = "0.6.1"
 common = { package = "regression-common", path = "../regression-common" }
+serde_json = "1.0.81"
