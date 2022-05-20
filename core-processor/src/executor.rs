@@ -16,16 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::ExecutionErrorReason;
 use crate::{
     common::{
         DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
+        ExecutionErrorReason,
     },
     configs::ExecutionSettings,
     ext::ProcessorExt,
 };
-use alloc::string::ToString;
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,

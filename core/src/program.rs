@@ -113,8 +113,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::code::Code;
-    use crate::ids::ProgramId;
+    use crate::{code::Code, ids::ProgramId};
     use alloc::vec::Vec;
     use wasm_instrument::gas_metering::ConstantCostRules;
 

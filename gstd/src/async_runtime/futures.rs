@@ -18,8 +18,10 @@
 
 //! Module for future-management.
 
-use crate::prelude::{BTreeMap, Box};
-use crate::MessageId;
+use crate::{
+    prelude::{BTreeMap, Box},
+    MessageId,
+};
 use core::{
     future::Future,
     pin::Pin,

@@ -20,9 +20,11 @@
 //! with messages arguments as with data structure instead of bytes array
 //! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
-use crate::errors::{ContractError, Result};
-use crate::prelude::convert::AsRef;
-use crate::{ActorId, MessageId};
+use crate::{
+    errors::{ContractError, Result},
+    prelude::convert::AsRef,
+    ActorId, MessageId,
+};
 use codec::{Decode, Encode};
 
 /// `load` returns Result, where Ok case contains a message payload decoded into
