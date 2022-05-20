@@ -244,7 +244,7 @@ pub mod pallet {
         CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
-        /// Value doesn't cover ExistenceDeposit.
+        /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
         /// Unable to instrument program code.
         GasInstrumentationFailed,
