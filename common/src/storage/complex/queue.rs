@@ -22,7 +22,7 @@
 //! addressed to programs.
 
 use crate::storage::{
-    complicated::{LinkedList, LinkedListError},
+    complicated::{Dequeue, DequeueError},
     primitives::{Counted, IterableMap, KeyFor},
 };
 use core::marker::PhantomData;
@@ -32,7 +32,7 @@ pub trait Queue {
     /// Stored values type.
     type Value;
     /// Inner error type of queue storing algorithm.
-    type Error: LinkedListError;
+    type Error: DequeueError;
     /// Output error type of the queue.
     type OutputError: From<Self::Error>;
 
@@ -56,21 +56,21 @@ pub trait Queue {
     fn requeue(value: Self::Value) -> Result<(), Self::OutputError>;
 }
 
-/// `Mailbox` implementation based on `LinkedList`.
+/// `Mailbox` implementation based on `Dequeue`.
 ///
 /// Generic parameter `KeyGen` presents key generation for given values.
 pub struct QueueImpl<T, OutputError, KeyGen>(PhantomData<(T, OutputError, KeyGen)>)
 where
-    T: LinkedList,
+    T: Dequeue,
     OutputError: From<T::Error>,
     KeyGen: KeyFor<Key = T::Key, Value = T::Value>;
 
 // Implementation of `Queue` for `QueueImpl`.
 impl<T, OutputError, KeyGen> Queue for QueueImpl<T, OutputError, KeyGen>
 where
-    T: LinkedList,
+    T: Dequeue,
     OutputError: From<T::Error>,
-    T::Error: LinkedListError,
+    T::Error: DequeueError,
     KeyGen: KeyFor<Key = T::Key, Value = T::Value>,
 {
     type Value = T::Value;
@@ -101,10 +101,10 @@ where
 }
 
 // Implementation of `Counted` trait for `QueueImpl` in case,
-// when inner `LinkedList` implements `Counted.
+// when inner `Dequeue` implements `Counted.
 impl<T, OutputError, KeyGen> Counted for QueueImpl<T, OutputError, KeyGen>
 where
-    T: LinkedList + Counted,
+    T: Dequeue + Counted,
     OutputError: From<T::Error>,
     KeyGen: KeyFor<Key = T::Key, Value = T::Value>,
 {
@@ -120,13 +120,13 @@ where
 /// Removes element on each iteration.
 pub struct QueueDrainIter<T, OutputError>(T::DrainIter, PhantomData<OutputError>)
 where
-    T: LinkedList + IterableMap<Result<T::Value, T::Error>>,
+    T: Dequeue + IterableMap<Result<T::Value, T::Error>>,
     OutputError: From<T::Error>;
 
 // `Iterator` implementation for `QueueDrainIter`.
 impl<T, OutputError> Iterator for QueueDrainIter<T, OutputError>
 where
-    T: LinkedList + IterableMap<Result<T::Value, T::Error>>,
+    T: Dequeue + IterableMap<Result<T::Value, T::Error>>,
     OutputError: From<T::Error>,
 {
     type Item = Result<T::Value, OutputError>;
@@ -139,13 +139,13 @@ where
 /// Common iterator over queue's values.
 pub struct QueueIter<T, OutputError>(T::Iter, PhantomData<OutputError>)
 where
-    T: LinkedList + IterableMap<Result<T::Value, T::Error>>,
+    T: Dequeue + IterableMap<Result<T::Value, T::Error>>,
     OutputError: From<T::Error>;
 
 // `Iterator` implementation for `QueueIter`.
 impl<T, OutputError> Iterator for QueueIter<T, OutputError>
 where
-    T: LinkedList + IterableMap<Result<T::Value, T::Error>>,
+    T: Dequeue + IterableMap<Result<T::Value, T::Error>>,
     OutputError: From<T::Error>,
 {
     type Item = Result<T::Value, OutputError>;
@@ -160,7 +160,7 @@ where
 impl<T, OutputError, KeyGen> IterableMap<Result<T::Value, OutputError>>
     for QueueImpl<T, OutputError, KeyGen>
 where
-    T: LinkedList + IterableMap<Result<T::Value, T::Error>>,
+    T: Dequeue + IterableMap<Result<T::Value, T::Error>>,
     OutputError: From<T::Error>,
     KeyGen: KeyFor<Key = T::Key, Value = T::Value>,
 {

@@ -24,15 +24,14 @@
 
 // Private modules declaration.
 mod counter;
+mod dequeue;
 mod limiter;
-mod linked_list;
 mod toggler;
 
 // Public exports from complicated modules.
 pub use counter::{Counter, CounterImpl};
-pub use limiter::{Limiter, LimiterImpl};
-pub use linked_list::{
-    LinkedList, LinkedListCallbacks, LinkedListDrainIter, LinkedListError, LinkedListImpl,
-    LinkedListIter, LinkedNode,
+pub use dequeue::{
+    Dequeue, DequeueCallbacks, DequeueDrainIter, DequeueError, DequeueImpl, DequeueIter, LinkedNode,
 };
+pub use limiter::{Limiter, LimiterImpl};
 pub use toggler::{Toggler, TogglerImpl};

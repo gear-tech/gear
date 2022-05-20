@@ -16,50 +16,56 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for linked list implementation.
+//! Module for dequeue implementation.
 //!
-//! Linked list based on key value ratio.
+//! Dequeue based on dequeue implementation over key value map.
+//! This dequeue algorithm has main invariants:
+//! - If dequeue is empty, it's head and tail should be empty.
+//! - If dequeue contains the only one elements, is'ts head and tail
+//! should equal this element's key.
+//! - Based on above specified points, head and tail should
+//! both be set or be empty.
+//! - Inner map should contain values under keys, set in head and tail,
+//! if they present.
 
 use crate::storage::{Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage};
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
 use scale_info::TypeInfo;
 
-/// Represents dequeue-like linked list implementation.
-pub trait LinkedList {
-    /// Linked list's elements stored key.
+/// Represents dequeue implementation.
+pub trait Dequeue {
+    /// Dequeue's elements stored key.
     type Key;
-    /// Linked list's elements stored value.
+    /// Dequeue's elements stored value.
     type Value;
-    /// Linked list error type.
+    /// Dequeue error type.
     type Error;
 
     /// Mutates all stored value with given function.
     fn mutate_values<F: FnMut(Self::Value) -> Self::Value>(f: F);
 
-    /// Removes and returns tail value of the linked list, if present.
-    ///
-    /// Very expensive operation! Use double linked list instead!
+    /// Removes and returns tail value of the dequeue, if present.
     fn pop_back() -> Result<Option<Self::Value>, Self::Error>;
 
-    /// Removes and returns head value of the linked list, if present.
+    /// Removes and returns head value of the dequeue, if present.
     fn pop_front() -> Result<Option<Self::Value>, Self::Error>;
 
-    /// Inserts value to the end of linked list with given key.
+    /// Inserts value to the end of dequeue with given key.
     fn push_back(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
-    /// Inserts value to the beginning of linked list with given key.
+    /// Inserts value to the beginning of dequeue with given key.
     fn push_front(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
     /// Removes all values.
     fn remove_all();
 }
 
-/// Represents store of linked list's action callbacks.
-pub trait LinkedListCallbacks {
+/// Represents store of dequeue's action callbacks.
+pub trait DequeueCallbacks {
     /// Callback relative type.
     ///
-    /// This value should be the main item of linked list,
+    /// This value should be the main item of dequeue,
     /// which uses this callbacks store.
     type Value;
 
@@ -75,11 +81,11 @@ pub trait LinkedListCallbacks {
     type OnRemoveAll: EmptyCallback;
 }
 
-/// Represents linked list error type.
+/// Represents dequeue error type.
 ///
 /// Contains constructors for all existing errors.
-pub trait LinkedListError {
-    /// Occurs when given key already exists in list.
+pub trait DequeueError {
+    /// Occurs when given key already exists in dequeue.
     fn duplicate_key() -> Self;
 
     /// Occurs when element wasn't found in storage.
@@ -93,7 +99,7 @@ pub trait LinkedListError {
     /// but it contains value for some reason.
     fn head_should_not_be_set() -> Self;
 
-    /// Occurs when tail element of the linked list
+    /// Occurs when tail element of the dequeue
     /// contains link to the next element.
     fn tail_has_next_key() -> Self;
 
@@ -110,46 +116,46 @@ pub trait LinkedListError {
     fn tail_should_not_be_set() -> Self;
 }
 
-/// `LinkedList` implementation based on `MapStorage` and `ValueStorage`s.
+/// `Dequeue` implementation based on `MapStorage` and `ValueStorage`s.
 ///
 /// Generic parameters `Key` and `Value` specify data and keys for storing.
-/// Generic parameter `Error` requires `LinkedListError` implementation.
+/// Generic parameter `Error` requires `DequeueError` implementation.
 /// Generic parameter `Callbacks` presents actions for success operations
-/// over linked list.
-pub struct LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>(
+/// over dequeue.
+pub struct DequeueImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>(
     PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
 )
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>;
+    Callbacks: DequeueCallbacks<Value = Value>;
 
-/// Represents node of the linked list.
+/// Represents node of the dequeue.
 ///
 /// Contains value and link to the next node.
 #[derive(Encode, Decode, TypeInfo)]
 pub struct LinkedNode<K, V> {
-    /// Key of the next node of linked list,
+    /// Key of the next node of dequeue,
     /// if present.
     pub next: Option<K>,
     /// Stored value of current node.
     pub value: V,
 }
 
-// Implementation of `Counted` trait for `LinkedListImpl` in case,
+// Implementation of `Counted` trait for `DequeueImpl` in case,
 // when inner `MapStorage` implements `Counted.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Counted
-    for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
+    for DequeueImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>> + Counted,
-    Callbacks: LinkedListCallbacks<Value = Value>,
+    Callbacks: DequeueCallbacks<Value = Value>,
 {
     type Length = MS::Length;
 
@@ -158,16 +164,16 @@ where
     }
 }
 
-// Implementation of `LinkedList` for `LinkedListImpl`.
-impl<Key, Value, Error, HVS, TVS, MS, Callbacks> LinkedList
-    for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
+// Implementation of `Dequeue` for `DequeueImpl`.
+impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Dequeue
+    for DequeueImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
+    Callbacks: DequeueCallbacks<Value = Value>,
 {
     type Key = Key;
     type Value = Value;
@@ -180,6 +186,8 @@ where
         })
     }
 
+    /// Very expensive operation!
+    /// Use dequeue based on double linked list instead!
     fn pop_back() -> Result<Option<Self::Value>, Self::Error> {
         if let Some(head_key) = HVS::get() {
             let tail_key = TVS::take().ok_or_else(Self::Error::tail_should_be_set)?;
@@ -308,31 +316,31 @@ where
     }
 }
 
-/// Drain iterator over linked list's values.
+/// Drain iterator over dequeue's values.
 ///
 /// Removes element on each iteration.
-pub struct LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>(
+pub struct DequeueDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>(
     Option<Key>,
     PhantomData<(Error, HVS, TVS, MS, Callbacks)>,
 )
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>;
+    Callbacks: DequeueCallbacks<Value = Value>;
 
-// `Iterator` implementation for `LinkedListDrainIter`.
+// `Iterator` implementation for `DequeueDrainIter`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Iterator
-    for LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>
+    for DequeueDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
+    Callbacks: DequeueCallbacks<Value = Value>,
 {
     type Item = Result<Value, Error>;
 
@@ -358,23 +366,23 @@ where
     }
 }
 
-/// Common iterator over linked list's values.
-pub struct LinkedListIter<Key, Value, Error, HVS, TVS, MS>(
+/// Common iterator over dequeue's values.
+pub struct DequeueIter<Key, Value, Error, HVS, TVS, MS>(
     Option<Key>,
     PhantomData<(Error, HVS, TVS, MS)>,
 )
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>;
 
-// `Iterator` implementation for `LinkedListIter`.
-impl<Key, Value, Error, HVS, TVS, MS> Iterator for LinkedListIter<Key, Value, Error, HVS, TVS, MS>
+// `Iterator` implementation for `DequeueIter`.
+impl<Key, Value, Error, HVS, TVS, MS> Iterator for DequeueIter<Key, Value, Error, HVS, TVS, MS>
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
@@ -396,26 +404,26 @@ where
     }
 }
 
-// `IterableMap` implementation for `LinkedListImpl`, returning iterators,
-// presented with `LinkedListIter` and `LinkedListDrainIter`.
+// `IterableMap` implementation for `DequeueImpl`, returning iterators,
+// presented with `DequeueIter` and `DequeueDrainIter`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> IterableMap<Result<Value, Error>>
-    for LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
+    for DequeueImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where
     Key: Clone + PartialEq,
-    Error: LinkedListError,
+    Error: DequeueError,
     HVS: ValueStorage<Value = Key>,
     TVS: ValueStorage<Value = Key>,
     MS: MapStorage<Key = Key, Value = LinkedNode<Key, Value>>,
-    Callbacks: LinkedListCallbacks<Value = Value>,
+    Callbacks: DequeueCallbacks<Value = Value>,
 {
-    type DrainIter = LinkedListDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>;
-    type Iter = LinkedListIter<Key, Value, Error, HVS, TVS, MS>;
+    type DrainIter = DequeueDrainIter<Key, Value, Error, HVS, TVS, MS, Callbacks>;
+    type Iter = DequeueIter<Key, Value, Error, HVS, TVS, MS>;
 
     fn drain() -> Self::DrainIter {
-        LinkedListDrainIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS, Callbacks)>)
+        DequeueDrainIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS, Callbacks)>)
     }
 
     fn iter() -> Self::Iter {
-        LinkedListIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS)>)
+        DequeueIter(HVS::get(), PhantomData::<(Error, HVS, TVS, MS)>)
     }
 }

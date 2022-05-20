@@ -220,9 +220,9 @@ pub mod pallet {
         MailboxElementNotFound,
     }
 
-    // Implementation of `LinkedListError` for `Error<T>`
+    // Implementation of `DequeueError` for `Error<T>`
     // usage as `Queue::Error`.
-    impl<T: crate::Config> LinkedListError for Error<T> {
+    impl<T: crate::Config> DequeueError for Error<T> {
         fn duplicate_key() -> Self {
             Self::QueueDuplicateKey
         }
@@ -405,7 +405,7 @@ pub mod pallet {
 
     // Callbacks store for queue trait implementation, over
     // specified (associated) type of queue value.
-    impl<T: Messenger> LinkedListCallbacks for QueueCallbacks<T> {
+    impl<T: Messenger> DequeueCallbacks for QueueCallbacks<T> {
         type Value = T::QueuedDispatch;
 
         type OnPopBack = ();
@@ -508,7 +508,7 @@ pub mod pallet {
         type QueueProcessing = TogglerImpl<QueueProcessingWrap<T>>;
 
         type Queue = QueueImpl<
-            LinkedListImpl<
+            DequeueImpl<
                 MessageId,
                 Self::QueuedDispatch,
                 Self::Error,
