@@ -390,7 +390,7 @@ where
             if MailboxOf::<T>::insert(message.clone()).is_ok() {
                 Pallet::<T>::deposit_event(Event::Log(message));
             } else {
-                log::debug!("Error occurred in mailbox insertion")
+                log::error!("Error occurred in mailbox insertion")
             }
         }
     }
