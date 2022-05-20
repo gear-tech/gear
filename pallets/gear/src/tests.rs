@@ -416,9 +416,10 @@ fn restrict_start_section() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
-    // This test access different pages in linear wasm memory
-    // and check that lazy-pages (see gear-lazy-pages) works correct:
-    // For each page, which has been loaded from storage <=> page has been accessed.
+    // This access different pages in wasm linear memory.
+    // Some pages accessed many times and some pages are freed and then allocated again
+    // during one execution. This actions are helpful to identify problems with pages reallocations
+    // and how lazy pages works with them.
     let wat = r#"
 (module
     (import "env" "memory" (memory 1))
@@ -600,24 +601,21 @@ fn memory_access_cases() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let pid = {
-            let code = ProgramCodeKind::Custom(wat).to_bytes();
-            let salt = DEFAULT_SALT.to_vec();
-            let prog_id = generate_program_id(&code, &salt);
-            let res = GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1),
-                code,
-                salt,
-                EMPTY_PAYLOAD.to_vec(),
-                500_000_000,
-                0,
-            )
-            .map(|_| prog_id);
-            res.expect("submit result was asserted")
-        };
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+        let res = GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000,
+            0,
+        )
+        .map(|_| prog_id);
+        let pid = res.expect("submit result is not ok");
 
         run_to_block(2, Some(1_000_000_000));
-        log::debug!("submit done {:?}", pid);
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         // First handle: access pages
@@ -626,9 +624,8 @@ fn memory_access_cases() {
             pid,
             EMPTY_PAYLOAD.to_vec(),
             100_000_000,
-            100,
+            0,
         );
-        log::debug!("res = {:?}", res);
         assert_ok!(res);
 
         run_to_block(3, Some(1_000_000_000));
@@ -639,9 +636,8 @@ fn memory_access_cases() {
             pid,
             EMPTY_PAYLOAD.to_vec(),
             100_000_000,
-            100,
+            0,
         );
-        log::debug!("res = {:?}", res);
         assert_ok!(res);
 
         run_to_block(4, Some(1_000_000_000));
