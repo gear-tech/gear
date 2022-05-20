@@ -22,9 +22,7 @@ use common::CodeMetadata;
 use gear_core::{code::InstrumentedCode, ids::CodeId};
 pub use pallet::*;
 use primitive_types::H256;
-use sp_std::collections::btree_map::BTreeMap;
-use sp_std::convert::TryInto;
-use sp_std::prelude::*;
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
 use frame_support::{
     dispatch::DispatchResultWithPostInfo, traits::StorageVersion, weights::Weight,

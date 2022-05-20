@@ -18,10 +18,12 @@
 
 //! This `gstd` module provides async messaging functions.
 
-use crate::async_runtime::{signals, ReplyPoll};
-use crate::errors::{ContractError, Result};
-use crate::prelude::{convert::AsRef, Vec};
-use crate::{ActorId, MessageId};
+use crate::{
+    async_runtime::{signals, ReplyPoll},
+    errors::{ContractError, Result},
+    prelude::{convert::AsRef, Vec},
+    ActorId, MessageId,
+};
 use codec::{Decode, Encode};
 use core::{
     future::Future,
