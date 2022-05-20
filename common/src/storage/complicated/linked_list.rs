@@ -25,7 +25,7 @@ use codec::{Decode, Encode};
 use core::marker::PhantomData;
 use scale_info::TypeInfo;
 
-/// Represents deque-like linked list implementation.
+/// Represents dequeue-like linked list implementation.
 pub trait LinkedList {
     /// Linked list's elements stored key.
     type Key;
@@ -48,7 +48,7 @@ pub trait LinkedList {
     /// Inserts value to the end of linked list with given key.
     fn push_back(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
-    /// Inserts value to the beggining of linked list with given key.
+    /// Inserts value to the beginning of linked list with given key.
     fn push_front(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
     /// Removes all values.
@@ -89,7 +89,7 @@ pub trait LinkedListError {
     /// but it's empty for some reason.
     fn head_should_be_set() -> Self;
 
-    /// Occures when head should be empty,
+    /// Occurs when head should be empty,
     /// but it contains value for some reason.
     fn head_should_not_be_set() -> Self;
 
@@ -113,7 +113,7 @@ pub trait LinkedListError {
 /// `LinkedList` implementation based on `MapStorage` and `ValueStorage`s.
 ///
 /// Generic parameters `Key` and `Value` specify data and keys for storing.
-/// Generic perameter `Error` requires `LinkedListError` implementation.
+/// Generic parameter `Error` requires `LinkedListError` implementation.
 /// Generic parameter `Callbacks` presents actions for success operations
 /// over linked list.
 pub struct LinkedListImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>(

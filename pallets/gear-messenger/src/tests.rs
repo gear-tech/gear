@@ -79,7 +79,7 @@ fn sent_impl_works() {
 // Identical to `sent_impl_works` test, due to the same trait impl,
 // but works on other storage and wont be actually manually used.
 //
-// See tests with auto incresing that parameter on pushes and pops from queue.
+// See tests with auto increasing that parameter on pushes and pops from queue.
 #[test]
 fn dequeued_impl_works_manually() {
     init_logger();

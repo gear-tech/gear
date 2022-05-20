@@ -227,15 +227,15 @@ pub mod pallet {
         ///
         /// Occurs if a program with some specific program id already exists in program storage.
         ProgramAlreadyExists,
-        /// Program is terminated
+        /// Program is terminated.
         ///
-        /// Program init ended up with failure, so such message destination is unavailable anymore
+        /// Program init ended up with failure, so such message destination is unavailable anymore.
         ProgramIsTerminated,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
         NoMessageTree,
-        /// Code already exists
+        /// Code already exists.
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
@@ -244,9 +244,9 @@ pub mod pallet {
         CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
-        /// Value doesnt cover ExistenceDeposit
+        /// Value doesn't cover ExistenceDeposit.
         ValueLessThanMinimal,
-        /// Unable to intrument program code
+        /// Unable to instrument program code.
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,

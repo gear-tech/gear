@@ -18,7 +18,7 @@
 
 //! Gear storage primitives.
 //!
-//! Contains basic behaviour of interaction with globaly shared data,
+//! Contains basic behavior of interaction with globally shared data,
 //! which could be used directly for common purposes or be a part of
 //! some consistent logic.
 

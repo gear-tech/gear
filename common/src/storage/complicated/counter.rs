@@ -24,7 +24,7 @@
 use crate::storage::ValueStorage;
 use core::marker::PhantomData;
 
-/// Represents logic of managing step-by-step changable value.
+/// Represents logic of managing step-by-step changeable value.
 pub trait Counter {
     /// Counter stored type.
     type Value;

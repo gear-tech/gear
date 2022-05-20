@@ -390,7 +390,7 @@ where
             if MailboxOf::<T>::insert(message.clone()).is_ok() {
                 Pallet::<T>::deposit_event(Event::Log(message));
             } else {
-                log::debug!("Error occured in mailbox insertation")
+                log::debug!("Error occurred in mailbox insertion")
             }
         }
     }
@@ -571,7 +571,7 @@ where
 
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
         log::debug!(
-            "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
+            "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
             GasPallet::<T>::gas_allowance(),
             gas_burned,

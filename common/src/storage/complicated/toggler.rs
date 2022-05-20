@@ -18,7 +18,7 @@
 
 //! Module for toggler/flag implementation.
 //!
-//! Toggler provides API for allowation or denial.
+//! Toggler provides API for allowing or denying actions.
 //! Could be used to branch logic by toggler condition.
 
 use crate::storage::ValueStorage;

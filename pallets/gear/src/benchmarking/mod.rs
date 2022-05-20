@@ -149,7 +149,7 @@ where
 {
     assert!(
         cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages(),
-        "Suppose to run benchs only with lazy pages"
+        "Suppose to run benches only with lazy pages"
     );
 
     let ext_manager = ExtManager::<T>::default();
@@ -336,7 +336,7 @@ benchmarks! {
             Default::default(),
             0,
             None,
-        )).expect("Error during mailbox insertation");
+        )).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), MessageId::from_origin(original_message_id), payload, 100_000_000_u64, 10_000_u32.into())
     verify {
@@ -1603,7 +1603,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertation");
+        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             maybe_actor,
@@ -1715,7 +1715,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertation");
+        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             maybe_actor,
@@ -2091,7 +2091,7 @@ benchmarks! {
     // the same amount of time. We follow that `t.load` and `drop` both have the weight
     // of this benchmark / 2. We need to make this assumption because there is no way
     // to measure them on their own using a valid wasm module. We need their individual
-    // values to derive the weight of individual instructions (by substraction) from
+    // values to derive the weight of individual instructions (by subtraction) from
     // benchmarks that include those for parameter pushing and return type dropping.
     // We call the weight of `t.load` and `drop`: `w_param`.
     // The weight that would result from the respective benchmark we call: `w_bench`.
@@ -2317,7 +2317,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call_indrect = w_bench - 3 * w_param
+    // w_call_indirect = w_bench - 3 * w_param
     instr_call_indirect {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
@@ -2811,9 +2811,9 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // This is no benchmark. It merely exist to have an easy way to pretty print the curently
+    // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
-    // It can be outputed using the following command:
+    // It can be outputted using the following command:
     // cargo run --release --features runtime-benchmarks \
     //     -- benchmark --extra --dev --execution=native \
     //     -p pallet_gear -e print_schedule --no-median-slopes --no-min-squares

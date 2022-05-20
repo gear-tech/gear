@@ -32,7 +32,7 @@ pub trait Mailbox {
     type Key2;
     /// Stored values type.
     type Value;
-    /// Inner error type of mailbox storing algorythm.
+    /// Inner error type of mailbox storing algorithm.
     type Error: MailboxError;
     /// Output error type of the mailbox.
     type OutputError: From<Self::Error>;

@@ -31,12 +31,12 @@ use core::marker::PhantomData;
 pub trait Queue {
     /// Stored values type.
     type Value;
-    /// Inner error type of queue storing algorythm.
+    /// Inner error type of queue storing algorithm.
     type Error: LinkedListError;
     /// Output error type of the queue.
     type OutputError: From<Self::Error>;
 
-    /// Removes and returns message from the beggining of the queue,
+    /// Removes and returns message from the beginning of the queue,
     /// if present,
     fn dequeue() -> Result<Option<Self::Value>, Self::OutputError>;
 
@@ -49,7 +49,7 @@ pub trait Queue {
     /// Removes all values from queue.
     fn remove_all();
 
-    /// Inserts given value at the beggining of the queue.
+    /// Inserts given value at the beginning of the queue.
     ///
     /// Should be used only for cases, when message was dequeued and
     /// it's execution should be postponed until the next block.
@@ -65,7 +65,7 @@ where
     OutputError: From<T::Error>,
     KeyGen: KeyFor<Key = T::Key, Value = T::Value>;
 
-// Inmplementation of `Queue` for `QueueImpl`.
+// Implementation of `Queue` for `QueueImpl`.
 impl<T, OutputError, KeyGen> Queue for QueueImpl<T, OutputError, KeyGen>
 where
     T: LinkedList,

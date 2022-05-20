@@ -537,7 +537,7 @@ fn lazy_pages() {
         // accessed from 0 wasm page:
         expected_accessed.extend(page_to_accessed(0));
 
-        // accessed from 2 wasm page, can be seweral gear and native pages:
+        // accessed from 2 wasm page, can be several gear and native pages:
         let first_page = (0x23ffe / PageNumber::size()) as u32;
         let second_page = (0x24001 / PageNumber::size()) as u32;
         expected_accessed.extend(page_to_accessed(first_page));
@@ -546,7 +546,7 @@ fn lazy_pages() {
         // accessed from 5 wasm page:
         expected_accessed.extend(page_to_accessed((0x50000 / PageNumber::size()) as u32));
 
-        // accessed from 8 and 9 wasm pages, must be seweral gear pages:
+        // accessed from 8 and 9 wasm pages, must be several gear pages:
         let first_page = (0x8fffc / PageNumber::size()) as u32;
         let second_page = (0x90003 / PageNumber::size()) as u32;
         expected_accessed.extend(page_to_accessed(first_page));
@@ -1350,7 +1350,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 }
 
 #[test]
-fn test_code_is_not_resetted_within_program_submission() {
+fn test_code_is_not_reset_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();

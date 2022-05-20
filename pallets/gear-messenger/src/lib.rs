@@ -31,11 +31,11 @@
 //! The Gear Messenger Pallet provides functions for:
 //! - Counting amount of messages sent from outside (from extrinsics)
 //! within the current block.
-//! - Counting amout of messages removed from queue to be processed
+//! - Counting amount of messages removed from queue to be processed
 //! or skipped withing the current block.
 //! - Managing continuation of queue processing withing the current block.
-//! - Storing and managing message queue, it's pushing and poping algorythms.
-//! - Storing and managing mailbox, it's insertation and removal algorythms,
+//! - Storing and managing message queue, it's pushing and popping algorithms.
+//! - Storing and managing mailbox, it's insertion and removal algorithms,
 //! including the value claiming with Balances Pallet as `Currency`
 //! `Config`'s associated type.
 //!
@@ -178,7 +178,7 @@ pub mod pallet {
 
     // Gear Messenger Pallet itself.
     //
-    // Uses without storage info to avoid direct acces to pallet's
+    // Uses without storage info to avoid direct access to pallet's
     // storage from outside.
     //
     // Uses `MESSENGER_STORAGE_VERSION` as current storage version.
@@ -199,7 +199,7 @@ pub mod pallet {
         /// Occurs when queue's head should contain value,
         /// but it's empty for some reason.
         QueueHeadShouldBeSet,
-        /// Occures when queue's head should be empty,
+        /// Occurs when queue's head should be empty,
         /// but it contains value for some reason.
         QueueHeadShouldNotBeSet,
         /// Occurs when queue's tail element contains link
@@ -362,7 +362,7 @@ pub mod pallet {
 
     // ----
 
-    // Below goes callbacks, used for queue algorythm.
+    // Below goes callbacks, used for queue algorithm.
     //
     // Note, that they are public like storage wrappers
     // only to be able use as public trait's generics.
@@ -417,7 +417,7 @@ pub mod pallet {
 
     // ----
 
-    // Below goes callbacks, used for mailbox algorythm.
+    // Below goes callbacks, used for mailbox algorithm.
     //
     // Note, that they are public like storage wrappers
     // only to be able use as public trait's generics.
@@ -483,7 +483,7 @@ pub mod pallet {
     // Gear Messenger Pallet based on above generated
     // types and parameters.
 
-    /// Message processing centralized behaviour for
+    /// Message processing centralized behavior for
     /// Gear Messenger Pallet.
     ///
     /// See `gear_common::storage::Messenger` for

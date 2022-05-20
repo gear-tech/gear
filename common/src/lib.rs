@@ -180,7 +180,7 @@ pub trait ValueTree {
 
     /// Increase the total issuance of the underlying value by creating some `amount` of it
     /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
-    /// In case the `key` already indentifies some other piece of value an error is returned.
+    /// In case the `key` already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
         key: Self::Key,

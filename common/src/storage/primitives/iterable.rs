@@ -19,7 +19,7 @@
 //! Module for map's iterator primitives.
 //!
 //! Map's iterators primitives declares the ability
-//! to iter throuhg defined generic `Item` over the map
+//! to iter through defined generic `Item` over the map
 //! with specified (associated) types of iterators
 //! for drain or just iter elements.
 //!
