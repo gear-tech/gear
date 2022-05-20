@@ -663,7 +663,6 @@ fn lazy_pages() {
 	(module
 		(import "env" "memory" (memory 1))
         (import "env" "alloc" (func $alloc (param i32) (result i32)))
-        (import "env" "free" (func $free (param i32)))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
 		(func $init
