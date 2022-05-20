@@ -18,14 +18,14 @@
 
 use std::collections::BTreeMap;
 
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
 use quick_xml::de::from_str;
 
-mod junit_parser;
+mod junit_tree;
 mod output;
 
 use common::TestSuites;
@@ -50,7 +50,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Adds files to myapp
     CollectData {
         #[clap(long)]
         data_folder_path: PathBuf,
@@ -69,7 +68,10 @@ enum Commands {
     },
 }
 
-fn build_tree(disable_filter: bool, path: &Path) -> BTreeMap<String, BTreeMap<String, f64>> {
+fn build_tree<P: AsRef<Path>>(
+    disable_filter: bool,
+    path: P,
+) -> BTreeMap<String, BTreeMap<String, f64>> {
     let filter = |pallet_name: &str| {
         if disable_filter {
             return true;
@@ -80,7 +82,7 @@ fn build_tree(disable_filter: bool, path: &Path) -> BTreeMap<String, BTreeMap<St
 
     let junit_xml = std::fs::read_to_string(path).unwrap();
     let test_suites: TestSuites = from_str(&junit_xml).unwrap();
-    junit_parser::build_tree(filter, test_suites)
+    junit_tree::build_tree(filter, test_suites)
 }
 
 fn median(values: &[u64]) -> u64 {
@@ -95,7 +97,12 @@ fn median(values: &[u64]) -> u64 {
     }
 }
 
-fn collect_data(data_folder_path: &Path, output_path: &Path, disable_filter: bool, preallocate: usize) {
+fn collect_data<P: AsRef<Path>>(
+    data_folder_path: P,
+    output_path: P,
+    disable_filter: bool,
+    preallocate: usize,
+) {
     let mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> = BTreeMap::default();
     for entry in fs::read_dir(data_folder_path).unwrap() {
         let executions = build_tree(disable_filter, &entry.unwrap().path());
@@ -130,37 +137,40 @@ fn collect_data(data_folder_path: &Path, output_path: &Path, disable_filter: boo
 }
 
 fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: bool) {
-    let statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> = serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
-    let executions = build_tree(disable_filter, current_junit_path.as_ref());
-    let compared = executions.iter().filter_map(|(key, tests)| {
-        statistics.get(key).map(|test_times| {
-            let test_stats = tests
-                .iter()
-                .filter_map(|(key, &time)| {
-                    test_times.get(key).map(|times| {
-                        let len = times.len();
-                        let len_remainder = len % 2;
-                        let quartile_lower = median(&times[..len / 2]);
-                        let quartile_upper = median(&times[len / 2 + len_remainder..]);
-                        let median = median(times.as_ref());
+    let statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
+        serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
+    let executions = build_tree(disable_filter, current_junit_path);
+    let compared = executions
+        .iter()
+        .filter_map(|(key, tests)| {
+            statistics.get(key).map(|test_times| {
+                let test_stats = tests
+                    .iter()
+                    .filter_map(|(key, &time)| {
+                        test_times.get(key).map(|times| {
+                            let len = times.len();
+                            let len_remainder = len % 2;
+                            let quartile_lower = median(&times[..len / 2]);
+                            let quartile_upper = median(&times[len / 2 + len_remainder..]);
+                            let median = median(times.as_ref());
 
-                        output::Test {
-                            name: key.clone(),
-                            current_time: (1_000_000_000.0 * time) as u64,
-                            median,
-                            quartile_lower,
-                            quartile_upper,
-                            min: *times.first().unwrap(),
-                            max: *times.last().unwrap(),
-                        }
+                            output::Test {
+                                name: key.clone(),
+                                current_time: (1_000_000_000.0 * time) as u64,
+                                median,
+                                quartile_lower,
+                                quartile_upper,
+                                min: *times.first().unwrap(),
+                                max: *times.last().unwrap(),
+                            }
+                        })
                     })
-                })
-                .collect::<Vec<_>>();
+                    .collect::<Vec<_>>();
 
-            (key.clone(), test_stats)
+                (key.clone(), test_stats)
+            })
         })
-    })
-    .collect::<BTreeMap<_, _>>();
+        .collect::<BTreeMap<_, _>>();
 
     for (name, stats) in compared {
         println!("name = {}", name);
@@ -174,10 +184,18 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::CollectData { data_folder_path, disable_filter, output_path } => {
-            collect_data(&data_folder_path, &output_path, *disable_filter, PREALLOCATE);
-        },
-        Commands::Compare { data_path, current_junit_path, disable_filter } => {
+        Commands::CollectData {
+            data_folder_path,
+            disable_filter,
+            output_path,
+        } => {
+            collect_data(data_folder_path, output_path, *disable_filter, PREALLOCATE);
+        }
+        Commands::Compare {
+            data_path,
+            current_junit_path,
+            disable_filter,
+        } => {
             compare(data_path, current_junit_path, *disable_filter);
         }
     }

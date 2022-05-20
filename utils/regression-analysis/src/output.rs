@@ -47,6 +47,13 @@ impl tabled::Tabled for Test {
     }
 
     fn headers() -> Vec<String> {
-        vec!["name".to_owned(), "current".to_owned(), "median".to_owned(), "lower/upper quartile".to_owned(), "min".to_owned(), "max".to_owned()]
+        vec![
+            "name".to_owned(),
+            "current".to_owned(),
+            "median".to_owned(),
+            "lower/upper quartile".to_owned(),
+            "min".to_owned(),
+            "max".to_owned(),
+        ]
     }
 }
