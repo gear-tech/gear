@@ -84,7 +84,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: u64 = 500;
 }
 
 impl system::Config for Test {
@@ -194,8 +194,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_1, 500_000_000_000_u128),
             (USER_2, 200_000_000_000_u128),
             (USER_3, 500_000_000_000_u128),
-            (LOW_BALANCE_USER, 2_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (LOW_BALANCE_USER, 1000_u128),
+            (BLOCK_AUTHOR, 500_u128),
         ],
     }
     .assimilate_storage(&mut t)

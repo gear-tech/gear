@@ -310,13 +310,14 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         },
-        Err(e) => {
-            if e.allowance_exceed {
+        Err(e) => match e.reason {
+            ExecutionErrorReason::InitialMemoryBlockGasExceeded
+            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
+            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            } else {
-                process_error(dispatch, program_id, e.gas_amount.burned(), e.reason)
             }
-        }
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+        },
     }
 }
 

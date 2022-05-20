@@ -26,6 +26,7 @@ use colored::{ColoredString, Colorize};
 use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
+    memory::vec_page_data_map_to_page_buf_map,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
@@ -390,7 +391,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         Some(ExecutableActor {
                             program,
                             balance: 0,
-                            pages_data: info.persistent_pages.clone(),
+                            pages_data: vec_page_data_map_to_page_buf_map(
+                                info.persistent_pages.clone(),
+                            )
+                            .unwrap(),
                         })
                     } else {
                         None

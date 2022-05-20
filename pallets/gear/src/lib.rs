@@ -726,6 +726,11 @@ pub mod pallet {
                                     code
                                 } else {
                                     // todo: mark code as unable for instrument to skip next time
+                                    log::debug!(
+                                        "Can not instrument code '{:?}' for program '{:?}'",
+                                        code_id,
+                                        program_id
+                                    );
                                     continue;
                                 }
                             } else {
@@ -771,10 +776,19 @@ pub mod pallet {
                             let pages_data = if lazy_pages_enabled {
                                 Default::default()
                             } else {
-                                common::get_program_data_for_pages(
+                                match common::get_program_data_for_pages(
                                     program_id.into_origin(),
                                     prog.pages_with_data.iter(),
-                                )
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!(
+                                            "Page data in storage is in invalid state: {}",
+                                            err
+                                        );
+                                        continue;
+                                    }
+                                }
                             };
 
                             Some(ExecutableActor {
@@ -1026,6 +1040,15 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
+            );
+
             let schedule = T::Schedule::get();
 
             ensure!(
@@ -1241,6 +1264,11 @@ pub mod pallet {
             // Claim outstanding value from the original message first
             let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
             let destination = original_message.source();
+
+            ensure!(
+                !Self::is_terminated(original_message.source().into_origin()),
+                Error::<T>::ProgramIsTerminated
+            );
 
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next

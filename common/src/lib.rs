@@ -36,7 +36,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
     message::StoredDispatch,
 };
 use gear_runtime_interface as gear_ri;
@@ -397,9 +397,13 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(id: H256, page_idx: PageNumber) -> Option<Vec<u8>> {
+pub fn get_program_page_data(
+    id: H256,
+    page_idx: PageNumber,
+) -> Option<Result<PageBuf, MemoryError>> {
     let key = page_key(id, page_idx);
-    sp_io::storage::get(&key)
+    let data = sp_io::storage::get(&key)?;
+    Some(PageBuf::new_from_vec(data))
 }
 
 /// Save page data key in storage
@@ -408,7 +412,10 @@ pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
-pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<PageNumber, Vec<u8>> {
+pub fn get_program_pages_data(
+    id: H256,
+    program: &ActiveProgram,
+) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
     get_program_data_for_pages(id, program.pages_with_data.iter())
 }
 
@@ -416,14 +423,17 @@ pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<Pag
 pub fn get_program_data_for_pages<'a>(
     id: H256,
     pages: impl Iterator<Item = &'a PageNumber>,
-) -> BTreeMap<PageNumber, Vec<u8>> {
-    pages
-        .map(|p| {
-            let key = page_key(id, *p);
-            (*p, sp_io::storage::get(&key))
-        })
-        .filter_map(|(page, data)| data.map(|data| (page, data)))
-        .collect()
+) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
+    let mut pages_data = BTreeMap::new();
+    for page in pages {
+        let key = page_key(id, *page);
+        let data = sp_io::storage::get(&key);
+        if let Some(data) = data {
+            let page_buf = PageBuf::new_from_vec(data)?;
+            pages_data.insert(*page, page_buf);
+        }
+    }
+    Ok(pages_data)
 }
 
 pub fn set_program(id: H256, program: ActiveProgram) {
@@ -447,14 +457,14 @@ impl fmt::Display for PageIsNotAllocatedErr {
 pub fn set_program_and_pages_data(
     id: H256,
     program: ActiveProgram,
-    persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
+    persistent_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), PageIsNotAllocatedErr> {
     for (page_num, page_buf) in persistent_pages {
         if !program.allocations.contains(&page_num.to_wasm_page()) {
             return Err(PageIsNotAllocatedErr(page_num));
         }
         let key = page_key(id, page_num);
-        sp_io::storage::set(&key, &page_buf);
+        sp_io::storage::set(&key, page_buf.as_slice());
     }
     set_program(id, program);
     Ok(())
@@ -471,9 +481,9 @@ pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) 
     }
 }
 
-pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: Vec<u8>) {
+pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: PageBuf) {
     let page_key = page_key(program_id, page);
-    sp_io::storage::set(&page_key, &page_buf);
+    sp_io::storage::set(&page_key, page_buf.as_slice());
 }
 
 pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {

@@ -21,6 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
+use gear_core::memory::PageBuf;
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
@@ -247,12 +248,23 @@ pub trait GearRI {
         gear_lazy_pages::get_released_pages()
     }
 
+    /// TODO: remove before release
     fn get_released_page_old_data(page: u32) -> Vec<u8> {
-        gear_lazy_pages::get_released_page_old_data(page).expect("Must have data for released page")
+        gear_lazy_pages::get_released_page_old_data(page)
+            .expect("Must have data for released page")
+            .to_vec()
     }
 
+    /// TODO: remove before release
     #[version(2)]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
+        gear_lazy_pages::get_released_page_old_data(page)
+            .map_err(|_| GetReleasedPageError)
+            .map(|data| data.to_vec())
+    }
+
+    #[version(3)]
+    fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
         gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)
     }
 

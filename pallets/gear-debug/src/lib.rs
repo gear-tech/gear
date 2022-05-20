@@ -82,6 +82,9 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
+    /// Program debug info.
+    // TODO: unfortunatelly we cannot store pages data in [PageBuf],
+    // because polkadot-js api can not support this type.
     #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
@@ -210,12 +213,17 @@ pub mod pallet {
                     Some(code) => code.static_pages(),
                     None => WasmPageNumber(0),
                 };
+                let persistent_pages = common::get_program_pages_data(id, &active)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(page, data)| (page, data.into_vec()))
+                    .collect();
                 ProgramDetails {
                     id,
                     state: {
                         ProgramState::Active(ProgramInfo {
                             static_pages,
-                            persistent_pages: common::get_program_pages_data(id, &active),
+                            persistent_pages,
                             code_hash: active.code_hash,
                         })
                     },
