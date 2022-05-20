@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "codec")]
 use {alloc::vec, codec::Decode};
 
 pub use gear_core_errors::{ExtError, MemoryError, MessageError, TerminationReason};
 
-#[cfg(feature = "codec")]
 mod sys {
     extern "C" {
         pub fn gr_error(data: *mut u8);
