@@ -37,18 +37,16 @@ impl SyscallError {
         if self.len == 0 {
             Ok(())
         } else {
-            #[cfg(feature = "codec")]
-            unsafe {
-                use alloc::vec;
-                use codec::Decode;
+            if cfg!(feature = "codec") {
+                unsafe {
+                    use alloc::vec;
+                    use codec::Decode;
 
-                let mut data = vec![0; self.len as usize];
-                sys::gr_error(data.as_mut_ptr());
-                Err(ExtError::decode(&mut data.as_slice()).expect("error decoded successfully"))
-            }
-
-            #[cfg(not(feature = "codec"))]
-            {
+                    let mut data = vec![0; self.len as usize];
+                    sys::gr_error(data.as_mut_ptr());
+                    Err(ExtError::decode(&mut data.as_slice()).expect("error decoded successfully"))
+                }
+            } else {
                 Err(ExtError::Unknown)
             }
         }
