@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use {alloc::vec, codec::Decode};
+use alloc::vec;
+#[cfg(feature = "codec")]
+use codec::Decode;
 
 pub use gear_core_errors::{ExtError, MemoryError, MessageError, TerminationReason};
 
