@@ -17,10 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::env::Runtime;
-use alloc::string::FromUtf8Error;
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
-use alloc::{string::String, vec};
+use alloc::{
+    string::{FromUtf8Error, String},
+    vec,
+};
 use codec::Encode;
 use core::{
     convert::{TryFrom, TryInto},
@@ -28,9 +30,8 @@ use core::{
     slice::Iter,
 };
 use gear_backend_common::{funcs, ExtErrorProcessor, IntoExtInfo};
-use gear_core::env::ExtCarrierWithError;
 use gear_core::{
-    env::Ext,
+    env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},

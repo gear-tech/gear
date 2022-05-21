@@ -16,19 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::ExecutionErrorReason;
-use crate::configs::AllocationsConfig;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
-        JournalNote,
+        ExecutionErrorReason, JournalNote,
     },
-    configs::{BlockInfo, ExecutionSettings},
+    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
     executor,
     ext::ProcessorExt,
 };
-use alloc::string::ToString;
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     costs::HostFnWeights,

@@ -2917,8 +2917,10 @@ fn test_reply_to_terminated_program() {
 }
 
 mod utils {
-    use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
-    use frame_support::traits::tokens::currency::Currency;
+    use frame_support::{
+        dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
+        traits::tokens::currency::Currency,
+    };
     use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;

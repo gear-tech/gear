@@ -45,8 +45,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 #[frame_support::pallet]
 pub mod pallet {
-    use super::offchain::PayeeInfo;
-    use super::*;
+    use super::{offchain::PayeeInfo, *};
     use common::{storage::*, GasPrice, Origin, PaymentProvider};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -68,8 +67,7 @@ pub mod pallet {
         traits::{SaturatedConversion, Saturating},
         Perbill,
     };
-    use sp_std::convert::TryInto;
-    use sp_std::prelude::*;
+    use sp_std::{convert::TryInto, prelude::*};
 
     #[pallet::config]
     pub trait Config:

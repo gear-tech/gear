@@ -18,9 +18,13 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::funcs::FuncError;
-use crate::memory::MemoryWrap;
-use alloc::{collections::BTreeMap, format, string::String, string::ToString, vec::Vec};
+use crate::{funcs::FuncError, memory::MemoryWrap};
+use alloc::{
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::fmt;
 use gear_backend_common::{
     BackendError, BackendReport, Environment, HostPointer, IntoExtInfo, TerminationReason,
@@ -30,8 +34,7 @@ use gear_core::{
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_core_errors::TerminationReason as CoreTerminationReason;
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,

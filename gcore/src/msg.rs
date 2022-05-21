@@ -25,8 +25,7 @@
 //! processing a program can send messages to other programs and users including
 //! reply to the initial message.
 
-use crate::MessageHandle;
-use crate::{ActorId, MessageId};
+use crate::{ActorId, MessageHandle, MessageId};
 use core::mem::MaybeUninit;
 use gear_core_errors::ExtError;
 

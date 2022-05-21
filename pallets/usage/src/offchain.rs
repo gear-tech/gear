@@ -81,8 +81,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use common::Origin;
 use frame_support::{traits::Get, RuntimeDebug};
-use frame_system::offchain::SubmitTransaction;
-use frame_system::pallet_prelude::*;
+use frame_system::{offchain::SubmitTransaction, pallet_prelude::*};
 use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::offchain::storage::StorageValueRef;
 

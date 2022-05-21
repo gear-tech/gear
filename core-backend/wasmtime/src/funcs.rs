@@ -18,24 +18,21 @@
 
 use core::marker::PhantomData;
 
-use crate::env::StoreData;
-use crate::memory::MemoryWrap;
-use alloc::string::{FromUtf8Error, ToString};
-use alloc::{string::String, vec};
+use crate::{env::StoreData, memory::MemoryWrap};
+use alloc::{
+    string::{FromUtf8Error, String, ToString},
+    vec,
+};
 use codec::Encode;
-use gear_backend_common::funcs::*;
-use gear_backend_common::{ExtErrorProcessor, IntoExtInfo, TerminationReason};
-use gear_core::env::ExtCarrierWithError;
+use gear_backend_common::{funcs::*, ExtErrorProcessor, IntoExtInfo, TerminationReason};
 use gear_core::{
-    env::Ext,
+    env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::TerminationReason as CoreTerminationReason;
-use gear_core_errors::{CoreError, MemoryError};
-use wasmtime::Memory as WasmtimeMemory;
-use wasmtime::{AsContextMut, Caller, Func, Store, Trap};
+use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
+use wasmtime::{AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _panthom: PhantomData<E>,

@@ -25,8 +25,7 @@
 //! messages to smart contracts. This modules provides an internal functionality for deducting what fields
 //! must be set for a message to be successfully sent to or received from *init* or *handle* functions.
 
-use std::path::PathBuf;
-use std::process::Command;
+use std::{path::PathBuf, process::Command};
 
 /// Helper type to perform correct encode/decode of custom types sent to/received from program functions.
 ///

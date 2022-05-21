@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_program;
-use frame_support::traits::{OnFinalize, OnInitialize};
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+    construct_runtime, parameter_types,
+    traits::{OnFinalize, OnInitialize},
+};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
