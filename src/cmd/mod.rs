@@ -5,12 +5,14 @@ use structopt::StructOpt;
 // mod deploy;
 // mod login;
 mod new;
+mod submit;
 mod update;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
     New(new::New),
     Update(update::Update),
+    Submit(submit::Submit),
 }
 
 #[derive(Debug, StructOpt)]
@@ -32,6 +34,7 @@ impl Opt {
 
         match opt.command {
             Command::New(new) => new.exec()?,
+            Command::Submit(submit) => submit.exec().await?,
             Command::Update(update) => update.exec().await?,
         }
 

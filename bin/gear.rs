@@ -1,5 +1,6 @@
 //! gear command entry
 
-fn main() {
-    async_std::task::block_on(gear_program::Opt::run()).unwrap();
+#[tokio::main]
+async fn main() {
+    gear_program::Opt::run().await.unwrap();
 }
