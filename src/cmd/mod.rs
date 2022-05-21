@@ -31,7 +31,7 @@ impl Opt {
         let opt = Opt::from_args();
 
         match opt.command {
-            Command::New(_new) => {}
+            Command::New(new) => new.exec()?,
             Command::Update(update) => update.exec().await?,
         }
 
