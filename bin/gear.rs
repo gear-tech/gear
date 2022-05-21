@@ -1,5 +1,5 @@
 //! gear command entry
 
 fn main() {
-    gear_program::Opt::run()
+    async_std::task::block_on(gear_program::Opt::run()).unwrap();
 }

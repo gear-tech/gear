@@ -1,4 +1,5 @@
 //! commands
+use crate::{Registry, Result};
 use structopt::StructOpt;
 
 // mod deploy;
@@ -24,7 +25,16 @@ pub struct Opt {
 
 impl Opt {
     /// run program
-    pub fn run() {
-        Opt::from_args();
+    pub async fn run() -> Result<()> {
+        Registry::default().init().await?;
+
+        let opt = Opt::from_args();
+
+        match opt.command {
+            Command::New(_new) => {}
+            Command::Update(update) => update.exec().await?,
+        }
+
+        Ok(())
     }
 }
