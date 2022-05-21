@@ -123,7 +123,24 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
 
         RELEASED_LAZY_PAGES.with(|released_pages| {
             let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
-                .expect("Cannot panic because we create slice with PageBuf size");
+                .expect("Cannot panic here, because we create slice with PageBuf size");
+            // Restrict any page handling in signal handler more then one time.
+            // If some page will be released twice it means, that this page has been added
+            // to lazy poges more then one time during current execution.
+            // This situation may cause problems with memory data update in storage.
+            // For example: one page has no data in storage, but allocated for current program.
+            // Let's make some action for it:
+            // 1) Change data in page: Default data  ->  Data1
+            // 2) Free page
+            // 3) Alloc page, data will Data2 (may be equal Data1).
+            // 4) After alloc we can set page as lazy, to identify wether page is changed after allocation.
+            // This means that we can skip page update in storage in case it wasnt changed after allocation.
+            // 5) Write some data in page but do not change it Data2 -> Data2.
+            // During this step signal handler writes Data2 as data for released page.
+            // 6) After execution we will have Data2 in page. And Data2 in released. So, nothing will be updated
+            // in storage. But program may have some significant data for next execution - so we have a bug.
+            // To avoid this we restrict double releasing.
+            // You can also check another cases in test: memory_access_cases.
             let res = released_pages.borrow_mut().insert(page, Some(page_buf));
             assert!(res.is_none(), "Any page cannot be released twice");
         });
