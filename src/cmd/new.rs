@@ -11,12 +11,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 pub struct New {
     /// Create gear program from templates
-    #[structopt(name = "TEMPLATE")]
     pub template: Option<String>,
-
-    /// List avaiable templates
-    #[structopt(short, long)]
-    pub list: bool,
 }
 
 impl New {
@@ -28,7 +23,11 @@ impl New {
         if let Some(template) = &self.template {
             if templates.contains(template) {
                 copy_dir_all(&registry.path.join(&template), &template.into())?;
+            } else {
+                crate::template::create(template)?;
             }
+
+            println!("Successfully created {}!", template);
             return Ok(());
         }
 
