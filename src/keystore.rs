@@ -43,7 +43,7 @@ pub fn login(suri: &str, passwd: Option<&str>) -> Result<PairSigner<GearConfig, 
 /// when you have NO PASSWORD, If it can be got by an attacker then
 /// they can also get your key.
 pub fn cache(passwd: Option<&str>) -> Result<PairSigner<GearConfig, Pair>> {
-    let suri = fs::read_to_string(&*KEYSTORE_PATH)?;
+    let suri = fs::read_to_string(&*KEYSTORE_PATH).map_err(|_| Error::Logout)?;
     let pair = Pair::from_string(&suri, passwd).map_err(|_| Error::InvalidSecret)?;
     Ok(PairSigner::new(pair))
 }

@@ -31,7 +31,7 @@ impl New {
             return Ok(());
         }
 
-        println!("AVAIABLE TEMPLATES: \n\t{}", templates.join("\n\t"));
+        println!("AVAILABLE TEMPLATES: \n\t{}", templates.join("\n\t"));
 
         Ok(())
     }

@@ -2,5 +2,7 @@
 
 #[tokio::main]
 async fn main() {
-    gear_program::Opt::run().await.unwrap();
+    if let Err(e) = gear_program::Opt::run().await {
+        println!("{}", e);
+    }
 }

@@ -20,6 +20,8 @@ pub enum Error {
     CouldNotFindDirectory(String),
     #[error("InvalidSecret")]
     InvalidSecret,
+    #[error("No available account was found in keystore, please run `gear login` first.")]
+    Logout,
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
     #[error(transparent)]
