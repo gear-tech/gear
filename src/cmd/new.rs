@@ -38,7 +38,7 @@ impl New {
 
 /// get all templates
 fn templates() -> Result<Vec<String>> {
-    return Ok(fs::read_dir(&*registry::GEAR_APPS_PATH)?
+    Ok(fs::read_dir(&*registry::GEAR_APPS_PATH)?
         .filter_map(|maybe_path: io::Result<DirEntry>| {
             if let Ok(p) = maybe_path {
                 let path = p.path();
@@ -58,7 +58,7 @@ fn templates() -> Result<Vec<String>> {
                 None
             }
         })
-        .collect::<Vec<String>>());
+        .collect::<Vec<String>>())
 }
 
 /// copy -r

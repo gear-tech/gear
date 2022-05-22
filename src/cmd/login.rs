@@ -36,7 +36,7 @@ impl Login {
     /// exec command login
     pub fn exec(&self) -> Result<()> {
         let signer = if let Some(suri) = &self.suri {
-            keystore::login(&suri, self.passwd.as_ref().map(|p| p.as_ref()))?
+            keystore::login(suri, self.passwd.as_ref().map(|p| p.as_ref()))?
         } else {
             keystore::generate(self.passwd.as_ref().map(|p| p.as_ref()))?
         };

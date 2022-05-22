@@ -21,7 +21,7 @@ pub async fn init() -> Result<()> {
     fs::create_dir_all(
         GEAR_APPS_PATH
             .parent()
-            .ok_or(Error::CouldNotFindDirectory(ps.clone().into()))?,
+            .ok_or_else(|| Error::CouldNotFindDirectory(ps.clone().into()))?,
     )?;
 
     // clone registry repo into target

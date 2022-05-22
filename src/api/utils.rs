@@ -12,12 +12,10 @@ impl Api {
     {
         self.cmp_gas_limit(if gas != 0 {
             gas
+        } else if let NumberOrHex::Number(n) = estimate().await? {
+            n
         } else {
-            if let NumberOrHex::Number(n) = estimate().await? {
-                n
-            } else {
-                0
-            }
+            0
         })
         .await
     }

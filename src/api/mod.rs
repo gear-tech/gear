@@ -13,6 +13,7 @@ mod constants;
 /// gear-node 0.1.0-f48450dd-x86_64-linux-gnu
 ///
 /// subxt codegen | rustfmt --edition=2021
+#[allow(clippy::all)]
 pub mod generated;
 mod rpc;
 mod utils;
@@ -29,12 +30,12 @@ impl Api {
     /// New gear api
     pub async fn new(url: Option<&str>, passwd: Option<&str>) -> Result<Self> {
         let api = ClientBuilder::new()
-            .set_url(url.unwrap_or(DEFAULT_GEAR_ENDPOINT.into()))
+            .set_url(url.unwrap_or(DEFAULT_GEAR_ENDPOINT))
             .build()
             .await?
             .to_runtime_api::<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>>();
 
-        let signer = keystore::cache(passwd.as_ref().map(|s| s.as_ref()))?;
+        let signer = keystore::cache(passwd.as_ref().copied())?;
 
         Ok(Self { api, signer })
     }
