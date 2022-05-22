@@ -31,8 +31,8 @@ impl Submit {
 
         // params
         let code = fs::read(&self.code)?;
-        let salt = hex::decode(&self.salt)?;
-        let init_payload = hex::decode(&self.init_payload)?;
+        let salt = hex::decode(&self.salt.trim_start_matches("0x"))?;
+        let init_payload = hex::decode(&self.init_payload.trim_start_matches("0x"))?;
         let gas_limit = self.gas_limit;
         let value = self.value;
 

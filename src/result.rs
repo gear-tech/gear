@@ -3,6 +3,8 @@
 pub enum Error {
     #[error("Could not find directory {0}")]
     CouldNotFindDirectory(String),
+    #[error("InvalidSecret")]
+    InvalidSecret,
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
     #[error(transparent)]

@@ -1,63 +1,48 @@
 //! Examples registry
-use crate::{Error, Result};
+use crate::{utils, Error, Result};
+use lazy_static::lazy_static;
 use std::{fs, path::PathBuf, process::Command};
 
-/// gear-program examples' registry
-pub struct Registry {
-    /// https://github.com/gear-tech/apps.git by default
-    pub repo: String,
-    /// ~/.apps by default
-    pub path: PathBuf,
+const GEAR_APPS: &str = "https://github.com/gear-tech/apps.git";
+
+lazy_static! {
+    /// registry path
+    pub static ref GEAR_APPS_PATH: PathBuf = utils::home().join("apps");
 }
 
-impl Default for Registry {
-    fn default() -> Self {
-        let path = dirs::home_dir()
-            .and_then(|mut p: PathBuf| {
-                p.push(".gear/apps");
-                Some(p)
-            })
-            .unwrap_or("./.gear/apps".into());
-
-        Self {
-            repo: "https://github.com/gear-tech/apps.git".into(),
-            path,
-        }
+/// Init registry
+pub async fn init() -> Result<()> {
+    if GEAR_APPS_PATH.exists() {
+        return Ok(());
     }
+
+    // create home directory if not exists
+    let ps = GEAR_APPS_PATH.to_string_lossy();
+    fs::create_dir_all(
+        GEAR_APPS_PATH
+            .parent()
+            .ok_or(Error::CouldNotFindDirectory(ps.clone().into()))?,
+    )?;
+
+    // clone registry repo into target
+    Command::new("git")
+        .args(&["clone", GEAR_APPS, &ps])
+        .status()?;
+
+    Ok(())
 }
 
-impl Registry {
-    /// Init registry
-    pub async fn init(&self) -> Result<()> {
-        if self.path.exists() {
-            return Ok(());
-        }
-
-        // create home directory if not exists
-        fs::create_dir_all(self.path.parent().ok_or(Error::CouldNotFindDirectory(
-            self.path.to_string_lossy().into(),
-        ))?)?;
-
-        // clone registry repo into target
-        Command::new("git")
-            .args(&["clone", self.repo.as_ref(), &self.path.to_string_lossy()])
-            .status()?;
-
-        Ok(())
+/// Update registry
+pub async fn update() -> Result<()> {
+    if !GEAR_APPS_PATH.exists() {
+        return init().await;
     }
 
-    /// Update registry
-    pub async fn update(&self) -> Result<()> {
-        if !self.path.exists() {
-            return self.init().await;
-        }
+    // update registry repo
+    Command::new("git")
+        .current_dir(&*GEAR_APPS_PATH)
+        .args(&["pull"])
+        .status()?;
 
-        // update registry repo
-        Command::new("git")
-            .current_dir(&self.path)
-            .args(&["pull"])
-            .status()?;
-
-        Ok(())
-    }
+    Ok(())
 }

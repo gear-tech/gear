@@ -1,5 +1,5 @@
 //! command new
-use crate::{Registry, Result};
+use crate::{registry, Result};
 use std::{
     fs::{self, DirEntry},
     io,
@@ -17,12 +17,11 @@ pub struct New {
 impl New {
     /// run command new
     pub fn exec(&self) -> Result<()> {
-        let registry = Registry::default();
-        let templates = templates(&registry)?;
+        let templates = templates()?;
 
         if let Some(template) = &self.template {
             if templates.contains(template) {
-                copy_dir_all(&registry.path.join(&template), &template.into())?;
+                copy_dir_all(&registry::GEAR_APPS_PATH.join(&template), &template.into())?;
             } else {
                 crate::template::create(template)?;
             }
@@ -38,8 +37,8 @@ impl New {
 }
 
 /// get all templates
-fn templates(r: &Registry) -> Result<Vec<String>> {
-    return Ok(fs::read_dir(&r.path)?
+fn templates() -> Result<Vec<String>> {
+    return Ok(fs::read_dir(&*registry::GEAR_APPS_PATH)?
         .filter_map(|maybe_path: io::Result<DirEntry>| {
             if let Ok(p) = maybe_path {
                 let path = p.path();

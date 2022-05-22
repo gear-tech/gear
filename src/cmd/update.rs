@@ -1,5 +1,5 @@
 //! command update
-use crate::{Registry, Result};
+use crate::{registry, Result};
 use std::process::Command;
 use structopt::StructOpt;
 
@@ -26,7 +26,7 @@ impl Update {
 
     /// update examples
     async fn update_examples(&self) -> Result<()> {
-        Registry::default().update().await?;
+        registry::update().await?;
 
         Ok(())
     }
