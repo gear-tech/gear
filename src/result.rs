@@ -1,3 +1,18 @@
+/// transaction error
+#[derive(Debug, thiserror::Error)]
+pub enum TransactionError {
+    #[error("transaction retracted {0}")]
+    Retracted(String),
+    #[error("transaction timeout {0}")]
+    FinalityTimeout(String),
+    #[error("transaction usurped {0}")]
+    Usurped(String),
+    #[error("transaction dropped")]
+    Dropped,
+    #[error("transaction invalid")]
+    Invalid,
+}
+
 /// Errors
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -13,6 +28,8 @@ pub enum Error {
     SubxtBasic(#[from] subxt::BasicError),
     #[error(transparent)]
     SubxtRpc(#[from] subxt::rpc::RpcError),
+    #[error(transparent)]
+    Tx(#[from] TransactionError),
 }
 
 /// Custom result

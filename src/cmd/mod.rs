@@ -2,19 +2,17 @@
 use crate::Result;
 use structopt::StructOpt;
 
-// mod deploy;
-// mod login;
+mod deploy;
 mod login;
 mod new;
-mod submit;
 mod update;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
+    Deploy(deploy::Deploy),
     Login(login::Login),
     New(new::New),
     Update(update::Update),
-    Submit(submit::Submit),
 }
 
 #[derive(Debug, StructOpt)]
@@ -35,7 +33,7 @@ impl Opt {
         match opt.command {
             Command::Login(login) => login.exec()?,
             Command::New(new) => new.exec()?,
-            Command::Submit(submit) => submit.exec().await?,
+            Command::Deploy(deploy) => deploy.exec().await?,
             Command::Update(update) => update.exec().await?,
         }
 
