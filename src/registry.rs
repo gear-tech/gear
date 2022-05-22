@@ -1,7 +1,11 @@
 //! Examples registry
 use crate::{utils, Error, Result};
 use lazy_static::lazy_static;
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    path::PathBuf,
+    process::{self, Command},
+};
 
 const GEAR_APPS: &str = "https://github.com/gear-tech/apps.git";
 
@@ -25,10 +29,15 @@ pub async fn init() -> Result<()> {
     )?;
 
     // clone registry repo into target
-    Command::new("git")
-        .args(&["clone", GEAR_APPS, &ps])
-        .status()?;
+    if !Command::new("git")
+        .args(&["clone", GEAR_APPS, &ps, "--depth=1"])
+        .status()?
+        .success()
+    {
+        process::exit(1);
+    }
 
+    println!("Successfully created registry at {}!", &ps);
     Ok(())
 }
 
@@ -39,10 +48,14 @@ pub async fn update() -> Result<()> {
     }
 
     // update registry repo
-    Command::new("git")
+    if !Command::new("git")
         .current_dir(&*GEAR_APPS_PATH)
         .args(&["pull"])
-        .status()?;
+        .status()?
+        .success()
+    {
+        process::exit(1);
+    }
 
     Ok(())
 }

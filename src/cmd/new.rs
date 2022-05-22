@@ -16,7 +16,8 @@ pub struct New {
 
 impl New {
     /// run command new
-    pub fn exec(&self) -> Result<()> {
+    pub async fn exec(&self) -> Result<()> {
+        registry::init().await?;
         let templates = templates()?;
 
         if let Some(template) = &self.template {

@@ -1,6 +1,6 @@
 //! command update
 use crate::{registry, Result};
-use std::process::Command;
+use std::process::{self, Command};
 use structopt::StructOpt;
 
 /// Update resources
@@ -17,9 +17,13 @@ pub struct Update {
 impl Update {
     /// update self
     async fn update_self(&self) -> Result<()> {
-        Command::new("cargo")
+        if !Command::new("cargo")
             .args(&["install", "gear-program"])
-            .status()?;
+            .status()?
+            .success()
+        {
+            process::exit(1);
+        }
 
         Ok(())
     }
@@ -33,6 +37,7 @@ impl Update {
 
     /// exec command update
     pub async fn exec(&self) -> Result<()> {
+        registry::init().await?;
         if self.gear {
             self.update_self().await?;
         }

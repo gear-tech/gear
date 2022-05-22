@@ -32,7 +32,7 @@ impl Opt {
 
         match opt.command {
             Command::Login(login) => login.exec()?,
-            Command::New(new) => new.exec()?,
+            Command::New(new) => new.exec().await?,
             Command::Deploy(deploy) => deploy.exec().await?,
             Command::Update(update) => update.exec().await?,
         }

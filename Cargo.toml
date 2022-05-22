@@ -1,7 +1,15 @@
 [package]
 name = "gear-program"
 version = "0.1.0"
+authors = ["clearloop <clearloop@users.noreply.github.com>"]
 edition = "2021"
+description = "gear program cli"
+repository = "https://github.com/clearloop/gear-program"
+license = "GPL-3.0"
+documentation = "https://docs.rs/gear-program"
+homepage = "https://github.com/clearloop/gear-program"
+keywords = ["gear", "cli", "wasm"]
+readme = './README.md'
 
 [[bin]]
 path = "bin/gear.rs"
