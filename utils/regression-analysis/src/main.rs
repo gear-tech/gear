@@ -93,9 +93,9 @@ fn median(values: &[u64]) -> u64 {
     let len = values.len();
     if len % 2 == 0 {
         let i = len / 2;
-        values[i - 1] / 2 + values[i + 1] / 2 + values[i - 1] % 2 + values[i + 1] % 2
+        values[i - 1] / 2 + values[i] / 2 + values[i - 1] % 2 + values[i] % 2
     } else {
-        values[len / 2 + 1]
+        values[len / 2]
     }
 }
 
