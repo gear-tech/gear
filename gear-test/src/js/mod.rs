@@ -185,13 +185,13 @@ mod tests {
     use parity_scale_codec::{Decode, Encode};
     use serde_json::Value;
 
-    #[derive(Decode, Debug, PartialEq, Encode)]
+    #[derive(Decode, Debug, PartialEq, Eq, Encode)]
     pub enum Action {
         AddMessage(MessageIn),
         ViewMessages,
     }
 
-    #[derive(Decode, Debug, PartialEq, Encode)]
+    #[derive(Decode, Debug, PartialEq, Eq, Encode)]
     pub struct MessageIn {
         author: String,
         msg: String,
