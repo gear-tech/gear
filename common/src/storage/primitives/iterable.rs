@@ -27,6 +27,8 @@
 //! on each iteration, while `Iter` used for
 //! just checking them.
 
+use core::marker::PhantomData;
+
 /// Represents iterable logic for double key maps
 /// (Key1 -> Key2 -> Value).
 ///
@@ -58,4 +60,28 @@ pub trait IterableMap<Item> {
     fn drain() -> Self::DrainIter;
     /// Creates the getting iterator over map Items.
     fn iter() -> Self::Iter;
+}
+
+pub struct KeyValueIteratorWrap<K, V, I>(I, PhantomData<(K, V)>)
+where
+    I: Iterator<Item = (K, V)>;
+
+impl<K, V, I> From<I> for KeyValueIteratorWrap<K, V, I>
+where
+    I: Iterator<Item = (K, V)>,
+{
+    fn from(other: I) -> Self {
+        Self(other, PhantomData)
+    }
+}
+
+impl<K, V, I> Iterator for KeyValueIteratorWrap<K, V, I>
+where
+    I: Iterator<Item = (K, V)>,
+{
+    type Item = V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|v| v.1)
+    }
 }

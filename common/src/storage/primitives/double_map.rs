@@ -34,14 +34,8 @@ pub trait DoubleMapStorage {
     /// Map's stored value type.
     type Value;
 
-    /// Returns `Vec` of values, which share the given first key.
-    fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value>;
-
     /// Returns bool, defining does map contain value under given keys.
     fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool;
-
-    /// Returns amount of second keys and values under given first key.
-    fn count_of(key: &Self::Key1) -> usize;
 
     /// Gets value stored under given keys, if present.
     fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value>;
@@ -95,7 +89,8 @@ pub trait DoubleMapStorage {
 #[allow(unknown_lints, clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_double_map {
-    (storage: $storage: ident, name: $name: ident, key1: $key1: ty, key2: $key2: ty, value: $val: ty) => {
+    (storage: $storage: ident, name: $name: ident, key1: $key1: ty,
+        key2: $key2: ty, value: $val: ty) => {
         pub struct $name<T>(PhantomData<T>);
 
         impl<T: crate::Config> DoubleMapStorage for $name<T> {
@@ -105,14 +100,6 @@ macro_rules! wrap_storage_double_map {
 
             fn contains_keys(key1: &Self::Key1, key2: &Self::Key2) -> bool {
                 $storage::<T>::contains_key(key1, key2)
-            }
-
-            fn collect_of(key: Self::Key1) -> Vec<Self::Value> {
-                $storage::<T>::iter_prefix_values(key).collect()
-            }
-
-            fn count_of(key: &Self::Key1) -> usize {
-                $storage::<T>::iter_key_prefix(key).count()
             }
 
             fn get(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
@@ -146,6 +133,51 @@ macro_rules! wrap_storage_double_map {
 
             fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {
                 $storage::<T>::take(key1, key2)
+            }
+        }
+    };
+}
+
+/// Same as `wrap_storage_double_map!`, but with extra implementations
+/// of `CountedByKey` and `IterableDoubleMap`.
+///
+/// `PrefixIterator` from `frame_support` and `KeyValueIteratorWrap` from
+/// this crate should be in scope.
+///
+/// TODO: Replace iterators over (Key2, Value) with iterators over Value.
+#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[macro_export]
+macro_rules! wrap_storage_double_map_with_extras {
+    (storage: $storage: ident, name: $name: ident, key1: $key1: ty,
+        key2: $key2: ty, value: $val: ty, length: $len: ty) => {
+        $crate::wrap_storage_double_map!(
+            storage: $storage,
+            name: $name,
+            key1: $key1,
+            key2: $key2,
+            value: $val
+        );
+
+        impl<T: crate::Config> CountedByKey for $name<T> {
+            type Key = $key1;
+            type Length = $len;
+
+            fn len(key: &Self::Key) -> Self::Length {
+                $storage::<T>::iter_prefix(key).count()
+            }
+        }
+
+        impl<T: crate::Config> IterableDoubleMap<$val> for $name<T> {
+            type Key = $key1;
+            type DrainIter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
+            type Iter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
+
+            fn drain(key: Self::Key) -> Self::DrainIter {
+                $storage::<T>::drain_prefix(key).into()
+            }
+
+            fn iter(key: Self::Key) -> Self::Iter {
+                $storage::<T>::iter_prefix(key).into()
             }
         }
     };

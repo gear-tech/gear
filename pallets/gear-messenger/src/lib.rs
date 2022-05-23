@@ -158,6 +158,7 @@ pub mod pallet {
         dispatch::DispatchError,
         pallet_prelude::*,
         sp_runtime::traits::UniqueSaturatedInto,
+        storage::PrefixIterator,
         traits::{BalanceStatus, ReservableCurrency, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
@@ -165,7 +166,7 @@ pub mod pallet {
         ids::MessageId,
         message::{StoredDispatch, StoredMessage},
     };
-    use sp_std::{convert::TryInto, marker::PhantomData, vec::Vec};
+    use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
     const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -321,12 +322,13 @@ pub mod pallet {
         StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
 
     // Public wrap of the mailbox elements.
-    common::wrap_storage_double_map!(
+    common::wrap_storage_double_map_with_extras!(
         storage: Mailbox,
         name: MailboxWrap,
         key1: T::AccountId,
         key2: MessageId,
-        value: StoredMessage
+        value: StoredMessage,
+        length: usize
     );
 
     // ----

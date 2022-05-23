@@ -36,3 +36,24 @@ pub trait Counted {
         Self::len() == Default::default()
     }
 }
+
+/// Represents default counting logic, by providing ability
+/// to return length of the object as specified (associated) type
+/// or answer the question is the object empty, by provided key of
+/// specified (associated) type.
+///
+/// Should be implemented on double map based types.
+pub trait CountedByKey {
+    /// Key type of counting target.
+    type Key;
+    /// Returning length type.
+    type Length: Default + PartialEq;
+
+    /// Returns current Self's amount of elements as `Length` type.
+    fn len(key: &Self::Key) -> Self::Length;
+
+    /// Returns bool, defining if Self doesn't contain elements.
+    fn is_empty(key: &Self::Key) -> bool {
+        Self::len(key) == Default::default()
+    }
+}

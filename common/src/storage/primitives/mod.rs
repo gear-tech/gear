@@ -33,9 +33,9 @@ mod value;
 
 // Public exports from primitive modules.
 pub use callback::{Callback, EmptyCallback, FallibleCallback};
-pub use counted::Counted;
+pub use counted::{Counted, CountedByKey};
 pub use double_map::DoubleMapStorage;
-pub use iterable::{IterableDoubleMap, IterableMap};
+pub use iterable::{IterableDoubleMap, IterableMap, KeyValueIteratorWrap};
 pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen};
 pub use map::MapStorage;
 pub use value::ValueStorage;

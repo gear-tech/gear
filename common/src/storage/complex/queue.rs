@@ -21,10 +21,7 @@
 //! Message queue provides functionality of storing messages,
 //! addressed to programs.
 
-use crate::storage::{
-    complicated::{Dequeue, DequeueError},
-    primitives::{Counted, IterableMap, KeyFor},
-};
+use crate::storage::{Counted, Dequeue, DequeueError, IterableMap, KeyFor};
 use core::marker::PhantomData;
 
 /// Represents message queue managing logic.

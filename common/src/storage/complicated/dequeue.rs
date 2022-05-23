@@ -146,7 +146,7 @@ pub struct LinkedNode<K, V> {
 }
 
 // Implementation of `Counted` trait for `DequeueImpl` in case,
-// when inner `MapStorage` implements `Counted.
+// when inner `MapStorage` implements `Counted`.
 impl<Key, Value, Error, HVS, TVS, MS, Callbacks> Counted
     for DequeueImpl<Key, Value, Error, HVS, TVS, MS, Callbacks>
 where

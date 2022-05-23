@@ -21,9 +21,8 @@
 //! Messenger provides API for all available gear message storing.
 
 use crate::storage::{
-    complex::{Mailbox, MailboxError, Queue},
-    complicated::{Counter, DequeueError, Toggler},
-    primitives::{Counted, IterableMap},
+    Counted, CountedByKey, Counter, DequeueError, IterableDoubleMap, IterableMap, Mailbox,
+    MailboxError, Queue, Toggler,
 };
 use core::fmt::Debug;
 
@@ -97,12 +96,13 @@ pub trait Messenger {
     /// can claim value from the message, removing it afterward, or claim
     /// and send reply on received message, if it still present (#642).
     type Mailbox: Mailbox<
-        Key1 = Self::MailboxFirstKey,
-        Key2 = Self::MailboxSecondKey,
-        Value = Self::MailboxedMessage,
-        Error = Self::Error,
-        OutputError = Self::OutputError,
-    >;
+            Key1 = Self::MailboxFirstKey,
+            Key2 = Self::MailboxSecondKey,
+            Value = Self::MailboxedMessage,
+            Error = Self::Error,
+            OutputError = Self::OutputError,
+        > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
+        + IterableDoubleMap<Self::MailboxedMessage, Key = Self::MailboxFirstKey>;
 
     // Soon ...
     // /// Gear waitlist.

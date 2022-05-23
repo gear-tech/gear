@@ -27,6 +27,6 @@ mod messenger;
 mod queue;
 
 // Public exports from complex modules.
-pub use mailbox::{Mailbox, MailboxCallbacks, MailboxError, MailboxImpl, UserMailbox};
+pub use mailbox::{Mailbox, MailboxCallbacks, MailboxError, MailboxImpl};
 pub use messenger::Messenger;
 pub use queue::{Queue, QueueImpl};

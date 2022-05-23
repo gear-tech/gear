@@ -1064,9 +1064,12 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
-        assert_eq!(MailboxOf::<Test>::count_of(&USER_1), 1);
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
         assert!(matches!(
-            MailboxOf::<Test>::collect_of(USER_1)[0].reply(),
+            MailboxOf::<Test>::iter(USER_1)
+                .next()
+                .expect("Element should be")
+                .reply(),
             Some((_, 1))
         ));
     })
@@ -1452,8 +1455,11 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
-        assert_eq!(MailboxOf::<Test>::count_of(&USER_1), 1);
+        let message_id = MailboxOf::<Test>::iter(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1490,7 +1496,10 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
+        let message_id = MailboxOf::<Test>::iter(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1512,9 +1521,13 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(MailboxOf::<Test>::count_of(&USER_1), 1);
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
         assert_eq!(
-            MailboxOf::<Test>::collect_of(USER_1)[0].payload().to_vec(),
+            MailboxOf::<Test>::iter(USER_1)
+                .next()
+                .expect("Element should be")
+                .payload()
+                .to_vec(),
             b"Hello, world!".encode()
         );
     })
@@ -1556,7 +1569,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
+        let message_id = MailboxOf::<Test>::iter(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1568,12 +1584,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = MailboxOf::<Test>::collect_of(USER_3)
-            .iter()
-            .fold(0usize, |i, m| {
-                assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
-                i + 1
-            });
+        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
+            assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
+            i + 1
+        });
 
         assert_eq!(actual_n, n);
     })
@@ -1642,12 +1656,7 @@ fn exit_init() {
 
         assert!(Gear::is_terminated(program_id));
         assert!(!Gear::is_initialized(program_id));
-
-        let actual_n = MailboxOf::<Test>::collect_of(USER_1)
-            .into_iter()
-            .fold(0usize, |i, _| i + 1);
-
-        assert_eq!(actual_n, 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
@@ -2150,13 +2159,7 @@ fn exit_handle() {
         run_to_block(3, None);
 
         assert!(Gear::is_terminated(program_id));
-
-        let actual_n = MailboxOf::<Test>::collect_of(USER_3)
-            .iter()
-            .fold(0usize, |i, _| i + 1);
-
-        assert_eq!(actual_n, 0);
-
+        assert!(MailboxOf::<Test>::is_empty(&USER_3));
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_terminated(program_id));
 
@@ -2286,7 +2289,10 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
+        let message_id = MailboxOf::<Test>::iter(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -2387,7 +2393,10 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = MailboxOf::<Test>::collect_of(USER_1)[0].id();
+        let message_id = MailboxOf::<Test>::iter(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -2432,12 +2441,10 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = MailboxOf::<Test>::collect_of(USER_3)
-            .iter()
-            .fold(0usize, |i, m| {
-                assert_eq!(m.payload(), b"Hello, world!".encode());
-                i + 1
-            });
+        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
+            assert_eq!(m.payload(), b"Hello, world!".encode());
+            i + 1
+        });
 
         assert_eq!(actual_n, 1);
     })
@@ -2871,7 +2878,7 @@ fn test_reply_to_terminated_program() {
         run_to_block(2, None);
 
         // Check mail in Mailbox
-        assert!(MailboxOf::<Test>::count_of(&USER_1) == 1);
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
         assert_noop!(

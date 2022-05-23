@@ -21,7 +21,9 @@
 //! Mailbox provides functionality of storing messages,
 //! addressed to users.
 
-use crate::storage::primitives::{Callback, DoubleMapStorage, FallibleCallback, KeyFor};
+use crate::storage::{
+    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, IterableDoubleMap, KeyFor,
+};
 use core::marker::PhantomData;
 
 /// Represents mailbox managing logic.
@@ -37,22 +39,11 @@ pub trait Mailbox {
     /// Output error type of the mailbox.
     type OutputError: From<Self::Error>;
 
-    /// Returns `Vec` of values from mailbox of given key.
-    fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value>;
-
     /// Returns bool, defining does first key's mailbox contain second key.
     fn contains(key1: &Self::Key1, key2: &Self::Key2) -> bool;
 
-    /// Returns amount of values in mailbox of given key.
-    fn count_of(key: &Self::Key1) -> usize;
-
     /// Inserts given value in mailbox.
     fn insert(value: Self::Value) -> Result<(), Self::OutputError>;
-
-    /// Returns bool, defining if given key's mailbox is empty.
-    fn is_empty(key: &Self::Key1) -> bool {
-        Self::count_of(key) == 0
-    }
 
     /// Removes and returns value from mailbox by given keys,
     /// if present, else returns error.
@@ -119,16 +110,8 @@ where
     type Error = Error;
     type OutputError = OutputError;
 
-    fn collect_of(key: Self::Key1) -> crate::Vec<Self::Value> {
-        T::collect_of(key)
-    }
-
     fn contains(user_id: &Self::Key1, message_id: &Self::Key2) -> bool {
         T::contains_keys(user_id, message_id)
-    }
-
-    fn count_of(user_id: &Self::Key1) -> usize {
-        T::count_of(user_id)
     }
 
     fn insert(message: Self::Value) -> Result<(), Self::OutputError> {
@@ -160,53 +143,45 @@ where
     }
 }
 
-// Extra methods for soft use of `MailboxImpl`.
-impl<T, Error, OutputError, Callbacks, KeyGen> MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
+// Implementation of `CountedByKey` trait for `MailboxImpl` in case,
+// when inner `DoubleMapStorage` implements `CountedByKey`.
+impl<T, Error, OutputError, Callbacks, KeyGen> CountedByKey
+    for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage,
+    T: DoubleMapStorage + CountedByKey<Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
 {
-    /// Returns mailbox of specified user (first key).
-    pub fn of(user_id: T::Key1) -> UserMailbox<Self> {
-        UserMailbox(user_id, PhantomData)
+    type Key = T::Key1;
+    type Length = T::Length;
+
+    fn len(key: &Self::Key) -> Self::Length {
+        T::len(key)
     }
 }
 
-/// Represents wrapper over `Mailbox` to work with specified user's mailbox.
-///
-/// Can be only constructed by `MailboxImpl`.
-pub struct UserMailbox<MB: Mailbox>(MB::Key1, PhantomData<MB>);
+// Implementation of `IterableDoubleMap` trait for `MailboxImpl` in case,
+// when inner `DoubleMapStorage` implements `IterableDoubleMap`.
+impl<T, Error, OutputError, Callbacks, KeyGen> IterableDoubleMap<T::Value>
+    for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
+where
+    T: DoubleMapStorage + IterableDoubleMap<T::Value, Key = T::Key1>,
+    Error: MailboxError,
+    OutputError: From<Error>,
+    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
+{
+    type Key = T::Key1;
+    type DrainIter = T::DrainIter;
+    type Iter = T::Iter;
 
-// Soft methods of `UserMailbox`.
-impl<MB: Mailbox> UserMailbox<MB> {
-    /// Returns `Vec` of values from current user's mailbox.
-    pub fn collect(self) -> crate::Vec<MB::Value> {
-        MB::collect_of(self.0)
+    fn drain(key: Self::Key) -> Self::DrainIter {
+        T::drain(key)
     }
 
-    /// Returns bool, defining does current user's mailbox
-    /// contain given second key.
-    pub fn contains(&self, message_id: &MB::Key2) -> bool {
-        MB::contains(&self.0, message_id)
-    }
-
-    /// Returns bool, defining does current user's mailbox
-    /// contain no elements.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Returns amount of messages in current user's mailbox.
-    pub fn len(&self) -> usize {
-        MB::count_of(&self.0)
-    }
-
-    /// Removes and returns value from current user's mailbox
-    /// by given second key, if present, else returns error.
-    pub fn remove(self, message_id: MB::Key2) -> Result<MB::Value, MB::OutputError> {
-        MB::remove(self.0, message_id)
+    fn iter(key: Self::Key) -> Self::Iter {
+        T::iter(key)
     }
 }
