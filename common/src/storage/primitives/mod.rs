@@ -32,7 +32,7 @@ mod map;
 mod value;
 
 // Public exports from primitive modules.
-pub use callback::{Callback, EmptyCallback, FallibleCallback};
+pub use callback::{Callback, EmptyCallback, FallibleCallback, GetCallback};
 pub use counted::{Counted, CountedByKey};
 pub use double_map::DoubleMapStorage;
 pub use iterable::{IterableDoubleMap, IterableMap, KeyValueIteratorWrap};
