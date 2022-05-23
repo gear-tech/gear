@@ -322,7 +322,7 @@ pub mod pallet {
         StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
 
     // Public wrap of the mailbox elements.
-    common::wrap_storage_double_map_with_extras!(
+    common::wrap_extended_storage_double_map!(
         storage: Mailbox,
         name: MailboxWrap,
         key1: T::AccountId,

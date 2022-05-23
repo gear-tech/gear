@@ -80,7 +80,7 @@ pub trait MapStorage {
 /// Has two implementations to provide auto addition of `Counted` logic
 /// (for `Substrate`'s `CountedStorageMap`) due to storage's
 /// arguments difference.
-#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[allow(clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty) => {
@@ -133,7 +133,7 @@ macro_rules! wrap_storage_map {
 /// to auto-impl `Counted` trait of `gear_common` storage primitives.
 ///
 /// Better to use Rust's numeric types as `Length`.
-#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[allow(clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_counted_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty, length: $len: ty) => {

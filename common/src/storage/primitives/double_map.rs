@@ -86,7 +86,7 @@ pub trait DoubleMapStorage {
 /// Requires `PhantomData` be in scope: from `std`, `core` or `sp_std`.
 ///
 /// Requires `Config` be in scope of the crate root where it called.
-#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[allow(clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_double_map {
     (storage: $storage: ident, name: $name: ident, key1: $key1: ty,
@@ -139,15 +139,13 @@ macro_rules! wrap_storage_double_map {
 }
 
 /// Same as `wrap_storage_double_map!`, but with extra implementations
-/// of `CountedByKey` and `IterableDoubleMap`.
+/// of `CountedByKey` and `IterableDoubleMap` over double map values.
 ///
 /// `PrefixIterator` from `frame_support` and `KeyValueIteratorWrap` from
 /// this crate should be in scope.
-///
-/// TODO: Replace iterators over (Key2, Value) with iterators over Value.
-#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[allow(clippy::crate_in_macro_def)]
 #[macro_export]
-macro_rules! wrap_storage_double_map_with_extras {
+macro_rules! wrap_extended_storage_double_map {
     (storage: $storage: ident, name: $name: ident, key1: $key1: ty,
         key2: $key2: ty, value: $val: ty, length: $len: ty) => {
         $crate::wrap_storage_double_map!(

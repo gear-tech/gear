@@ -70,7 +70,7 @@ pub trait ValueStorage {
 /// Requires `PhantomData` be in scope: from `std`, `core` or `sp_std`.
 ///
 /// Requires `Config` be in scope of the crate root where it called.
-#[allow(unknown_lints, clippy::crate_in_macro_def)]
+#[allow(clippy::crate_in_macro_def)]
 #[macro_export]
 macro_rules! wrap_storage_value {
     (storage: $storage: ident, name: $name: ident, value: $val: ty) => {
