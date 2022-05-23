@@ -19,8 +19,10 @@
 //! Wasmtime extensions for memory.
 
 use crate::env::StoreData;
-use gear_core::env::Ext;
-use gear_core::memory::{Error, Memory, PageNumber, WasmPageNumber};
+use gear_core::{
+    env::Ext,
+    memory::{Error, Memory, PageNumber, WasmPageNumber},
+};
 use wasmtime::StoreContextMut;
 
 /// Wrapper for wasmtime memory.

@@ -18,7 +18,7 @@
 
 //! Lazy pages support in unix.
 
-use gear_core::memory::{PageNumber, WasmPageNumber};
+use gear_core::memory::{PageBuf, PageNumber, WasmPageNumber};
 use libc::{c_void, siginfo_t};
 use nix::sys::signal;
 
@@ -68,9 +68,10 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
 
         let accessed_page = PageNumber::from(((mem as usize - wasm_mem_begin) / gear_ps) as u32);
         log::debug!(
-            "mem={:?} accessed={:?} pages={:?} page_native_addr={:#x}",
+            "mem={:?} accessed={:?},{:?} pages={:?} page_native_addr={:#x}",
             mem,
             accessed_page,
+            accessed_page.to_wasm_page(),
             res.0 .0..res.0 .0 + res.1 as u32,
             res.2
         );
@@ -124,9 +125,9 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
             // Some pages can be released many times, when page has been free and then allocated.
             // We save here the most fresh data for these pages, in order to identify wether
             // page had been changed after last page allocation or after execution start.
-            let _ = released_pages
-                .borrow_mut()
-                .insert(page, buffer_as_slice.to_vec());
+            let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
+                .expect("Cannot panic because we create slice with PageBuf size");
+            let _ = released_pages.borrow_mut().insert(page, Some(page_buf));
         });
     }
 }

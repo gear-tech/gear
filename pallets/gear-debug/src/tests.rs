@@ -27,8 +27,7 @@ use gear_core::{
     memory::WasmPageNumber,
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
-use pallet_gear::DebugInfo;
-use pallet_gear::Pallet as PalletGear;
+use pallet_gear::{DebugInfo, Pallet as PalletGear};
 use sp_core::H256;
 
 pub(crate) fn init_logger() {

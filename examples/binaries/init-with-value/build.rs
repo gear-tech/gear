@@ -16,26 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! The `gstd` default prelude. Re-imports default `std` modules and traits.
-//! `std` can be safely replaced to `gstd` in the Rust programs.
-
-extern crate alloc;
-
-pub use core::prelude::v1::*;
-
-// Public module re-exports
-pub use alloc::{borrow, boxed, collections, fmt, format, rc, slice, string, vec};
-pub use core::{
-    any, cell, clone, cmp, convert, default, future, hash, hint, iter, marker, mem, ops, pin, ptr,
-};
-
-// Re-exported types and traits
-pub use alloc::str::FromStr;
-pub use borrow::ToOwned;
-pub use boxed::Box;
-pub use codec::{Decode, Encode};
-pub use collections::{BTreeMap, BTreeSet, VecDeque};
-pub use convert::{Into, TryInto};
-pub use scale_info::TypeInfo;
-pub use string::{String, ToString};
-pub use vec::Vec;
+fn main() {
+    gear_wasm_builder::build();
+}

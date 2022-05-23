@@ -19,8 +19,7 @@
 use anyhow::Result;
 use std::{env, process};
 
-use crate::cargo_command::CargoCommand;
-use crate::wasm_project::WasmProject;
+use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 
 mod builder_error;
 mod cargo_command;

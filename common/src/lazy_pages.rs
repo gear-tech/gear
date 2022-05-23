@@ -19,12 +19,12 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
-use core::convert::TryFrom;
-use gear_core::ids::ProgramId;
-use gear_core::memory::{PageBuf, PageNumber};
+use gear_core::{
+    ids::ProgramId,
+    memory::{PageBuf, PageNumber},
+};
 use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
 use sp_std::{
-    boxed::Box,
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
@@ -39,11 +39,6 @@ pub enum Error {
     VecToPageData,
     #[display(fmt = "Cannot find page data in storage")]
     NoPageDataInStorage,
-    #[display(
-        fmt = "RUNTIME ERROR: released page {:?} already has data in provided page map to core processor",
-        _0
-    )]
-    ReleasedPageHasData(PageNumber),
 }
 
 impl From<MprotectError> for Error {
@@ -101,20 +96,14 @@ pub fn protect_pages_and_init_info(
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
-    memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+    memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     wasm_mem_begin_addr: u64,
 ) -> Result<(), Error> {
     // Loads data for released lazy pages. Data which was before execution.
     let released_pages = gear_ri::get_released_pages();
     for page in released_pages {
         let data = gear_ri::get_released_page_old_data(page)?;
-        let page_data = PageBuf::try_from(data).map_err(|_| Error::VecToPageData)?;
-        if memory_pages
-            .insert(page.into(), Box::new(page_data))
-            .is_some()
-        {
-            return Err(Error::ReleasedPageHasData(page.into()));
-        };
+        let _ = memory_pages.insert(page.into(), data).is_some();
     }
 
     // Removes protections from lazy pages

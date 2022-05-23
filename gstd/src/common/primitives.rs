@@ -35,9 +35,10 @@
 //! let bytes = id.as_ref();
 //! ```
 
-use crate::errors::{ContractError, Result};
-use crate::prelude::convert::TryFrom;
-use crate::prelude::String;
+use crate::{
+    errors::{ContractError, Result},
+    prelude::{convert::TryFrom, String},
+};
 use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;

@@ -21,6 +21,7 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 wabt = "0.10.0"
+env_logger = "0.9"
 
 [features]
 strict = []

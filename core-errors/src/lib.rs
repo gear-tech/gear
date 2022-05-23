@@ -103,8 +103,8 @@ pub enum MemoryError {
     MemoryAccessError,
 
     /// There is wasm page, which has not all gear pages in the begin
-    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
-    NotAllPagesInBegin,
+    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    InvalidPageDataSize(usize),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -135,9 +135,9 @@ pub enum ExtError {
     InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred")]
     PanicOccurred,
-    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
+    #[display(fmt = "Value of the message is less than existential deposit, but greater than 0")]
     InsufficientMessageValue,
-    #[display(fmt = "No value left")]
+    #[display(fmt = "Not enough value to send message")]
     NotEnoughValue,
     #[display(fmt = "{}", _0)]
     Message(MessageError),

@@ -16,19 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::ExecutionErrorReason;
-use crate::configs::AllocationsConfig;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
-        JournalNote,
+        ExecutionErrorReason, JournalNote,
     },
-    configs::{BlockInfo, ExecutionSettings},
+    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
     executor,
     ext::ProcessorExt,
 };
-use alloc::string::ToString;
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     costs::HostFnWeights,
@@ -310,13 +307,14 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         },
-        Err(e) => {
-            if e.allowance_exceed {
+        Err(e) => match e.reason {
+            ExecutionErrorReason::InitialMemoryBlockGasExceeded
+            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
+            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            } else {
-                process_error(dispatch, program_id, e.gas_amount.burned(), e.reason)
             }
-        }
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+        },
     }
 }
 
