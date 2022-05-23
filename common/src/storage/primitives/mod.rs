@@ -16,16 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Database migration module.
+//! Gear storage primitives.
+//!
+//! Contains basic behavior of interaction with globally shared data,
+//! which could be used directly for common purposes or be a part of
+//! some consistent logic.
 
-use crate::{Config, Pallet, Weight};
+// Private modules declaration.
+mod callback;
+mod counted;
+mod double_map;
+mod iterable;
+mod key;
+mod map;
+mod value;
 
-/// Wrapper for all migrations of this pallet, based on `StorageVersion`.
-pub fn migrate<T: Config>() -> Weight {
-    use frame_support::traits::StorageVersion;
-
-    let _version = StorageVersion::get::<Pallet<T>>();
-    let weight: Weight = 0;
-
-    weight
-}
+// Public exports from primitive modules.
+pub use callback::{Callback, EmptyCallback, FallibleCallback};
+pub use counted::{Counted, CountedByKey};
+pub use double_map::DoubleMapStorage;
+pub use iterable::{IterableDoubleMap, IterableMap, KeyValueIteratorWrap};
+pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen};
+pub use map::MapStorage;
+pub use value::ValueStorage;

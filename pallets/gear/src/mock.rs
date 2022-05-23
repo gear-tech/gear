@@ -60,7 +60,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -143,6 +143,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Test {
@@ -150,7 +151,7 @@ impl pallet_gas::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 pub struct FixedBlockAuthor;

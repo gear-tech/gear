@@ -16,8 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    manager::HandleKind,
+    mock::{
+        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
+        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+    },
+    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
+    MessageInfo, Pallet as GearPallet, Reason,
+};
 use codec::Encode;
-use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use common::{storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
@@ -29,17 +38,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
 };
 use pallet_balances::{self, Pallet as BalancesPallet};
-
-use super::{
-    manager::HandleKind,
-    mock::{
-        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
-        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
-    },
-    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, Mailbox,
-    MessageInfo, Pallet as GearPallet, Reason,
-};
-
 use utils::*;
 
 #[test]
@@ -258,10 +256,7 @@ fn send_message_expected_failure() {
         );
 
         // Because destination is user, no gas will be reserved
-        assert!(matches!(
-            Mailbox::<Test>::remove_all(None),
-            sp_io::KillStorageResult::AllRemoved(_)
-        ));
+        MailboxOf::<Test>::remove_all();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into_origin(),
@@ -269,7 +264,7 @@ fn send_message_expected_failure() {
             1000,
             1000
         ));
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         // Gas limit too high
         let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
@@ -542,7 +537,7 @@ fn lazy_pages() {
         // accessed from 0 wasm page:
         expected_accessed.extend(page_to_accessed(0));
 
-        // accessed from 2 wasm page, can be seweral gear and native pages:
+        // accessed from 2 wasm page, can be several gear and native pages:
         let first_page = (0x23ffe / PageNumber::size()) as u32;
         let second_page = (0x24001 / PageNumber::size()) as u32;
         expected_accessed.extend(page_to_accessed(first_page));
@@ -551,7 +546,7 @@ fn lazy_pages() {
         // accessed from 5 wasm page:
         expected_accessed.extend(page_to_accessed((0x50000 / PageNumber::size()) as u32));
 
-        // accessed from 8 and 9 wasm pages, must be seweral gear pages:
+        // accessed from 8 and 9 wasm pages, must be several gear pages:
         let first_page = (0x8fffc / PageNumber::size()) as u32;
         let second_page = (0x90003 / PageNumber::size()) as u32;
         expected_accessed.extend(page_to_accessed(first_page));
@@ -769,12 +764,12 @@ fn mailbox_works() {
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
         let mailbox_message = {
-            let res = GearPallet::<Test>::remove_from_mailbox(USER_1.into_origin(), reply_to_id);
-            assert!(res.is_some());
+            let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
+            assert!(res.is_ok());
             res.expect("was asserted previously")
         };
 
-        assert_eq!(mailbox_message.id().into_origin(), reply_to_id);
+        assert_eq!(mailbox_message.id(), reply_to_id);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
@@ -921,7 +916,7 @@ fn events_logging_works() {
 
             let init_msg_info = MessageInfo {
                 program_id,
-                message_id,
+                message_id: message_id.into_origin(),
                 origin: USER_1.into_origin(),
             };
 
@@ -954,7 +949,7 @@ fn events_logging_works() {
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
-                message_id,
+                message_id: message_id.into_origin(),
                 origin: USER_1.into_origin(),
             };
 
@@ -1010,12 +1005,10 @@ fn send_reply_works() {
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
-        let message_id = get_last_message_id();
+        let expected_reply_message_id = get_last_message_id();
 
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let expected_reply_message_id = message_id;
-
         let event = match SystemPallet::<Test>::events()
             .last()
             .map(|r| r.event.clone())
@@ -1032,7 +1025,10 @@ fn send_reply_works() {
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
-        assert_eq!(expected_reply_message_id, actual_reply_message_id);
+        assert_eq!(
+            expected_reply_message_id,
+            MessageId::from_origin(actual_reply_message_id)
+        );
     })
 }
 
@@ -1044,12 +1040,12 @@ fn send_reply_failure_to_claim_from_mailbox() {
         assert_noop!(
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
-                5.into_origin(), // non existent `reply_to_id`
+                MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 0
             ),
-            Error::<Test>::NoMessageInMailbox
+            pallet_gear_messenger::Error::<Test>::MailboxElementNotFound
         );
 
         let prog_id = {
@@ -1068,13 +1064,14 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
-        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
-
-        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
-            .next()
-            .expect("Checked above");
-
-        assert!(matches!(message.reply(), Some((_, 1))));
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        assert!(matches!(
+            MailboxOf::<Test>::iter(USER_1)
+                .next()
+                .expect("Element should be")
+                .reply(),
+            Some((_, 1))
+        ));
     })
 }
 
@@ -1117,7 +1114,7 @@ fn send_reply_value_claiming_works() {
 
             next_block += 1;
 
-            assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+            assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
@@ -1167,7 +1164,7 @@ fn claim_value_from_mailbox_works() {
         };
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let (gas_burned, _) =
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
@@ -1356,7 +1353,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 }
 
 #[test]
-fn test_code_is_not_resetted_within_program_submission() {
+fn test_code_is_not_reset_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
@@ -1458,14 +1455,11 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let mut mailbox_iter = Mailbox::<Test>::iter_prefix_values(USER_1);
-        let message_id = mailbox_iter
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .expect("Should have msg.")
-            .id()
-            .into_origin();
-
-        assert!(mailbox_iter.next().is_none());
+            .expect("Element should be")
+            .id();
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1502,11 +1496,10 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix_values(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .expect("should be one message for the program author")
-            .id()
-            .into_origin();
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1528,13 +1521,15 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
-
-        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
-            .next()
-            .expect("Message not found");
-
-        assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        assert_eq!(
+            MailboxOf::<Test>::iter(USER_1)
+                .next()
+                .expect("Element should be")
+                .payload()
+                .to_vec(),
+            b"Hello, world!".encode()
+        );
     })
 }
 
@@ -1574,10 +1569,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .map(|(k, _msg)| k.into_origin())
-            .expect("Message id should be");
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1589,7 +1584,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
             assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
             i + 1
         });
@@ -1617,11 +1612,11 @@ fn test_message_processing_for_non_existing_destination() {
             1000
         ));
         let skipped_message_id = get_last_message_id();
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         run_to_block(2, None);
         // system reply message
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
@@ -1661,10 +1656,7 @@ fn exit_init() {
 
         assert!(Gear::is_terminated(program_id));
         assert!(!Gear::is_initialized(program_id));
-
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_1).fold(0usize, |i, _| i + 1);
-
-        assert_eq!(actual_n, 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
@@ -1998,7 +1990,7 @@ fn test_create_program_duplicate_in_one_execution() {
             0,
         ));
 
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         run_to_block(3, None);
 
@@ -2008,7 +2000,7 @@ fn test_create_program_duplicate_in_one_execution() {
         check_dispatched(1); // 1 for send_message
         check_init_success(1); // 1 for creating a factory
 
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::reset_events();
 
@@ -2167,11 +2159,7 @@ fn exit_handle() {
         run_to_block(3, None);
 
         assert!(Gear::is_terminated(program_id));
-
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, _| i + 1);
-
-        assert_eq!(actual_n, 0);
-
+        assert!(MailboxOf::<Test>::is_empty(&USER_3));
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_terminated(program_id));
 
@@ -2301,10 +2289,10 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .map(|(k, _msg)| k.into_origin())
-            .expect("Message id should be");
+            .expect("Element should be")
+            .id();
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -2405,10 +2393,10 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .map(|(k, _msg)| k.into_origin())
-            .expect("Message id should be");
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -2453,7 +2441,7 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
             assert_eq!(m.payload(), b"Hello, world!".encode());
             i + 1
         });
@@ -2720,8 +2708,8 @@ fn test_create_program_with_value_lt_ed() {
             MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
         let msg1_mailbox = MessageId::generate_outgoing(origin_msg_id, 0);
         let msg2_mailbox = MessageId::generate_outgoing(origin_msg_id, 1);
-        assert!(Mailbox::<Test>::contains_key(msg_receiver_1, msg1_mailbox));
-        assert!(Mailbox::<Test>::contains_key(msg_receiver_2, msg2_mailbox));
+        assert!(MailboxOf::<Test>::contains(&msg_receiver_1, &msg1_mailbox));
+        assert!(MailboxOf::<Test>::contains(&msg_receiver_2, &msg2_mailbox));
 
         SystemPallet::<Test>::reset_events();
 
@@ -2747,8 +2735,8 @@ fn test_create_program_with_value_lt_ed() {
         // User's message execution will result in trap, because program tries
         // to send init message with value in invalid range. As a result, 1 dispatch
         // is dequeued (user's  message) and one message is sent to mailbox.
-        let mailbox_msg_id = MessageId::from_origin(get_last_message_id());
-        assert!(Mailbox::<Test>::contains_key(USER_1, mailbox_msg_id));
+        let mailbox_msg_id = get_last_message_id();
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
         check_dequeued(1);
 
@@ -2825,20 +2813,20 @@ fn test_create_program_with_exceeding_value() {
             MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
         let receiver_mail_msg1 = MessageId::generate_outgoing(origin_msg_id, 0);
         let receiver_mail_msg2 = MessageId::generate_outgoing(origin_msg_id, 1);
-        assert!(!Mailbox::<Test>::contains_key(
-            random_receiver,
-            receiver_mail_msg1
+        assert!(!MailboxOf::<Test>::contains(
+            &random_receiver,
+            &receiver_mail_msg1
         ));
-        assert!(!Mailbox::<Test>::contains_key(
-            random_receiver,
-            receiver_mail_msg2
+        assert!(!MailboxOf::<Test>::contains(
+            &random_receiver,
+            &receiver_mail_msg2
         ));
 
         // User's message execution will result in trap, because program tries
         // to send init message with value more than program has. As a result, 1 dispatch
         // is dequeued (user's  message) and one message is sent to mailbox.
-        let mailbox_msg_id = MessageId::from_origin(get_last_message_id());
-        assert!(Mailbox::<Test>::contains_key(USER_1, mailbox_msg_id));
+        let mailbox_msg_id = get_last_message_id();
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
         check_dequeued(1);
 
@@ -2883,14 +2871,14 @@ fn test_reply_to_terminated_program() {
         ));
 
         let mail_id = {
-            let original_message_id = MessageId::from_origin(get_last_message_id());
-            MessageId::generate_reply(original_message_id, 0).into_origin()
+            let original_message_id = get_last_message_id();
+            MessageId::generate_reply(original_message_id, 0)
         };
 
         run_to_block(2, None);
 
         // Check mail in Mailbox
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 1);
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
         assert_noop!(
@@ -2910,7 +2898,7 @@ fn test_reply_to_terminated_program() {
             mail_id,
         ));
 
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(mail_id).into())
     })
@@ -2993,7 +2981,7 @@ mod utils {
     // 2) runs to block 2 all the messages place to message queue/storage
     //
     // Returns id of the message in the mailbox
-    pub(super) fn setup_mailbox_test_state(user: AccountId) -> H256 {
+    pub(super) fn setup_mailbox_test_state(user: AccountId) -> MessageId {
         let prog_id = {
             let res = submit_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
@@ -3011,7 +2999,7 @@ mod utils {
         block_num: BlockNumber,
         gas_limit: u64,
         value: u128,
-    ) -> H256 {
+    ) -> MessageId {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(sender),
             prog_id,
@@ -3035,7 +3023,7 @@ mod utils {
             );
         }
 
-        MessageId::generate_outgoing(MessageId::from_origin(message_id), 0).into_origin()
+        MessageId::generate_outgoing(message_id, 0)
     }
 
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
@@ -3123,7 +3111,7 @@ mod utils {
         program_id
     }
 
-    pub(super) fn get_last_message_id() -> H256 {
+    pub(super) fn get_last_message_id() -> MessageId {
         SystemPallet::<Test>::events()
             .iter()
             .rev()
@@ -3140,6 +3128,7 @@ mod utils {
                 Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
                 _ => None,
             })
+            .map(MessageId::from_origin)
             .expect("can't find message send event")
     }
 

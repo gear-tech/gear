@@ -246,7 +246,7 @@ impl EnvExt for LazyPagesExt {
             save_page_lazy_info(id, page);
         }
 
-        // Protect all lazy pages including new allcations
+        // Protect all lazy pages including new allocations
         let new_mem_addr = mem.get_wasm_memory_begin_addr();
         lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)?;
 
@@ -262,17 +262,17 @@ impl EnvExt for LazyPagesExt {
         // Returns back greedily used gas for allocations
         let first_page = page_number;
         let last_page = first_page + pages_num - 1.into();
-        let mut new_alloced_pages_num = WasmPageNumber(0);
+        let mut new_allocated_pages_num = WasmPageNumber(0);
         for page in first_page.0..=last_page.0 {
             if !self.inner.allocations_context.is_init_page(page.into()) {
-                new_alloced_pages_num = new_alloced_pages_num + 1.into();
+                new_allocated_pages_num = new_allocated_pages_num + 1.into();
             }
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.inner
                 .config
                 .alloc_cost
-                .saturating_mul((pages_num - new_alloced_pages_num).0 as u64),
+                .saturating_mul((pages_num - new_allocated_pages_num).0 as u64),
         );
 
         self.refund_gas(gas_to_return_back as u32)?;
