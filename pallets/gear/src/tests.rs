@@ -617,6 +617,7 @@ fn memory_access_cases() {
 
         run_to_block(2, Some(1_000_000_000));
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
 
         // First handle: access pages
         let res = GearPallet::<Test>::send_message(
@@ -629,6 +630,8 @@ fn memory_access_cases() {
         assert_ok!(res);
 
         run_to_block(3, Some(1_000_000_000));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
 
         // Second handle: check pages data
         let res = GearPallet::<Test>::send_message(
@@ -641,6 +644,8 @@ fn memory_access_cases() {
         assert_ok!(res);
 
         run_to_block(4, Some(1_000_000_000));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
     });
 }
 

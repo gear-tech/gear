@@ -126,7 +126,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
                 .expect("Cannot panic here, because we create slice with PageBuf size");
             // Restrict any page handling in signal handler more then one time.
             // If some page will be released twice it means, that this page has been added
-            // to lazy poges more then one time during current execution.
+            // to lazy pages more then one time during current execution.
             // This situation may cause problems with memory data update in storage.
             // For example: one page has no data in storage, but allocated for current program.
             // Let's make some action for it:

@@ -238,11 +238,11 @@ impl EnvExt for LazyPagesExt {
         // Add new allocations to lazy pages.
         // All pages except ones which has been already allocated,
         // during current execution.
-        // This is because only such pages contains Default (zeros in web asm) page data.
+        // This is because only such pages contains Default (zeros in WebAsm) page data.
         // Pages which has been already allocated may contain garbage.
         let id = self.inner.program_id.into_origin();
-        let new_alloced_pages = (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
-        for wasm_page in new_alloced_pages {
+        let new_allocated_pages = (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
+        for wasm_page in new_allocated_pages {
             if self.inner.allocations_context.is_init_page(wasm_page)
                 || self.fresh_allocations.contains(&wasm_page)
             {
