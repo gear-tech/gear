@@ -22,12 +22,14 @@
 
 use crate::storage::{
     Counted, CountedByKey, Counter, DequeueError, IterableDoubleMap, IterableMap, Mailbox,
-    MailboxError, Queue, Toggler,
+    MailboxError, Queue, Toggler, Waitlist,
 };
 use core::fmt::Debug;
 
 /// Represents messenger's logic of centralized message processing behavior.
 pub trait Messenger {
+    /// Block number type of the messenger.
+    type BlockNumber;
     /// Capacity of the messenger.
     ///
     /// This type defines length type of the queue, sent and
@@ -57,6 +59,18 @@ pub trait Messenger {
     ///
     /// Present to clarify compiler behavior over associated types.
     type QueuedDispatch;
+    /// First key of the waitlist storage.
+    ///
+    /// Present to clarify compiler behavior over associated types.
+    type WaitlistFirstKey;
+    /// Second key of the waitlist storage.
+    ///
+    /// Present to clarify compiler behavior over associated types.
+    type WaitlistSecondKey;
+    /// Stored values type for `Self::Waitlist`.
+    ///
+    /// Present to clarify compiler behavior over associated types.
+    type WaitlistedMessage;
 
     /// Amount of messages sent from outside (from users)
     /// within the current block.
@@ -104,9 +118,33 @@ pub trait Messenger {
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
         + IterableDoubleMap<Self::MailboxedMessage, Key = Self::MailboxFirstKey>;
 
-    // Soon ...
-    // /// Gear waitlist.
-    // type Waitlist;
+    /// Gear waitlist.
+    ///
+    /// Waitlist contains messages, which execution should be
+    /// delayed for some logic.
+    ///
+    /// Message can be inserted into mailbox only in two cases:
+    /// 1. Destination program called `gr_wait` while was executing
+    /// this message, so the only this program can remove and
+    /// requeue it by `gr_wake` call in any execution.
+    /// 2. The message sent to program, that hadn't finished it's
+    /// initialization, and will be automatically removed once
+    /// result of initialization would be available.
+    ///
+    /// Gear runtime also charges rent for holding in waitlist.
+    /// For details, see `pallet-usage`.
+    type Waitlist: Waitlist<
+            Key1 = Self::WaitlistFirstKey,
+            Key2 = Self::WaitlistSecondKey,
+            Value = Self::WaitlistedMessage,
+            BlockNumber = Self::BlockNumber,
+            Error = Self::Error,
+            OutputError = Self::OutputError,
+        > + CountedByKey<Key = Self::WaitlistFirstKey, Length = usize>
+        + IterableDoubleMap<
+            (Self::WaitlistedMessage, Self::BlockNumber),
+            Key = Self::WaitlistFirstKey,
+        >;
 
     /// Resets all related to messenger storages.
     ///
@@ -118,5 +156,6 @@ pub trait Messenger {
         Self::QueueProcessing::allow();
         Self::Queue::remove_all();
         Self::Mailbox::remove_all();
+        Self::Waitlist::remove_all();
     }
 }
