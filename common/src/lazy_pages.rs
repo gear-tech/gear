@@ -39,6 +39,8 @@ pub enum Error {
     VecToPageData,
     #[display(fmt = "Cannot find page data in storage")]
     NoPageDataInStorage,
+    #[display(fmt = "Released page {:?} has initial data", _0)]
+    ReleasedPageHasData(PageNumber),
 }
 
 impl From<MprotectError> for Error {
@@ -103,7 +105,9 @@ pub fn post_execution_actions(
     let released_pages = gear_ri::get_released_pages();
     for page in released_pages {
         let data = gear_ri::get_released_page_old_data(page)?;
-        let _ = memory_pages.insert(page.into(), data).is_some();
+        if memory_pages.insert(page.into(), data).is_some() {
+            return Err(Error::ReleasedPageHasData(page.into()));
+        }
     }
 
     // Removes protections from lazy pages
