@@ -239,7 +239,7 @@ pub trait ValueTree {
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),
     Terminated,
@@ -293,7 +293,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
     /// Set of wasm pages numbers, which is allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
@@ -304,7 +304,7 @@ pub struct ActiveProgram {
 }
 
 /// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized. All messages to such a
@@ -315,7 +315,7 @@ pub enum ProgramState {
     Initialized,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
     #[codec(compact)]

@@ -33,7 +33,7 @@ js_test() {
   node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
-gtest_debug() {
+gtest() {
   ROOT_DIR="$1"
   shift
 
@@ -61,22 +61,12 @@ gtest_debug() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
   fi
 
-  cargo run --package gear-test $CARGO_FLAGS -- $YAMLS "$@"
-}
-
-gtest() {
-  CARGO_FLAGS="--release"
-  gtest_debug "$1"
+  ./target/release/gear-test $YAMLS "$@"
 }
 
 # $1 - ROOT DIR
-rtest_debug() {
-  cargo run --package gear-node $CARGO_FLAGS -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
-}
-
 rtest() {
-  CARGO_FLAGS="--release"
-  rtest_debug $1
+  ./target/release/gear-node runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
 }
 
 pallet_test() {
@@ -91,7 +81,7 @@ runtime_upgrade_test() {
   DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" cargo run --package gear-node --release -- --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" ./target/release/gear-node --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"

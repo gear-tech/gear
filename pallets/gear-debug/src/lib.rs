@@ -85,7 +85,7 @@ pub mod pallet {
     /// Program debug info.
     // TODO: unfortunatelly we cannot store pages data in [PageBuf],
     // because polkadot-js api can not support this type.
-    #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
         pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
@@ -105,19 +105,19 @@ pub mod pallet {
         }
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub enum ProgramState {
         Active(ProgramInfo),
         Terminated,
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub struct ProgramDetails {
         pub id: H256,
         pub state: ProgramState,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct DebugData {
         pub dispatch_queue: Vec<StoredDispatch>,
         pub programs: Vec<ProgramDetails>,

@@ -36,7 +36,7 @@ pub trait Token: Copy + Clone {
 }
 
 /// The result of charging gas.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeResult {
     /// There was enough gas and it has been charged.
     Enough,

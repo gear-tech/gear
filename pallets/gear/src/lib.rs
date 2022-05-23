@@ -254,26 +254,26 @@ pub mod pallet {
         MessagesStorageCorrupted,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub enum Reason {
         Error,
         ValueTransfer,
         Dispatch(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub enum ExecutionResult {
         Success,
         Failure(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub struct DispatchOutcome {
         pub message_id: H256,
         pub outcome: ExecutionResult,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub struct MessageInfo {
         pub message_id: H256,
         pub program_id: H256,

@@ -19,12 +19,13 @@
 use crate as pallet_usage;
 use codec::Decode;
 use common::{CodeMetadata, CodeStorage, Origin as _};
-use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+    construct_runtime, parameter_types,
+    traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize},
+};
 use frame_system as system;
-use gear_core::code::InstrumentedCodeAndId;
 use gear_core::{
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::ProgramId,
     program::Program,
 };

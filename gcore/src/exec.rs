@@ -20,8 +20,7 @@
 //!
 //! Provides API for low-level async implementation.
 
-use crate::ActorId;
-use crate::MessageId;
+use crate::{ActorId, MessageId};
 
 mod sys {
     extern "C" {

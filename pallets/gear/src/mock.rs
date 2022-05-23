@@ -18,16 +18,16 @@
 
 use crate as pallet_gear;
 use crate::{ext::LazyPagesExt, manager::ExtManager};
-use common::lazy_pages;
-use common::Origin as _;
-use core_processor::configs::AllocationsConfig;
+use common::{lazy_pages, Origin as _};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::BlockInfo,
+    configs::{AllocationsConfig, BlockInfo},
     Ext,
 };
-use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+    construct_runtime, parameter_types,
+    traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize},
+};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{

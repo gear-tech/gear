@@ -81,8 +81,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use common::Origin;
 use frame_support::{traits::Get, RuntimeDebug};
-use frame_system::offchain::SubmitTransaction;
-use frame_system::pallet_prelude::*;
+use frame_system::{offchain::SubmitTransaction, pallet_prelude::*};
 use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::offchain::storage::StorageValueRef;
 
@@ -91,7 +90,7 @@ pub const STORAGE_LAST_KEY: &[u8] = b"g::ocw::last::key";
 pub const STORAGE_OCW_LOCK: &[u8] = b"g::ocw::lock";
 pub const STORAGE_ROUND_STARTED_AT: &[u8] = b"g::ocw::new::round";
 
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub enum OffchainError {
     FailedToGetValueFromStorage,
     SubmitTransaction,
@@ -108,7 +107,7 @@ impl sp_std::fmt::Debug for OffchainError {
     }
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, scale_info::TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, scale_info::TypeInfo)]
 pub struct PayeeInfo {
     pub program_id: H256,
     pub message_id: H256,

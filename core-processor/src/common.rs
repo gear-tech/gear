@@ -18,18 +18,17 @@
 
 //! Common structures for processing.
 
-use alloc::string::String;
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::{self, Debug, Formatter},
+    string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use gear_core::memory::PageBuf;
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
 };
