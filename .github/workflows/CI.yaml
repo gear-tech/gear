@@ -173,8 +173,8 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/pallet-test-junit.xml /tmp/
-          ./target/release/regression-analysis --master-junit-xml /tmp/pallet-test-junit.xml --current-junit-xml ./target/nextest/ci/junit.xml
+          cp /root/cache/pallet-tests.json /tmp/
+          cargo run --package regression-analysis --release -- compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -191,8 +191,8 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/runtime-test-junit.xml /tmp/
-          ./target/release/regression-analysis --master-junit-xml /tmp/runtime-test-junit.xml --current-junit-xml ./target/runtime-test-junit.xml
+          cp /root/cache/runtime-tests.json /tmp/
+          cargo run --package regression-analysis --release -- compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
@@ -227,14 +227,6 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
-
-
-      - name: "Cache: junit.xml"
-        if: ${{ github.ref == 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          mv ./target/nextest/ci/junit.xml /root/cache/pallet-test-junit.xml
-          mv ./target/runtime-test-junit.xml /root/cache/
 
       - name: "Cache: Pack"
         if: ${{ github.ref == 'refs/heads/master' }}
