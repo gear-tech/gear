@@ -50,9 +50,6 @@ pub enum MessageError {
     /// Duplicate reply message.
     #[display(fmt = "Duplicate reply message")]
     DuplicateReply,
-    /// Duplicate waiting message.
-    #[display(fmt = "Duplicate waiting message")]
-    DuplicateWaiting,
     /// Duplicate waking message.
     #[display(fmt = "Duplicate waking message")]
     DuplicateWaking,
@@ -64,14 +61,6 @@ pub enum MessageError {
         fmt = "No message found with given handle, or handle exceeds the maximum messages amount"
     )]
     OutOfBounds,
-    /// An attempt to push a payload into reply that was not set
-    #[display(fmt = "An attempt to push a payload into reply that was not set")]
-    NoReplyFound,
-    /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
-    #[display(
-        fmt = "An attempt to interrupt execution with `wait(..)` while some messages weren't completed"
-    )]
-    UncommittedPayloads,
     /// Duplicate init message
     #[display(fmt = "Duplicate init message")]
     DuplicateInit,
