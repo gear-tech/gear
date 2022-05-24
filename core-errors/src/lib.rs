@@ -110,6 +110,8 @@ pub enum ExtError {
     GasLimitExceeded,
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
+    #[display(fmt = "Terminated: {:?}", _0)]
+    TerminationReason(TerminationReason),
     #[display(fmt = "Failed to wake the message: {}", _0)]
     Wake(MessageError),
     #[display(fmt = "{}", _0)]
