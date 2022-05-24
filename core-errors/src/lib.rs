@@ -73,13 +73,19 @@ pub enum MessageError {
     DuplicateInit,
 }
 
-/// Memory error.
+    /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
     /// allowed.
-    #[display(fmt = "Maximum possible memory has been allocated.")]
+    #[display(fmt = "Maximum possible memory has been allocated")]
     OutOfMemory,
+
+    /// Allocation is in use.
+    /// Unreal case, to be removed.
+    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
+    #[display(fmt = "Allocation is in use")]
+    AllocationsInUse,
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
@@ -88,7 +94,7 @@ pub enum MemoryError {
 
     /// The error occurs in attempt to access memory page outside pages area
     /// allocated for this program.
-    #[display(fmt = "Access to the page not allocated to this program.")]
+    #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 }
 
