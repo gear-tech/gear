@@ -86,12 +86,6 @@ pub enum FuncError<E> {
     NoReplyContext,
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
-    #[display(fmt = "`gr_exit` has been called")]
-    Exit,
-    #[display(fmt = "`gr_leave` has been called")]
-    Leave,
-    #[display(fmt = "`gr_wait` has been called")]
-    Wait,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
 }
