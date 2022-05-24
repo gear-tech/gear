@@ -954,7 +954,7 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1.into_origin(),
-                outcome: ExecutionResult::Failure(b"Gas limit exceeded".to_vec()),
+                outcome: ExecutionResult::Failure(b"User has no enough gas".to_vec()),
             })
             .into(),
         );
@@ -1024,7 +1024,11 @@ fn init_message_logging_works() {
         let codes = [
             (ProgramCodeKind::Default, false, ""),
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
-            (ProgramCodeKind::GreedyInit, true, "Gas limit exceeded"),
+            (
+                ProgramCodeKind::GreedyInit,
+                true,
+                "Gas limit exceeded during code execution",
+            ),
         ];
 
         for (code_kind, is_failing, trap_explanation) in codes {
@@ -1131,7 +1135,11 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, true),
             (
                 ProgramCodeKind::GreedyInit,
-                Some("Gas limit exceeded".as_bytes().to_vec()),
+                Some(
+                    "Gas limit exceeded during code execution"
+                        .as_bytes()
+                        .to_vec(),
+                ),
                 false,
             ),
             (
@@ -2979,7 +2987,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // There definitely should be event with init failure reason
         let expected_failure_reason =
-            b"Value of the message is less than existential deposit, but greater than 0";
+            "Value 499 of the message in not in the range {0} ∪ [500; +inf)".as_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -3068,7 +3076,8 @@ fn test_create_program_with_exceeding_value() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason = b"Not enough value to send message";
+        let expected_failure_reason =
+            b"1000 is not enough value to send message with the value 1001";
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
