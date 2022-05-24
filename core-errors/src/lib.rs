@@ -97,7 +97,7 @@ pub enum MemoryError {
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// There is wasm page, which has not all gear pages in the begin
+    /// WASM page does not contain all necesssary Gear pages
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
     InvalidPageDataSize(usize),
 }
