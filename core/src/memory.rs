@@ -169,7 +169,7 @@ impl core::ops::Sub<PageNumber> for PageNumber {
     }
 }
 
-/// Wasm page nuber
+/// Wasm page number.
 #[derive(
     Clone,
     Copy,
