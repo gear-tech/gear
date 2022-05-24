@@ -23,7 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use core::fmt;
-use gear_backend_common::{ExtInfo, IntoExtInfo};
+use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo};
 use gear_core::{
     charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
@@ -33,7 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
-use gear_core_errors::{ExtError, MessageError, TerminationReason};
+use gear_core_errors::{CoreError, ExtError, MessageError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -78,6 +78,37 @@ pub trait ProcessorExt {
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
+}
+
+/// [`Ext`](Ext)'s error
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
+pub enum ProcessorError {
+    /// Basic error
+    #[display(fmt = "{}", _0)]
+    Core(ExtError),
+    /// Termination reason occurred in a syscall
+    #[display(fmt = "Terminated: {:?}", _0)]
+    Terminated(TerminationReason),
+}
+
+impl ProcessorError {
+    fn as_ext_error(&self) -> Option<&ExtError> {
+        match self {
+            ProcessorError::Core(core) => Some(core),
+            ProcessorError::Terminated(_) => None,
+        }
+    }
+}
+
+impl CoreError for ProcessorError {}
+
+impl AsTerminationReason for ProcessorError {
+    fn as_termination_reason(&self) -> Option<&TerminationReason> {
+        match self {
+            ProcessorError::Core(_) => None,
+            ProcessorError::Terminated(reason) => Some(reason),
+        }
+    }
 }
 
 /// Structure providing externalities for running host functions.
@@ -212,14 +243,17 @@ impl IntoExtInfo for Ext {
 
 impl Ext {
     /// Return result and store error info in field
-    pub fn return_and_store_err<T>(&mut self, result: Result<T, ExtError>) -> Result<T, ExtError> {
-        result.map_err(|err| {
-            self.error_explanation = Some(err.clone());
+    pub fn return_and_store_err<T, E>(&mut self, result: Result<T, E>) -> Result<T, ProcessorError>
+    where
+        E: Into<ProcessorError>,
+    {
+        result.map_err(Into::into).map_err(|err| {
+            self.error_explanation = err.as_ext_error().cloned();
             err
         })
     }
 
-    fn check_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
+    fn check_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < message_value && message_value < self.existential_deposit {
             self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
@@ -231,7 +265,7 @@ impl Ext {
         }
     }
 
-    fn charge_gas_with_packet<T: Packet>(&mut self, packet: &T) -> Result<(), ExtError> {
+    fn charge_gas_with_packet<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
         if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
             self.return_and_store_err(Err(ExtError::Message(MessageError::NotEnoughGas)))
         } else {
@@ -239,7 +273,7 @@ impl Ext {
         }
     }
 
-    fn charge_value(&mut self, message_value: u128) -> Result<(), ExtError> {
+    fn charge_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         if self.value_counter.reduce(message_value) != ChargeResult::Enough {
             self.return_and_store_err(Err(ExtError::NotEnoughValue {
                 message_value,
@@ -252,7 +286,7 @@ impl Ext {
 }
 
 impl EnvExt for Ext {
-    type Error = ExtError;
+    type Error = ProcessorError;
 
     fn alloc(
         &mut self,
@@ -440,11 +474,9 @@ impl EnvExt for Ext {
         let common_charge = self.gas_counter.charge(val as u64);
         let allowance_charge = self.gas_allowance_counter.charge(val as u64);
 
-        let res = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExtError::GasLimitExceeded),
-            (Enough, NotEnough) => Err(ExtError::TerminationReason(
-                TerminationReason::GasAllowanceExceeded,
-            )),
+        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
+            (NotEnough, _) => Err(ExtError::GasLimitExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 
@@ -455,11 +487,9 @@ impl EnvExt for Ext {
         use ChargeResult::*;
         let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
 
-        let res = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExtError::GasLimitExceeded),
-            (Enough, NotEnough) => Err(ExtError::TerminationReason(
-                TerminationReason::GasAllowanceExceeded,
-            )),
+        let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
+            (NotEnough, _) => Err(ExtError::GasLimitExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 

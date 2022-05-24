@@ -27,7 +27,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
+    AsTerminationReason, BackendError, BackendReport, Environment, ExtInfo, HostPointer,
+    IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
@@ -96,6 +97,7 @@ fn set_pages<T: Ext>(
 impl<E> WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
+    E::Error: AsTerminationReason,
 {
     fn prepare_post_execution_data(
         self,
@@ -123,6 +125,7 @@ where
 impl<E> Environment<E> for WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
+    E::Error: AsTerminationReason,
 {
     type Error = WasmtimeEnvironmentError;
 

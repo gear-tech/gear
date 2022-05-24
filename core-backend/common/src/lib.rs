@@ -166,3 +166,7 @@ impl<E> IntoErrorCode for Result<(), E> {
         }
     }
 }
+
+pub trait AsTerminationReason {
+    fn as_termination_reason(&self) -> Option<&gear_core_errors::TerminationReason>;
+}

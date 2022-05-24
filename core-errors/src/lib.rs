@@ -25,11 +25,7 @@ use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
 
-pub trait CoreError: fmt::Display + fmt::Debug {
-    fn from_termination_reason(reason: TerminationReason) -> Self;
-
-    fn as_termination_reason(&self) -> Option<TerminationReason>;
-}
+pub trait CoreError: fmt::Display + fmt::Debug {}
 
 /// Error using messages.
 #[derive(
@@ -113,8 +109,6 @@ pub enum ExtError {
     GasLimitExceeded,
     #[display(fmt = "Too many gas added")]
     TooManyGasAdded,
-    #[display(fmt = "Terminated: {:?}", _0)]
-    TerminationReason(TerminationReason),
     #[display(fmt = "Failed to wake the message: {}", _0)]
     Wake(MessageError),
     #[display(fmt = "{}", _0)]
@@ -143,15 +137,4 @@ pub enum ExtError {
     Message(MessageError),
 }
 
-impl CoreError for ExtError {
-    fn from_termination_reason(reason: TerminationReason) -> Self {
-        Self::TerminationReason(reason)
-    }
-
-    fn as_termination_reason(&self) -> Option<TerminationReason> {
-        match self {
-            ExtError::TerminationReason(reason) => Some(*reason),
-            _ => None,
-        }
-    }
-}
+impl CoreError for ExtError {}

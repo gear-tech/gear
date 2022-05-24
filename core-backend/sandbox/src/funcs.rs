@@ -35,7 +35,7 @@ use gear_core::{
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason};
+use gear_core_errors::{MemoryError, TerminationReason};
 use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -86,6 +86,12 @@ pub enum FuncError<E> {
     NoReplyContext,
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
+    #[display(fmt = "`gr_exit` has been called")]
+    Exit,
+    #[display(fmt = "`gr_leave` has been called")]
+    Leave,
+    #[display(fmt = "`gr_wait` has been called")]
+    Wait,
 }
 
 impl<E> From<ExtCarrierWithError> for FuncError<E> {
@@ -293,9 +299,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             })
             .err()
             .or_else(|| {
-                Some(FuncError::Core(E::Error::from_termination_reason(
-                    TerminationReason::Exit,
-                )))
+                ctx.termination_reason = Some(TerminationReason::Exit);
+                Some(FuncError::Exit)
             });
 
         Err(HostError)
@@ -677,9 +682,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
             .or_else(|| {
-                Some(FuncError::Core(E::Error::from_termination_reason(
-                    TerminationReason::Leave,
-                )))
+                ctx.termination_reason = Some(TerminationReason::Leave);
+                Some(FuncError::Leave)
             });
         Err(HostError)
     }
@@ -690,9 +694,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
             .or_else(|| {
-                Some(FuncError::Core(E::Error::from_termination_reason(
-                    TerminationReason::Wait,
-                )))
+                ctx.termination_reason = Some(TerminationReason::Wait);
+                Some(FuncError::Wait)
             });
         Err(HostError)
     }

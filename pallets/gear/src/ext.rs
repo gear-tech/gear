@@ -22,7 +22,7 @@ use common::{lazy_pages, save_page_lazy_info};
 use core::fmt;
 use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
-    Ext, ProcessorExt,
+    Ext, ProcessorError, ProcessorExt,
 };
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
@@ -33,31 +33,20 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, TerminationReason};
+use gear_core_errors::{CoreError, ExtError};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    Core(ExtError),
+    Processor(ProcessorError),
     LazyPages(lazy_pages::Error),
 }
 
-impl CoreError for Error {
-    fn from_termination_reason(reason: TerminationReason) -> Self {
-        Self::Core(ExtError::from_termination_reason(reason))
-    }
+impl CoreError for Error {}
 
-    fn as_termination_reason(&self) -> Option<TerminationReason> {
-        match self {
-            Self::Core(err) => err.as_termination_reason(),
-            _ => None,
-        }
-    }
-}
-
-impl From<ExtError> for Error {
-    fn from(err: ExtError) -> Self {
-        Self::Core(err)
+impl From<ProcessorError> for Error {
+    fn from(err: ProcessorError) -> Self {
+        Self::Processor(err)
     }
 }
 
@@ -70,7 +59,7 @@ impl From<lazy_pages::Error> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Core(err) => fmt::Display::fmt(err, f),
+            Error::Processor(err) => fmt::Display::fmt(err, f),
             Error::LazyPages(err) => fmt::Display::fmt(err, f),
         }
     }
@@ -290,63 +279,67 @@ impl EnvExt for LazyPagesExt {
     }
 
     fn block_height(&mut self) -> Result<u32, Self::Error> {
-        self.inner.block_height().map_err(Error::Core)
+        self.inner.block_height().map_err(Error::Processor)
     }
 
     fn block_timestamp(&mut self) -> Result<u64, Self::Error> {
-        self.inner.block_timestamp().map_err(Error::Core)
+        self.inner.block_timestamp().map_err(Error::Processor)
     }
 
     fn origin(&mut self) -> Result<ProgramId, Self::Error> {
-        self.inner.origin().map_err(Error::Core)
+        self.inner.origin().map_err(Error::Processor)
     }
 
     fn send_init(&mut self) -> Result<usize, Self::Error> {
-        self.inner.send_init().map_err(Error::Core)
+        self.inner.send_init().map_err(Error::Processor)
     }
 
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.inner.send_push(handle, buffer).map_err(Error::Core)
+        self.inner
+            .send_push(handle, buffer)
+            .map_err(Error::Processor)
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.inner.reply_push(buffer).map_err(Error::Core)
+        self.inner.reply_push(buffer).map_err(Error::Processor)
     }
 
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
-        self.inner.send_commit(handle, msg).map_err(Error::Core)
+        self.inner
+            .send_commit(handle, msg)
+            .map_err(Error::Processor)
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.inner.reply_commit(msg).map_err(Error::Core)
+        self.inner.reply_commit(msg).map_err(Error::Processor)
     }
 
     fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, Self::Error> {
-        self.inner.reply_to().map_err(Error::Core)
+        self.inner.reply_to().map_err(Error::Processor)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
-        self.inner.source().map_err(Error::Core)
+        self.inner.source().map_err(Error::Processor)
     }
 
     fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
-        self.inner.exit(value_destination).map_err(Error::Core)
+        self.inner.exit(value_destination).map_err(Error::Processor)
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
-        self.inner.message_id().map_err(Error::Core)
+        self.inner.message_id().map_err(Error::Processor)
     }
 
     fn program_id(&mut self) -> Result<ProgramId, Self::Error> {
-        self.inner.program_id().map_err(Error::Core)
+        self.inner.program_id().map_err(Error::Processor)
     }
 
     fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
-        self.inner.free(page).map_err(Error::Core)
+        self.inner.free(page).map_err(Error::Processor)
     }
 
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
-        self.inner.debug(data).map_err(Error::Core)
+        self.inner.debug(data).map_err(Error::Processor)
     }
 
     fn msg(&mut self) -> &[u8] {
@@ -354,52 +347,54 @@ impl EnvExt for LazyPagesExt {
     }
 
     fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.inner.charge_gas(val).map_err(Error::Core)
+        self.inner.charge_gas(val).map_err(Error::Processor)
     }
 
     fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.inner.refund_gas(val).map_err(Error::Core)
+        self.inner.refund_gas(val).map_err(Error::Processor)
     }
 
     fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.inner.gas(val).map_err(Error::Core)
+        self.inner.gas(val).map_err(Error::Processor)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
-        self.inner.gas_available().map_err(Error::Core)
+        self.inner.gas_available().map_err(Error::Processor)
     }
 
     fn value(&mut self) -> Result<u128, Self::Error> {
-        self.inner.value().map_err(Error::Core)
+        self.inner.value().map_err(Error::Processor)
     }
 
     fn leave(&mut self) -> Result<(), Self::Error> {
-        self.inner.leave().map_err(Error::Core)
+        self.inner.leave().map_err(Error::Processor)
     }
 
     fn wait(&mut self) -> Result<(), Self::Error> {
-        self.inner.wait().map_err(Error::Core)
+        self.inner.wait().map_err(Error::Processor)
     }
 
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
-        self.inner.wake(waker_id).map_err(Error::Core)
+        self.inner.wake(waker_id).map_err(Error::Processor)
     }
 
     fn value_available(&mut self) -> Result<u128, Self::Error> {
-        self.inner.value_available().map_err(Error::Core)
+        self.inner.value_available().map_err(Error::Processor)
     }
 
     fn create_program(
         &mut self,
         packet: gear_core::message::InitPacket,
     ) -> Result<ProgramId, Self::Error> {
-        self.inner.create_program(packet).map_err(Error::Core)
+        self.inner.create_program(packet).map_err(Error::Processor)
     }
 
     fn charge_gas_runtime(
         &mut self,
         costs: gear_core::costs::RuntimeCosts,
     ) -> Result<(), Self::Error> {
-        self.inner.charge_gas_runtime(costs).map_err(Error::Core)
+        self.inner
+            .charge_gas_runtime(costs)
+            .map_err(Error::Processor)
     }
 }

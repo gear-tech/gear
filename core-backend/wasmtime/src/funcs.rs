@@ -23,7 +23,9 @@ use alloc::{
     string::{FromUtf8Error, String, ToString},
     vec,
 };
-use gear_backend_common::{funcs::*, IntoErrorCode, OnSuccessCode, TerminationReason};
+use gear_backend_common::{
+    funcs::*, AsTerminationReason, IntoErrorCode, OnSuccessCode, TerminationReason,
+};
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
@@ -112,6 +114,7 @@ fn write_to_caller_memory<'a, T: Ext>(
 impl<E> FuncsHandler<E>
 where
     E: Ext + 'static,
+    E::Error: AsTerminationReason,
 {
     pub fn alloc(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {
@@ -198,8 +201,9 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| {
-                    if let Some(CoreTerminationReason::GasAllowanceExceeded) =
-                        e.as_core().and_then(E::Error::as_termination_reason)
+                    if let Some(CoreTerminationReason::GasAllowanceExceeded) = e
+                        .as_core()
+                        .and_then(AsTerminationReason::as_termination_reason)
                     {
                         caller.data_mut().termination_reason =
                             Some(TerminationReason::GasAllowanceExceeded);
