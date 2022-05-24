@@ -92,6 +92,8 @@ pub enum FuncError<E> {
     Leave,
     #[display(fmt = "`gr_wait` has been called")]
     Wait,
+    #[display(fmt = "Terminated: {:?}", _0)]
+    Terminated(TerminationReason),
 }
 
 impl<E> From<ExtCarrierWithError> for FuncError<E> {
@@ -110,7 +112,10 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext + 'static> FuncsHandler<E> {
+impl<E> FuncsHandler<E>
+where
+    E: Ext + 'static,
+{
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
@@ -298,10 +303,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 ext.exit(value_dest).map_err(FuncError::Core)
             })
             .err()
-            .or_else(|| {
-                ctx.termination_reason = Some(TerminationReason::Exit);
-                Some(FuncError::Exit)
-            });
+            .or(Some(FuncError::Terminated(TerminationReason::Exit)));
 
         Err(HostError)
     }
@@ -681,10 +683,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .ext
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
-            .or_else(|| {
-                ctx.termination_reason = Some(TerminationReason::Leave);
-                Some(FuncError::Leave)
-            });
+            .or(Some(FuncError::Terminated(TerminationReason::Leave)));
         Err(HostError)
     }
 
@@ -693,10 +692,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .ext
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
-            .or_else(|| {
-                ctx.termination_reason = Some(TerminationReason::Wait);
-                Some(FuncError::Wait)
-            });
+            .or(Some(FuncError::Terminated(TerminationReason::Wait)));
         Err(HostError)
     }
 
