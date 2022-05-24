@@ -171,10 +171,27 @@ jobs:
 
       - name: "Test (regressions): pallets"
         if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-regressions-pallets
         continue-on-error: true
         run: |
           cp /root/cache/pallet-tests.json /tmp/
-          cargo run --package regression-analysis --release -- compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml
+          ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
+          body="$(cat ./target/pallet-tests-diff.md)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
+
+      - name: "Comment (regressions): pallet tests"
+        uses: peter-evans/create-or-update-comment@v2
+        if: ${{ github.ref != 'refs/heads/master' }}
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <details><summary>Pallet tests</summary>
+            ${{ steps.test-regressions-pallets.outputs.body }}
+            </details>
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -189,14 +206,31 @@ jobs:
 
       - name: "Test (regressions): node runtime testsuite"
         if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-regressions-runtime
         continue-on-error: true
         run: |
           cp /root/cache/runtime-tests.json /tmp/
-          cargo run --package regression-analysis --release -- compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml
+          ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
+          body="$(cat ./target/runtime-tests-diff.md)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
+
+      - name: "Comment (regressions): runtime tests"
+        uses: peter-evans/create-or-update-comment@v2
+        if: ${{ github.ref != 'refs/heads/master' }}
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <details><summary>Runtime tests</summary>
+            ${{ steps.test-regressions-runtime.outputs.body }}
+            </details>
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
-            
+
       - name: "Coverage: Aggregate"
         run: >-
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
