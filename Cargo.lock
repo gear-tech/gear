@@ -4998,6 +4998,7 @@ dependencies = [
  "hex-literal",
  "log",
  "pallet-balances",
+ "pallet-gear-messenger",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
