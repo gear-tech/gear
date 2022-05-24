@@ -44,9 +44,9 @@ pub trait CoreError: fmt::Display + fmt::Debug {
     derive_more::Display,
 )]
 pub enum MessageError {
-    ///  The error "Message limit exceeded" occurs when a program attempts 
-    /// to send more than the maximum amount of messages alowed within 
-    /// a single execution (1024).
+    ///  The error "Message limit exceeded" occurs when a program attempts to
+    /// send more than the maximum amount of messages alowed within a single
+    /// execution (1024).
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
 
@@ -54,13 +54,12 @@ pub enum MessageError {
     #[display(fmt = "Duplicate reply message")]
     DuplicateReply,
 
-    /// The error occurs in attempt to get the same message from the 
-    /// waitlist again (which is waked already).
+    /// The error occurs in attempt to get the same message from the waitlist
+    /// again (which is waked already).
     #[display(fmt = "Duplicate waking message")]
     DuplicateWaking,
 
-    /// An attempt to commit or push a payload into an already 
-    /// formed message.
+    /// An attempt to commit or push a payload into an already formed message.
     #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
     LateAccess,
 
@@ -68,8 +67,8 @@ pub enum MessageError {
     #[display(fmt = "Message with given handle is not found")]
     OutOfBounds,
 
-    /// The error occurs in attempt to initialize the same program twice 
-    /// within a single execution.
+    /// The error occurs in attempt to initialize the same program twice within
+    /// a single execution.
     #[display(fmt = "Duplicated program initialization message")]
     DuplicateInit,
 }
@@ -77,18 +76,18 @@ pub enum MessageError {
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum MemoryError {
-    /// The error occurs when a program tries to allocate more memory 
-    /// than allowed.
+    /// The error occurs when a program tries to allocate more memory  than
+    /// allowed.
     #[display(fmt = "Maximum possible memory has been allocated.")]
     OutOfMemory,
 
-    /// The error occurs in attempt to free-up a memory page from static 
-    /// area or outside additionally allocated for this program.
+    /// The error occurs in attempt to free-up a memory page from static area or
+    /// outside additionally allocated for this program.
     #[display(fmt = "Page {} cannot be freed by the current program", _0)]
     InvalidFree(u32),
 
-    /// The error occurs in attempt to access memory page outside pages 
-    /// area allocated for this program.
+    /// The error occurs in attempt to access memory page outside pages area
+    /// allocated for this program.
     #[display(fmt = "Access to the page not allocated to this program.")]
     MemoryAccessError,
 }
@@ -117,8 +116,7 @@ pub enum ExtError {
     InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred")]
     PanicOccurred,
-    #[display(fmt = "Value of the message is less than existential deposit, 
-    but greater than 0")]
+    #[display(fmt = "Value of the message is less than existential deposit, but greater than 0")]
     InsufficientMessageValue,
     #[display(fmt = "Not enough value to send in message")]
     NotEnoughValue,
