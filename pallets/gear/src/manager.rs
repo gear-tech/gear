@@ -45,7 +45,7 @@
 
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
-    MailboxOf, MessageInfo, Pallet, QueueOf, SentOf,
+    MailboxOf, MessageInfo, Pallet, QueueOf, SentOf, WaitlistOf,
 };
 use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
@@ -103,24 +103,26 @@ where
 {
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: H256, with_pages: bool) -> Option<ExecutableActor> {
-        let active: ActiveProgram = common::get_program(id)?.try_into().ok()?;
+    pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
+        let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
             let code = T::CodeStorage::get_code(code_id)?;
             NativeProgram::from_parts(
-                ProgramId::from_origin(id),
+                id,
                 code,
                 active.allocations,
                 matches!(active.state, ProgramState::Initialized),
             )
         };
 
-        let balance =
-            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-                .unique_saturated_into();
+        let balance = <T as Config>::Currency::free_balance(
+            &<T::AccountId as Origin>::from_origin(id.into_origin()),
+        )
+        .unique_saturated_into();
         let pages_data = if with_pages {
-            common::get_program_data_for_pages(id, active.pages_with_data.iter()).ok()?
+            common::get_program_data_for_pages(id.into_origin(), active.pages_with_data.iter())
+                .ok()?
         } else {
             Default::default()
         };
@@ -132,7 +134,7 @@ where
         })
     }
 
-    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: H256) {
+    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
         assert!(
             T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",
@@ -160,7 +162,7 @@ where
                 log::trace!("Dispatch outcome success: {:?}", message_id);
 
                 Event::MessageDispatched(DispatchOutcome {
-                    message_id: message_id.into_origin(),
+                    message_id,
                     outcome: ExecutionResult::Success,
                 })
             }
@@ -184,7 +186,7 @@ where
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
 
                 Event::MessageDispatched(DispatchOutcome {
-                    message_id: message_id.into_origin(),
+                    message_id,
                     outcome: ExecutionResult::Failure(reason),
                 })
             }
@@ -193,24 +195,25 @@ where
                 origin,
                 program_id,
             } => {
-                let program_id = program_id.into_origin();
                 let event = Event::InitSuccess(MessageInfo {
-                    message_id: message_id.into_origin(),
-                    origin: origin.into_origin(),
+                    message_id,
                     program_id,
+                    origin: origin.into_origin(),
                 });
 
                 common::waiting_init_take_messages(program_id)
                     .into_iter()
                     .for_each(|m_id| {
-                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                        if let Ok((m, _)) = WaitlistOf::<T>::remove(program_id, m_id) {
                             QueueOf::<T>::queue(m).unwrap_or_else(|e| {
                                 unreachable!("Message queue corrupted! {:?}", e)
                             });
+                        } else {
+                            log::error!("Cannot find message in wl")
                         }
                     });
 
-                common::set_program_initialized(program_id);
+                common::set_program_initialized(program_id.into_origin());
 
                 log::trace!(
                     "Dispatch ({:?}) init success for program {:?}",
@@ -226,7 +229,6 @@ where
                 program_id,
                 reason,
             } => {
-                let program_id = program_id.into_origin();
                 let origin = origin.into_origin();
 
                 // Some messages addressed to the program could be processed
@@ -237,14 +239,16 @@ where
                 common::waiting_init_take_messages(program_id)
                     .into_iter()
                     .for_each(|m_id| {
-                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                        if let Ok((m, _)) = WaitlistOf::<T>::remove(program_id, m_id) {
                             QueueOf::<T>::queue(m).unwrap_or_else(|e| {
                                 unreachable!("Message queue corrupted! {:?}", e)
                             });
+                        } else {
+                            log::error!("Cannot find message in wl");
                         }
                     });
 
-                let res = common::set_program_terminated_status(program_id);
+                let res = common::set_program_terminated_status(program_id.into_origin());
                 assert!(res.is_ok(), "only active program can cause init failure");
 
                 log::trace!(
@@ -255,7 +259,7 @@ where
 
                 Event::InitFailure(
                     MessageInfo {
-                        message_id: message_id.into_origin(),
+                        message_id,
                         origin,
                         program_id,
                     },
@@ -316,17 +320,15 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        let program_id = id_exited.into_origin();
-
-        for message in common::remove_program_waitlist(program_id) {
+        for (message, _) in WaitlistOf::<T>::drain(id_exited) {
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
-        let res = common::set_program_terminated_status(program_id);
+        let res = common::set_program_terminated_status(id_exited.into_origin());
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
-        let program_account = &<T::AccountId as Origin>::from_origin(program_id);
+        let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
         let balance = <T as Config>::Currency::total_balance(program_account);
         if !balance.is_zero() {
             <T as Config>::Currency::transfer(
@@ -385,7 +387,7 @@ where
             message_id
         );
 
-        if GearProgramPallet::<T>::program_exists(dispatch.destination().into_origin())
+        if GearProgramPallet::<T>::program_exists(dispatch.destination())
             || self.marked_destinations.contains(&dispatch.destination())
         {
             if let Some(gas_limit) = gas_limit {
@@ -415,12 +417,8 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        common::insert_waiting_message(
-            dispatch.destination().into_origin(),
-            dispatch.id().into_origin(),
-            dispatch.clone(),
-            <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-        );
+        WaitlistOf::<T>::insert(dispatch.clone())
+            .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
         Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch));
     }
@@ -431,14 +429,10 @@ where
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        let awakening_id = awakening_id.into_origin();
-
-        if let Some((dispatch, bn)) =
-            common::remove_waiting_message(program_id.into_origin(), awakening_id)
-        {
+        if let Ok((dispatch, bn)) = WaitlistOf::<T>::remove(program_id, awakening_id) {
             let duration = <frame_system::Pallet<T>>::block_number()
                 .saturated_into::<u32>()
-                .saturating_sub(bn);
+                .saturating_sub(bn.saturated_into::<u32>());
             let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
             match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
@@ -489,7 +483,7 @@ where
             log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",
                 awakening_id,
-                message_id.into_origin()
+                message_id
             );
         }
     }
@@ -589,8 +583,8 @@ where
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
         if T::CodeStorage::get_code(code_id).is_some() {
             for (candidate_id, init_message) in candidates {
-                if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    self.set_program(candidate_id, code_id, init_message.into_origin());
+                if !GearProgramPallet::<T>::program_exists(candidate_id) {
+                    self.set_program(candidate_id, code_id, init_message);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

@@ -123,6 +123,7 @@ impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {
@@ -228,7 +229,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     }
 }
 
-pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
+pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
     let initial_gas = <Test as pallet_gas::Config>::BlockGasLimit::get();
@@ -236,7 +237,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     let message = Message::new(
         Default::default(),
         ProgramId::from_origin(source),
-        ProgramId::from_origin(dest),
+        dest,
         payload,
         Some(initial_gas),
         0,
@@ -275,7 +276,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
+            dest,
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
@@ -288,7 +289,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
+            dest,
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),

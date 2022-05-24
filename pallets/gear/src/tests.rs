@@ -183,7 +183,7 @@ fn send_message_works() {
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
-            USER_2.into_origin(),
+            USER_2.into(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             mail_value,
@@ -259,7 +259,7 @@ fn send_message_expected_failure() {
         MailboxOf::<Test>::remove_all();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER),
-            USER_1.into_origin(),
+            USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
             1000,
             1000
@@ -296,7 +296,7 @@ fn messages_processing_works() {
 
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
-        assert_ok!(send_default_message(USER_1, USER_2.into_origin()));
+        assert_ok!(send_default_message(USER_1, USER_2.into()));
         assert_ok!(send_default_message(USER_1, program_id));
 
         run_to_block(3, None);
@@ -953,7 +953,7 @@ fn block_gas_limit_works() {
 
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
-                message_id: msg1.into_origin(),
+                message_id: msg1,
                 outcome: ExecutionResult::Failure(b"Gas limit exceeded".to_vec()),
             })
             .into(),
@@ -1153,7 +1153,7 @@ fn events_logging_works() {
 
             let init_msg_info = MessageInfo {
                 program_id,
-                message_id: message_id.into_origin(),
+                message_id,
                 origin: USER_1.into_origin(),
             };
 
@@ -1186,7 +1186,7 @@ fn events_logging_works() {
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
-                message_id: message_id.into_origin(),
+                message_id,
                 origin: USER_1.into_origin(),
             };
 
@@ -1229,7 +1229,7 @@ fn send_reply_works() {
         assert_ok!(
             <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
                 &USER_1,
-                &AccountId::from_origin(prog_id),
+                &AccountId::from_origin(prog_id.into_origin()),
                 2000,
                 frame_support::traits::ExistenceRequirement::AllowDeath
             )
@@ -1262,10 +1262,7 @@ fn send_reply_works() {
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
-        assert_eq!(
-            expected_reply_message_id,
-            MessageId::from_origin(actual_reply_message_id)
-        );
+        assert_eq!(expected_reply_message_id, actual_reply_message_id);
     })
 }
 
@@ -1292,7 +1289,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         };
 
         if let common::Program::Terminated =
-            common::get_program(prog_id).expect("Failed to get program from storage")
+            common::get_program(prog_id.into_origin()).expect("Failed to get program from storage")
         {
             panic!("Program is terminated!");
         };
@@ -1332,7 +1329,7 @@ fn send_reply_value_claiming_works() {
         assert_ok!(
             <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
                 &USER_1,
-                &AccountId::from_origin(prog_id),
+                &AccountId::from_origin(prog_id.into_origin()),
                 send_to_program_amount,
                 frame_support::traits::ExistenceRequirement::AllowDeath
             )
@@ -2574,7 +2571,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             InputArgs {
-                destination: paused_program_id.into()
+                destination: paused_program_id.into_origin().into()
             }
             .encode(),
             2_000_000_000u64,
@@ -2602,7 +2599,7 @@ fn program_messages_to_paused_program_skipped() {
         assert_eq!(
             2_000u128,
             BalancesPallet::<Test>::free_balance(
-                &<utils::AccountId as common::Origin>::from_origin(program_id)
+                &<utils::AccountId as common::Origin>::from_origin(program_id.into_origin())
             )
         );
     })
@@ -2645,12 +2642,12 @@ fn resume_program_works() {
 
         run_to_block(3, None);
 
-        let program = match common::get_program(program_id).expect("program exists") {
+        let program = match common::get_program(program_id.into_origin()).expect("program exists") {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
 
-        let memory_pages = common::get_program_pages_data(program_id, &program)
+        let memory_pages = common::get_program_pages_data(program_id.into_origin(), &program)
             .unwrap()
             .into_iter()
             .map(|(page, data)| (page, data.into_vec()))
@@ -2740,7 +2737,7 @@ fn gas_spent_vs_balance() {
 
         let handle_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
+            HandleKind::Handle(prog_id.into_origin()),
             request,
             0,
         )
@@ -2783,7 +2780,7 @@ fn gas_spent_precalculated() {
 
         let gas_spent_1 = Gear::get_gas_spent(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
+            HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -3231,7 +3228,7 @@ mod utils {
 
     // Puts message from `prog_id` for the `user` in mailbox and returns its id
     pub(super) fn populate_mailbox_from_program(
-        prog_id: H256,
+        prog_id: ProgramId,
         sender: AccountId,
         block_num: BlockNumber,
         gas_limit: u64,
@@ -3251,7 +3248,7 @@ mod utils {
         {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
-                common::get_program(prog_id)
+                common::get_program(prog_id.into_origin())
                     .and_then(|p| common::ActiveProgram::try_from(p).ok())
                     .expect("program must exist")
                     .code_hash,
@@ -3263,14 +3260,14 @@ mod utils {
         MessageId::generate_outgoing(message_id, 0)
     }
 
-    pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
+    pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: ProgramId) {
         let expected_code_hash: H256 = generate_code_hash(
             ProgramCodeKind::OutgoingWithValueInHandle
                 .to_bytes()
                 .as_slice(),
         )
         .into();
-        let actual_code_hash = common::get_program(program_id)
+        let actual_code_hash = common::get_program(program_id.into_origin())
             .and_then(|p| common::ActiveProgram::try_from(p).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
@@ -3287,7 +3284,7 @@ mod utils {
         assert_ok!(
             <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
                 &sender,
-                &AccountId::from_origin(program_id),
+                &AccountId::from_origin(program_id.into_origin()),
                 locked_value,
                 frame_support::traits::ExistenceRequirement::AllowDeath
             )
@@ -3298,7 +3295,7 @@ mod utils {
     pub(super) fn submit_program_default(
         user: AccountId,
         code_kind: ProgramCodeKind,
-    ) -> DispatchCustomResult<H256> {
+    ) -> DispatchCustomResult<ProgramId> {
         let code = code_kind.to_bytes();
         let salt = DEFAULT_SALT.to_vec();
 
@@ -3313,15 +3310,18 @@ mod utils {
         .map(|_| get_last_program_id())
     }
 
-    pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        ProgramId::generate(CodeId::generate(code), salt).into_origin()
+    pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
+        ProgramId::generate(CodeId::generate(code), salt)
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
         CodeId::generate(code).into()
     }
 
-    pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {
+    pub(super) fn send_default_message(
+        from: AccountId,
+        to: ProgramId,
+    ) -> DispatchResultWithPostInfo {
         GearPallet::<Test>::send_message(
             Origin::signed(from),
             to,
@@ -3331,7 +3331,7 @@ mod utils {
         )
     }
 
-    pub(super) fn get_last_program_id() -> H256 {
+    pub(super) fn get_last_program_id() -> ProgramId {
         let event = match SystemPallet::<Test>::events()
             .last()
             .map(|r| r.event.clone())
@@ -3361,11 +3361,10 @@ mod utils {
             })
             .find_map(|e| match e {
                 Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
-                Event::Log(msg) => Some(msg.id().into_origin()),
+                Event::Log(msg) => Some(msg.id()),
                 Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
                 _ => None,
             })
-            .map(MessageId::from_origin)
             .expect("can't find message send event")
     }
 
