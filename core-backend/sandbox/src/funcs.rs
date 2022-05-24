@@ -28,7 +28,7 @@ use core::{
     marker::PhantomData,
     slice::Iter,
 };
-use gear_backend_common::{funcs, IntoErrorCode, OnSuccessCode};
+use gear_backend_common::{funcs, AsTerminationReason, IntoErrorCode, OnSuccessCode};
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
@@ -94,6 +94,15 @@ pub enum FuncError<E> {
     Wait,
 }
 
+impl<E> FuncError<E> {
+    fn as_core(&self) -> Option<&E> {
+        match self {
+            Self::Core(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 impl<E> From<ExtCarrierWithError> for FuncError<E> {
     fn from(err: ExtCarrierWithError) -> Self {
         Self::LaterExtWith(err)
@@ -110,7 +119,11 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext + 'static> FuncsHandler<E> {
+impl<E> FuncsHandler<E>
+where
+    E: Ext + 'static,
+    E::Error: AsTerminationReason,
+{
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
@@ -332,6 +345,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.gas(val).map_err(FuncError::Core))
             .map(|()| ReturnValue::Unit)
             .map_err(|e| {
+                if let reason @ Some(TerminationReason::GasAllowanceExceeded) = e
+                    .as_core()
+                    .and_then(AsTerminationReason::as_termination_reason)
+                    .cloned()
+                {
+                    ctx.termination_reason = reason;
+                }
                 ctx.trap = Some(e);
                 HostError
             })

@@ -24,7 +24,7 @@ use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
     Ext, ProcessorError, ProcessorExt,
 };
-use gear_backend_common::{ExtInfo, IntoExtInfo};
+use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo};
 use gear_core::{
     costs::HostFnWeights,
     env::Ext as EnvExt,
@@ -33,7 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError};
+use gear_core_errors::{CoreError, ExtError, TerminationReason};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +43,15 @@ pub enum Error {
 }
 
 impl CoreError for Error {}
+
+impl AsTerminationReason for Error {
+    fn as_termination_reason(&self) -> Option<&TerminationReason> {
+        match self {
+            Error::Processor(err) => err.as_termination_reason(),
+            Error::LazyPages(_) => None,
+        }
+    }
+}
 
 impl From<ProcessorError> for Error {
     fn from(err: ProcessorError) -> Self {
