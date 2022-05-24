@@ -36,9 +36,17 @@ impl tabled::Tabled for Test {
 
         let percent = 100.0 * (current - median) / median;
 
+        let symbol = if self.current_time < self.quartile_upper {
+            ":heavy_check_mark:"
+        } else if self.current_time < self.max {
+            ":exclamation:"
+        } else {
+            ":bangbang:"
+        };
+
         vec![
             self.name.clone(),
-            format!("{}; {:+.2}%", current, percent),
+            format!("{}; {:+.2}% {}", current, percent, symbol),
             median.to_string(),
             format!("({}; {})", self.quartile_lower, self.quartile_upper),
             self.min.to_string(),

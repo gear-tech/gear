@@ -31,6 +31,7 @@ mod junit_tree;
 mod output;
 
 use common::TestSuites;
+use tabled::{Style, Table};
 
 const PALLET_NAMES: [&str; 7] = [
     "pallet-gas",
@@ -176,7 +177,7 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
 
     for (name, stats) in compared {
         println!("name = {}", name);
-        let table = tabled::Table::new(stats);
+        let table = Table::new(stats).with(Style::github_markdown());
         println!("{}", table);
         println!();
     }
