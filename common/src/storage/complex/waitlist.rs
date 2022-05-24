@@ -22,8 +22,7 @@
 //! addressed to programs, by their storing out of message queue.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, GetCallback, IterableDoubleMap,
-    KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, GetCallback, IterableDoubleMap, KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -62,7 +61,7 @@ pub trait Waitlist {
 }
 
 /// Represents store of waitlist's action callbacks.
-pub trait WaitlistCallbacks<OutputError> {
+pub trait WaitlistCallbacks {
     /// Callback relative type.
     ///
     /// This value represents main stored component in waitlist,
@@ -79,7 +78,7 @@ pub trait WaitlistCallbacks<OutputError> {
     /// Callback on success `insert`.
     type OnInsert: Callback<(Self::Value, Self::BlockNumber)>;
     /// Callback on success `remove`.
-    type OnRemove: FallibleCallback<(Self::Value, Self::BlockNumber), Error = OutputError>;
+    type OnRemove: Callback<(Self::Value, Self::BlockNumber)>;
 }
 
 /// Represents waitlist error type.
@@ -106,7 +105,7 @@ where
     T: DoubleMapStorage<Value = (Value, BlockNumber)>,
     Error: WaitlistError,
     OutputError: From<Error>,
-    Callbacks: WaitlistCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>;
 
 // Implementation of `Waitlist` for `WaitlistImpl`.
@@ -116,7 +115,7 @@ where
     T: DoubleMapStorage<Value = (Value, BlockNumber)>,
     Error: WaitlistError,
     OutputError: From<Error>,
-    Callbacks: WaitlistCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
 {
     type Key1 = T::Key1;
@@ -150,7 +149,7 @@ where
         message_id: Self::Key2,
     ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError> {
         if let Some(message_with_bn) = T::take(program_id, message_id) {
-            Callbacks::OnRemove::call(&message_with_bn)?;
+            Callbacks::OnRemove::call(&message_with_bn);
             Ok(message_with_bn)
         } else {
             Err(Self::Error::element_not_found().into())
@@ -170,7 +169,7 @@ where
     T: DoubleMapStorage<Value = (Value, BlockNumber)> + CountedByKey<Key = T::Key1>,
     Error: WaitlistError,
     OutputError: From<Error>,
-    Callbacks: WaitlistCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
 {
     type Key = T::Key1;
@@ -189,7 +188,7 @@ where
     T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableDoubleMap<T::Value, Key = T::Key1>,
     Error: WaitlistError,
     OutputError: From<Error>,
-    Callbacks: WaitlistCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
     KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
 {
     type Key = T::Key1;

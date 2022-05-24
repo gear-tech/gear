@@ -36,6 +36,6 @@ pub use callback::{Callback, EmptyCallback, FallibleCallback, GetCallback};
 pub use counted::{Counted, CountedByKey};
 pub use double_map::DoubleMapStorage;
 pub use iterable::{IterableDoubleMap, IterableMap, KeyValueIteratorWrap};
-pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen};
+pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
 pub use map::MapStorage;
 pub use value::ValueStorage;
