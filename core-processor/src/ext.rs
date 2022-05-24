@@ -329,7 +329,10 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue {
+                message_value: msg.value(),
+                value_left: self.value_counter.left(),
+            }));
         };
 
         let result = self
@@ -355,7 +358,10 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue {
+                message_value: msg.value(),
+                value_left: self.value_counter.left(),
+            }));
         };
 
         let result = self
@@ -511,7 +517,10 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
         if self.value_counter.reduce(packet.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::NotEnoughValue));
+            return self.return_and_store_err(Err(ExtError::NotEnoughValue {
+                message_value: packet.value(),
+                value_left: self.value_counter.left(),
+            }));
         };
 
         let code_hash = packet.code_id();

@@ -128,8 +128,15 @@ pub enum ExtError {
         message_value: u128,
         existential_deposit: u128,
     },
-    #[display(fmt = "Not enough value to send message")]
-    NotEnoughValue,
+    #[display(
+        fmt = "{} is not enough value to send message with the value {}",
+        value_left,
+        message_value
+    )]
+    NotEnoughValue {
+        message_value: u128,
+        value_left: u128,
+    },
     #[display(fmt = "{}", _0)]
     Message(MessageError),
 }
