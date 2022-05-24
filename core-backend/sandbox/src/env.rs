@@ -67,6 +67,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
+    pub termination_reason: Option<CoreTerminationReason>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -163,6 +164,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
+            termination_reason: None,
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
@@ -238,7 +240,12 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
         let wasm_memory_addr = self.get_wasm_memory_begin_addr();
 
-        let Runtime { ext, memory, trap } = self.runtime;
+        let Runtime {
+            ext,
+            memory,
+            trap,
+            termination_reason,
+        } = self.runtime;
 
         log::debug!("execution res = {:?}", res);
 
@@ -252,17 +259,16 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             })?;
 
         let termination = if res.is_err() {
-            let reason = if let Some(FuncError::Terminated(reason)) = &trap {
-                match reason {
-                    CoreTerminationReason::Exit => info.exit_argument.map(TerminationReason::Exit),
-                    CoreTerminationReason::Wait => Some(TerminationReason::Wait),
-                    CoreTerminationReason::Leave => Some(TerminationReason::Leave),
-                    CoreTerminationReason::GasAllowanceExceeded => {
-                        Some(TerminationReason::GasAllowanceExceeded)
-                    }
+            let reason = match termination_reason {
+                Some(CoreTerminationReason::Exit) => {
+                    info.exit_argument.map(TerminationReason::Exit)
                 }
-            } else {
-                None
+                Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
+                Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
+                Some(CoreTerminationReason::GasAllowanceExceeded) => {
+                    Some(TerminationReason::GasAllowanceExceeded)
+                }
+                None => None,
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
