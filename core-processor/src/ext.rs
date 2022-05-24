@@ -319,7 +319,10 @@ impl EnvExt for Ext {
 
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
+                message_value: msg.value(),
+                existential_deposit: self.existential_deposit,
+            }));
         };
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
@@ -342,7 +345,10 @@ impl EnvExt for Ext {
 
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
+                message_value: msg.value(),
+                existential_deposit: self.existential_deposit,
+            }));
         };
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
@@ -495,7 +501,10 @@ impl EnvExt for Ext {
 
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < packet.value() && packet.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue));
+            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
+                message_value: packet.value(),
+                existential_deposit: self.existential_deposit,
+            }));
         };
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {

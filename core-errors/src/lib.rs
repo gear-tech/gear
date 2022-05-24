@@ -119,8 +119,15 @@ pub enum ExtError {
     InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred: {}", _0)]
     PanicOccurred(String),
-    #[display(fmt = "Value of the message is less than existential deposit, but greater than 0")]
-    InsufficientMessageValue,
+    #[display(
+        fmt = "Value {} of the message in not in the range {{0}} ∪ [{}; +inf)",
+        message_value,
+        existential_deposit
+    )]
+    InsufficientMessageValue {
+        message_value: u128,
+        existential_deposit: u128,
+    },
     #[display(fmt = "Not enough value to send message")]
     NotEnoughValue,
     #[display(fmt = "{}", _0)]
