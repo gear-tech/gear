@@ -81,7 +81,7 @@ pub enum MemoryError {
     InvalidFree(u32),
 
     /// The error occurs in attempt to access memory page outside pages area allocated for this program.
-    #[display(fmt = "An attempt to access the page not allocated to this program.")]
+    #[display(fmt = "Access to the page not allocated to this program.")]
     MemoryAccessError,
 }
 
