@@ -57,7 +57,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(context.gas_allowance);
 
-    // Checks that lazy pages are enabled in case extention A uses them.
+    // Checks that lazy pages are enabled in case extension A uses them.
     if !A::check_lazy_pages_consistent_state() {
         return Err(ExecutionError {
             program_id,

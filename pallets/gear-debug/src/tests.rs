@@ -46,8 +46,8 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .to_vec()
 }
 
-fn generate_program_id(code: &[u8]) -> H256 {
-    ProgramId::generate(CodeId::generate(code), b"salt").into_origin()
+fn generate_program_id(code: &[u8]) -> ProgramId {
+    ProgramId::generate(CodeId::generate(code), b"salt")
 }
 
 fn generate_code_hash(code: &[u8]) -> H256 {
@@ -190,9 +190,9 @@ fn debug_mode_works() {
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            MessageId::from_origin(message_id_1),
+                            message_id_1,
                             1.into(),
-                            ProgramId::from_origin(program_id_1),
+                            program_id_1,
                             Default::default(),
                             0,
                             None,
@@ -202,9 +202,9 @@ fn debug_mode_works() {
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            MessageId::from_origin(message_id_2),
+                            message_id_2,
                             1.into(),
-                            ProgramId::from_origin(program_id_2),
+                            program_id_2,
                             Default::default(),
                             0,
                             None,
@@ -265,7 +265,7 @@ fn debug_mode_works() {
     })
 }
 
-fn get_last_message_id() -> H256 {
+fn get_last_message_id() -> MessageId {
     use pallet_gear::{Event, MessageInfo};
 
     let event = match SystemPallet::<Test>::events()
@@ -278,7 +278,7 @@ fn get_last_message_id() -> H256 {
 
     match event {
         Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-        Event::Log(msg) => msg.id().into_origin(),
+        Event::Log(msg) => msg.id(),
         Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
         _ => unreachable!("expect sending"),
     }
