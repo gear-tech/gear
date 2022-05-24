@@ -220,7 +220,7 @@ impl EnvExt for LazyPagesExt {
             .inner
             .allocations_context
             .alloc(pages_num, mem)
-            .map_err(ExtError::Alloc);
+            .map_err(ExtError::Memory);
 
         let page_number = self.inner.return_and_store_err(result)?;
 

@@ -305,7 +305,7 @@ impl EnvExt for Ext {
         let result = self
             .allocations_context
             .alloc(pages_num, mem)
-            .map_err(ExtError::Alloc);
+            .map_err(ExtError::Memory);
 
         let page_number = self.return_and_store_err(result)?;
 
@@ -439,7 +439,10 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
-        let result = self.allocations_context.free(page).map_err(ExtError::Free);
+        let result = self
+            .allocations_context
+            .free(page)
+            .map_err(ExtError::Memory);
 
         // Returns back gas for allocated page if it's new
         if !self.allocations_context.is_init_page(page) {
@@ -532,7 +535,10 @@ impl EnvExt for Ext {
 
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wake)?;
-        let result = self.message_context.wake(waker_id).map_err(ExtError::Wake);
+        let result = self
+            .message_context
+            .wake(waker_id)
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }
@@ -558,7 +564,7 @@ impl EnvExt for Ext {
 
                 new_prog_id
             })
-            .map_err(ExtError::InitMessageNotDuplicated);
+            .map_err(ExtError::Message);
 
         self.return_and_store_err(result)
     }

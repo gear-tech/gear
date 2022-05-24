@@ -101,18 +101,14 @@ pub enum TerminationReason {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExtError {
-    #[display(fmt = "Allocation error: {}", _0)]
-    Alloc(MemoryError),
-    #[display(fmt = "Free error: {}", _0)]
-    Free(MemoryError),
+    #[display(fmt = "{}", _0)]
+    Memory(MemoryError),
+    #[display(fmt = "{}", _0)]
+    Message(MessageError),
     #[display(fmt = "Gas limit exceeded during code execution")]
     GasLimitExceeded,
     #[display(fmt = "Too many gas added")]
     TooManyGasAdded,
-    #[display(fmt = "Failed to wake the message: {}", _0)]
-    Wake(MessageError),
-    #[display(fmt = "{}", _0)]
-    InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred: {}", _0)]
     PanicOccurred(String),
     #[display(
@@ -133,8 +129,6 @@ pub enum ExtError {
         message_value: u128,
         value_left: u128,
     },
-    #[display(fmt = "{}", _0)]
-    Message(MessageError),
 }
 
 impl CoreError for ExtError {}
