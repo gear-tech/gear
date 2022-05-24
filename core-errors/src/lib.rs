@@ -75,12 +75,6 @@ pub enum MemoryError {
     #[display(fmt = "Memory is over")]
     OutOfMemory,
 
-    /// Allocation is in use.
-    ///
-    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
-    #[display(fmt = "Allocation is in use")]
-    AllocationsInUse,
-
     /// Specified page cannot be freed by the current program.
     ///
     /// It was allocated by another program.
