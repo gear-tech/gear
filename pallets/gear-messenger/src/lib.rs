@@ -161,9 +161,9 @@ pub mod pallet {
         storage::PrefixIterator,
         traits::{BalanceStatus, ReservableCurrency, StorageVersion},
     };
-    use frame_system::pallet_prelude::*;
+    use frame_system::{pallet_prelude::*, Pallet as SystemPallet};
     use gear_core::{
-        ids::MessageId,
+        ids::{MessageId, ProgramId},
         message::{StoredDispatch, StoredMessage},
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
@@ -219,6 +219,10 @@ pub mod pallet {
         MailboxDuplicateKey,
         /// Occurs when mailbox's element wasn't found in storage.
         MailboxElementNotFound,
+        /// Occurs when given value already exists in waitlist.
+        WaitlistDuplicateKey,
+        /// Occurs when waitlist's element wasn't found in storage.
+        WaitlistElementNotFound,
     }
 
     // Implementation of `DequeueError` for `Error<T>`
@@ -266,6 +270,18 @@ pub mod pallet {
 
         fn element_not_found() -> Self {
             Self::MailboxElementNotFound
+        }
+    }
+
+    // Implementation of `WaitlistError` for `Error<T>`
+    // usage as `Waitlist::Error`.
+    impl<T: crate::Config> WaitlistError for Error<T> {
+        fn duplicate_key() -> Self {
+            Self::WaitlistDuplicateKey
+        }
+
+        fn element_not_found() -> Self {
+            Self::WaitlistElementNotFound
         }
     }
 
@@ -364,6 +380,29 @@ pub mod pallet {
 
     // ----
 
+    // Private storage for waitlist elements.
+    #[pallet::storage]
+    type Waitlist<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        ProgramId,
+        Identity,
+        MessageId,
+        (StoredDispatch, T::BlockNumber),
+    >;
+
+    // Public wrap of the waitlist elements.
+    common::wrap_extended_storage_double_map!(
+        storage: Waitlist,
+        name: WaitlistWrap,
+        key1: ProgramId,
+        key2: MessageId,
+        value: (StoredDispatch, T::BlockNumber),
+        length: usize
+    );
+
+    // ----
+
     // Below goes callbacks, used for queue algorithm.
     //
     // Note, that they are public like storage wrappers
@@ -458,7 +497,7 @@ pub mod pallet {
 
     // ----
 
-    /// Store of queue action's callbacks.
+    /// Store of mailbox action's callbacks.
     pub struct MailBoxCallbacks<T, M>(PhantomData<(T, M)>)
     where
         T: Config,
@@ -481,6 +520,48 @@ pub mod pallet {
 
     // ----
 
+    // Below goes callbacks, used for waitlist algorithm.
+    //
+    // Note, that they are public like storage wrappers
+    // only to be able use as public trait's generics.
+
+    // ----
+
+    /// Callback function for getting actual block number.
+    pub struct OnBlockNumberNeed<T: Config>(PhantomData<T>);
+
+    // Callback trait implementation.
+    impl<T: Config> GetCallback<T::BlockNumber> for OnBlockNumberNeed<T> {
+        fn call() -> T::BlockNumber {
+            SystemPallet::<T>::block_number()
+        }
+    }
+
+    // ----
+
+    /// Store of waitlist action's callbacks.
+    pub struct WaitListCallbacks<T, M>(PhantomData<(T, M)>)
+    where
+        T: Config,
+        M: Messenger<BlockNumber = T::BlockNumber>;
+
+    // Callbacks store for waitlist trait implementation, over
+    // specified (associated) types of waitlist and error values.
+    impl<T, M> WaitlistCallbacks for WaitListCallbacks<T, M>
+    where
+        T: Config,
+        M: Messenger<BlockNumber = T::BlockNumber>,
+    {
+        type Value = M::WaitlistedMessage;
+        type BlockNumber = M::BlockNumber;
+
+        type OnBlockNumberNeed = OnBlockNumberNeed<T>;
+        type OnInsert = ();
+        type OnRemove = ();
+    }
+
+    // ----
+
     // Below goes final `Messenger` implementation for
     // Gear Messenger Pallet based on above generated
     // types and parameters.
@@ -494,6 +575,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        type BlockNumber = T::BlockNumber;
         type Capacity = Capacity;
         type Error = Error<T>;
         type OutputError = DispatchError;
@@ -502,6 +584,9 @@ pub mod pallet {
         type MailboxSecondKey = MessageId;
         type MailboxedMessage = StoredMessage;
         type QueuedDispatch = StoredDispatch;
+        type WaitlistFirstKey = ProgramId;
+        type WaitlistSecondKey = MessageId;
+        type WaitlistedMessage = StoredDispatch;
 
         type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;
 
@@ -529,6 +614,16 @@ pub mod pallet {
             DispatchError,
             MailBoxCallbacks<T, Self>,
             MailboxKeyGen<T::AccountId>,
+        >;
+
+        type Waitlist = WaitlistImpl<
+            WaitlistWrap<T>,
+            Self::WaitlistedMessage,
+            Self::BlockNumber,
+            Self::Error,
+            DispatchError,
+            WaitListCallbacks<T, Self>,
+            WaitlistKeyGen,
         >;
     }
 
