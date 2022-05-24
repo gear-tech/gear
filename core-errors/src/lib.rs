@@ -46,7 +46,7 @@ pub trait CoreError: fmt::Display + fmt::Debug {
 pub enum MessageError {
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages alowed within a single
-    /// execution (1024).
+    /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
 
