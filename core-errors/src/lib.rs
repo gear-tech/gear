@@ -104,8 +104,6 @@ pub enum ExtError {
     Alloc(MemoryError),
     #[display(fmt = "Free error: {}", _0)]
     Free(MemoryError),
-    #[display(fmt = "Cannot call `exit' twice")]
-    ExitTwice,
     #[display(fmt = "Gas limit exceeded")]
     GasLimitExceeded,
     #[display(fmt = "Too many gas added")]

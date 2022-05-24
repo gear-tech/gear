@@ -371,12 +371,9 @@ impl EnvExt for Ext {
 
     fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
-        if self.exit_argument.is_some() {
-            Err(ExtError::ExitTwice)
-        } else {
-            self.exit_argument = Some(value_destination);
-            Ok(())
-        }
+        debug_assert!(self.exit_argument.is_none());
+        self.exit_argument = Some(value_destination);
+        Ok(())
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
