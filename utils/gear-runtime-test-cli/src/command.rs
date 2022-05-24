@@ -19,14 +19,11 @@
 #![allow(unused_must_use)]
 
 use crate::{
-    util::{get_dispatch_queue, new_test_ext, process_queue},
+    util::{get_dispatch_queue, new_test_ext, process_queue, MailboxOf, QueueOf},
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{
-    storage::{Messenger, StorageDeque},
-    CodeStorage, Origin as _, ValueTree,
-};
+use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
@@ -44,7 +41,6 @@ use gear_test::{
 use pallet_gas::Pallet as GasPallet;
 use pallet_gear::Pallet as GearPallet;
 use pallet_gear_debug::{DebugData, ProgramState};
-use pallet_gear_messenger::Pallet as MessengerPallet;
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -90,7 +86,7 @@ impl GearRuntimeTestCmd {
                             let output = run_fixture(test, fixture);
                             let elapsed = now.elapsed();
 
-                            pallet_gear::Mailbox::<Runtime>::drain();
+                            MailboxOf::<Runtime>::remove_all();
 
                             println!("Fixture {}: {}", fixture.title.bold(), output);
                             if !output.contains("Ok") && !output.contains("Skip") {
@@ -314,10 +310,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 None,
             );
 
-            <<MessengerPallet<Runtime> as Messenger>::Queue as StorageDeque>::push_back(
-                StoredDispatch::new(DispatchKind::Handle, msg, None),
-            )
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<Runtime>::queue(StoredDispatch::new(DispatchKind::Handle, msg, None))
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             GearPallet::<Runtime>::send_message(
                 Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),

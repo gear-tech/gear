@@ -16,16 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Database migration module.
+//! Gear storage complicated types.
+//!
+//! This module contains more difficult types over gear's storage primitives,
+//! which provides API for more specific business-logic
+//! with globally shared data.
 
-use crate::{Config, Pallet, Weight};
+// Private modules declaration.
+mod counter;
+mod dequeue;
+mod limiter;
+mod toggler;
 
-/// Wrapper for all migrations of this pallet, based on `StorageVersion`.
-pub fn migrate<T: Config>() -> Weight {
-    use frame_support::traits::StorageVersion;
-
-    let _version = StorageVersion::get::<Pallet<T>>();
-    let weight: Weight = 0;
-
-    weight
-}
+// Public exports from complicated modules.
+pub use counter::{Counter, CounterImpl};
+pub use dequeue::{
+    Dequeue, DequeueCallbacks, DequeueDrainIter, DequeueError, DequeueImpl, DequeueIter, LinkedNode,
+};
+pub use limiter::{Limiter, LimiterImpl};
+pub use toggler::{Toggler, TogglerImpl};

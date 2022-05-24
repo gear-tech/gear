@@ -83,6 +83,7 @@ impl pallet_gear_debug::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 pub struct FixedBlockAuthor;
@@ -138,10 +139,11 @@ impl pallet_gear::Config for Test {
     type WaitListFeePerBlock = ();
     type Schedule = ();
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 impl pallet_gas::Config for Test {
@@ -161,7 +163,7 @@ construct_runtime!(
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Storage},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas,
     }
