@@ -16,13 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: deal with runner usage here
-
-use core::convert::TryInto;
-
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
+use core::convert::TryInto;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
