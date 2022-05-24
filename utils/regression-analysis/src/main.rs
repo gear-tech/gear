@@ -177,7 +177,7 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
 
     for (name, stats) in compared {
         println!("name = {}", name);
-        let table = Table::new(stats).with(Style::github_markdown());
+        let table = Table::new(stats).with(Style::github_markdown().header_intersection('|'));
         println!("{}", table);
         println!();
     }
