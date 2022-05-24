@@ -44,7 +44,7 @@ pub trait CoreError: fmt::Display + fmt::Debug {
     derive_more::Display,
 )]
 pub enum MessageError {
-    ///  The error "Message limit exceeded" occurs when a program attempts to
+    /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages alowed within a single
     /// execution (1024).
     #[display(fmt = "Message limit exceeded")]
@@ -73,7 +73,7 @@ pub enum MessageError {
     DuplicateInit,
 }
 
-    /// Memory error.
+/// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
