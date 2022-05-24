@@ -45,7 +45,7 @@ pub trait CoreError: fmt::Display + fmt::Debug {
 )]
 pub enum MessageError {
     /// The error "Message limit exceeded" occurs when a program attempts to
-    /// send more than the maximum amount of messages alowed within a single
+    /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
@@ -83,7 +83,7 @@ pub enum MemoryError {
 
     /// Allocation is in use.
     /// Unreal case, to be removed.
-    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
+    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still running).
     #[display(fmt = "Allocation is in use")]
     AllocationsInUse,
 
@@ -96,6 +96,10 @@ pub enum MemoryError {
     /// allocated for this program.
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
+
+    /// There is wasm page, which has not all gear pages in the begin
+    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    InvalidPageDataSize(usize),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -112,6 +116,9 @@ pub enum ExtError {
     Alloc(MemoryError),
     #[display(fmt = "Memory free up error: {}", _0)]
     Free(MemoryError),
+    // `ExitTwice` to be deleted.
+    #[display(fmt = "Cannot call `exit' twice")]
+    ExitTwice,
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
     #[display(fmt = "Too many gas refunded")]
