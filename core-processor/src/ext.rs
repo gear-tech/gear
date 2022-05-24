@@ -31,9 +31,9 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
-use gear_core_errors::{ExtError, TerminationReason};
+use gear_core_errors::{ExtError, MessageError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -231,6 +231,14 @@ impl Ext {
         }
     }
 
+    fn charge_gas_with_packet<T: Packet>(&mut self, packet: &T) -> Result<(), ExtError> {
+        if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
+            self.return_and_store_err(Err(ExtError::Message(MessageError::NotEnoughGas)))
+        } else {
+            Ok(())
+        }
+    }
+
     fn charge_value(&mut self, message_value: u128) -> Result<(), ExtError> {
         if self.value_counter.reduce(message_value) != ChargeResult::Enough {
             self.return_and_store_err(Err(ExtError::NotEnoughValue {
@@ -342,9 +350,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
-        };
+        self.charge_gas_with_packet(&msg)?;
         self.charge_value(msg.value())?;
 
         let result = self
@@ -360,9 +366,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
-        };
+        self.charge_gas_with_packet(&msg)?;
         self.charge_value(msg.value())?;
 
         let result = self
@@ -508,9 +512,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
-        };
+        self.charge_gas_with_packet(&packet)?;
         self.charge_value(packet.value())?;
 
         let code_hash = packet.code_id();

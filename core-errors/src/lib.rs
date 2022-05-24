@@ -67,6 +67,8 @@ pub enum MessageError {
     /// Duplicate init message
     #[display(fmt = "Duplicate init message")]
     DuplicateInit,
+    #[display(fmt = "User has no enough gas")]
+    NotEnoughGas,
 }
 
 /// Memory error.
@@ -107,7 +109,7 @@ pub enum ExtError {
     Alloc(MemoryError),
     #[display(fmt = "Free error: {}", _0)]
     Free(MemoryError),
-    #[display(fmt = "Gas limit exceeded")]
+    #[display(fmt = "Gas limit exceeded during code execution")]
     GasLimitExceeded,
     #[display(fmt = "Too many gas added")]
     TooManyGasAdded,

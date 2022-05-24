@@ -89,3 +89,15 @@ impl DispatchKind {
         matches!(self, Self::Reply)
     }
 }
+
+/// A message packet
+pub trait Packet {
+    /// Packet payload reference.
+    fn payload(&self) -> &[u8];
+
+    /// Packet optional gas limit.
+    fn gas_limit(&self) -> Option<GasLimit>;
+
+    /// Packet value.
+    fn value(&self) -> Value;
+}
