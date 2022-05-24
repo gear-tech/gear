@@ -269,7 +269,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: trap.map(|e| e.to_string()).map(Into::into),
             })
         } else {

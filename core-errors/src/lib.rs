@@ -18,6 +18,9 @@
 
 #![no_std]
 
+extern crate alloc;
+
+use alloc::string::String;
 use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
@@ -98,7 +101,7 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExtError {
     #[display(fmt = "Allocation error: {}", _0)]
     Alloc(MemoryError),
@@ -114,8 +117,8 @@ pub enum ExtError {
     Wake(MessageError),
     #[display(fmt = "{}", _0)]
     InitMessageNotDuplicated(MessageError),
-    #[display(fmt = "Panic occurred")]
-    PanicOccurred,
+    #[display(fmt = "Panic occurred: {}", _0)]
+    PanicOccurred(String),
     #[display(fmt = "Value of the message is less than existential deposit, but greater than 0")]
     InsufficientMessageValue,
     #[display(fmt = "Not enough value to send message")]

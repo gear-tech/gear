@@ -348,7 +348,7 @@ where
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: Some(e.to_string().into()),
             })
         } else {

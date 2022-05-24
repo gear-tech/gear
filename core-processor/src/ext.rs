@@ -19,6 +19,7 @@
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::ToString,
     vec::Vec,
 };
 use core::fmt;
@@ -213,7 +214,7 @@ impl Ext {
     /// Return result and store error info in field
     pub fn return_and_store_err<T>(&mut self, result: Result<T, ExtError>) -> Result<T, ExtError> {
         result.map_err(|err| {
-            self.error_explanation = Some(err);
+            self.error_explanation = Some(err.clone());
             err
         })
     }
@@ -401,7 +402,7 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
         if data.starts_with("panic occurred") {
-            self.error_explanation = Some(ExtError::PanicOccurred);
+            self.error_explanation = Some(ExtError::PanicOccurred(data.to_string()));
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
