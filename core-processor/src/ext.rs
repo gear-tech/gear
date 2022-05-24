@@ -218,6 +218,29 @@ impl Ext {
             err
         })
     }
+
+    fn check_message_value(&mut self, message_value: u128) -> Result<(), ExtError> {
+        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
+        if 0 < message_value && message_value < self.existential_deposit {
+            self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
+                message_value,
+                existential_deposit: self.existential_deposit,
+            }))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn charge_value(&mut self, message_value: u128) -> Result<(), ExtError> {
+        if self.value_counter.reduce(message_value) != ChargeResult::Enough {
+            self.return_and_store_err(Err(ExtError::NotEnoughValue {
+                message_value,
+                value_left: self.value_counter.left(),
+            }))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl EnvExt for Ext {
@@ -317,23 +340,12 @@ impl EnvExt for Ext {
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
-        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
-                message_value: msg.value(),
-                existential_deposit: self.existential_deposit,
-            }));
-        };
+        self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
-        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::NotEnoughValue {
-                message_value: msg.value(),
-                value_left: self.value_counter.left(),
-            }));
-        };
+        self.charge_value(msg.value())?;
 
         let result = self
             .message_context
@@ -346,23 +358,12 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
 
-        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if 0 < msg.value() && msg.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
-                message_value: msg.value(),
-                existential_deposit: self.existential_deposit,
-            }));
-        };
+        self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
-        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::NotEnoughValue {
-                message_value: msg.value(),
-                value_left: self.value_counter.left(),
-            }));
-        };
+        self.charge_value(msg.value())?;
 
         let result = self
             .message_context
@@ -505,23 +506,12 @@ impl EnvExt for Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
 
-        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if 0 < packet.value() && packet.value() < self.existential_deposit {
-            return self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
-                message_value: packet.value(),
-                existential_deposit: self.existential_deposit,
-            }));
-        };
+        self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
             return self.return_and_store_err(Err(ExtError::GasLimitExceeded));
         };
-        if self.value_counter.reduce(packet.value()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err(ExtError::NotEnoughValue {
-                message_value: packet.value(),
-                value_left: self.value_counter.left(),
-            }));
-        };
+        self.charge_value(packet.value())?;
 
         let code_hash = packet.code_id();
 
