@@ -90,7 +90,9 @@ impl DispatchKind {
     }
 }
 
-/// A message packet
+/// Message packet.
+///
+/// Provides common behaviour for any message's packet: accessing to payload, gas limit and value.
 pub trait Packet {
     /// Packet payload reference.
     fn payload(&self) -> &[u8];
