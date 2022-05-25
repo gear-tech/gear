@@ -502,9 +502,5 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
 
     // TODO: Remove this legacy after next runtime upgrade.
-    sp_io::storage::clear_prefix(b"g::msg::", None);
-    sp_io::storage::clear_prefix(b"g::gas_tree", None);
-    sp_io::storage::clear_prefix(b"g::code::", None);
-    sp_io::storage::clear_prefix(b"g::code::orig", None);
     sp_io::storage::clear_prefix(b"g::wait::", None);
 }
