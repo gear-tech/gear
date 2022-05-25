@@ -37,6 +37,7 @@ use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
 };
+use gear_core_errors::*;
 use pallet_balances::{self, Pallet as BalancesPallet};
 use utils::*;
 
@@ -954,7 +955,9 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1.into_origin(),
-                outcome: ExecutionResult::Failure(b"User has no enough gas".to_vec()),
+                outcome: ExecutionResult::Failure(
+                    format!("{}", ExtError::Message(MessageError::NotEnoughGas)).into_bytes(),
+                ),
             })
             .into(),
         );
@@ -1022,12 +1025,12 @@ fn init_message_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
         let codes = [
-            (ProgramCodeKind::Default, false, ""),
+            (ProgramCodeKind::Default, false, Vec::new()),
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
                 true,
-                "Gas limit exceeded during code execution",
+                format!("{}", ExtError::GasLimitExceeded).into_bytes(),
             ),
         ];
 
@@ -1052,11 +1055,7 @@ fn init_message_logging_works() {
             };
 
             SystemPallet::<Test>::assert_has_event(if is_failing {
-                Event::InitFailure(
-                    msg_info,
-                    Reason::Dispatch(trap_explanation.as_bytes().to_vec()),
-                )
-                .into()
+                Event::InitFailure(msg_info, Reason::Dispatch(trap_explanation)).into()
             } else {
                 Event::InitSuccess(msg_info).into()
             });
@@ -1135,11 +1134,7 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, true),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(
-                    "Gas limit exceeded during code execution"
-                        .as_bytes()
-                        .to_vec(),
-                ),
+                Some(format!("{}", ExtError::GasLimitExceeded).into_bytes()),
                 false,
             ),
             (
@@ -2986,8 +2981,14 @@ fn test_create_program_with_value_lt_ed() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason =
-            "Value 499 of the message in not in the range {0} ∪ [500; +inf)".as_bytes();
+        let expected_failure_reason = format!(
+            "{}",
+            ExtError::InsufficientMessageValue {
+                message_value: 499,
+                existential_deposit: 500
+            }
+        )
+        .into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -3002,7 +3003,7 @@ fn test_create_program_with_value_lt_ed() {
             .expect("no init failure events");
 
         if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(&actual_failure_reason, expected_failure_reason);
+            assert_eq!(actual_failure_reason, expected_failure_reason);
         } else {
             panic!("error reason is of wrong type")
         }
@@ -3076,8 +3077,14 @@ fn test_create_program_with_exceeding_value() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason =
-            b"1000 is not enough value to send message with the value 1001";
+        let expected_failure_reason = format!(
+            "{}",
+            ExtError::NotEnoughValue {
+                message_value: 1001,
+                value_left: 1000
+            }
+        )
+        .into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -3092,7 +3099,7 @@ fn test_create_program_with_exceeding_value() {
             .expect("no init failure events");
 
         if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(&actual_failure_reason, expected_failure_reason);
+            assert_eq!(actual_failure_reason, expected_failure_reason);
         } else {
             panic!("error reason is of wrong type")
         }
@@ -3402,7 +3409,8 @@ mod utils {
                 ProgramCodeKind::GreedyInit => {
                     // Initialization function for that program requires a lot of gas.
                     // So, providing `DEFAULT_GAS_LIMIT` will end up processing with
-                    // "Gas limit exceeded" execution outcome error message.
+                    // "Not enough gas to continue execution" a.k.a. "Gas limit exceeded"
+                    // execution outcome error message.
                     r#"
                     (module
                         (import "env" "memory" (memory 1))

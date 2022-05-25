@@ -43,26 +43,34 @@ pub trait CoreError: fmt::Display + fmt::Debug {}
     derive_more::Display,
 )]
 pub enum MessageError {
-    /// Message limit exceeded.
+    /// The error "Message limit exceeded" occurs when a program attempts to
+    /// send more than the maximum amount of messages allowed within a single
+    /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
-    /// Duplicate reply message.
+
+    /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
     DuplicateReply,
-    /// Duplicate waking message.
+
+    /// The error occurs in attempt to get the same message from the waitlist
+    /// again (which is waked already).
     #[display(fmt = "Duplicate waking message")]
     DuplicateWaking,
-    /// An attempt to commit or to push a payload into an already formed message.
-    #[display(fmt = "An attempt to commit or to push a payload into an already formed message")]
+
+    /// An attempt to commit or push a payload into an already formed message.
+    #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
     LateAccess,
-    /// No message found with given handle, or handle exceeds the maximum messages amount.
-    #[display(
-        fmt = "No message found with given handle, or handle exceeds the maximum messages amount"
-    )]
+
+    /// The error occurs in case of not valid identifier specified.
+    #[display(fmt = "Message with given handle is not found")]
     OutOfBounds,
-    /// Duplicate init message
-    #[display(fmt = "Duplicate init message")]
+
+    /// The error occurs in attempt to initialize the same program twice within
+    /// a single execution.
+    #[display(fmt = "Duplicated program initialization message")]
     DuplicateInit,
+
     #[display(fmt = "User has no enough gas")]
     NotEnoughGas,
 }
@@ -70,23 +78,22 @@ pub enum MessageError {
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum MemoryError {
-    /// Memory is over.
-    ///
-    /// All pages were previously allocated and there is nothing can be done.
-    #[display(fmt = "Memory is over")]
+    /// The error occurs when a program tries to allocate more memory  than
+    /// allowed.
+    #[display(fmt = "Maximum possible memory has been allocated")]
     OutOfMemory,
 
-    /// Specified page cannot be freed by the current program.
-    ///
-    /// It was allocated by another program.
+    /// The error occurs in attempt to free-up a memory page from static area or
+    /// outside additionally allocated for this program.
     #[display(fmt = "Page {} cannot be freed by the current program", _0)]
     InvalidFree(u32),
 
-    /// Out of bounds memory access
-    #[display(fmt = "Out of bounds memory access")]
+    /// The error occurs in attempt to access memory page outside pages area
+    /// allocated for this program.
+    #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// There is wasm page, which has not all gear pages in the begin
+    /// WASM page does not contain all necesssary Gear pages
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
     InvalidPageDataSize(usize),
 }
@@ -105,9 +112,9 @@ pub enum ExtError {
     Memory(MemoryError),
     #[display(fmt = "{}", _0)]
     Message(MessageError),
-    #[display(fmt = "Gas limit exceeded during code execution")]
+    #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    #[display(fmt = "Too many gas added")]
+    #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
     #[display(fmt = "Panic occurred: {}", _0)]
     PanicOccurred(String),
