@@ -126,17 +126,23 @@ pub enum TerminationReason {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
-pub enum ExtError {
-    #[display(fmt = "{}", _0)]
-    Memory(MemoryError),
-    #[display(fmt = "{}", _0)]
-    Message(MessageError),
+pub enum ExecutionError {
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
     #[display(fmt = "Panic occurred: {}", _0)]
     PanicOccurred(String),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
+pub enum ExtError {
+    #[display(fmt = "{}", _0)]
+    Memory(MemoryError),
+    #[display(fmt = "{}", _0)]
+    Message(MessageError),
+    #[display(fmt = "{}", _0)]
+    Execution(ExecutionError),
 }
 
 impl CoreError for ExtError {}

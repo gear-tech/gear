@@ -1030,7 +1030,7 @@ fn init_message_logging_works() {
             (
                 ProgramCodeKind::GreedyInit,
                 true,
-                format!("{}", ExtError::GasLimitExceeded).into_bytes(),
+                format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded)).into_bytes(),
             ),
         ];
 
@@ -1134,7 +1134,10 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, true),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(format!("{}", ExtError::GasLimitExceeded).into_bytes()),
+                Some(
+                    format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded))
+                        .into_bytes(),
+                ),
                 false,
             ),
             (

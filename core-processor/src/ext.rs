@@ -33,7 +33,9 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, MemoryError, MessageError, TerminationReason};
+use gear_core_errors::{
+    CoreError, ExecutionError, ExtError, MemoryError, MessageError, TerminationReason,
+};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -109,6 +111,12 @@ impl From<MessageError> for ProcessorError {
 impl From<MemoryError> for ProcessorError {
     fn from(err: MemoryError) -> Self {
         Self::Core(ExtError::Memory(err))
+    }
+}
+
+impl From<ExecutionError> for ProcessorError {
+    fn from(err: ExecutionError) -> Self {
+        Self::Core(ExtError::Execution(err))
     }
 }
 
@@ -450,7 +458,7 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
         if data.starts_with("panic occurred") {
-            self.error_explanation = Some(ExtError::PanicOccurred(data.to_string()));
+            self.error_explanation = Some(ExecutionError::PanicOccurred(data.to_string()).into());
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
@@ -472,7 +480,7 @@ impl EnvExt for Ext {
         let allowance_charge = self.gas_allowance_counter.charge(val as u64);
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExtError::GasLimitExceeded.into()),
+            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
             (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
@@ -485,7 +493,7 @@ impl EnvExt for Ext {
         let (common_charge, allowance_charge) = charge_gas_token!(self, costs);
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
-            (NotEnough, _) => Err(ExtError::GasLimitExceeded.into()),
+            (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
             (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
@@ -498,7 +506,7 @@ impl EnvExt for Ext {
             self.gas_allowance_counter.refund(val as u64);
             Ok(())
         } else {
-            self.return_and_store_err(Err(ExtError::TooManyGasAdded))
+            self.return_and_store_err(Err(ExecutionError::TooManyGasAdded))
         }
     }
 
