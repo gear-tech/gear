@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use thousands::Separable;
+
 #[derive(Debug)]
 pub struct Test {
     pub name: String,
@@ -46,11 +48,11 @@ impl tabled::Tabled for Test {
 
         vec![
             self.name.clone(),
-            format!("{}; {:+.2}% {}", current, percent, symbol),
-            median.to_string(),
-            format!("({}; {})", self.quartile_lower, self.quartile_upper),
-            self.min.to_string(),
-            self.max.to_string(),
+            format!("{}; {:+.2}% {}", current.separate_with_spaces(), percent, symbol),
+            median.separate_with_spaces(),
+            format!("({}; {})", self.quartile_lower.separate_with_spaces(), self.quartile_upper.separate_with_spaces()),
+            self.min.separate_with_spaces(),
+            self.max.separate_with_spaces(),
         ]
     }
 

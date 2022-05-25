@@ -185,11 +185,13 @@ jobs:
       - name: "Comment (regressions): pallet tests"
         uses: peter-evans/create-or-update-comment@v2
         if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-regressions-comment
         continue-on-error: true
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            <details><summary>Pallet tests</summary>
+            <details><summary>Pallet tests (values are in nanoseconds)</summary>
+            
             ${{ steps.test-regressions-pallets.outputs.body }}
             </details>
 
@@ -223,8 +225,10 @@ jobs:
         continue-on-error: true
         with:
           issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.test-regressions-comment.outputs.comment-id }}
           body: |
-            <details><summary>Runtime tests</summary>
+            <details><summary>Runtime tests (values are in nanoseconds)</summary>
+            
             ${{ steps.test-regressions-runtime.outputs.body }}
             </details>
 

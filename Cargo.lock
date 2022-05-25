@@ -6093,6 +6093,7 @@ dependencies = [
  "regression-common",
  "serde_json",
  "tabled",
+ "thousands",
 ]
 
 [[package]]
