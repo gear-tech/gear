@@ -189,8 +189,9 @@ pub fn get_last_key_from_offchain_storage<'a>(
 ) -> Result<(StorageValueRef<'a>, Option<MessageId>), OffchainError> {
     let storage_value_ref = StorageValueRef::persistent(STORAGE_LAST_KEY);
     let last_key = storage_value_ref
-        .get::<MessageId>()
-        .map_err(|_| OffchainError::FailedToGetValueFromStorage)?;
+        .get::<Option<MessageId>>()
+        .map_err(|_| OffchainError::FailedToGetValueFromStorage)?
+        .flatten();
 
     Ok((storage_value_ref, last_key))
 }
