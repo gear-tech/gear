@@ -141,8 +141,14 @@ where
     pub fn waitlist_usage(now: BlockNumberFor<T>) -> Result<(), OffchainError> {
         let (storage_value_ref, last_key) = get_last_key_from_offchain_storage()?;
 
+        // We go through storage, finding last key, if present.
+        // Last key was already processed, so we skip it and
+        // start processing from the next one.
+        //
+        // Starting from the begging for absence of last key.
         let mut iter = WaitlistOf::<T>::iter()
-            .skip_while(|(d, _)| last_key.map(|v| d.id() != v).unwrap_or(false));
+            .skip_while(|(d, _)| last_key.map(|v| d.id() != v).unwrap_or(false))
+            .skip(last_key.map(|_| 1).unwrap_or(0));
 
         let mut entries = vec![];
         let mut counter = 0_u32;
