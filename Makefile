@@ -39,6 +39,14 @@ gear:
 gear-release:
 	@ ./scripts/gear.sh build gear --release
 
+.PHONY: gear-test
+gear-test:
+	@ ./scripts/gear.sh build gear-test
+
+.PHONY: gear-test-release
+gear-test-release:
+	@ ./scripts/gear.sh build gear-test --release
+
 .PHONY: examples
 examples: build-examples proc-examples
 
