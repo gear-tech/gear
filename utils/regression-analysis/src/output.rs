@@ -48,9 +48,18 @@ impl tabled::Tabled for Test {
 
         vec![
             self.name.clone(),
-            format!("{}; {:+.2}% {}", current.separate_with_spaces(), percent, symbol),
+            format!(
+                "{}; {:+.2}% {}",
+                current.separate_with_spaces(),
+                percent,
+                symbol
+            ),
             median.separate_with_spaces(),
-            format!("({}; {})", self.quartile_lower.separate_with_spaces(), self.quartile_upper.separate_with_spaces()),
+            format!(
+                "({}; {})",
+                self.quartile_lower.separate_with_spaces(),
+                self.quartile_upper.separate_with_spaces()
+            ),
             self.min.separate_with_spaces(),
             self.max.separate_with_spaces(),
         ]
