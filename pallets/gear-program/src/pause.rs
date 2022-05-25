@@ -72,7 +72,7 @@ impl<T: Config> pallet::Pallet<T> {
             pages_hash: memory_pages_hash(&pages_data),
             program,
             wait_list_hash: wait_list_hash(
-                &WaitlistOf::<T>::drain(program_id)
+                &WaitlistOf::<T>::drain_key(program_id)
                     .map(|(d, _)| (d.id(), d))
                     .collect(),
             ),

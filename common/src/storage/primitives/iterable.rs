@@ -43,9 +43,9 @@ pub trait IterableDoubleMap<Item> {
     type Iter: Iterator<Item = Item>;
 
     /// Creates the removal iterator over double map Items.
-    fn drain(key: Self::Key) -> Self::DrainIter;
+    fn drain_key(key: Self::Key) -> Self::DrainIter;
     /// Creates the getting iterator over double map Items.
-    fn iter(key: Self::Key) -> Self::Iter;
+    fn iter_key(key: Self::Key) -> Self::Iter;
 }
 
 /// Represents iterable logic for single key maps
@@ -62,10 +62,12 @@ pub trait IterableMap<Item> {
     fn iter() -> Self::Iter;
 }
 
+/// Represents value iterator wrap for (key, value) iterator.
 pub struct KeyValueIteratorWrap<K, V, I>(I, PhantomData<(K, V)>)
 where
     I: Iterator<Item = (K, V)>;
 
+// `From` implementation `KeyValueIteratorWrap` for soft iterator wrapping.
 impl<K, V, I> From<I> for KeyValueIteratorWrap<K, V, I>
 where
     I: Iterator<Item = (K, V)>,
@@ -75,6 +77,7 @@ where
     }
 }
 
+// `Iterator` implementation for `KeyValueIteratorWrap`.
 impl<K, V, I> Iterator for KeyValueIteratorWrap<K, V, I>
 where
     I: Iterator<Item = (K, V)>,
@@ -83,5 +86,32 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|v| v.1)
+    }
+}
+
+/// Represents value iterator wrap for (key1, key2, value) iterator.
+pub struct KeysValueIteratorWrap<K1, K2, V, I>(I, PhantomData<(K1, K2, V)>)
+where
+    I: Iterator<Item = (K1, K2, V)>;
+
+// `From` implementation `KeysValueIteratorWrap` for soft iterator wrapping.
+impl<K1, K2, V, I> From<I> for KeysValueIteratorWrap<K1, K2, V, I>
+where
+    I: Iterator<Item = (K1, K2, V)>,
+{
+    fn from(other: I) -> Self {
+        Self(other, PhantomData)
+    }
+}
+
+// `Iterator` implementation for `KeysValueIteratorWrap`.
+impl<K1, K2, V, I> Iterator for KeysValueIteratorWrap<K1, K2, V, I>
+where
+    I: Iterator<Item = (K1, K2, V)>,
+{
+    type Item = V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|v| v.2)
     }
 }

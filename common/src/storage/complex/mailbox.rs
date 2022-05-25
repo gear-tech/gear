@@ -177,11 +177,11 @@ where
     type DrainIter = T::DrainIter;
     type Iter = T::Iter;
 
-    fn drain(key: Self::Key) -> Self::DrainIter {
-        T::drain(key)
+    fn drain_key(key: Self::Key) -> Self::DrainIter {
+        T::drain_key(key)
     }
 
-    fn iter(key: Self::Key) -> Self::Iter {
-        T::iter(key)
+    fn iter_key(key: Self::Key) -> Self::Iter {
+        T::iter_key(key)
     }
 }

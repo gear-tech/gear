@@ -246,7 +246,7 @@ where
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
-            .get_executable_actor(actor_id.into_origin(), false)
+            .get_executable_actor(actor_id, false)
             .ok_or("Program not found in the storage")?;
         Ok(Exec {
             ext_manager,

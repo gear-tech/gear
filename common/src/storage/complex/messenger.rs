@@ -144,7 +144,7 @@ pub trait Messenger {
         + IterableDoubleMap<
             (Self::WaitlistedMessage, Self::BlockNumber),
             Key = Self::WaitlistFirstKey,
-        >;
+        > + IterableMap<(Self::WaitlistedMessage, Self::BlockNumber)>;
 
     /// Resets all related to messenger storages.
     ///

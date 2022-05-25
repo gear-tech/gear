@@ -320,7 +320,7 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        for (message, _) in WaitlistOf::<T>::drain(id_exited) {
+        for (message, _) in WaitlistOf::<T>::drain_key(id_exited) {
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
