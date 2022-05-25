@@ -34,7 +34,7 @@ use core::marker::PhantomData;
 ///
 /// Returns the iterators over specified (associated)
 /// type of the first key's items.
-pub trait IterableDoubleMap<Item> {
+pub trait IterableByKeyMap<Item> {
     /// Map's first key type.
     type Key;
     /// Removal iterator type.

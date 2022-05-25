@@ -22,7 +22,7 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, IterableDoubleMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, IterableByKeyMap, KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -162,12 +162,12 @@ where
     }
 }
 
-// Implementation of `IterableDoubleMap` trait for `MailboxImpl` in case,
-// when inner `DoubleMapStorage` implements `IterableDoubleMap`.
-impl<T, Error, OutputError, Callbacks, KeyGen> IterableDoubleMap<T::Value>
+// Implementation of `IterableByKeyMap` trait for `MailboxImpl` in case,
+// when inner `DoubleMapStorage` implements `IterableByKeyMap`.
+impl<T, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
     for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage + IterableDoubleMap<T::Value, Key = T::Key1>,
+    T: DoubleMapStorage + IterableByKeyMap<T::Value, Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,

@@ -139,7 +139,7 @@ macro_rules! wrap_storage_double_map {
 }
 
 /// Same as `wrap_storage_double_map!`, but with extra implementations
-/// of `CountedByKey`, `IterableMap` and `IterableDoubleMap`
+/// of `CountedByKey`, `IterableMap` and `IterableByKeyMap`
 /// over double map values.
 ///
 /// `PrefixIterator` from `frame_support` and `KeyValueIteratorWrap` from
@@ -166,7 +166,7 @@ macro_rules! wrap_extended_storage_double_map {
             }
         }
 
-        impl<T: crate::Config> IterableDoubleMap<$val> for $name<T> {
+        impl<T: crate::Config> IterableByKeyMap<$val> for $name<T> {
             type Key = $key1;
             type DrainIter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
             type Iter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;

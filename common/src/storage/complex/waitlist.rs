@@ -22,7 +22,7 @@
 //! addressed to programs, by their storing out of message queue.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, GetCallback, IterableDoubleMap, IterableMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, GetCallback, IterableByKeyMap, IterableMap, KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -180,12 +180,12 @@ where
     }
 }
 
-// Implementation of `IterableDoubleMap` trait for `WaitlistImpl` in case,
-// when inner `DoubleMapStorage` implements `IterableDoubleMap`.
-impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableDoubleMap<T::Value>
+// Implementation of `IterableByKeyMap` trait for `WaitlistImpl` in case,
+// when inner `DoubleMapStorage` implements `IterableByKeyMap`.
+impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
     for WaitlistImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableDoubleMap<T::Value, Key = T::Key1>,
+    T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableByKeyMap<T::Value, Key = T::Key1>,
     Error: WaitlistError,
     OutputError: From<Error>,
     Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,

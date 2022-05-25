@@ -21,7 +21,7 @@
 //! Messenger provides API for all available gear message storing.
 
 use crate::storage::{
-    Counted, CountedByKey, Counter, DequeueError, IterableDoubleMap, IterableMap, Mailbox,
+    Counted, CountedByKey, Counter, DequeueError, IterableByKeyMap, IterableMap, Mailbox,
     MailboxError, Queue, Toggler, Waitlist,
 };
 use core::fmt::Debug;
@@ -116,7 +116,7 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
-        + IterableDoubleMap<Self::MailboxedMessage, Key = Self::MailboxFirstKey>;
+        + IterableByKeyMap<Self::MailboxedMessage, Key = Self::MailboxFirstKey>;
 
     /// Gear waitlist.
     ///
@@ -141,10 +141,8 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::WaitlistFirstKey, Length = usize>
-        + IterableDoubleMap<
-            (Self::WaitlistedMessage, Self::BlockNumber),
-            Key = Self::WaitlistFirstKey,
-        > + IterableMap<(Self::WaitlistedMessage, Self::BlockNumber)>;
+        + IterableByKeyMap<(Self::WaitlistedMessage, Self::BlockNumber), Key = Self::WaitlistFirstKey>
+        + IterableMap<(Self::WaitlistedMessage, Self::BlockNumber)>;
 
     /// Resets all related to messenger storages.
     ///
