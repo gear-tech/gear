@@ -256,10 +256,10 @@ impl Ext {
     fn check_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < message_value && message_value < self.existential_deposit {
-            self.return_and_store_err(Err(ExtError::InsufficientMessageValue {
+            self.return_and_store_err(Err(ExtError::Message(MessageError::InsufficientValue {
                 message_value,
                 existential_deposit: self.existential_deposit,
-            }))
+            })))
         } else {
             Ok(())
         }
@@ -275,10 +275,10 @@ impl Ext {
 
     fn charge_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         if self.value_counter.reduce(message_value) != ChargeResult::Enough {
-            self.return_and_store_err(Err(ExtError::NotEnoughValue {
+            self.return_and_store_err(Err(ExtError::Message(MessageError::NotEnoughValue {
                 message_value,
                 value_left: self.value_counter.left(),
-            }))
+            })))
         } else {
             Ok(())
         }

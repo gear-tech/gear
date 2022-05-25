@@ -73,6 +73,25 @@ pub enum MessageError {
 
     #[display(fmt = "User has no enough gas")]
     NotEnoughGas,
+
+    #[display(
+        fmt = "Value {} of the message in not in the range {{0}} ∪ [{}; +inf)",
+        message_value,
+        existential_deposit
+    )]
+    InsufficientValue {
+        message_value: u128,
+        existential_deposit: u128,
+    },
+    #[display(
+        fmt = "{} is not enough value to send message with the value {}",
+        value_left,
+        message_value
+    )]
+    NotEnoughValue {
+        message_value: u128,
+        value_left: u128,
+    },
 }
 
 /// Memory error.
@@ -118,24 +137,6 @@ pub enum ExtError {
     TooManyGasAdded,
     #[display(fmt = "Panic occurred: {}", _0)]
     PanicOccurred(String),
-    #[display(
-        fmt = "Value {} of the message in not in the range {{0}} ∪ [{}; +inf)",
-        message_value,
-        existential_deposit
-    )]
-    InsufficientMessageValue {
-        message_value: u128,
-        existential_deposit: u128,
-    },
-    #[display(
-        fmt = "{} is not enough value to send message with the value {}",
-        value_left,
-        message_value
-    )]
-    NotEnoughValue {
-        message_value: u128,
-        value_left: u128,
-    },
 }
 
 impl CoreError for ExtError {}

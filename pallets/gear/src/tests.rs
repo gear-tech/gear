@@ -2983,10 +2983,10 @@ fn test_create_program_with_value_lt_ed() {
         // There definitely should be event with init failure reason
         let expected_failure_reason = format!(
             "{}",
-            ExtError::InsufficientMessageValue {
+            ExtError::Message(MessageError::InsufficientValue {
                 message_value: 499,
                 existential_deposit: 500
-            }
+            })
         )
         .into_bytes();
         let reason = SystemPallet::<Test>::events()
@@ -3079,10 +3079,10 @@ fn test_create_program_with_exceeding_value() {
         // There definitely should be event with init failure reason
         let expected_failure_reason = format!(
             "{}",
-            ExtError::NotEnoughValue {
+            ExtError::Message(MessageError::NotEnoughValue {
                 message_value: 1001,
                 value_left: 1000
-            }
+            })
         )
         .into_bytes();
         let reason = SystemPallet::<Test>::events()
