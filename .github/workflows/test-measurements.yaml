@@ -4,9 +4,6 @@ on:
   schedule:
     - cron:  '10 21 * * *'
   workflow_dispatch:
-  # TODO: remove this before merge!!!
-  pull_request:
-    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always

@@ -182,19 +182,6 @@ jobs:
           body="${body//$'\r'/'%0D'}"
           echo "::set-output name=body::$body"
 
-      - name: "Comment (regressions): pallet tests"
-        uses: peter-evans/create-or-update-comment@v2
-        if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-regressions-comment
-        continue-on-error: true
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            <details><summary>Pallet tests (values are in nanoseconds)</summary>
-            
-            ${{ steps.test-regressions-pallets.outputs.body }}
-            </details>
-
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
         env:
@@ -219,21 +206,25 @@ jobs:
           body="${body//$'\r'/'%0D'}"
           echo "::set-output name=body::$body"
 
-      - name: "Comment (regressions): runtime tests"
+      - name: "Test: Runtime upgrade and queue processing"
+        run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Comment (regressions)"
         uses: peter-evans/create-or-update-comment@v2
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-id: ${{ steps.test-regressions-comment.outputs.comment-id }}
           body: |
+            <details><summary>Pallet tests (values are in nanoseconds)</summary>
+            
+            ${{ steps.test-regressions-pallets.outputs.body }}
+            </details>
+            
             <details><summary>Runtime tests (values are in nanoseconds)</summary>
             
             ${{ steps.test-regressions-runtime.outputs.body }}
             </details>
-
-      - name: "Test: Runtime upgrade and queue processing"
-        run: ./scripts/gear.sh test runtime-upgrade
 
       - name: "Coverage: Aggregate"
         run: >-
