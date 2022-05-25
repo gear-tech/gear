@@ -71,11 +71,15 @@ pub enum MessageError {
     #[display(fmt = "Duplicated program initialization message")]
     DuplicateInit,
 
-    #[display(fmt = "User has no enough gas")]
+    /// An error occurs in attempt to send a message with more gas than available after previous message.
+    #[display(fmt = "Not enough gas to send in message")]
     NotEnoughGas,
 
+    /// Existential deposit is a minimal amount of funds on a balance that can be considered and added in DB.
+    /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
+    /// Value between 0 and existential deposit cannot be sent in message.
     #[display(
-        fmt = "Value {} of the message in not in the range {{0}} ∪ [{}; +inf)",
+        fmt = "In case of non-zero message value {}, it must be greater than existential deposit {}",
         message_value,
         existential_deposit
     )]
@@ -83,8 +87,10 @@ pub enum MessageError {
         message_value: u128,
         existential_deposit: u128,
     },
+
+    /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
-        fmt = "{} is not enough value to send message with the value {}",
+        fmt = "Existing value {} is not enough to send a message with value {}",
         value_left,
         message_value
     )]
@@ -137,11 +143,11 @@ pub enum ExecutionError {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
 pub enum ExtError {
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
 }
 
