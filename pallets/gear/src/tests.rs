@@ -1303,7 +1303,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         // (and following system reply with error to USER_1 mailbox)
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
         assert!(matches!(
-            MailboxOf::<Test>::iter(USER_1)
+            MailboxOf::<Test>::iter_key(USER_1)
                 .next()
                 .expect("Element should be")
                 .reply(),
@@ -1692,7 +1692,7 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let message_id = MailboxOf::<Test>::iter(USER_1)
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
             .expect("Element should be")
             .id();
@@ -1733,7 +1733,7 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let message_id = MailboxOf::<Test>::iter(USER_1)
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
             .expect("Element should be")
             .id();
@@ -1760,7 +1760,7 @@ fn defer_program_initialization() {
 
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
         assert_eq!(
-            MailboxOf::<Test>::iter(USER_1)
+            MailboxOf::<Test>::iter_key(USER_1)
                 .next()
                 .expect("Element should be")
                 .payload()
@@ -1806,7 +1806,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = MailboxOf::<Test>::iter(USER_1)
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
             .expect("Element should be")
             .id();
@@ -1821,7 +1821,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, m| {
             assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
             i + 1
         });
@@ -2526,7 +2526,7 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = MailboxOf::<Test>::iter(USER_1)
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
             .expect("Element should be")
             .id();
@@ -2630,7 +2630,7 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = MailboxOf::<Test>::iter(USER_1)
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
             .expect("Element should be")
             .id();
@@ -2678,7 +2678,7 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, m| {
             assert_eq!(m.payload(), b"Hello, world!".encode());
             i + 1
         });
