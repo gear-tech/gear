@@ -33,7 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, MessageError, TerminationReason};
+use gear_core_errors::{CoreError, ExtError, MemoryError, MessageError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -95,8 +95,20 @@ impl ProcessorError {
     fn as_ext_error(&self) -> Option<&ExtError> {
         match self {
             ProcessorError::Core(core) => Some(core),
-            ProcessorError::Terminated(_) => None,
+            _ => None,
         }
+    }
+}
+
+impl From<MessageError> for ProcessorError {
+    fn from(err: MessageError) -> Self {
+        Self::Core(ExtError::Message(err))
+    }
+}
+
+impl From<MemoryError> for ProcessorError {
+    fn from(err: MemoryError) -> Self {
+        Self::Core(ExtError::Memory(err))
     }
 }
 
@@ -105,8 +117,8 @@ impl CoreError for ProcessorError {}
 impl AsTerminationReason for ProcessorError {
     fn as_termination_reason(&self) -> Option<&TerminationReason> {
         match self {
-            ProcessorError::Core(_) => None,
             ProcessorError::Terminated(reason) => Some(reason),
+            _ => None,
         }
     }
 }
@@ -256,10 +268,10 @@ impl Ext {
     fn check_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
         if 0 < message_value && message_value < self.existential_deposit {
-            self.return_and_store_err(Err(ExtError::Message(MessageError::InsufficientValue {
+            self.return_and_store_err(Err(MessageError::InsufficientValue {
                 message_value,
                 existential_deposit: self.existential_deposit,
-            })))
+            }))
         } else {
             Ok(())
         }
@@ -267,7 +279,7 @@ impl Ext {
 
     fn charge_gas_with_packet<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
         if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
-            self.return_and_store_err(Err(ExtError::Message(MessageError::NotEnoughGas)))
+            self.return_and_store_err(Err(MessageError::NotEnoughGas))
         } else {
             Ok(())
         }
@@ -275,10 +287,10 @@ impl Ext {
 
     fn charge_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         if self.value_counter.reduce(message_value) != ChargeResult::Enough {
-            self.return_and_store_err(Err(ExtError::Message(MessageError::NotEnoughValue {
+            self.return_and_store_err(Err(MessageError::NotEnoughValue {
                 message_value,
                 value_left: self.value_counter.left(),
-            })))
+            }))
         } else {
             Ok(())
         }
@@ -302,10 +314,7 @@ impl EnvExt for Ext {
 
         let old_mem_size = mem.size();
 
-        let result = self
-            .allocations_context
-            .alloc(pages_num, mem)
-            .map_err(ExtError::Memory);
+        let result = self.allocations_context.alloc(pages_num, mem);
 
         let page_number = self.return_and_store_err(result)?;
 
@@ -354,27 +363,21 @@ impl EnvExt for Ext {
 
     fn send_init(&mut self) -> Result<usize, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendInit)?;
-        let result = self.message_context.send_init().map_err(ExtError::Message);
+        let result = self.message_context.send_init();
 
         self.return_and_store_err(result.map(|v| v as usize))
     }
 
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendPush(buffer.len() as u32))?;
-        let result = self
-            .message_context
-            .send_push(handle as u32, buffer)
-            .map_err(ExtError::Message);
+        let result = self.message_context.send_push(handle as u32, buffer);
 
         self.return_and_store_err(result)
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(buffer.len() as u32))?;
-        let result = self
-            .message_context
-            .reply_push(buffer)
-            .map_err(ExtError::Message);
+        let result = self.message_context.reply_push(buffer);
 
         self.return_and_store_err(result)
     }
@@ -387,10 +390,7 @@ impl EnvExt for Ext {
         self.charge_gas_with_packet(&msg)?;
         self.charge_value(msg.value())?;
 
-        let result = self
-            .message_context
-            .send_commit(handle as u32, msg)
-            .map_err(ExtError::Message);
+        let result = self.message_context.send_commit(handle as u32, msg);
 
         self.return_and_store_err(result)
     }
@@ -403,10 +403,7 @@ impl EnvExt for Ext {
         self.charge_gas_with_packet(&msg)?;
         self.charge_value(msg.value())?;
 
-        let result = self
-            .message_context
-            .reply_commit(msg)
-            .map_err(ExtError::Message);
+        let result = self.message_context.reply_commit(msg);
 
         self.return_and_store_err(result)
     }
@@ -439,10 +436,7 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, page: WasmPageNumber) -> Result<(), Self::Error> {
-        let result = self
-            .allocations_context
-            .free(page)
-            .map_err(ExtError::Memory);
+        let result = self.allocations_context.free(page);
 
         // Returns back gas for allocated page if it's new
         if !self.allocations_context.is_init_page(page) {
@@ -535,10 +529,7 @@ impl EnvExt for Ext {
 
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wake)?;
-        let result = self
-            .message_context
-            .wake(waker_id)
-            .map_err(ExtError::Message);
+        let result = self.message_context.wake(waker_id);
 
         self.return_and_store_err(result)
     }
@@ -563,8 +554,7 @@ impl EnvExt for Ext {
                 entry.push((new_prog_id, init_msg_id));
 
                 new_prog_id
-            })
-            .map_err(ExtError::Message);
+            });
 
         self.return_and_store_err(result)
     }
