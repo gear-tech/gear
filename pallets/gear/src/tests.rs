@@ -3207,11 +3207,12 @@ fn cascading_messages_with_value_do_not_overcharge() {
             BalancesPallet::<Test>::free_balance(USER_1),
             user_initial_balance - (gas_to_spend as u128 + value)
         );
-        // However, holds the other one (uncomment to verify):
-        // assert_eq!(
-        //     BalancesPallet::<Test>::free_balance(USER_1),
-        //     user_initial_balance - (gas_reserved as u128 + value)
-        // );
+
+        // The below condition mustn't hold (previous bug check):
+        assert_ne!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user_initial_balance - (gas_reserved as u128 + value)
+        );
     });
 }
 
