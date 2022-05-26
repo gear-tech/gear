@@ -19,6 +19,7 @@
 //! Gear core errors
 
 #![no_std]
+#![warn(missing_docs)]
 
 extern crate alloc;
 
@@ -27,6 +28,7 @@ use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
 
+/// Core error
 pub trait CoreError: fmt::Display + fmt::Debug {}
 
 /// Error using messages.
@@ -77,7 +79,6 @@ pub enum MessageError {
     #[display(fmt = "Not enough gas to send in message")]
     NotEnoughGas,
 
-    /// Existential deposit is a minimal amount of funds on a balance that can be considered and added in DB.
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
     #[display(
@@ -86,7 +87,9 @@ pub enum MessageError {
         existential_deposit
     )]
     InsufficientValue {
+        /// Message's value
         message_value: u128,
+        /// Minimal amount of funds on a balance that can be considered and added in DB
         existential_deposit: u128,
     },
 
@@ -97,7 +100,9 @@ pub enum MessageError {
         message_value
     )]
     NotEnoughValue {
+        /// Message's value
         message_value: u128,
+        /// Amount of available value
         value_left: u128,
     },
 }
@@ -141,10 +146,13 @@ pub enum ExecutionError {
 /// An error occurred in API
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
 pub enum ExtError {
+    /// Memory error
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
+    /// Message error
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
+    /// Execution error
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
 }
