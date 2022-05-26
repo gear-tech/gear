@@ -30,7 +30,7 @@ use scale_info::TypeInfo;
 /// Used to create conversation between programs.
 /// [`ReplyMessage`]'s linked to the origin with message id.
 /// That allow to make more abilities in business logic.
-/// 
+///
 /// message1 = Message { id: message1_id, ... }
 /// +--- reply1 = Message { id: reply1_id, ..., reply: Some((message1_id, ...)) }
 /// |    `--- reply2 = Message { ..., reply: Some((reply1_id, ...)) }
