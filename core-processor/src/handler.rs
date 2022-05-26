@@ -34,8 +34,9 @@ pub fn handle_journal(
             JournalNote::GasBurned { message_id, amount } => handler.gas_burned(message_id, amount),
             JournalNote::ExitDispatch {
                 id_exited,
+                message_id,
                 value_destination,
-            } => exit_list.push((id_exited, value_destination)),
+            } => exit_list.push((id_exited, message_id, value_destination)),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
             JournalNote::SendDispatch {
                 message_id,
@@ -81,7 +82,7 @@ pub fn handle_journal(
         handler.update_allocations(program_id, allocations);
     }
 
-    for (id_exited, value_destination) in exit_list {
-        handler.exit_dispatch(id_exited, value_destination);
+    for (id_exited, message_id, value_destination) in exit_list {
+        handler.exit_dispatch(id_exited, message_id, value_destination);
     }
 }
