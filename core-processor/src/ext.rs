@@ -300,8 +300,7 @@ impl Ext {
         }
     }
 
-    // TODO: rename to charge_message_value
-    fn charge_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
+    fn charge_message_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         if self.value_counter.reduce(message_value) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughValue {
                 message_value,
@@ -404,7 +403,7 @@ impl EnvExt for Ext {
         self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         self.charge_gas_with_packet(&msg)?;
-        self.charge_value(msg.value())?;
+        self.charge_message_value(msg.value())?;
 
         let result = self.message_context.send_commit(handle as u32, msg);
 
@@ -417,7 +416,7 @@ impl EnvExt for Ext {
         self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         self.charge_gas_with_packet(&msg)?;
-        self.charge_value(msg.value())?;
+        self.charge_message_value(msg.value())?;
 
         let result = self.message_context.reply_commit(msg);
 
@@ -556,7 +555,7 @@ impl EnvExt for Ext {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
         self.charge_gas_with_packet(&packet)?;
-        self.charge_value(packet.value())?;
+        self.charge_message_value(packet.value())?;
 
         let code_hash = packet.code_id();
 
