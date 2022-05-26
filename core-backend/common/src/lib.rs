@@ -27,6 +27,7 @@ pub mod funcs;
 use alloc::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use core::fmt;
@@ -55,11 +56,19 @@ pub enum TerminationReason {
     Leave,
     Success,
     Trap {
-        explanation: Option<ExtError>,
+        explanation: Option<TrapExplanation>,
         description: Option<Cow<'static, str>>,
     },
     Wait,
     GasAllowanceExceeded,
+}
+
+#[derive(Debug, Clone, derive_more::Display)]
+pub enum TrapExplanation {
+    #[display(fmt = "{}", _0)]
+    Core(ExtError),
+    #[display(fmt = "{}", _0)]
+    Other(String),
 }
 
 pub struct ExtInfo {
@@ -70,7 +79,7 @@ pub struct ExtInfo {
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<ExtError>,
+    pub trap_explanation: Option<TrapExplanation>,
     pub exit_argument: Option<ProgramId>,
 }
 

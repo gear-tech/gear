@@ -118,7 +118,10 @@ impl IntoExtInfo for LazyPagesExt {
             generated_dispatches,
             awakening,
             context_store,
-            trap_explanation: self.inner.error_explanation,
+            trap_explanation: self
+                .inner
+                .error_explanation
+                .and_then(ProcessorError::into_trap_explanation),
             exit_argument: self.inner.exit_argument,
             program_candidates_data: self.inner.program_candidates_data,
         })

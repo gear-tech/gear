@@ -23,7 +23,6 @@
 
 extern crate alloc;
 
-use alloc::string::String;
 use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
@@ -139,8 +138,6 @@ pub enum ExecutionError {
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
-    #[display(fmt = "Panic occurred: {}", _0)]
-    PanicOccurred(String),
 }
 
 /// An error occurred in API

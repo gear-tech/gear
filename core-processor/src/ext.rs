@@ -19,11 +19,13 @@
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::ToString,
+    string::{String, ToString},
     vec::Vec,
 };
 use core::fmt;
-use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind};
+use gear_backend_common::{
+    AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind, TrapExplanation,
+};
 use gear_core::{
     charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
@@ -89,12 +91,17 @@ pub enum ProcessorError {
     /// Termination reason occurred in a syscall
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReasonKind),
+    /// User's code panicked
+    #[display(fmt = "{}", _0)]
+    Panic(String),
 }
 
 impl ProcessorError {
-    fn as_ext_error(&self) -> Option<&ExtError> {
+    /// Converts error into [`TrapExplanation`]
+    pub fn into_trap_explanation(self) -> Option<TrapExplanation> {
         match self {
-            ProcessorError::Core(core) => Some(core),
+            Self::Core(err) => Some(TrapExplanation::Core(err)),
+            Self::Panic(msg) => Some(TrapExplanation::Other(msg)),
             _ => None,
         }
     }
@@ -148,7 +155,7 @@ pub struct Ext {
     /// Account existential deposit
     pub existential_deposit: u128,
     /// Any guest code panic explanation, if available.
-    pub error_explanation: Option<ExtError>,
+    pub error_explanation: Option<ProcessorError>,
     /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
     /// Communication origin
@@ -248,7 +255,9 @@ impl IntoExtInfo for Ext {
             generated_dispatches,
             awakening,
             context_store,
-            trap_explanation: self.error_explanation,
+            trap_explanation: self
+                .error_explanation
+                .and_then(ProcessorError::into_trap_explanation),
             exit_argument: self.exit_argument,
             program_candidates_data: self.program_candidates_data,
         })
@@ -266,7 +275,7 @@ impl Ext {
         E: Into<ProcessorError>,
     {
         result.map_err(Into::into).map_err(|err| {
-            self.error_explanation = err.as_ext_error().cloned();
+            self.error_explanation = Some(err.clone());
             err
         })
     }
@@ -291,6 +300,7 @@ impl Ext {
         }
     }
 
+    // TODO: rename to charge_message_value
     fn charge_value(&mut self, message_value: u128) -> Result<(), ProcessorError> {
         if self.value_counter.reduce(message_value) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughValue {
@@ -456,7 +466,7 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
         if data.starts_with("panic occurred") {
-            self.error_explanation = Some(ExecutionError::PanicOccurred(data.to_string()).into());
+            self.error_explanation = Some(ProcessorError::Panic(data.to_string()));
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
 
