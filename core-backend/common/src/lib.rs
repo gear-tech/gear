@@ -34,12 +34,10 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber, Memory},
     message::{ContextStore, Dispatch},
 };
-use gear_core_errors::ExtError;
-
-pub type HostPointer = u64;
+use gear_core_errors::{ExtError, MemoryError};
 
 #[derive(Debug, Clone)]
 pub enum TerminationReason {
@@ -67,10 +65,10 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
+    fn into_ext_info(
         self,
-        get_page_data: F,
-    ) -> Result<ExtInfo, (T, GasAmount)>;
+        memory: &dyn Memory,
+    ) -> Result<ExtInfo, (MemoryError, GasAmount)>;
     fn into_gas_amount(self) -> GasAmount;
 }
 
@@ -117,8 +115,8 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Returns addr to the stack end if it can be identified
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
-    /// Returns host address of wasm memory buffer. Needed for lazy-pages
-    fn get_wasm_memory_begin_addr(&self) -> HostPointer;
+    /// Get ref to mem impl
+    fn get_mem(&self) -> &dyn Memory;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
@@ -128,7 +126,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), T>,
+        F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display;
 
     /// Consumes environment and returns gas state.

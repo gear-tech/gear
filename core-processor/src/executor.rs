@@ -218,9 +218,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             .filter(|page| !pages_data.contains_key(page))
             .collect();
         if let Err(e) = A::lazy_pages_protect_and_init_info(
+            env.get_mem(),
             &lazy_pages,
             program_id,
-            env.get_wasm_memory_begin_addr(),
         ) {
             return Err(ExecutionError {
                 program_id,
@@ -238,15 +238,15 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let stack_end_page = env.get_stack_mem_end();
     log::trace!("Stack end page = {:?}", stack_end_page);
 
-    // Running backend.
+    // Execute program in backend env.
     let BackendReport { termination, info } =
-        match env.execute(kind.into_entry(), |wasm_memory_addr| {
+        match env.execute(kind.into_entry(), |mem| {
             // accessed lazy pages old data will be added to `initial_pages`
             // TODO: if post execution actions err is connected, with removing pages protections,
-            // then we should panic here, because protected pages may cause UB later, during err handling,
+            // then we should panic here, because protected pages may cause UB later, during signal handling,
             // if somebody will try to access this pages.
             if A::is_lazy_pages_enabled() {
-                A::lazy_pages_post_execution_actions(&mut pages_data, wasm_memory_addr)
+                A::lazy_pages_post_execution_actions(mem, &mut pages_data)
             } else {
                 Ok(())
             }
