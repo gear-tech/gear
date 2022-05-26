@@ -27,7 +27,8 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Message for Handle entry point.
-/// Has the same fields as InitMessage, but should only be sent to already initialized programs.
+/// Represents a standard message that sent's between actors without additional logic.
+/// Used to transmit a single message or to start a chain [`ReplyMessage`].
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct HandleMessage {
     /// Message id.

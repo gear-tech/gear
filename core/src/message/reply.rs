@@ -27,8 +27,14 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Message for Reply entry point.
-/// Message type that program sends during execution.
-/// Contains the id of the message that we replied to so we can reproduce the whole chain of messages.
+/// Used to create conversation between programs.
+/// [`ReplyMessage`]'s linked to the origin with message id.
+/// That allow to make more abilities in business logic.
+/// 
+/// message1 = Message { id: message1_id, ... }
+/// +--- reply1 = Message { id: reply1_id, ..., reply: Some((message1_id, ...)) }
+/// |    `--- reply2 = Message { ..., reply: Some((reply1_id, ...)) }
+/// `--- reply3 = Message { ..., reply: Some((message1_id, ...)) }
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyMessage {
     /// Message id.

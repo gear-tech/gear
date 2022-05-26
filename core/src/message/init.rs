@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Message for Init entry point.
-/// Has the same fields as HandleMessage.
+/// Used to initiate a new program in the chain.
 /// Must be sent to the program once before other messages.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct InitMessage {
