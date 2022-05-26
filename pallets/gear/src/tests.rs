@@ -2423,7 +2423,7 @@ fn exit_handle() {
 }
 
 #[test]
-fn redundant_gas_value_node() {
+fn no_redundant_gas_value_after_exiting() {
     init_logger();
     new_test_ext().execute_with(|| {
         use common::ValueTree;
