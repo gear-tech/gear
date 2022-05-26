@@ -2441,38 +2441,43 @@ fn redundant_gas_value_node() {
 
         run_to_block(2, None);
 
+        let gas_limit = 50_000_000_000;
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             prog_id,
             EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
+            gas_limit,
             0,
         ));
 
         let msg_id = get_last_message_id().into_origin();
 
         let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, Some(50_000_000_000));
+        assert_eq!(maybe_limit, Some(gas_limit));
 
-        // but before execution
+        // before execution
         let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
         let reserved_after_send = BalancesPallet::<Test>::reserved_balance(USER_1);
+        let (gas_spent, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
+        assert_eq!(reserved_after_send, gas_limit as u128);
 
         run_to_block(3, None);
 
-        // still exists
+        // gas_limit has been recovered
         let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
-        log::debug!("{:?}", maybe_limit);
-        assert!(maybe_limit.is_some()); // MUST BE NONE
-        let msg_rest_gas_limit = maybe_limit.expect("checked");
-        assert!(msg_rest_gas_limit > 0); // MUST BE ZERO
+        assert_eq!(maybe_limit, Some(0));
 
-        // let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
-        // assert_eq!(free_after_execution, free_after_send); // MUST NOT BE EQUAL
-        //
+        // the (reserved_after_send - gas_spent) has been unreserved
+        let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
+        assert_eq!(
+            free_after_execution,
+            free_after_send + (reserved_after_send - gas_spent as u128)
+        );
+
+        // reserved balance after execution is zero
         let reserved_after_execution = BalancesPallet::<Test>::reserved_balance(USER_1);
-        // assert_eq!(reserved_after_execution, msg_rest_gas_limit as u128); // RESERVED MUST BE ZERO
-        assert!(reserved_after_execution.is_zero()); // RESERVED MUST BE ZERO
+        assert!(reserved_after_execution.is_zero());
     })
 }
 

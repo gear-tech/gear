@@ -268,10 +268,27 @@ where
         Pallet::<T>::deposit_event(event);
     }
 
+    fn gas_recovered(&mut self, message_id: MessageId) {
+        let message_id = message_id.into_origin();
+        if let Ok(Some(amount)) = GasPallet::<T>::get_limit(message_id) {
+            log::debug!("Recovered: {:?} from: {:?}", amount, message_id);
+
+            GasPallet::<T>::decrease_gas_allowance(amount);
+            if let Err(err) = GasPallet::<T>::spend(message_id, amount) {
+                log::debug!(
+                    "Error spending {:?} gas for message_id {:?}: {:?}",
+                    amount,
+                    message_id,
+                    err
+                )
+            }
+        }
+    }
+
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         let message_id = message_id.into_origin();
 
-        log::debug!("burned: {:?} from: {:?}", amount, message_id);
+        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
         GasPallet::<T>::decrease_gas_allowance(amount);
 

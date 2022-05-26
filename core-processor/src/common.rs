@@ -138,6 +138,11 @@ pub enum DispatchOutcome {
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched(DispatchOutcome),
+    /// Gas of this message was recovered.
+    GasRecovered(
+        /// Message id in which gas was recovered.
+        MessageId,
+    ),
     /// Some gas was burned.
     GasBurned {
         /// Message id in which gas was burned.
@@ -223,6 +228,8 @@ pub enum JournalNote {
 pub trait JournalHandler {
     /// Process message dispatch.
     fn message_dispatched(&mut self, outcome: DispatchOutcome);
+    /// Process gas recovered.
+    fn gas_recovered(&mut self, message_id: MessageId);
     /// Process gas burned.
     fn gas_burned(&mut self, message_id: MessageId, amount: u64);
     /// Process exit dispatch.

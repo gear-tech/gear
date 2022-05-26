@@ -226,11 +226,12 @@ fn process_success(
 
     match kind {
         Exit(value_destination) => {
+            journal.push(JournalNote::MessageConsumed(message_id));
+            journal.push(JournalNote::GasRecovered(message_id));
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
                 value_destination,
             });
-            journal.push(JournalNote::MessageConsumed(message_id));
         }
         Wait => {
             journal.push(JournalNote::WaitDispatch(
