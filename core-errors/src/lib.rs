@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Gear core errors
+
 #![no_std]
 
 extern crate alloc;
@@ -118,21 +120,25 @@ pub enum MemoryError {
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// WASM page does not contain all necesssary Gear pages
+    /// WASM page does not contain all necessary Gear pages
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
     InvalidPageDataSize(usize),
 }
 
+/// Execution error
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExecutionError {
+    /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
+    /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
     #[display(fmt = "Panic occurred: {}", _0)]
     PanicOccurred(String),
 }
 
+/// An error occurred in API
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
 pub enum ExtError {
     #[display(fmt = "Memory error: {}", _0)]
