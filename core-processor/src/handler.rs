@@ -31,7 +31,6 @@ pub fn handle_journal(
     for note in journal.into_iter() {
         match note {
             JournalNote::MessageDispatched(outcome) => handler.message_dispatched(outcome),
-            JournalNote::GasRecovered(message_id) => handler.gas_recovered(message_id),
             JournalNote::GasBurned { message_id, amount } => handler.gas_burned(message_id, amount),
             JournalNote::ExitDispatch {
                 id_exited,
