@@ -3180,12 +3180,6 @@ fn cascading_messages_with_value_do_not_overcharge() {
         // expecting the message to be processed successfully.
         // Expected outcome: the sender's balance has decreased by the (gas + `value`),
         // that is by 2,302,360,260.
-        //
-        // TODO: instead, after the proxy message has re-entered having been woken up
-        // it attempts to do value transfer again.
-        // The `repatriate_reserved()` in this case still succeeds even though the actual
-        // amount repatriated is less than requested 10_000_000 => must thrown here!!!
-        // However, the sender's balance ends up overcharged.
 
         let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
         let gas_to_spend = 2_292_360_260_u64;
@@ -3199,6 +3193,11 @@ fn cascading_messages_with_value_do_not_overcharge() {
             gas_reserved,
             value,
         ));
+
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user_initial_balance - (gas_reserved as u128 + value)
+        );
 
         run_to_block(3, None);
 
