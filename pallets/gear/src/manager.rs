@@ -270,8 +270,11 @@ where
 
     fn gas_recovered(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
-        log::debug!("Recovered gas from: {:?}", message_id);
-        GasTree::<T>::remove(message_id);
+        if let Ok(Some(gas_left)) = GasPallet::<T>::get_limit(message_id) {
+            log::debug!("Recovered: {:?} from: {:?}", gas_left, message_id);
+            GasPallet::<T>::decrease_gas_allowance(gas_left);
+            GasTree::<T>::remove(message_id);
+        }
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {

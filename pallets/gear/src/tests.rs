@@ -2426,7 +2426,6 @@ fn exit_handle() {
 fn no_redundant_gas_value_after_exiting() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use common::ValueTree;
         use demo_exit_handle::WASM_BINARY;
 
         let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
