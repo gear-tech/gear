@@ -27,9 +27,9 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Message for Reply entry point.
-/// Used to create conversation between programs.
-/// [`ReplyMessage`]'s linked to the origin with message id.
-/// That allow to make more abilities in business logic.
+/// Used to create a conversation between actors.
+/// [`ReplyMessage`]'s linked to the origin with [`MessageId`].
+/// That allows making more abilities in business logic.
 ///
 /// message1 = Message { id: message1_id, ... }
 /// +--- reply1 = Message { id: reply1_id, ..., reply: Some((message1_id, ...)) }
