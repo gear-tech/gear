@@ -31,6 +31,7 @@ use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
+use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
@@ -3142,6 +3143,76 @@ fn test_reply_to_terminated_program() {
 
         SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(mail_id).into())
     })
+}
+
+#[test]
+fn cascading_messages_with_value_do_not_overcharge() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
+        let wrapper_id = generate_program_id(WAITING_PROXY_WASM_BINARY, b"salt");
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            MUL_CONST_WASM_BINARY.to_vec(),
+            b"contract".to_vec(),
+            50_u64.encode(),
+            400_000_000,
+            0,
+        ));
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WAITING_PROXY_WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            <[u8; 32]>::from(contract_id).encode(),
+            400_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        // A message is sent to a waiting proxy contract that passes execution on
+        // to another contract while keeping the `value`.
+        // The overall gas expenditure is 2,292,360,260. The message gas limit is
+        // set to be just enough to cover this amount.
+        // The sender's account has enough funds for both gas and `value`, therefore
+        // expecting the message to be processed successfully.
+        // Expected outcome: the sender's balance has decreased by the (gas + `value`),
+        // that is by 2,302,360,260.
+        //
+        // TODO: instead, after the proxy message has re-entered having been woken up
+        // it attempts to do value transfer again.
+        // The `repatriate_reserved()` in this case still succeeds even though the actual
+        // amount repatriated is less than requested 10_000_000 => must thrown here!!!
+        // However, the sender's balance ends up overcharged.
+
+        let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let gas_to_spend = 2_292_360_260_u64;
+        let gas_reserved = 2_300_000_000_u64;
+        let value = 10_000_000_u128;
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            wrapper_id,
+            100_u64.to_le_bytes().to_vec(),
+            gas_reserved,
+            value,
+        ));
+
+        run_to_block(3, None);
+
+        // The below condition must hold:
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user_initial_balance - (gas_to_spend as u128 + value)
+        );
+        // However, holds the other one (uncomment to verify):
+        // assert_eq!(
+        //     BalancesPallet::<Test>::free_balance(USER_1),
+        //     user_initial_balance - (gas_reserved as u128 + value)
+        // );
+    });
 }
 
 mod utils {
