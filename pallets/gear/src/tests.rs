@@ -31,7 +31,7 @@ use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -2419,6 +2419,60 @@ fn exit_handle() {
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
+    })
+}
+
+#[test]
+fn redundant_gas_value_node() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use common::ValueTree;
+        use demo_exit_handle::WASM_BINARY;
+
+        let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            prog_id,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let msg_id = get_last_message_id().into_origin();
+
+        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        assert_eq!(maybe_limit, Some(50_000_000_000));
+
+        // but before execution
+        let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
+        let reserved_after_send = BalancesPallet::<Test>::reserved_balance(USER_1);
+
+        run_to_block(3, None);
+
+        // still exists
+        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        log::debug!("{:?}", maybe_limit);
+        assert!(maybe_limit.is_some()); // MUST BE NONE
+        let msg_rest_gas_limit = maybe_limit.expect("checked");
+        assert!(msg_rest_gas_limit > 0); // MUST BE ZERO
+
+        // let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
+        // assert_eq!(free_after_execution, free_after_send); // MUST NOT BE EQUAL
+        //
+        let reserved_after_execution = BalancesPallet::<Test>::reserved_balance(USER_1);
+        // assert_eq!(reserved_after_execution, msg_rest_gas_limit as u128); // RESERVED MUST BE ZERO
+        assert!(reserved_after_execution.is_zero()); // RESERVED MUST BE ZERO
     })
 }
 

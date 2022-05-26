@@ -230,6 +230,7 @@ fn process_success(
                 id_exited: program_id,
                 value_destination,
             });
+            journal.push(JournalNote::MessageConsumed(message_id));
         }
         Wait => {
             journal.push(JournalNote::WaitDispatch(

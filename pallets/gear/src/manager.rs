@@ -317,6 +317,7 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
+        log::debug!("Exit program {:?}", &program_id);
 
         for message in common::remove_program_waitlist(program_id) {
             QueueOf::<T>::queue(message)
