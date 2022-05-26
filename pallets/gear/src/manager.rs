@@ -327,6 +327,7 @@ where
         let message_id = message_id.into_origin();
         if let Ok(Some(gas_left)) = T::GasHandler::get_limit(message_id) {
             log::debug!("Free {:?} gas from {:?}", &gas_left, &message_id);
+            GasPallet::<T>::decrease_gas_allowance(gas_left);
             if let Err(err) = T::GasHandler::spend(message_id, gas_left) {
                 log::debug!(
                     "Error spending {:?} gas for message_id {:?}: {:?}",
