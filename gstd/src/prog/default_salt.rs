@@ -16,25 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Program creation module
+//! Default salt creation module
 
-pub mod default_salt;
+use codec::alloc::vec::Vec;
+use gcore::exec::block_height;
 
-use crate::{prelude::convert::AsRef, ActorId, CodeHash};
+static mut DEFAULT_SALT_COUNTER: u32 = 0;
 
-pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
-    code_hash: CodeHash,
-    salt: T1,
-    payload: T2,
-    gas_limit: u64,
-    value: u128,
-) -> ActorId {
-    gcore::prog::create_program_with_gas(
-        code_hash.into(),
-        salt.as_ref(),
-        payload.as_ref(),
-        gas_limit,
-        value,
-    )
-    .into()
+pub fn create_default_salt() -> Vec<u8> {
+    unsafe {
+        DEFAULT_SALT_COUNTER += 1;
+    }
+    [
+        crate::msg::id().inner() as &[u8],
+        &block_height().to_be_bytes(),
+        &unsafe { DEFAULT_SALT_COUNTER }.to_be_bytes(),
+    ]
+    .concat()
 }
