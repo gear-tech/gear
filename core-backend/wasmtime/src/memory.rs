@@ -21,9 +21,9 @@
 use crate::env::StoreData;
 use gear_core::{
     env::Ext,
-    memory::{Error, Memory, PageNumber, WasmPageNumber, HostPointer},
+    memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber},
 };
-use wasmtime::{StoreContextMut, Store};
+use wasmtime::{Store, StoreContextMut};
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap<'a, E: Ext> {
@@ -70,7 +70,7 @@ pub struct MemoryWrapExternal<E: Ext> {
     pub store: Store<StoreData<E>>,
 }
 
-impl<'a, E: Ext> Memory for MemoryWrapExternal< E> {
+impl<'a, E: Ext> Memory for MemoryWrapExternal<E> {
     fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
         self.mem
             .grow(&mut self.store, pages.0 as u64)

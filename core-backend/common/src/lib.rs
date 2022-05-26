@@ -34,7 +34,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber, Memory},
+    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
 use gear_core_errors::{ExtError, MemoryError};
@@ -65,10 +65,7 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(
-        self,
-        memory: &dyn Memory,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
     fn into_gas_amount(self) -> GasAmount;
 }
 

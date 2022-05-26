@@ -290,22 +290,20 @@ where
             .instance
             .get_func(&mut self.memory_wrap.store, entry_point);
 
-        let prepare_info = |this: Self| -> Result<
-            (ExtInfo, MemoryWrapExternal<E>),
-            BackendError<Self::Error>,
-        > {
-            let WasmtimeEnvironment {
-                ext, memory_wrap, ..
-            } = this;
-            ext
-                .into_inner()
-                .into_ext_info(&memory_wrap)
-                .map_err(|(reason, gas_amount)| BackendError {
-                    reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                    description: None,
-                    gas_amount,
-                }).map(|info| (info, memory_wrap))
-        };
+        let prepare_info =
+            |this: Self| -> Result<(ExtInfo, MemoryWrapExternal<E>), BackendError<Self::Error>> {
+                let WasmtimeEnvironment {
+                    ext, memory_wrap, ..
+                } = this;
+                ext.into_inner()
+                    .into_ext_info(&memory_wrap)
+                    .map_err(|(reason, gas_amount)| BackendError {
+                        reason: WasmtimeEnvironmentError::MemoryAccess(reason),
+                        description: None,
+                        gas_amount,
+                    })
+                    .map(|info| (info, memory_wrap))
+            };
 
         let entry_func = if let Some(f) = func {
             // Entry function found

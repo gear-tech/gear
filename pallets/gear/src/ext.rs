@@ -33,7 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, TerminationReason, MemoryError};
+use gear_core_errors::{CoreError, ExtError, MemoryError, TerminationReason};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,8 +84,7 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>
-    {
+    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         // accessed pages are all pages except current lazy pages
         let allocations = self.inner.allocations_context.allocations().clone();
         let mut accessed_pages: BTreeSet<PageNumber> = allocations
@@ -190,8 +189,7 @@ impl ProcessorExt for LazyPagesExt {
         mem: &dyn Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error> {
-        lazy_pages::post_execution_actions(mem, memory_pages)
-            .map_err(Error::LazyPages)
+        lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
     }
 }
 

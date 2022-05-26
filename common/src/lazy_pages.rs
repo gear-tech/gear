@@ -21,7 +21,7 @@
 use crate::Origin;
 use gear_core::{
     ids::ProgramId,
-    memory::{PageBuf, PageNumber, Memory, HostPointer},
+    memory::{HostPointer, Memory, PageBuf, PageNumber},
 };
 use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
 use sp_std::{

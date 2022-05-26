@@ -32,7 +32,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{ExtError, TerminationReason, MemoryError};
+use gear_core_errors::{ExtError, MemoryError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -174,10 +174,7 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info(
-        self,
-        memory: &dyn Memory,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
