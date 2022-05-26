@@ -380,7 +380,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 if let ProgramState::Active(info) = &p.state {
                     if let Some((pid, _)) = programs
                         .iter()
-                        .find(|(_, v)| ProgramId::from_origin(**v) == p.id)
+                        .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
                     {
                         let code_id = CodeId::from_origin(info.code_hash);
                         let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
@@ -435,7 +435,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             .filter_map(|p| {
                 if let Some((pid, _)) = programs
                     .iter()
-                    .find(|(_, v)| ProgramId::from_origin(**v) == p.id)
+                    .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
                 {
                     Some((*pid, p.state == ProgramState::Terminated))
                 } else {

@@ -123,11 +123,11 @@ pub trait Messenger {
     /// Waitlist contains messages, which execution should be
     /// delayed for some logic.
     ///
-    /// Message can be inserted into mailbox only in two cases:
+    /// Message can be inserted into waitlist only in two cases:
     /// 1. Destination program called `gr_wait` while was executing
-    /// this message, so the only this program can remove and
+    /// this message, so only this program can remove and
     /// requeue it by `gr_wake` call in any execution.
-    /// 2. The message sent to program, that hadn't finished it's
+    /// 2. The message sent to program, that hadn't finished its
     /// initialization, and will be automatically removed once
     /// result of initialization would be available.
     ///

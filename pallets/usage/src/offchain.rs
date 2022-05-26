@@ -145,7 +145,7 @@ where
         // Last key was already processed, so we skip it and
         // start processing from the next one.
         //
-        // Starting from the begging for absence of last key.
+        // Starting from the beginning for absence of last key.
         let mut iter = WaitlistOf::<T>::iter()
             .skip_while(|(d, _)| last_key.map(|v| d.id() != v).unwrap_or(false))
             .skip(last_key.map(|_| 1).unwrap_or(0));
