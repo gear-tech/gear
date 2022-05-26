@@ -310,6 +310,14 @@ impl Ext {
             Ok(())
         }
     }
+
+    fn charge_expiring_resources<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
+        self.check_message_value(packet.value())?;
+        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
+        self.charge_message_gas(packet.gas_limit())?;
+        self.charge_message_value(packet.value())?;
+        Ok(())
+    }
 }
 
 impl EnvExt for Ext {
@@ -400,10 +408,7 @@ impl EnvExt for Ext {
     fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::SendCommit(msg.payload().len() as u32))?;
 
-        self.check_message_value(msg.value())?;
-        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_message_gas(msg.gas_limit())?;
-        self.charge_message_value(msg.value())?;
+        self.charge_expiring_resources(&msg)?;
 
         let result = self.message_context.send_commit(handle as u32, msg);
 
@@ -413,10 +418,7 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
 
-        self.check_message_value(msg.value())?;
-        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_message_gas(msg.gas_limit())?;
-        self.charge_message_value(msg.value())?;
+        self.charge_expiring_resources(&msg)?;
 
         let result = self.message_context.reply_commit(msg);
 
@@ -552,10 +554,7 @@ impl EnvExt for Ext {
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
 
-        self.check_message_value(packet.value())?;
-        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_message_gas(packet.gas_limit())?;
-        self.charge_message_value(packet.value())?;
+        self.charge_expiring_resources(&packet)?;
 
         let code_hash = packet.code_id();
 
