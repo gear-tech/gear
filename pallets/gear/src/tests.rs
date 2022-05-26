@@ -2466,7 +2466,7 @@ fn no_redundant_gas_value_after_exiting() {
 
         // gas_limit has been recovered
         let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, Some(0));
+        assert_eq!(maybe_limit, None);
 
         // the (reserved_after_send - gas_spent) has been unreserved
         let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);

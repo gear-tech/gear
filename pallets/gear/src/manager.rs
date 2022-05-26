@@ -64,7 +64,7 @@ use gear_core::{
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
-use pallet_gas::Pallet as GasPallet;
+use pallet_gas::{GasTree, Pallet as GasPallet};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
@@ -270,19 +270,8 @@ where
 
     fn gas_recovered(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
-        if let Ok(Some(amount)) = GasPallet::<T>::get_limit(message_id) {
-            log::debug!("Recovered: {:?} from: {:?}", amount, message_id);
-
-            GasPallet::<T>::decrease_gas_allowance(amount);
-            if let Err(err) = GasPallet::<T>::spend(message_id, amount) {
-                log::debug!(
-                    "Error spending {:?} gas for message_id {:?}: {:?}",
-                    amount,
-                    message_id,
-                    err
-                )
-            }
-        }
+        log::debug!("Recovered gas from: {:?}", message_id);
+        GasTree::<T>::remove(message_id);
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
