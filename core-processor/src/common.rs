@@ -149,8 +149,6 @@ pub enum JournalNote {
     ExitDispatch {
         /// Id of the program called `exit`.
         id_exited: ProgramId,
-        /// Id of the message called `exit`
-        message_id: MessageId,
         /// Address where all remaining value of the program should
         /// be transferred to.
         value_destination: ProgramId,
@@ -228,12 +226,7 @@ pub trait JournalHandler {
     /// Process gas burned.
     fn gas_burned(&mut self, message_id: MessageId, amount: u64);
     /// Process exit dispatch.
-    fn exit_dispatch(
-        &mut self,
-        id_exited: ProgramId,
-        message_id: MessageId,
-        value_destination: ProgramId,
-    );
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
     /// Process send dispatch.

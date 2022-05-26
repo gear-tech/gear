@@ -315,28 +315,9 @@ where
         }
     }
 
-    fn exit_dispatch(
-        &mut self,
-        id_exited: ProgramId,
-        message_id: MessageId,
-        value_destination: ProgramId,
-    ) {
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
         log::debug!("Exit program {:?}", &program_id);
-
-        let message_id = message_id.into_origin();
-        if let Ok(Some(gas_left)) = T::GasHandler::get_limit(message_id) {
-            log::debug!("Free {:?} gas from {:?}", &gas_left, &message_id);
-            GasPallet::<T>::decrease_gas_allowance(gas_left);
-            if let Err(err) = T::GasHandler::spend(message_id, gas_left) {
-                log::debug!(
-                    "Error spending {:?} gas for message_id {:?}: {:?}",
-                    gas_left,
-                    message_id,
-                    err
-                )
-            }
-        }
 
         for message in common::remove_program_waitlist(program_id) {
             QueueOf::<T>::queue(message)

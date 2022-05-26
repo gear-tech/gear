@@ -229,7 +229,6 @@ fn process_success(
             journal.push(JournalNote::MessageConsumed(message_id));
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
-                message_id,
                 value_destination,
             });
         }
