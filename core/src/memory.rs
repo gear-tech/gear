@@ -76,7 +76,7 @@ impl DerefMut for PageBuf {
 
 impl PageBuf {
     /// Tries to transform vec<u8> into page buffer.
-    /// Makes it without any rellocations or memcpy: vector's buffer becames PageBuf without any changes,
+    /// Makes it without any reallocations or memcpy: vector's buffer becomes PageBuf without any changes,
     /// except vector's buffer capacity, which is removed.
     pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
         Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
@@ -89,14 +89,14 @@ impl PageBuf {
         Self(Box::<[u8; GEAR_PAGE_SIZE]>::new([0u8; GEAR_PAGE_SIZE]))
     }
 
-    /// Convert page buffer into vector without rellocations.
+    /// Convert page buffer into vector without reallocations.
     pub fn into_vec(self) -> Vec<u8> {
         (self.0 as Box<[_]>).into_vec()
     }
 }
 
 /// Tries to convert vector data map to page buffer data map.
-/// Makes it without buffer rellocations.
+/// Makes it without buffer reallocations.
 pub fn vec_page_data_map_to_page_buf_map(
     pages_data: BTreeMap<PageNumber, Vec<u8>>,
 ) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
@@ -169,7 +169,7 @@ impl core::ops::Sub<PageNumber> for PageNumber {
     }
 }
 
-/// Wasm page nuber
+/// Wasm page number.
 #[derive(
     Clone,
     Copy,
