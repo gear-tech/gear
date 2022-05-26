@@ -33,7 +33,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
@@ -292,8 +292,8 @@ impl Ext {
         }
     }
 
-    fn charge_gas_with_packet<T: Packet>(&mut self, packet: &T) -> Result<(), ProcessorError> {
-        if self.gas_counter.reduce(packet.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
+    fn charge_message_gas(&mut self, gas_limit: Option<GasLimit>) -> Result<(), ProcessorError> {
+        if self.gas_counter.reduce(gas_limit.unwrap_or(0)) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughGas))
         } else {
             Ok(())
@@ -402,7 +402,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_gas_with_packet(&msg)?;
+        self.charge_message_gas(msg.gas_limit())?;
         self.charge_message_value(msg.value())?;
 
         let result = self.message_context.send_commit(handle as u32, msg);
@@ -415,7 +415,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(msg.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_gas_with_packet(&msg)?;
+        self.charge_message_gas(msg.gas_limit())?;
         self.charge_message_value(msg.value())?;
 
         let result = self.message_context.reply_commit(msg);
@@ -554,7 +554,7 @@ impl EnvExt for Ext {
 
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling sys-call was done earlier.
-        self.charge_gas_with_packet(&packet)?;
+        self.charge_message_gas(packet.gas_limit())?;
         self.charge_message_value(packet.value())?;
 
         let code_hash = packet.code_id();
