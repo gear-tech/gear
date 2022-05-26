@@ -41,6 +41,14 @@ use gear_core_errors::ExtError;
 
 pub type HostPointer = u64;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum TerminationReasonKind {
+    Exit,
+    Leave,
+    Wait,
+    GasAllowanceExceeded,
+}
+
 #[derive(Debug, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
@@ -168,5 +176,5 @@ impl<E> IntoErrorCode for Result<(), E> {
 }
 
 pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&gear_core_errors::TerminationReason>;
+    fn as_termination_reason(&self) -> Option<&TerminationReasonKind>;
 }

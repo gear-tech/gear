@@ -25,6 +25,7 @@ use alloc::{
 };
 use gear_backend_common::{
     funcs::*, AsTerminationReason, IntoErrorCode, OnSuccessCode, TerminationReason,
+    TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -32,7 +33,7 @@ use gear_core::{
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
+use gear_core_errors::{CoreError, MemoryError};
 use wasmtime::{AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static> {
@@ -201,7 +202,7 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| {
-                    if let Some(CoreTerminationReason::GasAllowanceExceeded) = e
+                    if let Some(TerminationReasonKind::GasAllowanceExceeded) = e
                         .as_core()
                         .and_then(AsTerminationReason::as_termination_reason)
                     {

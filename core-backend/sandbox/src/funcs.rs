@@ -28,14 +28,16 @@ use core::{
     marker::PhantomData,
     slice::Iter,
 };
-use gear_backend_common::{funcs, AsTerminationReason, IntoErrorCode, OnSuccessCode};
+use gear_backend_common::{
+    funcs, AsTerminationReason, IntoErrorCode, OnSuccessCode, TerminationReasonKind,
+};
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{MemoryError, TerminationReason};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -312,7 +314,7 @@ where
             })
             .err()
             .or_else(|| {
-                ctx.termination_reason = Some(TerminationReason::Exit);
+                ctx.termination_reason = Some(TerminationReasonKind::Exit);
                 Some(FuncError::Exit)
             });
 
@@ -345,7 +347,7 @@ where
             .with_fallible(|ext| ext.gas(val).map_err(FuncError::Core))
             .map(|()| ReturnValue::Unit)
             .map_err(|e| {
-                if let reason @ Some(TerminationReason::GasAllowanceExceeded) = e
+                if let reason @ Some(TerminationReasonKind::GasAllowanceExceeded) = e
                     .as_core()
                     .and_then(AsTerminationReason::as_termination_reason)
                     .cloned()
@@ -702,7 +704,7 @@ where
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
             .or_else(|| {
-                ctx.termination_reason = Some(TerminationReason::Leave);
+                ctx.termination_reason = Some(TerminationReasonKind::Leave);
                 Some(FuncError::Leave)
             });
         Err(HostError)
@@ -714,7 +716,7 @@ where
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
             .or_else(|| {
-                ctx.termination_reason = Some(TerminationReason::Wait);
+                ctx.termination_reason = Some(TerminationReasonKind::Wait);
                 Some(FuncError::Wait)
             });
         Err(HostError)

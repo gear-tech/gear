@@ -123,14 +123,6 @@ pub enum MemoryError {
     InvalidPageDataSize(usize),
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum TerminationReason {
-    Exit,
-    Leave,
-    Wait,
-    GasAllowanceExceeded,
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExecutionError {
     #[display(fmt = "Not enough gas to continue execution")]

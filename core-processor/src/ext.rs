@@ -23,7 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use core::fmt;
-use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo};
+use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind};
 use gear_core::{
     charge_gas_token,
     costs::{HostFnWeights, RuntimeCosts},
@@ -33,9 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
-use gear_core_errors::{
-    CoreError, ExecutionError, ExtError, MemoryError, MessageError, TerminationReason,
-};
+use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -90,7 +88,7 @@ pub enum ProcessorError {
     Core(ExtError),
     /// Termination reason occurred in a syscall
     #[display(fmt = "Terminated: {:?}", _0)]
-    Terminated(TerminationReason),
+    Terminated(TerminationReasonKind),
 }
 
 impl ProcessorError {
@@ -123,7 +121,7 @@ impl From<ExecutionError> for ProcessorError {
 impl CoreError for ProcessorError {}
 
 impl AsTerminationReason for ProcessorError {
-    fn as_termination_reason(&self) -> Option<&TerminationReason> {
+    fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
         match self {
             ProcessorError::Terminated(reason) => Some(reason),
             _ => None,
@@ -481,7 +479,7 @@ impl EnvExt for Ext {
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReasonKind::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 
@@ -494,7 +492,7 @@ impl EnvExt for Ext {
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReasonKind::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 

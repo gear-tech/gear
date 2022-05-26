@@ -28,14 +28,14 @@ use alloc::{
 use core::fmt;
 use gear_backend_common::{
     AsTerminationReason, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
-    TerminationReason,
+    TerminationReason, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_core_errors::{MemoryError, TerminationReason as CoreTerminationReason};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -68,7 +68,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
-    pub termination_reason: Option<CoreTerminationReason>,
+    pub termination_reason: Option<TerminationReasonKind>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -265,12 +265,12 @@ where
 
         let termination = if res.is_err() {
             let reason = match termination_reason {
-                Some(CoreTerminationReason::Exit) => {
+                Some(TerminationReasonKind::Exit) => {
                     info.exit_argument.map(TerminationReason::Exit)
                 }
-                Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
-                Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
-                Some(CoreTerminationReason::GasAllowanceExceeded) => {
+                Some(TerminationReasonKind::Wait) => Some(TerminationReason::Wait),
+                Some(TerminationReasonKind::Leave) => Some(TerminationReason::Leave),
+                Some(TerminationReasonKind::GasAllowanceExceeded) => {
                     Some(TerminationReason::GasAllowanceExceeded)
                 }
                 None => None,
