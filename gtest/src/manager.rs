@@ -464,7 +464,7 @@ impl JournalHandler for ExtManager {
     fn exit_dispatch(
         &mut self,
         id_exited: ProgramId,
-        message_id: MessageId,
+        _message_id: MessageId,
         _value_destination: ProgramId,
     ) {
         self.actors.remove(&id_exited);
