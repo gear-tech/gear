@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear core errors
+//! Gear core errors.
 
 #![no_std]
 #![warn(missing_docs)]
@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use core::fmt;
 use scale_info::TypeInfo;
 
-/// Core error
+/// Core error.
 pub trait CoreError: fmt::Display + fmt::Debug {}
 
 /// Error using messages.
@@ -86,9 +86,9 @@ pub enum MessageError {
         existential_deposit
     )]
     InsufficientValue {
-        /// Message's value
+        /// Message's value.
         message_value: u128,
-        /// Minimal amount of funds on a balance that can be considered and added in DB
+        /// Minimal amount of funds on a balance that can be considered and added in DB.
         existential_deposit: u128,
     },
 
@@ -99,9 +99,9 @@ pub enum MessageError {
         message_value
     )]
     NotEnoughValue {
-        /// Message's value
+        /// Message's value.
         message_value: u128,
-        /// Amount of available value
+        /// Amount of available value.
         value_left: u128,
     },
 }
@@ -124,12 +124,12 @@ pub enum MemoryError {
     #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// WASM page does not contain all necessary Gear pages
+    /// WASM page does not contain all necessary Gear pages.
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
     InvalidPageDataSize(usize),
 }
 
-/// Execution error
+/// Execution error.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available during execution.
@@ -140,16 +140,16 @@ pub enum ExecutionError {
     TooManyGasAdded,
 }
 
-/// An error occurred in API
+/// An error occurred in API.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
 pub enum ExtError {
-    /// Memory error
+    /// Memory error.
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
-    /// Message error
+    /// Message error.
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
-    /// Execution error
+    /// Execution error.
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
 }
