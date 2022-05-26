@@ -2916,6 +2916,58 @@ fn test_reply_to_terminated_program() {
     })
 }
 
+#[test]
+fn redundant_gas_value_node() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_exit_handle::WASM_BINARY;
+        use common::ValueTree;
+
+        let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            prog_id,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+        
+        let msg_id = get_last_message_id();
+
+        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        assert!(maybe_limit.is_some());
+
+        // but before execution
+        let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
+        let reserved_after_send = BalancesPallet::<Test>::reserved_balance(USER_1);
+
+        run_to_block(3, None);
+
+        // still exists
+        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        assert!(maybe_limit.is_some()); // MUST BE NONE
+        let msg_rest_gas_limit = maybe_limit.expect("checked");
+        assert!(msg_rest_gas_limit > 0); // MUST BE ZERO
+
+        let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
+        assert_eq!(free_after_execution, free_after_send); // MUST NOT BE EQUAL
+
+        let reserved_after_execution = BalancesPallet::<Test>::reserved_balance(USER_1);
+        assert_eq!(reserved_after_execution, msg_rest_gas_limit as u128); // RESERVED MUST BE ZERO
+    })
+}
+
 mod utils {
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},

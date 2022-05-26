@@ -170,6 +170,8 @@ pub mod pallet {
             )?;
 
             let program_account = &<T::AccountId as common::Origin>::from_origin(program_id);
+            // The value movement respects existence requirements rules, so no need to check value
+            // for being in the valid interval like it's done on `pallet_gear` calls.
             T::Currency::transfer(
                 &account,
                 program_account,

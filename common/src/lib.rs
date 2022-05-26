@@ -295,7 +295,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
-    /// Set of wasm pages numbers, which is allocated by the program.
+    /// Set of wasm pages numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,

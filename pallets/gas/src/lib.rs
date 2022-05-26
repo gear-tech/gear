@@ -99,25 +99,26 @@ impl ValueNode {
     /// The first upstream node (self included), that holds a concrete value.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn node_with_value<T: Config>(&self) -> Result<ValueNode, DispatchError> {
-        if let ValueType::UnspecifiedLocal { parent } = self.inner {
-            <Pallet<T>>::get_node(parent)
-                .ok_or(Error::<T>::GasTreeInvalidated)?
-                .node_with_value::<T>()
-        } else {
-            Ok(self.clone())
+        let mut ret_node = self.clone();
+        while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
+            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
         }
+
+        Ok(ret_node)
     }
 
     /// Returns the AccountId (as Origin) of the value tree creator.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
-        match self.inner {
-            ValueType::External { id, .. } => Ok(id),
-            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
-                <Pallet<T>>::get_node(parent)
-                    .ok_or(<Error<T>>::GasTreeInvalidated)?
-                    .root_origin::<T>()
-            }
+        let mut ret_node = self.clone();
+        while let ValueType::UnspecifiedLocal { parent } | ValueType::SpecifiedLocal { parent, .. } = ret_node.inner {
+            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
+        }
+
+        if let ValueType::External { id, .. } = ret_node.inner {
+            Ok(id)
+        } else {
+            unreachable!("local nodes were replaced in the loop; qed")
         }
     }
 }

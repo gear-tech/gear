@@ -671,6 +671,8 @@ pub mod pallet {
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
+        /// 
+        /// Returns `Weight` amount being used for processing dispatches in the queue.
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -719,6 +721,9 @@ pub mod pallet {
 
                                 GasPallet::<T>::decrease_gas_allowance(consumed);
 
+                                // Wise check: every time we enter that branch, it takes `consumed` amount of weight.
+                                // So we check if next time we enter that branch, no need for processing it, just break
+                                // but does what if: 1) we enter this branch, 2) this if results in true, 3) we have next message in queue which has gas handler?  
                                 if GasPallet::<T>::gas_allowance() < consumed {
                                     break;
                                 }
@@ -774,6 +779,7 @@ pub mod pallet {
                                     continue;
                                 }
                             } else {
+                                //  
                                 log::debug!(
                                     "Code '{:?}' not found for program '{:?}'",
                                     code_id,
@@ -837,10 +843,18 @@ pub mod pallet {
                                 pages_data,
                             })
                         } else {
+                            // Reaching this branch is possible when init message was processed with failure, while other kind of messages
+                            // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
                             log::debug!("Program '{:?}' is not active", program_id,);
                             None
                         }
                     } else {
+                        // When an actor sends messages, which is intended to be added to the queue
+                        // it's destination existence is always checked. The only case this doesn't
+                        // happen is when program tries to submit another program with non-existing
+                        // code hash. That's the only known case for reaching that branch.
+                        //
+                        // However there is another case with pausing program, but this API is unstable currently.
                         None
                     };
 
@@ -905,6 +919,8 @@ pub mod pallet {
                         T::DebugInfo::remap_id();
                     }
                 } else {
+                    // Reachable when there are no messages in the queue,
+                    // Or during runtime upgrade, which results in dispatches
                     break;
                 }
             }
@@ -915,7 +931,7 @@ pub mod pallet {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));
             }
 
-            weight.saturating_sub(GasPallet::<T>::gas_allowance())
+            weight.saturating_sub(GasPallet::<T>::gas_allowance()) // это значит, что GasPallet::<T>::gas_allowance всегда имеет актуальное состояние (проверь)
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
