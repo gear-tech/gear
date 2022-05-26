@@ -18,8 +18,18 @@
 
 //! Module for memory and allocations context.
 
-use alloc::collections::BTreeSet;
+use core::{
+    convert::TryFrom,
+    ops::{Deref, DerefMut},
+};
+
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
 use codec::{Decode, Encode};
+use core::fmt;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -36,10 +46,69 @@ const GEAR_PAGE_SIZE: usize = 0x1000;
 /// Number of gear pages in one wasm page
 const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
-pub use gear_core_errors::MemoryError as Error;
+/// Buffer for gear page data.
+#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+pub struct PageBuf(Box<[u8; GEAR_PAGE_SIZE]>);
 
-/// Page buffer.
-pub type PageBuf = [u8; GEAR_PAGE_SIZE];
+impl fmt::Debug for PageBuf {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "PageBuf({:?}..{:?})",
+            &self.0[0..10],
+            &self.0[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+        )
+    }
+}
+
+impl Deref for PageBuf {
+    type Target = Box<[u8; GEAR_PAGE_SIZE]>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PageBuf {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl PageBuf {
+    /// Tries to transform vec<u8> into page buffer.
+    /// Makes it without any reallocations or memcpy: vector's buffer becomes PageBuf without any changes,
+    /// except vector's buffer capacity, which is removed.
+    pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
+        Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
+            .map_err(|data| Error::InvalidPageDataSize(data.len()))
+            .map(Self)
+    }
+
+    /// Returns new page buffer with zeroed data.
+    pub fn new_zeroed() -> PageBuf {
+        Self(Box::<[u8; GEAR_PAGE_SIZE]>::new([0u8; GEAR_PAGE_SIZE]))
+    }
+
+    /// Convert page buffer into vector without reallocations.
+    pub fn into_vec(self) -> Vec<u8> {
+        (self.0 as Box<[_]>).into_vec()
+    }
+}
+
+/// Tries to convert vector data map to page buffer data map.
+/// Makes it without buffer reallocations.
+pub fn vec_page_data_map_to_page_buf_map(
+    pages_data: BTreeMap<PageNumber, Vec<u8>>,
+) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
+    let mut pages_data_res = BTreeMap::new();
+    for (page, data) in pages_data {
+        let data = PageBuf::new_from_vec(data)?;
+        pages_data_res.insert(page, data);
+    }
+    Ok(pages_data_res)
+}
+
+pub use gear_core_errors::MemoryError as Error;
 
 /// Page number.
 #[derive(
@@ -100,7 +169,7 @@ impl core::ops::Sub<PageNumber> for PageNumber {
     }
 }
 
-/// Wasm page nuber
+/// Wasm page number.
 #[derive(
     Clone,
     Copy,
@@ -291,7 +360,8 @@ impl AllocationsContext {
 #[cfg(test)]
 /// This module contains tests of PageNumber struct
 mod tests {
-    use super::PageNumber;
+    use super::{PageBuf, PageNumber, WasmPageNumber};
+    use alloc::{vec, vec::Vec};
 
     #[test]
     /// Test that PageNumbers add up correctly
@@ -327,5 +397,39 @@ mod tests {
     /// Test that PageNumbers subtraction causes panic on overflow
     fn page_number_subtraction_with_overflow() {
         let _ = PageNumber(1) - PageNumber(u32::MAX);
+    }
+
+    #[test]
+    /// Test that WasmPageNumber set transforms correctly to PageNumber set.
+    fn wasm_pages_to_gear_pages() {
+        let wasm_pages: Vec<WasmPageNumber> =
+            [0u32, 10u32].iter().copied().map(WasmPageNumber).collect();
+        let gear_pages: Vec<u32> = wasm_pages
+            .iter()
+            .flat_map(|p| p.to_gear_pages_iter())
+            .map(|p| p.0)
+            .collect();
+
+        let expectation = [
+            0u32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 160, 161, 162, 163, 164, 165,
+            166, 167, 168, 169, 170, 171, 172, 173, 174, 175,
+        ];
+
+        assert!(gear_pages.eq(&expectation));
+    }
+
+    #[test]
+    fn page_buf() {
+        env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("gear_core=debug"),
+        )
+        .format_module_path(false)
+        .format_level(true)
+        .try_init()
+        .expect("cannot init logger");
+        let mut data = vec![199u8; PageNumber::size()];
+        data[1] = 2;
+        let page_buf = PageBuf::new_from_vec(data).unwrap();
+        log::debug!("page buff = {:?}", page_buf);
     }
 }

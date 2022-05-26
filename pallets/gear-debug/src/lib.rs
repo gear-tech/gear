@@ -32,11 +32,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{
-        self,
-        storage::{Messenger, StorageDeque},
-        CodeStorage, Origin, Program,
-    };
+    use common::{self, storage::*, CodeStorage, Origin, Program};
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
@@ -47,13 +43,14 @@ pub mod pallet {
         memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
-    use pallet_gear_messenger::Pallet as MessengerPallet;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
+    pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear_messenger::Config {
+    pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::Event>
@@ -64,6 +61,8 @@ pub mod pallet {
 
         /// Storage with codes for proograms
         type CodeStorage: CodeStorage;
+
+        type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
     }
 
     #[pallet::pallet]
@@ -83,7 +82,10 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
-    #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    /// Program debug info.
+    // TODO: unfortunatelly we cannot store pages data in [PageBuf],
+    // because polkadot-js api can not support this type.
+    #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
         pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
@@ -103,19 +105,19 @@ pub mod pallet {
         }
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub enum ProgramState {
         Active(ProgramInfo),
         Terminated,
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub struct ProgramDetails {
         pub id: H256,
         pub state: ProgramState,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct DebugData {
         pub dispatch_queue: Vec<StoredDispatch>,
         pub programs: Vec<ProgramDetails>,
@@ -182,7 +184,7 @@ pub mod pallet {
 
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
+            let dispatch_queue = QueueOf::<T>::iter()
                 .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
                 .collect();
 
@@ -211,12 +213,17 @@ pub mod pallet {
                     Some(code) => code.static_pages(),
                     None => WasmPageNumber(0),
                 };
+                let persistent_pages = common::get_program_pages_data(id, &active)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(page, data)| (page, data.into_vec()))
+                    .collect();
                 ProgramDetails {
                     id,
                     state: {
                         ProgramState::Active(ProgramInfo {
                             static_pages,
-                            persistent_pages: common::get_program_pages_data(id, &active),
+                            persistent_pages,
                             code_hash: active.code_hash,
                         })
                     },
@@ -241,8 +248,7 @@ pub mod pallet {
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
 
-            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|d| remap_with(d, &programs_map))
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<T>::mutate_values(|d| remap_with(d, &programs_map));
         }
     }
 

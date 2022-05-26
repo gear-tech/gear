@@ -16,19 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: deal with runner usage here
-
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
+use core::convert::TryInto;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::WasmPageNumber,
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
-use pallet_gear::DebugInfo;
-use pallet_gear::Pallet as PalletGear;
+use pallet_gear::{DebugInfo, Pallet as PalletGear};
 use sp_core::H256;
 
 pub(crate) fn init_logger() {
@@ -105,6 +103,24 @@ fn debug_mode_works() {
         Pallet::<Test>::do_snapshot();
 
         let static_pages = WasmPageNumber(16);
+
+        let pages = |prog_id: H256| {
+            if cfg!(feature = "lazy-pages") {
+                Default::default()
+            } else {
+                let active_prog: common::ActiveProgram = common::get_program(prog_id)
+                    .expect("Can't find program")
+                    .try_into()
+                    .expect("Program isn't active");
+
+                common::get_program_data_for_pages(prog_id, active_prog.pages_with_data.iter())
+                    .expect("Can't get data for pages")
+                    .into_iter()
+                    .map(|(k, v)| (k, v.to_vec()))
+                    .collect()
+            }
+        };
+
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -112,7 +128,7 @@ fn debug_mode_works() {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
-                        persistent_pages: Default::default(),
+                        persistent_pages: pages(program_id_1),
                         code_hash: generate_code_hash(&code_1),
                     }),
                 }],
@@ -142,7 +158,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_2),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -150,7 +166,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_1),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -218,7 +234,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_2),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -226,7 +242,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_1),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -247,7 +263,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_2),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -255,7 +271,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_1),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },

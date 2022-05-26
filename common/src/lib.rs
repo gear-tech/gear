@@ -36,7 +36,7 @@ use frame_support::{
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
     message::StoredDispatch,
 };
 use gear_runtime_interface as gear_ri;
@@ -149,7 +149,7 @@ pub trait PaymentProvider<AccountId> {
 /// Abstraction for a chain of value items each piece of which has an attributed owner and
 /// can be traced up to some root origin.
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
-/// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
+/// <https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs>,
 /// however, the intended use is very close to the UTxO based ledger model.
 pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
@@ -180,7 +180,7 @@ pub trait ValueTree {
 
     /// Increase the total issuance of the underlying value by creating some `amount` of it
     /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
-    /// In case the `key` already indentifies some other piece of value an error is returned.
+    /// In case the `key` already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
         key: Self::Key,
@@ -239,7 +239,7 @@ pub trait ValueTree {
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),
     Terminated,
@@ -293,7 +293,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
     /// Set of wasm pages numbers, which is allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
@@ -304,7 +304,7 @@ pub struct ActiveProgram {
 }
 
 /// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized. All messages to such a
@@ -315,7 +315,7 @@ pub enum ProgramState {
     Initialized,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
     #[codec(compact)]
@@ -397,9 +397,13 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(id: H256, page_idx: PageNumber) -> Option<Vec<u8>> {
+pub fn get_program_page_data(
+    id: H256,
+    page_idx: PageNumber,
+) -> Option<Result<PageBuf, MemoryError>> {
     let key = page_key(id, page_idx);
-    sp_io::storage::get(&key)
+    let data = sp_io::storage::get(&key)?;
+    Some(PageBuf::new_from_vec(data))
 }
 
 /// Save page data key in storage
@@ -408,7 +412,10 @@ pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
-pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<PageNumber, Vec<u8>> {
+pub fn get_program_pages_data(
+    id: H256,
+    program: &ActiveProgram,
+) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
     get_program_data_for_pages(id, program.pages_with_data.iter())
 }
 
@@ -416,14 +423,17 @@ pub fn get_program_pages_data(id: H256, program: &ActiveProgram) -> BTreeMap<Pag
 pub fn get_program_data_for_pages<'a>(
     id: H256,
     pages: impl Iterator<Item = &'a PageNumber>,
-) -> BTreeMap<PageNumber, Vec<u8>> {
-    pages
-        .map(|p| {
-            let key = page_key(id, *p);
-            (*p, sp_io::storage::get(&key))
-        })
-        .filter_map(|(page, data)| data.map(|data| (page, data)))
-        .collect()
+) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
+    let mut pages_data = BTreeMap::new();
+    for page in pages {
+        let key = page_key(id, *page);
+        let data = sp_io::storage::get(&key);
+        if let Some(data) = data {
+            let page_buf = PageBuf::new_from_vec(data)?;
+            pages_data.insert(*page, page_buf);
+        }
+    }
+    Ok(pages_data)
 }
 
 pub fn set_program(id: H256, program: ActiveProgram) {
@@ -447,14 +457,14 @@ impl fmt::Display for PageIsNotAllocatedErr {
 pub fn set_program_and_pages_data(
     id: H256,
     program: ActiveProgram,
-    persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
+    persistent_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), PageIsNotAllocatedErr> {
     for (page_num, page_buf) in persistent_pages {
         if !program.allocations.contains(&page_num.to_wasm_page()) {
             return Err(PageIsNotAllocatedErr(page_num));
         }
         let key = page_key(id, page_num);
-        sp_io::storage::set(&key, &page_buf);
+        sp_io::storage::set(&key, page_buf.as_slice());
     }
     set_program(id, program);
     Ok(())
@@ -471,9 +481,9 @@ pub fn set_program_allocations(id: H256, allocations: BTreeSet<WasmPageNumber>) 
     }
 }
 
-pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: Vec<u8>) {
+pub fn set_program_page_data(program_id: H256, page: PageNumber, page_buf: PageBuf) {
     let page_key = page_key(program_id, page);
-    sp_io::storage::set(&page_key, &page_buf);
+    sp_io::storage::set(&page_key, page_buf.as_slice());
 }
 
 pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
@@ -539,10 +549,4 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
-
-    // TODO: Remove this legacy after next runtime upgrade.
-    sp_io::storage::clear_prefix(b"g::msg::", None);
-    sp_io::storage::clear_prefix(b"g::gas_tree", None);
-    sp_io::storage::clear_prefix(b"g::code::", None);
-    sp_io::storage::clear_prefix(b"g::code::orig", None);
 }

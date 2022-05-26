@@ -18,26 +18,23 @@
 
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
-use gear_common::{storage::Messenger, storage::*, Origin};
+use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 use gear_runtime::{Gas, Gear, GearMessenger, Runtime, System};
 use pallet_gear_debug::DebugData;
-use pallet_gear_messenger::Pallet as MessengerPallet;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
+pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;
+pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Mailbox;
+
 pub fn get_dispatch_queue() -> Vec<StoredDispatch> {
-    <MessengerPallet<Runtime> as Messenger>::Queue::iter()
+    QueueOf::<Runtime>::iter()
         .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
         .collect()
 }
 
 pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
-    let need_to_continue = || {
-        !<MessengerPallet<Runtime> as Messenger>::Queue::is_empty()
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
-    };
-
-    while need_to_continue() {
+    while !QueueOf::<Runtime>::is_empty() {
         run_to_block(System::block_number() + 1, None);
         // Parse data from events
         for event in System::events() {

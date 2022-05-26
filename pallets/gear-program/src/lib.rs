@@ -22,9 +22,7 @@ use common::CodeMetadata;
 use gear_core::{code::InstrumentedCode, ids::CodeId};
 pub use pallet::*;
 use primitive_types::H256;
-use sp_std::collections::btree_map::BTreeMap;
-use sp_std::convert::TryInto;
-use sp_std::prelude::*;
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
 use frame_support::{
     dispatch::DispatchResultWithPostInfo, traits::StorageVersion, weights::Weight,
@@ -61,7 +59,7 @@ pub mod pallet {
         },
     };
     use frame_system::pallet_prelude::*;
-    use gear_core::memory::PageNumber;
+    use gear_core::memory::{vec_page_data_map_to_page_buf_map, PageNumber};
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};
     use weights::WeightInfo;
 
@@ -102,6 +100,7 @@ pub mod pallet {
         NotAllocatedPageWithData,
         ResumeProgramNotEnoughValue,
         WrongWaitList,
+        InvalidPageData,
     }
 
     #[pallet::storage]
@@ -128,6 +127,8 @@ pub mod pallet {
     where
         T::AccountId: common::Origin,
     {
+        // TODO: unfortunatelly we cannot pass pages data in [PageBuf],
+        // because polkadot-js api can not support this type.
         /// Resumes a previously paused program
         ///
         /// The origin must be Signed and the sender must have sufficient funds to
@@ -139,6 +140,7 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been resumed.
         ///
         /// - `ProgramResumed(H256)` in the case of success.
+        ///
         #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(
@@ -148,6 +150,14 @@ pub mod pallet {
             wait_list: BTreeMap<H256, gear_core::message::StoredDispatch>,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let memory_pages = match vec_page_data_map_to_page_buf_map(memory_pages) {
+                Ok(data) => data,
+                Err(err) => {
+                    log::debug!("resume program recieved wrong pages data: {}", err);
+                    return Err(Error::<T>::InvalidPageData.into());
+                }
+            };
+
             let account = ensure_signed(origin)?;
 
             ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);

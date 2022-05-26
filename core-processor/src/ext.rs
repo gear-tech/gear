@@ -18,7 +18,6 @@
 
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
@@ -71,7 +70,7 @@ pub trait ProcessorExt {
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 }

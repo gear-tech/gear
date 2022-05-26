@@ -18,10 +18,12 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::funcs::FuncError;
-use crate::memory::MemoryWrap;
+use crate::{funcs::FuncError, memory::MemoryWrap};
 use alloc::{
-    boxed::Box, collections::BTreeMap, format, string::String, string::ToString, vec::Vec,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
 };
 use core::fmt;
 use gear_backend_common::{
@@ -32,8 +34,7 @@ use gear_core::{
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_core_errors::TerminationReason as CoreTerminationReason;
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -80,13 +81,20 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
 }
 
 fn set_pages(
-    memory: &mut dyn Memory,
-    pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+    memory: &mut impl Memory,
+    pages: &BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), String> {
-    for (num, buf) in pages {
+    let memory_size = memory.size();
+    for (page, buf) in pages {
+        if page.to_wasm_page() >= memory_size {
+            return Err(format!(
+                "{:?} is out of memory size: {:?}",
+                page, memory_size
+            ));
+        }
         memory
-            .write(num.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", num, e))?;
+            .write(page.offset(), &buf[..])
+            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", page, e))?;
     }
     Ok(())
 }
@@ -97,7 +105,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);

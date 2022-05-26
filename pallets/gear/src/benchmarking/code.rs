@@ -33,8 +33,7 @@ use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
 };
-use sp_std::marker::PhantomData;
-use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
+use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
@@ -43,7 +42,7 @@ use wasm_instrument::parity_wasm::{
     },
 };
 
-/// The location where to put the genrated code.
+/// The location where to put the generated code.
 pub enum Location {
     /// Generate all code into the `init` exported function.
     Init,

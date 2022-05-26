@@ -44,67 +44,62 @@ pub trait CoreError: fmt::Display + fmt::Debug {
     derive_more::Display,
 )]
 pub enum MessageError {
-    /// Message limit exceeded.
+    /// The error "Message limit exceeded" occurs when a program attempts to
+    /// send more than the maximum amount of messages allowed within a single
+    /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
-    /// Duplicate reply message.
+
+    /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
     DuplicateReply,
-    /// Duplicate waiting message.
-    #[display(fmt = "Duplicate waiting message")]
-    DuplicateWaiting,
-    /// Duplicate waking message.
+
+    /// The error occurs in attempt to get the same message from the waitlist
+    /// again (which is waked already).
     #[display(fmt = "Duplicate waking message")]
     DuplicateWaking,
-    /// An attempt to commit or to push a payload into an already formed message.
-    #[display(fmt = "An attempt to commit or to push a payload into an already formed message")]
+
+    /// An attempt to commit or push a payload into an already formed message.
+    #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
     LateAccess,
-    /// No message found with given handle, or handle exceeds the maximum messages amount.
-    #[display(
-        fmt = "No message found with given handle, or handle exceeds the maximum messages amount"
-    )]
+
+    /// The error occurs in case of not valid identifier specified.
+    #[display(fmt = "Message with given handle is not found")]
     OutOfBounds,
-    /// An attempt to push a payload into reply that was not set
-    #[display(fmt = "An attempt to push a payload into reply that was not set")]
-    NoReplyFound,
-    /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
-    #[display(
-        fmt = "An attempt to interrupt execution with `wait(..)` while some messages weren't completed"
-    )]
-    UncommittedPayloads,
-    /// Duplicate init message
-    #[display(fmt = "Duplicate init message")]
+
+    /// The error occurs in attempt to initialize the same program twice within
+    /// a single execution.
+    #[display(fmt = "Duplicated program initialization message")]
     DuplicateInit,
 }
 
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum MemoryError {
-    /// Memory is over.
-    ///
-    /// All pages were previously allocated and there is nothing can be done.
-    #[display(fmt = "Memory is over")]
+    /// The error occurs when a program tries to allocate more memory  than
+    /// allowed.
+    #[display(fmt = "Maximum possible memory has been allocated")]
     OutOfMemory,
 
     /// Allocation is in use.
-    ///
-    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
+    /// Unreal case, to be removed.
+    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still running).
     #[display(fmt = "Allocation is in use")]
     AllocationsInUse,
 
-    /// Specified page cannot be freed by the current program.
-    ///
-    /// It was allocated by another program.
+    /// The error occurs in attempt to free-up a memory page from static area or
+    /// outside additionally allocated for this program.
     #[display(fmt = "Page {} cannot be freed by the current program", _0)]
     InvalidFree(u32),
 
-    /// Out of bounds memory access
-    #[display(fmt = "Out of bounds memory access")]
+    /// The error occurs in attempt to access memory page outside pages area
+    /// allocated for this program.
+    #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// There is wasm page, which has not all gear pages in the begin
-    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
-    NotAllPagesInBegin,
+    /// WASM page does not contain all necesssary Gear pages
+    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    InvalidPageDataSize(usize),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -117,15 +112,16 @@ pub enum TerminationReason {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 pub enum ExtError {
-    #[display(fmt = "Allocation error: {}", _0)]
+    #[display(fmt = "Memory allocation error: {}", _0)]
     Alloc(MemoryError),
-    #[display(fmt = "Free error: {}", _0)]
+    #[display(fmt = "Memory free up error: {}", _0)]
     Free(MemoryError),
+    // `ExitTwice` to be deleted.
     #[display(fmt = "Cannot call `exit' twice")]
     ExitTwice,
-    #[display(fmt = "Gas limit exceeded")]
+    #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    #[display(fmt = "Too many gas added")]
+    #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
     #[display(fmt = "Terminated: {:?}", _0)]
     TerminationReason(TerminationReason),
@@ -135,9 +131,9 @@ pub enum ExtError {
     InitMessageNotDuplicated(MessageError),
     #[display(fmt = "Panic occurred")]
     PanicOccurred,
-    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
+    #[display(fmt = "Value of the message is less than existential deposit, but greater than 0")]
     InsufficientMessageValue,
-    #[display(fmt = "No value left")]
+    #[display(fmt = "Not enough value to send in message")]
     NotEnoughValue,
     #[display(fmt = "{}", _0)]
     Message(MessageError),

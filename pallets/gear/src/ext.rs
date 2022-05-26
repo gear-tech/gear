@@ -34,7 +34,7 @@ use gear_core::{
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, TerminationReason};
-use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -75,6 +75,7 @@ impl fmt::Display for Error {
         }
     }
 }
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Gas counter.
@@ -107,6 +108,8 @@ pub struct Ext {
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     pub lazy_pages_enabled: bool,
+    // Pages which has been alloced during current execution
+    pub fresh_allocations: BTreeSet<WasmPageNumber>,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -144,6 +147,7 @@ impl ProcessorExt for Ext {
             program_candidates_data,
             host_fn_weights,
             lazy_pages_enabled: lazy_pages::try_to_enable_lazy_pages(),
+            fresh_allocations: Default::default(),
         }
     }
 
@@ -165,7 +169,7 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(
-        memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
         wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
@@ -269,15 +273,24 @@ impl EnvExt for Ext {
 
             let page_number = self.return_and_store_err(result)?;
 
-            // Add new allocations to lazy pages
-            let id = self.program_id.into_origin();
-            let new_allocations = self.allocations_context.allocations();
-            for page in new_allocations
-                .difference(&old_allocations)
-                .flat_map(|p| p.to_gear_pages_iter())
-            {
-                log::debug!("add {:?} to lazy pages", page);
-                save_page_lazy_info(id, page);
+            // Add new allocations to lazy pages.
+            // All pages except ones which has been already allocated,
+            // during current execution.
+            // This is because only such pages contains Default (zeros in WebAsm) page data.
+            // Pages which has been already allocated may contain garbage.
+            let id = self.inner.program_id.into_origin();
+            let new_allocated_pages = (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
+            for wasm_page in new_allocated_pages {
+                if self.inner.allocations_context.is_init_page(wasm_page)
+                    || self.fresh_allocations.contains(&wasm_page)
+                {
+                    continue;
+                }
+                self.fresh_allocations.insert(wasm_page);
+                wasm_page.to_gear_pages_iter().for_each(|page| {
+                    log::trace!("add {:?} to lazy pages", page);
+                    save_page_lazy_info(id, page);
+                });
             }
 
             // Protect all lazy pages including new allcations
@@ -305,16 +318,16 @@ impl EnvExt for Ext {
         // Returns back greedily used gas for allocations
         let first_page = page_number;
         let last_page = first_page + pages_num - 1.into();
-        let mut new_alloced_pages_num = WasmPageNumber(0);
+        let mut new_allocated_pages_num = WasmPageNumber(0);
         for page in first_page.0..=last_page.0 {
             if !self.allocations_context.is_init_page(page.into()) {
-                new_alloced_pages_num = new_alloced_pages_num + 1.into();
+                new_allocated_pages_num = new_alloced_pages_num + 1.into();
             }
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.config
                 .alloc_cost
-                .saturating_mul((pages_num - new_alloced_pages_num).0 as u64),
+                .saturating_mul((pages_num - new_allocated_pages_num).0 as u64),
         );
 
         self.refund_gas(gas_to_return_back as u32)?;

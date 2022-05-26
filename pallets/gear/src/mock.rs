@@ -18,15 +18,16 @@
 
 use crate as pallet_gear;
 use crate::{ext::Ext, manager::ExtManager};
-use common::lazy_pages;
-use common::Origin as _;
-use core_processor::configs::AllocationsConfig;
+use common::{lazy_pages, Origin as _};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::BlockInfo,
+    configs::{AllocationsConfig, BlockInfo},
+    Ext,
 };
-use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+    construct_runtime, parameter_types,
+    traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize},
+};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
@@ -59,7 +60,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -83,7 +84,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: u64 = 500;
 }
 
 impl system::Config for Test {
@@ -142,6 +143,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Test {
@@ -149,7 +151,7 @@ impl pallet_gas::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 pub struct FixedBlockAuthor;
@@ -192,8 +194,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_1, 500_000_000_000_u128),
             (USER_2, 200_000_000_000_u128),
             (USER_3, 500_000_000_000_u128),
-            (LOW_BALANCE_USER, 2_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (LOW_BALANCE_USER, 1000_u128),
+            (BLOCK_AUTHOR, 500_u128),
         ],
     }
     .assimilate_storage(&mut t)

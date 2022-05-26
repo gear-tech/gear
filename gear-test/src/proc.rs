@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::address::Address;
-use crate::check::ExecutionContext;
-use crate::js::{MetaData, MetaType};
-use crate::sample::{PayloadVariant, Test};
-use crate::Ext;
-use core_processor::{common::*, configs::*};
+use crate::{
+    Ext,
+    address::Address,
+    check::ExecutionContext,
+    js::{MetaData, MetaType},
+    sample::{PayloadVariant, Test},
+};
+use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
@@ -30,8 +32,7 @@ use gear_core::{
 };
 use regex::Regex;
 use std::{
-    io::Error as IoError,
-    io::ErrorKind as IoErrorKind,
+    io::{Error as IoError, ErrorKind as IoErrorKind},
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;

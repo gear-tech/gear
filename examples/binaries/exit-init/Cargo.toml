@@ -8,6 +8,7 @@ workspace = "../../../"
 
 [dependencies]
 gstd = { path = "../../../gstd", features = ["debug"] }
+gcore = { path = "../../../gcore" }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }

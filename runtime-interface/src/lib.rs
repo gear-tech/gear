@@ -21,6 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
+use gear_core::memory::PageBuf;
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
@@ -127,7 +128,7 @@ unsafe fn sys_mprotect_interval(
         return Err(MprotectError::PageError);
     }
     log::trace!(
-        "mprotect native page: {:#x}, size: {:#x}, mask {:#x}",
+        "mprotect native mem interval: {:#x}, size: {:#x}, mask {:#x}",
         addr,
         size,
         prot_mask
@@ -146,6 +147,35 @@ unsafe fn sys_mprotect_interval(
 ) -> Result<(), MprotectError> {
     log::error!("unsupported OS for pages protectection");
     Err(MprotectError::OsError)
+}
+
+#[cfg(feature = "std")]
+fn mprotect_pages_vec(mem_addr: u64, pages: &[u32], protect: bool) -> Result<(), MprotectError> {
+    if pages.is_empty() {
+        return Ok(());
+    }
+
+    let mprotect = |start, count, protect: bool| unsafe {
+        let addr = mem_addr + (start * PageNumber::size()) as u64;
+        let size = count * PageNumber::size();
+        sys_mprotect_interval(addr, size, !protect, !protect, false)
+    };
+
+    // Collects continuous intervals of memory from lazy pages to protect them.
+    let mut start = *pages
+        .first()
+        .expect("We checked that `pages` are not empty") as usize;
+    let mut count = 1;
+    for page in pages.iter().skip(1) {
+        if start + count == *page as usize {
+            count = count.saturating_add(1);
+        } else {
+            mprotect(start, count, protect)?;
+            start = *page as _;
+            count = 1;
+        }
+    }
+    mprotect(start, count, protect)
 }
 
 /// !!! Note: Will be expanded as gear_ri
@@ -182,29 +212,7 @@ pub trait GearRI {
     /// else allows read and write accesses.
     fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
         let lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
-        if lazy_pages.is_empty() {
-            return Ok(());
-        }
-
-        let mprotect = |start, count, protect: bool| unsafe {
-            let addr = wasm_mem_addr + (start * PageNumber::size()) as u64;
-            let size = count * PageNumber::size();
-            sys_mprotect_interval(addr, size, !protect, !protect, false)
-        };
-
-        // Collects continuous intervals of memory from lazy pages to protect them.
-        let mut start = lazy_pages[0] as usize; // Can't panic as we've checked `lazy_pages` is not empty
-        let mut count = 1;
-        for page in lazy_pages.into_iter().skip(1) {
-            if start + count == page as usize {
-                count = count.saturating_add(1);
-            } else {
-                mprotect(start, count, protect)?;
-                start = page as _;
-                count = 1;
-            }
-        }
-        mprotect(start, count, protect)
+        mprotect_pages_vec(wasm_mem_addr, &lazy_pages, protect)
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
@@ -240,16 +248,106 @@ pub trait GearRI {
         gear_lazy_pages::get_released_pages()
     }
 
+    /// TODO: remove before release
     fn get_released_page_old_data(page: u32) -> Vec<u8> {
-        gear_lazy_pages::get_released_page_old_data(page).expect("Must have data for released page")
+        gear_lazy_pages::get_released_page_old_data(page)
+            .expect("Must have data for released page")
+            .to_vec()
     }
 
+    /// TODO: remove before release
     #[version(2)]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
+        gear_lazy_pages::get_released_page_old_data(page)
+            .map_err(|_| GetReleasedPageError)
+            .map(|data| data.to_vec())
+    }
+
+    #[version(3)]
+    fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
         gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)
     }
 
     fn print_hello() {
         println!("Hello from gear runtime interface!!!");
     }
+}
+
+#[cfg(feature = "std")]
+#[cfg(unix)]
+#[test]
+fn test_mprotect_pages_vec() {
+    use gear_core::memory::WasmPageNumber;
+    use libc::{c_void, siginfo_t};
+    use nix::sys::signal;
+
+    const OLD_VALUE: u8 = 99;
+    const NEW_VALUE: u8 = 100;
+
+    extern "C" fn handle_sigsegv(_: i32, info: *mut siginfo_t, _: *mut c_void) {
+        unsafe {
+            let mem = (*info).si_addr() as usize;
+            let ps = page_size::get();
+            let addr = ((mem / ps) * ps) as *mut c_void;
+            if libc::mprotect(addr, ps, libc::PROT_WRITE) != 0 {
+                panic!("Cannot set protection: {}", errno::errno());
+            }
+            for p in 0..ps / PageNumber::size() {
+                *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
+            }
+            if libc::mprotect(addr, ps, libc::PROT_READ) != 0 {
+                panic!("Cannot set protection: {}", errno::errno());
+            }
+        }
+    }
+
+    let mut v = vec![0u8; 3 * WasmPageNumber::size()];
+    let buff = v.as_mut_ptr() as usize;
+    let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
+        * WasmPageNumber::size()) as u64;
+
+    mprotect_pages_vec(page_begin + 1, &[0, 1, 2, 3], true)
+        .expect_err("Must fail because page_begin + 1 is not aligned addr");
+
+    let pages_to_protect = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23];
+    let pages_unprotected = [
+        4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
+    ];
+
+    // Set `OLD_VALUE` as value for each first byte of gear pages
+    unsafe {
+        for p in pages_to_protect.iter().chain(pages_unprotected.iter()) {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            *(addr as *mut u8) = OLD_VALUE;
+        }
+    }
+
+    mprotect_pages_vec(page_begin, &pages_to_protect, true).expect("Must be correct");
+
+    unsafe {
+        let sig_handler = signal::SigHandler::SigAction(handle_sigsegv);
+        let sig_action = signal::SigAction::new(
+            sig_handler,
+            signal::SaFlags::SA_SIGINFO,
+            signal::SigSet::empty(),
+        );
+        signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
+        signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
+
+        for p in pages_to_protect.iter() {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            let _ = *(addr as *mut u8);
+            let x = *(addr as *mut u8);
+            // value must be changed to `NEW_VALUE` in sig handler
+            assert_eq!(x, NEW_VALUE);
+        }
+        for p in pages_unprotected.iter() {
+            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+            let x = *(addr as *mut u8);
+            // value must not be changed
+            assert_eq!(x, OLD_VALUE);
+        }
+    }
+
+    mprotect_pages_vec(page_begin, &pages_to_protect, false).expect("Must be correct");
 }

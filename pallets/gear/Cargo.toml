@@ -28,7 +28,6 @@ gear-backend-common = { path = "../../core-backend/common", default-features = f
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 pallet-gas = { path = "../gas", default-features = false }
-pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 
 # Substrate deps
@@ -62,7 +61,9 @@ demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-compose = { path = "../../examples/binaries/compose" }
+demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 page_size = "0.4.2"
+pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 
 [features]
 default = ['std']
@@ -83,6 +84,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",
+	"pallet-gear-messenger/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",

@@ -16,27 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    manager::HandleKind,
+    mock::{
+        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
+        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+    },
+    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
+    MessageInfo, Pallet as GearPallet, Reason,
+};
 use codec::Encode;
-use common::{self, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use common::{storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::{code::Code, ids::CodeId};
-use pallet_balances::{self, Pallet as BalancesPallet};
-
-use super::{
-    manager::HandleKind,
-    mock::{
-        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
-        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
-    },
-    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, Mailbox,
-    MessageInfo, Pallet as GearPallet, Reason,
+use gear_core::{
+    code::Code,
+    ids::{CodeId, MessageId, ProgramId},
 };
-
+use gear_core_errors::*;
+use pallet_balances::{self, Pallet as BalancesPallet};
 use utils::*;
 
 #[test]
@@ -255,18 +257,15 @@ fn send_message_expected_failure() {
         );
 
         // Because destination is user, no gas will be reserved
-        assert!(matches!(
-            Mailbox::<Test>::remove_all(None),
-            sp_io::KillStorageResult::AllRemoved(_)
-        ));
+        MailboxOf::<Test>::remove_all();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into_origin(),
             EMPTY_PAYLOAD.to_vec(),
             1000,
-            1
+            1000
         ));
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         // Gas limit too high
         let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
@@ -417,6 +416,243 @@ fn restrict_start_section() {
 #[cfg(unix)]
 #[cfg(feature = "lazy-pages")]
 #[test]
+fn memory_access_cases() {
+    // This access different pages in wasm linear memory.
+    // Some pages accessed many times and some pages are freed and then allocated again
+    // during one execution. This actions are helpful to identify problems with pages reallocations
+    // and how lazy pages works with them.
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 1))
+    (import "env" "alloc" (func $alloc (param i32) (result i32)))
+    (import "env" "free" (func $free (param i32)))
+    (export "handle" (func $handle))
+    (export "init" (func $init))
+    (func $init
+        ;; allocate 3 pages in init, so mem will contain 4 pages: 0, 1, 2, 3
+        (block
+            i32.const 0x0
+            i32.const 0x3
+            call $alloc
+            i32.const 0x1
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; free page 2, so pages 0, 1, 3 is allocated now
+        (block
+            i32.const 0x2
+            call $free
+        )
+        ;; access page 1 and change it, so it will have data in storage
+        (block
+            i32.const 0x10001
+            i32.const 0x42
+            i32.store
+        )
+    )
+    (func $handle
+        (block
+            i32.const 0x0
+            i32.load
+            i32.eqz
+            br_if 0
+
+            ;; second run check that pages are in correct state
+
+            ;; 1st page
+            (block
+                i32.const 0x10001
+                i32.load
+                i32.const 0x142
+                i32.eq
+                br_if 0
+                unreachable
+            )
+
+            ;; 2nd page
+            (block
+                i32.const 0x20001
+                i32.load
+                i32.const 0x42
+                i32.eq
+                br_if 0
+                unreachable
+            )
+
+            ;; 3th page
+            (block
+                i32.const 0x30001
+                i32.load
+                i32.const 0x42
+                i32.eq
+                br_if 0
+                unreachable
+            )
+
+            br 1
+        )
+
+        ;; in first run access pages
+
+        ;; alloc 2nd page
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 2
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; We freed 2nd page in init, so data will be default
+        (block
+            i32.const 0x20001
+            i32.load
+            i32.eqz
+            br_if 0
+            unreachable
+        )
+        ;; change 2nd page data
+        i32.const 0x20001
+        i32.const 0x42
+        i32.store
+        ;; free 2nd page
+        i32.const 2
+        call $free
+        ;; alloc it again
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 2
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; write the same value
+        i32.const 0x20001
+        i32.const 0x42
+        i32.store
+
+        ;; 3th page. We have not access it yet, so data will be default
+        (block
+            i32.const 0x30001
+            i32.load
+            i32.eqz
+            br_if 0
+            unreachable
+        )
+        ;; change 3th page data
+        i32.const 0x30001
+        i32.const 0x42
+        i32.store
+        ;; free 3th page
+        i32.const 3
+        call $free
+        ;; then alloc it again
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 3
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; write the same value
+        i32.const 0x30001
+        i32.const 0x42
+        i32.store
+
+        ;; 1st page. We have accessed this page before
+        (block
+            i32.const 0x10001
+            i32.load
+            i32.const 0x42
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; change 1st page data
+        i32.const 0x10001
+        i32.const 0x142
+        i32.store
+        ;; free 1st page
+        i32.const 1
+        call $free
+        ;; then alloc it again
+        (block
+            i32.const 1
+            call $alloc
+            i32.const 1
+            i32.eq
+            br_if 0
+            unreachable
+        )
+        ;; write the same value
+        i32.const 0x10001
+        i32.const 0x142
+        i32.store
+
+        ;; set new handle case
+        i32.const 0x0
+        i32.const 0x1
+        i32.store
+    )
+)
+"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+        let res = GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            500_000_000,
+            0,
+        )
+        .map(|_| prog_id);
+        let pid = res.expect("submit result is not ok");
+
+        run_to_block(2, Some(1_000_000_000));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
+        // First handle: access pages
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            0,
+        );
+        assert_ok!(res);
+
+        run_to_block(3, Some(1_000_000_000));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
+        // Second handle: check pages data
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            0,
+        );
+        assert_ok!(res);
+
+        run_to_block(4, Some(1_000_000_000));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+    });
+}
+
+#[cfg(unix)]
+#[cfg(feature = "lazy-pages")]
+#[test]
 fn lazy_pages() {
     use gear_core::memory::{PageNumber, WasmPageNumber};
     use gear_runtime_interface as gear_ri;
@@ -491,7 +727,7 @@ fn lazy_pages() {
             pid,
             EMPTY_PAYLOAD.to_vec(),
             100_000_000,
-            100,
+            1000,
         );
         log::debug!("res = {:?}", res);
         assert_ok!(res);
@@ -539,7 +775,7 @@ fn lazy_pages() {
         // accessed from 0 wasm page:
         expected_accessed.extend(page_to_accessed(0));
 
-        // accessed from 2 wasm page, can be seweral gear and native pages:
+        // accessed from 2 wasm page, can be several gear and native pages:
         let first_page = (0x23ffe / PageNumber::size()) as u32;
         let second_page = (0x24001 / PageNumber::size()) as u32;
         expected_accessed.extend(page_to_accessed(first_page));
@@ -548,7 +784,7 @@ fn lazy_pages() {
         // accessed from 5 wasm page:
         expected_accessed.extend(page_to_accessed((0x50000 / PageNumber::size()) as u32));
 
-        // accessed from 8 and 9 wasm pages, must be seweral gear pages:
+        // accessed from 8 and 9 wasm pages, must be several gear pages:
         let first_page = (0x8fffc / PageNumber::size()) as u32;
         let second_page = (0x90003 / PageNumber::size()) as u32;
         expected_accessed.extend(page_to_accessed(first_page));
@@ -657,14 +893,14 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            100
+            1000
         ));
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            100
+            1000
         ));
 
         run_to_block(3, Some(remaining_weight));
@@ -681,7 +917,7 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            200
+            2000
         ));
         let msg1 = get_last_message_id();
 
@@ -691,7 +927,7 @@ fn block_gas_limit_works() {
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             msg2_gas,
-            100
+            1000
         ));
         let _msg2 = get_last_message_id();
 
@@ -701,7 +937,7 @@ fn block_gas_limit_works() {
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
-            200
+            2000
         ));
         let _msg3 = get_last_message_id();
 
@@ -719,7 +955,9 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1.into_origin(),
-                outcome: ExecutionResult::Failure(b"Gas limit exceeded".to_vec()),
+                outcome: ExecutionResult::Failure(
+                    format!("{}", ExtError::GasLimitExceeded).into_bytes(),
+                ),
             })
             .into(),
         );
@@ -766,12 +1004,12 @@ fn mailbox_works() {
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
         let mailbox_message = {
-            let res = GearPallet::<Test>::remove_from_mailbox(USER_1.into_origin(), reply_to_id);
-            assert!(res.is_some());
+            let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
+            assert!(res.is_ok());
             res.expect("was asserted previously")
         };
 
-        assert_eq!(mailbox_message.id().into_origin(), reply_to_id);
+        assert_eq!(mailbox_message.id(), reply_to_id);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
@@ -787,9 +1025,13 @@ fn init_message_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
         let codes = [
-            (ProgramCodeKind::Default, false, ""),
+            (ProgramCodeKind::Default, false, Vec::new()),
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
-            (ProgramCodeKind::GreedyInit, true, "Gas limit exceeded"),
+            (
+                ProgramCodeKind::GreedyInit,
+                true,
+                format!("{}", ExtError::GasLimitExceeded).into_bytes(),
+            ),
         ];
 
         for (code_kind, is_failing, trap_explanation) in codes {
@@ -813,11 +1055,7 @@ fn init_message_logging_works() {
             };
 
             SystemPallet::<Test>::assert_has_event(if is_failing {
-                Event::InitFailure(
-                    msg_info,
-                    Reason::Dispatch(trap_explanation.as_bytes().to_vec()),
-                )
-                .into()
+                Event::InitFailure(msg_info, Reason::Dispatch(trap_explanation)).into()
             } else {
                 Event::InitSuccess(msg_info).into()
             });
@@ -896,7 +1134,7 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, true),
             (
                 ProgramCodeKind::GreedyInit,
-                Some("Gas limit exceeded".as_bytes().to_vec()),
+                Some(format!("{}", ExtError::GasLimitExceeded).into_bytes()),
                 false,
             ),
             (
@@ -918,7 +1156,7 @@ fn events_logging_works() {
 
             let init_msg_info = MessageInfo {
                 program_id,
-                message_id,
+                message_id: message_id.into_origin(),
                 origin: USER_1.into_origin(),
             };
 
@@ -951,7 +1189,7 @@ fn events_logging_works() {
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
-                message_id,
+                message_id: message_id.into_origin(),
                 origin: USER_1.into_origin(),
             };
 
@@ -1007,12 +1245,10 @@ fn send_reply_works() {
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
-        let message_id = get_last_message_id();
+        let expected_reply_message_id = get_last_message_id();
 
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let expected_reply_message_id = message_id;
-
         let event = match SystemPallet::<Test>::events()
             .last()
             .map(|r| r.event.clone())
@@ -1029,7 +1265,10 @@ fn send_reply_works() {
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
-        assert_eq!(expected_reply_message_id, actual_reply_message_id);
+        assert_eq!(
+            expected_reply_message_id,
+            MessageId::from_origin(actual_reply_message_id)
+        );
     })
 }
 
@@ -1041,12 +1280,12 @@ fn send_reply_failure_to_claim_from_mailbox() {
         assert_noop!(
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
-                5.into_origin(), // non existent `reply_to_id`
+                MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 0
             ),
-            Error::<Test>::NoMessageInMailbox
+            pallet_gear_messenger::Error::<Test>::MailboxElementNotFound
         );
 
         let prog_id = {
@@ -1065,13 +1304,14 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
-        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
-
-        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
-            .next()
-            .expect("Checked above");
-
-        assert!(matches!(message.reply(), Some((_, 1))));
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        assert!(matches!(
+            MailboxOf::<Test>::iter(USER_1)
+                .next()
+                .expect("Element should be")
+                .reply(),
+            Some((_, 1))
+        ));
     })
 }
 
@@ -1105,7 +1345,7 @@ fn send_reply_value_claiming_works() {
 
         let user_messages_data = [
             // gas limit, value
-            (1_000_000, 100),
+            (1_000_000, 1000),
             (20_000_000, 2000),
         ];
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
@@ -1114,7 +1354,7 @@ fn send_reply_value_claiming_works() {
 
             next_block += 1;
 
-            assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+            assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
@@ -1164,7 +1404,7 @@ fn claim_value_from_mailbox_works() {
         };
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let (gas_burned, _) =
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
@@ -1353,7 +1593,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 }
 
 #[test]
-fn test_code_is_not_resetted_within_program_submission() {
+fn test_code_is_not_reset_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
@@ -1455,14 +1695,11 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let mut mailbox_iter = Mailbox::<Test>::iter_prefix_values(USER_1);
-        let message_id = mailbox_iter
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .expect("Should have msg.")
-            .id()
-            .into_origin();
-
-        assert!(mailbox_iter.next().is_none());
+            .expect("Element should be")
+            .id();
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1499,11 +1736,10 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix_values(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .expect("should be one message for the program author")
-            .id()
-            .into_origin();
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1525,13 +1761,15 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
-
-        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
-            .next()
-            .expect("Message not found");
-
-        assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+        assert_eq!(
+            MailboxOf::<Test>::iter(USER_1)
+                .next()
+                .expect("Element should be")
+                .payload()
+                .to_vec(),
+            b"Hello, world!".encode()
+        );
     })
 }
 
@@ -1571,10 +1809,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .map(|(k, _msg)| k.into_origin())
-            .expect("Message id should be");
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1586,7 +1824,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
             assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
             i + 1
         });
@@ -1611,14 +1849,14 @@ fn test_message_processing_for_non_existing_destination() {
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000,
-            100
+            1000
         ));
         let skipped_message_id = get_last_message_id();
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         run_to_block(2, None);
         // system reply message
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
@@ -1647,7 +1885,7 @@ fn exit_init() {
             Origin::signed(USER_1),
             code.clone(),
             vec![],
-            Vec::new(),
+            [0].to_vec(),
             50_000_000_000u64,
             0u128
         ));
@@ -1658,10 +1896,7 @@ fn exit_init() {
 
         assert!(Gear::is_terminated(program_id));
         assert!(!Gear::is_initialized(program_id));
-
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_1).fold(0usize, |i, _| i + 1);
-
-        assert_eq!(actual_n, 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
@@ -1995,7 +2230,7 @@ fn test_create_program_duplicate_in_one_execution() {
             0,
         ));
 
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         run_to_block(3, None);
 
@@ -2005,7 +2240,7 @@ fn test_create_program_duplicate_in_one_execution() {
         check_dispatched(1); // 1 for send_message
         check_init_success(1); // 1 for creating a factory
 
-        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::reset_events();
 
@@ -2164,11 +2399,7 @@ fn exit_handle() {
         run_to_block(3, None);
 
         assert!(Gear::is_terminated(program_id));
-
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, _| i + 1);
-
-        assert_eq!(actual_n, 0);
-
+        assert!(MailboxOf::<Test>::is_empty(&USER_3));
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_terminated(program_id));
 
@@ -2298,10 +2529,10 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .map(|(k, _msg)| k.into_origin())
-            .expect("Message id should be");
+            .expect("Element should be")
+            .id();
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -2402,10 +2633,10 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+        let message_id = MailboxOf::<Test>::iter(USER_1)
             .next()
-            .map(|(k, _msg)| k.into_origin())
-            .expect("Message id should be");
+            .expect("Element should be")
+            .id();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -2421,7 +2652,12 @@ fn resume_program_works() {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
-        let memory_pages = common::get_program_pages_data(program_id, &program);
+
+        let memory_pages = common::get_program_pages_data(program_id, &program)
+            .unwrap()
+            .into_iter()
+            .map(|(page, data)| (page, data.into_vec()))
+            .collect();
 
         assert_ok!(GearProgram::pause_program(program_id));
 
@@ -2445,7 +2681,7 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter(USER_3).fold(0usize, |i, m| {
             assert_eq!(m.payload(), b"Hello, world!".encode());
             i + 1
         });
@@ -2640,10 +2876,282 @@ fn test_two_contracts_composition_works() {
     });
 }
 
+// Before introducing this test, submit_program extrinsic didn't check the value.
+// Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
+//
+// User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with
+// values during the init message processing, internal checks will result in errors (either, because sending value
+// Y <= X < ED is not allowed, or because of Y > X, when X < ED).
+// However, in this same situation of program being initialized and sending some message with value, if program send
+// init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further
+// to manager, although having value less than ED.
+//
+// Note: on manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
+// But it's is not preferable to enter that `if` clause.
+// todo # 929 After create_program sys-call becomes fallible, tests must be changed
+#[test]
+fn test_create_program_with_value_lt_ed() {
+    use demo_init_with_value::{SendMessage, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Ids of custom destinations
+        let ed = get_ed();
+        let msg_receiver_1 = 5u64;
+        let msg_receiver_2 = 6u64;
+
+        // Submit the code
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+        ));
+
+        // Can't initialize program with value less than ED
+        assert_noop!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1),
+                ProgramCodeKind::Default.to_bytes(),
+                b"test0".to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                10_000_000,
+                ed - 1,
+            ),
+            Error::<Test>::ValueLessThanMinimal,
+        );
+
+        // Simple passing test with values
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"test1".to_vec(),
+            // Sending 500 value with "handle" messages. This should not fail.
+            // Must be stated, that "handle" messages send value to some non-existing address
+            // so messages will go to mailbox
+            vec![
+                SendMessage::Handle(msg_receiver_1, 500),
+                SendMessage::Handle(msg_receiver_2, 500),
+                SendMessage::Init(0),
+            ]
+            .encode(),
+            10_000_000_000,
+            1000,
+        ));
+
+        run_to_block(2, None);
+
+        // init messages sent by user and by program
+        check_dequeued(2);
+        // programs deployed by user and by program
+        check_init_success(2);
+
+        let origin_msg_id =
+            MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
+        let msg1_mailbox = MessageId::generate_outgoing(origin_msg_id, 0);
+        let msg2_mailbox = MessageId::generate_outgoing(origin_msg_id, 1);
+        assert!(MailboxOf::<Test>::contains(&msg_receiver_1, &msg1_mailbox));
+        assert!(MailboxOf::<Test>::contains(&msg_receiver_2, &msg2_mailbox));
+
+        SystemPallet::<Test>::reset_events();
+
+        // Trying to send init message from program with value less than ED.
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"test2".to_vec(),
+            // First two messages won't fail, because provided values are in a valid range
+            // The last message value (which is the value of init message) will end execution with trap
+            vec![
+                SendMessage::Handle(msg_receiver_1, 0),
+                SendMessage::Handle(msg_receiver_2, 0),
+                SendMessage::Init(ed - 1),
+            ]
+            .encode(),
+            10_000_000_000,
+            1000,
+        ));
+
+        run_to_block(3, None);
+
+        // User's message execution will result in trap, because program tries
+        // to send init message with value in invalid range. As a result, 1 dispatch
+        // is dequeued (user's  message) and one message is sent to mailbox.
+        let mailbox_msg_id = get_last_message_id();
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
+        // This check means, that program's invalid init message didn't reach the queue.
+        check_dequeued(1);
+
+        // There definitely should be event with init failure reason
+        let expected_failure_reason =
+            format!("{}", ExtError::InsufficientMessageValue).into_bytes();
+        let reason = SystemPallet::<Test>::events()
+            .iter()
+            .filter_map(|e| {
+                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
+                    Some(reason.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .pop()
+            .expect("no init failure events");
+
+        if let Reason::Dispatch(actual_failure_reason) = reason {
+            assert_eq!(actual_failure_reason, expected_failure_reason);
+        } else {
+            panic!("error reason is of wrong type")
+        }
+    })
+}
+
+// Before introducing this test, submit_program extrinsic didn't check the value.
+// Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
+//
+// For instance, we have a guarantee that provided init message value is more than ED before executing message.
+// User sends init message to the program, which, for example, in init function sends different kind of messages.
+// Because of message value not being checked for init messages, program can send more value amount within init message,
+// then it has on it's balance. Such message send will end up without any error/trap. So all in all execution will end
+// up successfully with messages sent from program with total value more than was provided to the program.
+//
+// Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364).
+// But it's is not preferable to enter that `if` clause.
+// todo # 929 After create_program sys-call becomes fallible, tests must be changed
+#[test]
+fn test_create_program_with_exceeding_value() {
+    use demo_init_with_value::{SendMessage, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Submit the code
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+        ));
+
+        let sending_to_program = 2 * get_ed();
+        let random_receiver = 1;
+        // Trying to send init message from program with value greater than program can send.
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"test1".to_vec(),
+            vec![
+                SendMessage::Handle(random_receiver, sending_to_program / 3),
+                SendMessage::Handle(random_receiver, sending_to_program / 3),
+                SendMessage::Init(sending_to_program + 1),
+            ]
+            .encode(),
+            10_000_000_000,
+            sending_to_program,
+        ));
+
+        run_to_block(2, None);
+
+        // Check there are no messages for `random_receiver`. There would be messages in mailbox
+        // if execution didn't end up with an "Not enough value to send message" error.
+        let origin_msg_id =
+            MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
+        let receiver_mail_msg1 = MessageId::generate_outgoing(origin_msg_id, 0);
+        let receiver_mail_msg2 = MessageId::generate_outgoing(origin_msg_id, 1);
+        assert!(!MailboxOf::<Test>::contains(
+            &random_receiver,
+            &receiver_mail_msg1
+        ));
+        assert!(!MailboxOf::<Test>::contains(
+            &random_receiver,
+            &receiver_mail_msg2
+        ));
+
+        // User's message execution will result in trap, because program tries
+        // to send init message with value more than program has. As a result, 1 dispatch
+        // is dequeued (user's  message) and one message is sent to mailbox.
+        let mailbox_msg_id = get_last_message_id();
+        assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
+        // This check means, that program's invalid init message didn't reach the queue.
+        check_dequeued(1);
+
+        // There definitely should be event with init failure reason
+        let expected_failure_reason = format!("{}", ExtError::NotEnoughValue).into_bytes();
+        let reason = SystemPallet::<Test>::events()
+            .iter()
+            .filter_map(|e| {
+                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
+                    Some(reason.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .pop()
+            .expect("no init failure events");
+
+        if let Reason::Dispatch(actual_failure_reason) = reason {
+            assert_eq!(actual_failure_reason, expected_failure_reason);
+        } else {
+            panic!("error reason is of wrong type")
+        }
+    })
+}
+
+#[test]
+fn test_reply_to_terminated_program() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_exit_init::WASM_BINARY;
+
+        // Deploy program, which sends mail and exits
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            // this input makes it first send message to mailbox and then exit
+            [1].to_vec(),
+            27_100_000_000u64,
+            0
+        ));
+
+        let mail_id = {
+            let original_message_id = get_last_message_id();
+            MessageId::generate_reply(original_message_id, 0)
+        };
+
+        run_to_block(2, None);
+
+        // Check mail in Mailbox
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+
+        // Send reply
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1),
+                mail_id,
+                EMPTY_PAYLOAD.to_vec(),
+                10_000_000,
+                0
+            ),
+            Error::<Test>::ProgramIsTerminated,
+        );
+
+        // the only way to claim value from terminated destination is a corresponding extrinsic call
+        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+            Origin::signed(USER_1),
+            mail_id,
+        ));
+
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
+        SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(mail_id).into())
+    })
+}
+
 mod utils {
-    use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
+    use frame_support::{
+        dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
+        traits::tokens::currency::Currency,
+    };
     use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
+    use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::convert::TryFrom;
 
     use super::{
@@ -2666,6 +3174,10 @@ mod utils {
             .format_module_path(false)
             .format_level(true)
             .try_init();
+    }
+
+    pub(super) fn get_ed() -> u128 {
+        <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
     }
 
     pub(super) fn check_init_success(expected: u32) {
@@ -2709,7 +3221,7 @@ mod utils {
     // 2) runs to block 2 all the messages place to message queue/storage
     //
     // Returns id of the message in the mailbox
-    pub(super) fn setup_mailbox_test_state(user: AccountId) -> H256 {
+    pub(super) fn setup_mailbox_test_state(user: AccountId) -> MessageId {
         let prog_id = {
             let res = submit_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
@@ -2727,7 +3239,7 @@ mod utils {
         block_num: BlockNumber,
         gas_limit: u64,
         value: u128,
-    ) -> H256 {
+    ) -> MessageId {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(sender),
             prog_id,
@@ -2751,7 +3263,7 @@ mod utils {
             );
         }
 
-        MessageId::generate_outgoing(MessageId::from_origin(message_id), 0).into_origin()
+        MessageId::generate_outgoing(message_id, 0)
     }
 
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
@@ -2839,21 +3351,25 @@ mod utils {
         program_id
     }
 
-    pub(super) fn get_last_message_id() -> H256 {
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        match event {
-            Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-            Event::Log(msg) => msg.id().into_origin(),
-            Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-            _ => unreachable!("expect sending"),
-        }
+    pub(super) fn get_last_message_id() -> MessageId {
+        SystemPallet::<Test>::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
+                Event::Log(msg) => Some(msg.id().into_origin()),
+                Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
+                _ => None,
+            })
+            .map(MessageId::from_origin)
+            .expect("can't find message send event")
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -2880,7 +3396,8 @@ mod utils {
                 ProgramCodeKind::GreedyInit => {
                     // Initialization function for that program requires a lot of gas.
                     // So, providing `DEFAULT_GAS_LIMIT` will end up processing with
-                    // "Gas limit exceeded" execution outcome error message.
+                    // "Not enough gas to continue execution" a.k.a. "Gas limit exceeded"
+                    // execution outcome error message.
                     r#"
                     (module
                         (import "env" "memory" (memory 1))
