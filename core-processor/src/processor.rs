@@ -106,7 +106,14 @@ fn process_error(
         amount: gas_burned,
     });
 
-    if value != 0 {
+    // We check if value is greater than zero to don't provide
+    // no-op journal note.
+    //
+    // We also check if dispatch had context of previous executions:
+    // it's existence shows that we have processed message after
+    // being waken, so the value were already transferred in
+    // execution, where `gr_wait` was called.
+    if dispatch.context().is_none() && value != 0 {
         // Send back value
         journal.push(JournalNote::SendValue {
             from: origin,
@@ -177,7 +184,14 @@ fn process_success(
         amount: gas_amount.burned(),
     });
 
-    if value != 0 {
+    // We check if value is greater than zero to don't provide
+    // no-op journal note.
+    //
+    // We also check if dispatch had context of previous executions:
+    // it's existence shows that we have processed message after
+    // being waken, so the value were already transferred in
+    // execution, where `gr_wait` was called.
+    if dispatch.context().is_none() && value != 0 {
         // Send value further
         journal.push(JournalNote::SendValue {
             from: origin,

@@ -319,7 +319,7 @@ case "$COMMAND" in
         test_usage
         exit 1; ;;
     esac;;
-  
+
   coverage)
     case "$SUBCOMMAND" in
       -h | --help | help)
