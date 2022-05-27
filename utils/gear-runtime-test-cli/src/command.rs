@@ -93,20 +93,24 @@ impl GearRuntimeTestCmd {
                                 total_failed.fetch_add(1, Ordering::SeqCst);
                             }
 
-                            (TestCase {
-                                name: fixture.title.clone(),
-                                time: elapsed.as_secs_f64().to_string(),
-                            },
-                            elapsed.as_secs_f64())
+                            (
+                                TestCase {
+                                    name: fixture.title.clone(),
+                                    time: elapsed.as_secs_f64().to_string(),
+                                },
+                                elapsed.as_secs_f64(),
+                            )
                         })
                     })
                     .collect::<(Vec<_>, Vec<_>)>();
 
-                (TestSuite {
-                    name: test.title.clone(),
-                    testcase: fixtures,
-                },
-                times.iter().sum::<f64>())
+                (
+                    TestSuite {
+                        name: test.title.clone(),
+                        testcase: fixtures,
+                    },
+                    times.iter().sum::<f64>(),
+                )
             })
             .collect::<(Vec<_>, Vec<_>)>();
 

@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeMap;
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
-use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
 
@@ -87,7 +87,11 @@ fn build_tree<P: AsRef<Path>>(
 
     let junit_xml = std::fs::read_to_string(path).unwrap();
     let test_suites: TestSuites = from_str(&junit_xml).unwrap();
-    let total_time: BTreeMap<_, _> = [(String::from("Total time"), f64::from_str(&test_suites.time).unwrap())].into();
+    let total_time: BTreeMap<_, _> = [(
+        String::from("Total time"),
+        f64::from_str(&test_suites.time).unwrap(),
+    )]
+    .into();
     let mut result = junit_tree::build_tree(filter, test_suites);
     result.insert(String::from(TEST_SUITES_TEXT), total_time);
     result
