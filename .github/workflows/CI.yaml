@@ -225,7 +225,7 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            <details><summary>${{ github.sha }}</summary>
+            <details><summary>${{ github.event.push.after }}</summary>
             <details><summary>Pallet tests (values are in nanoseconds)</summary>
             
             ${{ steps.test-regressions-pallets.outputs.body }}
@@ -244,7 +244,7 @@ jobs:
         with:
           comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
           body: |
-            <details><summary>${{ github.sha }}</summary>
+            <details><summary>${{ github.event.push.after }}</summary>
             <details><summary>Pallet tests (values are in nanoseconds)</summary>
             
             ${{ steps.test-regressions-pallets.outputs.body }}
