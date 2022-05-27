@@ -1,23 +1,10 @@
 #![no_std]
 
-// trait T {
-//     fn lol();
-// }
-
-// struct A;
-// impl T for A {
-//     fn lol() {};
-// }
-
-// environmental::environmental!(ext: trait T);
-
 use gstd::{debug, msg, prelude::*};
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
     debug!("Hello from ping handle");
-
-    // let mVut a = A;
 
     let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message");
 
