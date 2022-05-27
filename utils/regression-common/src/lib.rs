@@ -32,5 +32,6 @@ pub struct TestSuite {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TestSuites {
+    pub time: String,
     pub testsuite: Vec<TestSuite>,
 }

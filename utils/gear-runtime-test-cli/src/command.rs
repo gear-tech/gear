@@ -72,10 +72,10 @@ impl GearRuntimeTestCmd {
         let total_failed = AtomicUsize::new(0);
 
         println!("Total fixtures: {}", total_fixtures);
-        let executions = tests
+        let (executions, times) = tests
             .par_iter()
             .map(|test| {
-                let fixtures = test
+                let (fixtures, times) = test
                     .fixtures
                     .par_iter()
                     .map(|fixture| {
@@ -93,26 +93,29 @@ impl GearRuntimeTestCmd {
                                 total_failed.fetch_add(1, Ordering::SeqCst);
                             }
 
-                            TestCase {
+                            (TestCase {
                                 name: fixture.title.clone(),
                                 time: elapsed.as_secs_f64().to_string(),
-                            }
+                            },
+                            elapsed.as_secs_f64())
                         })
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<(Vec<_>, Vec<_>)>();
 
-                TestSuite {
+                (TestSuite {
                     name: test.title.clone(),
                     testcase: fixtures,
-                }
+                },
+                times.iter().sum::<f64>())
             })
-            .collect::<Vec<_>>();
+            .collect::<(Vec<_>, Vec<_>)>();
 
         if let Some(ref junit_path) = self.generate_junit {
             let writer = std::fs::File::create(junit_path)?;
             quick_xml::se::to_writer(
                 writer,
                 &TestSuites {
+                    time: times.iter().sum::<f64>().to_string(),
                     testsuite: executions,
                 },
             )

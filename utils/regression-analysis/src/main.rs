@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
-
 use std::{
     fs,
     path::{Path, PathBuf},
 };
+use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
 
@@ -44,6 +44,8 @@ const PALLET_NAMES: [&str; 7] = [
 ];
 
 const PREALLOCATE: usize = 1_000;
+
+const TEST_SUITES_TEXT: &str = "Test suites";
 
 #[derive(Parser)]
 struct Cli {
@@ -85,7 +87,10 @@ fn build_tree<P: AsRef<Path>>(
 
     let junit_xml = std::fs::read_to_string(path).unwrap();
     let test_suites: TestSuites = from_str(&junit_xml).unwrap();
-    junit_tree::build_tree(filter, test_suites)
+    let total_time: BTreeMap<_, _> = [(String::from("Total time"), f64::from_str(&test_suites.time).unwrap())].into();
+    let mut result = junit_tree::build_tree(filter, test_suites);
+    result.insert(String::from(TEST_SUITES_TEXT), total_time);
+    result
 }
 
 fn median(values: &[u64]) -> u64 {
@@ -143,7 +148,7 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
     let statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
         serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
     let executions = build_tree(disable_filter, current_junit_path);
-    let compared = executions
+    let mut compared = executions
         .iter()
         .filter_map(|(key, tests)| {
             statistics.get(key).map(|test_times| {
@@ -174,6 +179,13 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
             })
         })
         .collect::<BTreeMap<_, _>>();
+
+    if let Some(total_time) = compared.remove(TEST_SUITES_TEXT) {
+        println!("Total execution time");
+        let table = Table::new(total_time).with(Style::github_markdown().header_intersection('|'));
+        println!("{}", table);
+        println!();
+    }
 
     for (name, stats) in compared {
         println!("name = {}", name);
