@@ -107,8 +107,9 @@ pub enum TerminationReason {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
-    #[display(fmt = "Unknown error")]
-    Unknown,
+    /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
+    #[display(fmt = "Some error")]
+    Some,
     #[display(fmt = "Memory allocation error: {}", _0)]
     Alloc(MemoryError),
     #[display(fmt = "Memory free up error: {}", _0)]

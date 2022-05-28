@@ -49,7 +49,7 @@ impl SyscallError {
 
             #[cfg(not(feature = "codec"))]
             {
-                Err(ExtError::Unknown)
+                Err(ExtError::Some)
             }
         }
     }
