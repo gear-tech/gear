@@ -562,7 +562,29 @@ pub mod pallet {
                     )
                 };
 
-                core_processor::handle_journal(journal.clone(), &mut ext_manager);
+                // TODO: Check whether we charge gas fee for submitting code after #646
+                let notes = journal
+                    .into_iter()
+                    .filter_map(|note| -> Option<Result<JournalNote, _>> {
+                        match note {
+                            JournalNote::GasBurned { .. }
+                            | JournalNote::WakeMessage { .. }
+                            | JournalNote::SendDispatch { .. }
+                            | JournalNote::WaitDispatch(..) => Some(Ok(note)),
+                            JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                                trap,
+                                ..
+                            }) => Some(Err(format!(
+                                "Program terminated with a trap: {}",
+                                trap.unwrap_or_else(|| "No reason".to_string())
+                            )
+                            .into_bytes())),
+                            _ => None,
+                        }
+                    })
+                    .collect::<Result<Vec<JournalNote>, _>>();
+
+                core_processor::handle_journal(notes?, &mut ext_manager);
 
                 let remaining_gas = T::GasHandler::get_limit(root_message_id)
                     .map_err(|_| {
@@ -572,29 +594,9 @@ pub mod pallet {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
-                // TODO: Check whether we charge gas fee for submitting code after #646
-                for note in journal {
-                    match note {
-                        JournalNote::SendDispatch { .. }
-                        | JournalNote::WaitDispatch(..)
-                        | JournalNote::MessageConsumed(..) => {
-                            let gas_spent = initial_gas.saturating_sub(remaining_gas);
-                            if gas_spent > max_gas_spent {
-                                max_gas_spent = gas_spent;
-                            }
-                        }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            trap,
-                            ..
-                        }) => {
-                            return Err(format!(
-                                "Program terminated with a trap: {}",
-                                trap.unwrap_or_else(|| "No reason".to_string())
-                            )
-                            .into_bytes());
-                        }
-                        _ => (),
-                    }
+                let gas_spent = initial_gas.saturating_sub(remaining_gas);
+                if gas_spent > max_gas_spent {
+                    max_gas_spent = gas_spent;
                 }
             }
 
