@@ -323,10 +323,11 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     (gas_burned, gas_to_send)
 }
 
-pub fn get_gas_spent_burned<T>(
+pub fn get_gas_burned<T>(
     source: H256,
     kind: HandleKind,
     payload: Vec<u8>,
+    gas_limit: Option<u64>,
     value: u128,
 ) -> Result<u64, Vec<u8>>
 where
@@ -404,7 +405,7 @@ where
         }
     };
 
-    let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+    let initial_gas = gas_limit.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get);
     T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
         .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
 

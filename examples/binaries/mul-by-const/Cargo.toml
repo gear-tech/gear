@@ -7,7 +7,7 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-gstd = { path = "../../../gstd" }
+gstd = { path = "../../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 
