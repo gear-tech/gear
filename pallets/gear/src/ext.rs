@@ -33,7 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, TerminationReason};
+use gear_core_errors::{CoreError, ExtError, MemoryError, TerminationReason};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,13 +86,12 @@ impl fmt::Display for Error {
 /// Ext with lazy pages support
 pub struct LazyPagesExt {
     inner: Ext,
+    // Pages which has been alloced during current execution
+    fresh_allocations: BTreeSet<WasmPageNumber>,
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info<F, T>(self, mut get_page_data: F) -> Result<ExtInfo, (T, GasAmount)>
-    where
-        F: FnMut(usize, &mut [u8]) -> Result<(), T>,
-    {
+    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         // accessed pages are all pages except current lazy pages
         let allocations = self.inner.allocations_context.allocations().clone();
         let mut accessed_pages: BTreeSet<PageNumber> = allocations
@@ -109,7 +108,7 @@ impl IntoExtInfo for LazyPagesExt {
         let mut accessed_pages_data = BTreeMap::new();
         for page in accessed_pages {
             let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
+            if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
                 return Err((err, self.into_gas_amount()));
             }
             accessed_pages_data.insert(page, buf);
@@ -176,6 +175,7 @@ impl ProcessorExt for LazyPagesExt {
                 program_candidates_data,
                 host_fn_weights,
             },
+            fresh_allocations: Default::default(),
         }
     }
 
@@ -188,20 +188,19 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_protect_and_init_info(
+        mem: &dyn Memory,
         memory_pages: &BTreeSet<PageNumber>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
-        lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
+        lazy_pages::protect_pages_and_init_info(mem, memory_pages, prog_id)
             .map_err(Error::LazyPages)
     }
 
     fn lazy_pages_post_execution_actions(
+        mem: &dyn Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
-        lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
-            .map_err(Error::LazyPages)
+        lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
     }
 }
 
@@ -232,11 +231,8 @@ impl EnvExt for LazyPagesExt {
         // So we remove protections from lazy-pages
         // and set protection back for new wasm memory buffer pages.
         // Also we correct lazy-pages info if need.
-        let old_mem_addr = mem.get_wasm_memory_begin_addr();
-        lazy_pages::remove_lazy_pages_prot(old_mem_addr)?;
-
-        // Save current allocations in order to add new allocations to lazy pages
-        let old_allocations = self.inner.allocations_context.allocations().clone();
+        let old_mem_addr = mem.get_buffer_host_addr();
+        lazy_pages::remove_lazy_pages_prot(mem)?;
 
         let result = self
             .inner
@@ -246,20 +242,28 @@ impl EnvExt for LazyPagesExt {
 
         let page_number = self.inner.return_and_store_err(result)?;
 
-        // Add new allocations to lazy pages
+        // Add new allocations to lazy pages.
+        // All pages except ones which has been already allocated,
+        // during current execution.
+        // This is because only such pages contains Default (zeros in WebAsm) page data.
+        // Pages which has been already allocated may contain garbage.
         let id = self.inner.program_id.into_origin();
-        let new_allocations = self.inner.allocations_context.allocations();
-        for page in new_allocations
-            .difference(&old_allocations)
-            .flat_map(|p| p.to_gear_pages_iter())
-        {
-            log::debug!("add {:?} to lazy pages", page);
-            save_page_lazy_info(id, page);
+        let new_allocated_pages = (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
+        for wasm_page in new_allocated_pages {
+            if self.inner.allocations_context.is_init_page(wasm_page)
+                || self.fresh_allocations.contains(&wasm_page)
+            {
+                continue;
+            }
+            self.fresh_allocations.insert(wasm_page);
+            wasm_page.to_gear_pages_iter().for_each(|page| {
+                log::trace!("add {:?} to lazy pages", page);
+                save_page_lazy_info(id, page);
+            });
         }
 
-        // Protect all lazy pages including new allcations
-        let new_mem_addr = mem.get_wasm_memory_begin_addr();
-        lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)?;
+        // Protect all lazy pages including new allocations
+        lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(mem, old_mem_addr)?;
 
         // Returns back greedily used gas for grow
         let new_mem_size = mem.size();
@@ -273,17 +277,17 @@ impl EnvExt for LazyPagesExt {
         // Returns back greedily used gas for allocations
         let first_page = page_number;
         let last_page = first_page + pages_num - 1.into();
-        let mut new_alloced_pages_num = WasmPageNumber(0);
+        let mut new_allocated_pages_num = WasmPageNumber(0);
         for page in first_page.0..=last_page.0 {
             if !self.inner.allocations_context.is_init_page(page.into()) {
-                new_alloced_pages_num = new_alloced_pages_num + 1.into();
+                new_allocated_pages_num = new_allocated_pages_num + 1.into();
             }
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.inner
                 .config
                 .alloc_cost
-                .saturating_mul((pages_num - new_alloced_pages_num).0 as u64),
+                .saturating_mul((pages_num - new_allocated_pages_num).0 as u64),
         );
 
         self.refund_gas(gas_to_return_back as u32)?;

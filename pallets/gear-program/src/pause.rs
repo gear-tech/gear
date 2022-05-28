@@ -26,7 +26,7 @@ use gear_core::{
 };
 use scale_info::TypeInfo;
 
-#[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub(super) struct PausedProgram {
     program_id: H256,
     program: common::ActiveProgram,
@@ -47,7 +47,7 @@ fn wait_list_hash(wait_list: &BTreeMap<H256, StoredDispatch>) -> H256 {
     wait_list.using_encoded(sp_io::hashing::blake2_256).into()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PauseError {
     ProgramNotFound,
     ProgramTerminated,

@@ -76,7 +76,7 @@ impl DerefMut for PageBuf {
 
 impl PageBuf {
     /// Tries to transform vec<u8> into page buffer.
-    /// Makes it without any rellocations or memcpy: vector's buffer becames PageBuf without any changes,
+    /// Makes it without any reallocations or memcpy: vector's buffer becomes PageBuf without any changes,
     /// except vector's buffer capacity, which is removed.
     pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
         Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
@@ -89,14 +89,14 @@ impl PageBuf {
         Self(Box::<[u8; GEAR_PAGE_SIZE]>::new([0u8; GEAR_PAGE_SIZE]))
     }
 
-    /// Convert page buffer into vector without rellocations.
+    /// Convert page buffer into vector without reallocations.
     pub fn into_vec(self) -> Vec<u8> {
         (self.0 as Box<[_]>).into_vec()
     }
 }
 
 /// Tries to convert vector data map to page buffer data map.
-/// Makes it without buffer rellocations.
+/// Makes it without buffer reallocations.
 pub fn vec_page_data_map_to_page_buf_map(
     pages_data: BTreeMap<PageNumber, Vec<u8>>,
 ) -> Result<BTreeMap<PageNumber, PageBuf>, Error> {
@@ -169,7 +169,7 @@ impl core::ops::Sub<PageNumber> for PageNumber {
     }
 }
 
-/// Wasm page nuber
+/// Wasm page number.
 #[derive(
     Clone,
     Copy,
@@ -231,7 +231,11 @@ impl core::ops::Sub for WasmPageNumber {
     }
 }
 
-/// Memory interface for the allocator.
+/// Host pointer type.
+/// Host pointer can be 64bit or less, to support both we use u64.
+pub type HostPointer = u64;
+
+/// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
     fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error>;
@@ -249,7 +253,7 @@ pub trait Memory {
     fn data_size(&self) -> usize;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_wasm_memory_begin_addr(&self) -> u64;
+    fn get_buffer_host_addr(&self) -> HostPointer;
 }
 
 /// Pages allocations context for the running program.

@@ -274,7 +274,7 @@ mod tests {
     }
 
     /// Struct with internal value to interact with ExtCarrier
-    #[derive(Debug, PartialEq, Clone, Copy)]
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     struct ExtImplementedStruct(u8);
 
     /// Empty Ext implementation for test struct

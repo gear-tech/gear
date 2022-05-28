@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module with runtime mock for running tests.
+
 use crate as pallet_gear_messenger;
 use frame_support::{
     construct_runtime, parameter_types,
@@ -41,7 +43,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
     }
 );
 
@@ -91,7 +93,7 @@ impl system::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = ();
 }
 
 // Build genesis storage according to the mock runtime.

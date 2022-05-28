@@ -18,21 +18,20 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, CustomChargeTransactionPayment};
-
-use common::storage::{Messenger, StorageDeque};
-use gear_core::message::{Dispatch, DispatchKind, Message};
-
+use crate::{mock::*, Config, CustomChargeTransactionPayment, QueueOf};
 use codec::Encode;
+use common::{storage::*, Origin};
 use frame_support::{
     assert_ok,
     weights::{DispatchInfo, GetDispatchInfo, PostDispatchInfo, Weight},
 };
+use gear_core::{
+    ids::MessageId,
+    message::{Dispatch, DispatchKind, Message, StoredDispatch},
+};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
 use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
-
-pub type QueueOf<T> = <pallet_gear_messenger::Pallet<T> as Messenger>::Queue;
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -63,9 +62,10 @@ fn default_post_info() -> PostDispatchInfo {
 
 fn populate_message_queue<T>(n: u64)
 where
-    T: pallet_gear_messenger::Config,
+    T: Config,
+    T::Messenger: Messenger<QueuedDispatch = StoredDispatch>,
 {
-    assert_ok!(QueueOf::<T>::clear().map_err(|_| "Error clearing the queue"));
+    QueueOf::<T>::remove_all();
 
     for i in 0_u64..n {
         let prog_id = (i + 1).into();
@@ -87,9 +87,7 @@ where
 
         let dispatch = dispatch.into_stored();
 
-        assert_ok!(
-            QueueOf::<T>::push_back(dispatch).map_err(|_| "Error pushing back stored dispatch")
-        );
+        assert_ok!(QueueOf::<T>::queue(dispatch).map_err(|_| "Error pushing back stored dispatch"));
     }
 }
 
@@ -162,7 +160,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
         // rounding error only arises for calls that do not affect MQ
         let call: &<Test as frame_system::Config>::Call =
             &Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
-                message_id: H256::from_low_u64_le(1),
+                message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
         let weights: Vec<u64> = vec![1000, 100_000, 100_000_000];
@@ -295,7 +293,7 @@ fn mq_size_not_affecting_fee_works() {
 
         let call: &<Test as frame_system::Config>::Call =
             &Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
-                message_id: H256::from_low_u64_le(1),
+                message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
         let len = 100_usize;
@@ -386,7 +384,7 @@ fn query_info_and_fee_details_work() {
         value: 0,
     });
     let call_not_affecting_mq = Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
-        message_id: H256::from_low_u64_le(1),
+        message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
     });
     let extra = ();
 

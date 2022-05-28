@@ -149,7 +149,7 @@ pub trait PaymentProvider<AccountId> {
 /// Abstraction for a chain of value items each piece of which has an attributed owner and
 /// can be traced up to some root origin.
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
-/// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
+/// <https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs>,
 /// however, the intended use is very close to the UTxO based ledger model.
 pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
@@ -180,7 +180,7 @@ pub trait ValueTree {
 
     /// Increase the total issuance of the underlying value by creating some `amount` of it
     /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
-    /// In case the `key` already indentifies some other piece of value an error is returned.
+    /// In case the `key` already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
         key: Self::Key,
@@ -239,7 +239,7 @@ pub trait ValueTree {
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),
     Terminated,
@@ -293,7 +293,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
     /// Set of wasm pages numbers, which is allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
@@ -304,7 +304,7 @@ pub struct ActiveProgram {
 }
 
 /// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized. All messages to such a
@@ -315,7 +315,7 @@ pub enum ProgramState {
     Initialized,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
     #[codec(compact)]
@@ -549,10 +549,4 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
-
-    // TODO: Remove this legacy after next runtime upgrade.
-    sp_io::storage::clear_prefix(b"g::msg::", None);
-    sp_io::storage::clear_prefix(b"g::gas_tree", None);
-    sp_io::storage::clear_prefix(b"g::code::", None);
-    sp_io::storage::clear_prefix(b"g::code::orig", None);
 }

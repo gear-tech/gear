@@ -21,7 +21,7 @@
 use crate::Origin;
 use gear_core::{
     ids::ProgramId,
-    memory::{PageBuf, PageNumber},
+    memory::{HostPointer, Memory, PageBuf, PageNumber},
 };
 use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
 use sp_std::{
@@ -39,6 +39,8 @@ pub enum Error {
     VecToPageData,
     #[display(fmt = "Cannot find page data in storage")]
     NoPageDataInStorage,
+    #[display(fmt = "Released page {:?} has initial data", _0)]
+    ReleasedPageHasData(PageNumber),
 }
 
 impl From<MprotectError> for Error {
@@ -53,8 +55,9 @@ impl From<GetReleasedPageError> for Error {
     }
 }
 
-fn mprotect_lazy_pages(addr: u64, protect: bool) -> Result<(), Error> {
-    gear_ri::mprotect_lazy_pages(addr, protect).map_err(Into::into)
+fn mprotect_lazy_pages(mem: &dyn Memory, protect: bool) -> Result<(), Error> {
+    let wasm_mem_addr = mem.get_buffer_host_addr();
+    gear_ri::mprotect_lazy_pages(wasm_mem_addr, protect).map_err(Into::into)
 }
 
 /// Try to enable and initialize lazy pages env
@@ -77,49 +80,52 @@ pub fn is_lazy_pages_enabled() -> bool {
 
 /// Protect and save storage keys for pages which has no data
 pub fn protect_pages_and_init_info(
+    mem: &dyn Memory,
     lazy_pages: &BTreeSet<PageNumber>,
     prog_id: ProgramId,
-    wasm_mem_begin_addr: u64,
 ) -> Result<(), Error> {
     let prog_id_hash = prog_id.into_origin();
 
     gear_ri::reset_lazy_pages_info();
 
-    gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr);
+    gear_ri::set_wasm_mem_begin_addr(mem.get_buffer_host_addr());
 
     lazy_pages.iter().for_each(|p| {
         crate::save_page_lazy_info(prog_id_hash, *p);
     });
 
-    mprotect_lazy_pages(wasm_mem_begin_addr, true)
+    mprotect_lazy_pages(mem, true)
 }
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
+    mem: &dyn Memory,
     memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-    wasm_mem_begin_addr: u64,
 ) -> Result<(), Error> {
     // Loads data for released lazy pages. Data which was before execution.
     let released_pages = gear_ri::get_released_pages();
     for page in released_pages {
         let data = gear_ri::get_released_page_old_data(page)?;
-        let _ = memory_pages.insert(page.into(), data).is_some();
+        if memory_pages.insert(page.into(), data).is_some() {
+            return Err(Error::ReleasedPageHasData(page.into()));
+        }
     }
 
     // Removes protections from lazy pages
-    mprotect_lazy_pages(wasm_mem_begin_addr, false)
+    mprotect_lazy_pages(mem, false)
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), Error> {
-    mprotect_lazy_pages(mem_addr, false)
+pub fn remove_lazy_pages_prot(mem: &dyn Memory) -> Result<(), Error> {
+    mprotect_lazy_pages(mem, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
 pub fn protect_lazy_pages_and_update_wasm_mem_addr(
-    old_mem_addr: u64,
-    new_mem_addr: u64,
+    mem: &dyn Memory,
+    old_mem_addr: HostPointer,
 ) -> Result<(), Error> {
+    let new_mem_addr = mem.get_buffer_host_addr();
     if new_mem_addr != old_mem_addr {
         log::debug!(
             "backend executor has changed wasm mem buff: from {:#x} to {:#x}",
@@ -128,7 +134,7 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
         );
         gear_ri::set_wasm_mem_begin_addr(new_mem_addr);
     }
-    mprotect_lazy_pages(new_mem_addr, true)
+    mprotect_lazy_pages(mem, true)
 }
 
 /// Returns list of current lazy pages numbers

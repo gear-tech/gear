@@ -32,7 +32,7 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     EchoWait(u32),
     Wake(MessageId),
