@@ -444,10 +444,15 @@ where
             load_page_cost: schedule.memory_weights.load_cost,
         };
 
+        let gas_limit = T::GasHandler::get_limit(queued_dispatch.id().into_origin())
+            .ok()
+            .flatten()
+            .ok_or_else(|| b"Internal error: unable to get gas limit after execution".to_vec())?;
+
         let journal = if lazy_pages_enabled {
             core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
                 Some(actor),
-                queued_dispatch.into_incoming(initial_gas),
+                queued_dispatch.into_incoming(gas_limit),
                 block_info,
                 allocations_config,
                 existential_deposit,
@@ -460,7 +465,7 @@ where
         } else {
             core_processor::process::<Ext, SandboxEnvironment<_>>(
                 Some(actor),
-                queued_dispatch.into_incoming(initial_gas),
+                queued_dispatch.into_incoming(gas_limit),
                 block_info,
                 allocations_config,
                 existential_deposit,
