@@ -3176,7 +3176,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let user_balance_before_calculating = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_to_spend = Gear::get_gas_spent(
+        let gas_reserved = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(wrapper_id),
             payload.clone(),
@@ -3185,6 +3185,18 @@ fn cascading_messages_with_value_do_not_overcharge() {
         .expect("Failed to get gas spent");
 
         run_to_block(3, None);
+
+        let gas_to_spend = Gear::get_gas_spent_burned(
+            USER_1.into_origin(),
+            HandleKind::Handle(wrapper_id),
+            payload.clone(),
+            0,
+        )
+        .expect("Failed to get gas spent");
+
+        assert_ne!(gas_reserved, gas_to_spend);
+
+        run_to_block(4, None);
 
         // A message is sent to a waiting proxy contract that passes execution
         // on to another contract while keeping the `value`.
@@ -3201,8 +3213,6 @@ fn cascading_messages_with_value_do_not_overcharge() {
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
         // The constant added for checks.
-        let reservation_delta = 10;
-        let gas_reserved = gas_to_spend + reservation_delta;
         let value = 10_000_000;
 
         assert_ok!(Gear::send_message(
@@ -3213,11 +3223,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
             value,
         ));
 
-        let message_sent = get_last_message_id().into_origin();
-
         let gas_to_spend = gas_to_spend as u128;
         let gas_reserved = gas_reserved as u128;
-        let reservation_delta = reservation_delta as u128;
 
         let reserved_balance = gas_reserved + value;
 
@@ -3231,22 +3238,15 @@ fn cascading_messages_with_value_do_not_overcharge() {
             reserved_balance
         );
 
-        run_to_block(4, None);
+        run_to_block(5, None);
 
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
-
-        // This gas handles for no reason. BUG
-        let message_sent_remaining_gas = <Test as Config>::GasHandler::get_limit(message_sent)
-            .ok()
-            .flatten()
-            .expect("Failed to get limit") as u128;
 
         // The bug is that initial message doesn't destroy for some
         // reason and reservation_delta doesn't return back.
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - gas_to_spend - value + message_sent_remaining_gas
-                - reservation_delta
+            user_initial_balance - gas_to_spend - value
         );
     });
 }
