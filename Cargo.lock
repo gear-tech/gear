@@ -1432,6 +1432,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-waiting-proxy"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4858,6 +4866,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
+ "demo-waiting-proxy",
  "env_logger",
  "frame-benchmarking",
  "frame-support",

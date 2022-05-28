@@ -232,7 +232,7 @@ gtest: init-js examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js examples
+rtest: init-js node-release examples
 	@ ./scripts/gear.sh test rtest
 
 .PHONY: test-pallet

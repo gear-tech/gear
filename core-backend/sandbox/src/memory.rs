@@ -60,7 +60,7 @@ impl Memory for MemoryWrap {
         self.0.size() as usize * WasmPageNumber::size()
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> u64 {
+    fn get_buffer_host_addr(&self) -> u64 {
         unsafe { self.0.get_buff() }
     }
 }
