@@ -528,10 +528,10 @@ pub mod pallet {
     // ----
 
     /// Callback function for getting actual block number.
-    pub struct OnBlockNumberNeed<T: Config>(PhantomData<T>);
+    pub struct GetBlockNumber<T: Config>(PhantomData<T>);
 
     // Callback trait implementation.
-    impl<T: Config> GetCallback<T::BlockNumber> for OnBlockNumberNeed<T> {
+    impl<T: Config> GetCallback<T::BlockNumber> for GetBlockNumber<T> {
         fn call() -> T::BlockNumber {
             SystemPallet::<T>::block_number()
         }
@@ -555,7 +555,7 @@ pub mod pallet {
         type Value = M::WaitlistedMessage;
         type BlockNumber = M::BlockNumber;
 
-        type OnBlockNumberNeed = OnBlockNumberNeed<T>;
+        type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
         type OnRemove = ();
     }

@@ -73,8 +73,8 @@ pub trait WaitlistCallbacks {
     /// which uses this callbacks store.
     type BlockNumber;
 
-    /// Callback used for getting current block number when it need.
-    type OnBlockNumberNeed: GetCallback<Self::BlockNumber>;
+    /// Callback used for getting current block number.
+    type GetBlockNumber: GetCallback<Self::BlockNumber>;
     /// Callback on success `insert`.
     type OnInsert: Callback<(Self::Value, Self::BlockNumber)>;
     /// Callback on success `remove`.
@@ -136,7 +136,7 @@ where
             return Err(Self::Error::duplicate_key().into());
         }
 
-        let block_number = Callbacks::OnBlockNumberNeed::call();
+        let block_number = Callbacks::GetBlockNumber::call();
         let message_with_bn = (message, block_number);
 
         Callbacks::OnInsert::call(&message_with_bn);
