@@ -353,7 +353,11 @@ where
                     let gas_left = neg_imbalance.peek();
 
                     if gas_left > 0 {
-                        log::debug!("Unreserve balance on message processed: {} to {}", gas_left, external);
+                        log::debug!(
+                            "Unreserve balance on message processed: {} to {}",
+                            gas_left,
+                            external
+                        );
 
                         let refund = T::GasPrice::gas_price(gas_left);
 

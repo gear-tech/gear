@@ -19,8 +19,9 @@
 use crate::{
     manager::HandleKind,
     mock::{
-        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
-        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        calc_handle_gas_spent, get_gas_spent_burned, new_test_ext, run_to_block,
+        Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
     MessageInfo, Pallet as GearPallet, Reason,
@@ -3186,7 +3187,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         run_to_block(3, None);
 
-        let gas_to_spend = Gear::get_gas_spent_burned(
+        let gas_to_spend = get_gas_spent_burned::<Test>(
             USER_1.into_origin(),
             HandleKind::Handle(wrapper_id),
             payload.clone(),
@@ -3194,7 +3195,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
         )
         .expect("Failed to get gas spent");
 
-        assert_ne!(gas_reserved, gas_to_spend);
+        assert!(gas_reserved > gas_to_spend);
 
         run_to_block(4, None);
 
