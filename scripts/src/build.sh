@@ -39,10 +39,6 @@ node_build() {
   cargo build -p gear-node "$@"
 }
 
-gear_test_build() {
-  cargo build -p gear-test "$@"
-}
-
 wasm_proc_build() {
   cargo build -p wasm-proc --release
 }

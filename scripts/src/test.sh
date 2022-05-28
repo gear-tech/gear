@@ -54,7 +54,7 @@ gtest() {
     YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
   fi
 
-  ./target/release/gear-test $YAMLS "$@"
+  $ROOT_DIR/target/release/gear-test $YAMLS "$@"
 }
 
 # $1 - ROOT DIR
@@ -78,13 +78,16 @@ pallet_test() {
 
 # $1 - ROOT DIR
 runtime_upgrade_test() {
-  TEST_SCRIPT_PATH="$1/scripts/test-utils"
+  ROOT_DIR="$1"
 
-  RUNTIME_PATH="$1/scripts/test-utils/gear_runtime.compact.compressed.wasm"
-  DEMO_PING_PATH="$1/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
+  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
+
+  RUNTIME_PATH="$ROOT_DIR/scripts/test-utils/gear_runtime.compact.compressed.wasm"
+  DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" ./target/release/gear-node --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
+  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" $ROOT_DIR/target/release/gear-node \
+  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 2
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"

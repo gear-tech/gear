@@ -67,10 +67,6 @@ node:
 node-release:
 	@ ./scripts/gear.sh build node --release
 
-.PHONY: gear-test
-gear-test:
-	@ ./scripts/gear.sh build gear-test --release
-
 # Check section
 .PHONY: check
 check: check-gear check-examples check-benchmark
@@ -226,7 +222,7 @@ test-js: init-js
 	@ ./scripts/gear.sh test js
 
 .PHONY: gtest
-gtest: init-js gear-test examples
+gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
