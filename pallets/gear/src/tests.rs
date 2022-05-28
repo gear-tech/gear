@@ -2889,7 +2889,6 @@ fn test_two_contracts_composition_works() {
 //
 // Note: on manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
 // But it's is not preferable to enter that `if` clause.
-// todo # 929 After create_program sys-call becomes fallible, tests must be changed
 #[test]
 fn test_create_program_with_value_lt_ed() {
     use demo_init_with_value::{SendMessage, WASM_BINARY};
@@ -2982,8 +2981,8 @@ fn test_create_program_with_value_lt_ed() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason =
-            format!("{}", ExtError::InsufficientMessageValue).into_bytes();
+        // TODO: return error back after #937 being merged
+        let expected_failure_reason = format!("{}", ExtError::PanicOccurred).into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -3016,7 +3015,6 @@ fn test_create_program_with_value_lt_ed() {
 //
 // Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364).
 // But it's is not preferable to enter that `if` clause.
-// todo # 929 After create_program sys-call becomes fallible, tests must be changed
 #[test]
 fn test_create_program_with_exceeding_value() {
     use demo_init_with_value::{SendMessage, WASM_BINARY};
@@ -3072,7 +3070,8 @@ fn test_create_program_with_exceeding_value() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason = format!("{}", ExtError::NotEnoughValue).into_bytes();
+        // TODO: return error back after #937 being merged
+        let expected_failure_reason = format!("{}", ExtError::PanicOccurred).into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {

@@ -25,7 +25,7 @@
 //! processing a program can send messages to other programs and users including
 //! reply to the initial message.
 
-use crate::{ActorId, MessageHandle, MessageId};
+use crate::{ActorId, ErrorCode, MessageHandle, MessageId};
 use core::mem::MaybeUninit;
 
 mod sys {
@@ -91,11 +91,6 @@ mod sys {
         pub fn gr_value(val: *mut u8);
     }
 }
-
-#[must_use]
-#[repr(transparent)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ErrorCode(i32);
 
 impl ErrorCode {
     fn into_send_error(self) -> Result<(), SendError> {

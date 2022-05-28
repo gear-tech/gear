@@ -68,7 +68,8 @@ mod wasm {
                         [],
                         1_000_001,
                         value,
-                    );
+                    )
+                    .unwrap();
 
                     COUNTER += 1;
                 }

@@ -32,7 +32,8 @@ pub unsafe extern "C" fn handle() {
                 b"unique",
                 10_000_000_000,
                 0,
-            );
+            )
+            .unwrap();
             debug!("A new program is created {:?}", new_program_id);
 
             let msg_id = msg::send(new_program_id, b"", 0).unwrap();
@@ -47,7 +48,8 @@ pub unsafe extern "C" fn handle() {
                 b"not_unique",
                 10_000_000_000,
                 0,
-            );
+            )
+            .unwrap();
             debug!("A new program is created {:?}", new_program_id);
 
             let msg_id = msg::send(new_program_id, b"", 0).unwrap();

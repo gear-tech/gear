@@ -22,7 +22,10 @@
 //! errors.
 
 use core::fmt;
-use gcore::msg::{ReplyError, SendError};
+use gcore::{
+    msg::{ReplyError, SendError},
+    prog::CreateProgramError,
+};
 
 pub type Result<T> = core::result::Result<T, ContractError>;
 
@@ -34,6 +37,7 @@ pub enum ContractError {
     Internal(&'static str),
     Sending(SendError),
     Reply(ReplyError),
+    CreateProgram(CreateProgramError),
 }
 
 impl fmt::Display for ContractError {
@@ -47,6 +51,8 @@ impl fmt::Display for ContractError {
             ContractError::Sending(_) => write!(f, "Send error"),
             // TODO: print error when it will contain actual information
             ContractError::Reply(_) => write!(f, "Reply error"),
+            // TODO: print error when it will contain actual information
+            ContractError::CreateProgram(_) => write!(f, "Program creation error"),
         }
     }
 }
@@ -60,5 +66,11 @@ impl From<SendError> for ContractError {
 impl From<ReplyError> for ContractError {
     fn from(err: ReplyError) -> Self {
         Self::Reply(err)
+    }
+}
+
+impl From<CreateProgramError> for ContractError {
+    fn from(err: CreateProgramError) -> Self {
+        Self::CreateProgram(err)
     }
 }
