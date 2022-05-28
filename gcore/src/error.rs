@@ -37,6 +37,11 @@ impl SyscallError {
         if self.len == 0 {
             Ok(())
         } else {
+            // We get error using `gr_error` syscall which expects
+            // error occurred earlier in another syscall or you'll get trap.
+            // Error decoding expected to be successful because we use
+            // SCALE codec crate of same versions (at least major ones)
+            // to encode and to decode error so error representation stays same
             #[cfg(feature = "codec")]
             unsafe {
                 use alloc::vec;
