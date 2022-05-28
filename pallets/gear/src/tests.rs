@@ -3193,7 +3193,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             payload.clone(),
             0,
         )
-        .expect("Failed to get gas spent");
+        .expect("Failed to get gas burned");
 
         assert!(gas_reserved > gas_to_spend);
 
@@ -3226,7 +3226,6 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let gas_to_spend = gas_to_spend as u128;
         let gas_reserved = gas_reserved as u128;
-
         let reserved_balance = gas_reserved + value;
 
         assert_eq!(
@@ -3243,8 +3242,6 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
-        // The bug is that initial message doesn't destroy for some
-        // reason and reservation_delta doesn't return back.
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             user_initial_balance - gas_to_spend - value

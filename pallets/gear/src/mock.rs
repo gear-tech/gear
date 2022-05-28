@@ -421,8 +421,6 @@ where
 
     let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-    let mut max_gas_spent = 0;
-
     let mut burned = 0;
 
     while let Some(queued_dispatch) =
@@ -474,33 +472,25 @@ where
         };
 
         // TODO: Check whether we charge gas fee for submitting code after #646
-        for note in journal.into_iter() {
-            core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
-
-            if let JournalNote::GasBurned { amount, .. } = note {
-                burned += amount;
-            };
-
-            if let Some(remaining_gas) = T::GasHandler::get_limit(root_message_id)
-                .map_err(|_| b"Internal error: unable to get gas limit after execution".to_vec())?
-            {
-                let gas_spent = initial_gas.saturating_sub(remaining_gas);
-                if gas_spent > max_gas_spent {
-                    max_gas_spent = gas_spent;
+        for note in journal.iter() {
+            match note {
+                JournalNote::GasBurned { amount, .. } => {
+                    burned += amount;
                 }
-            };
-
-            if let JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                trap, ..
-            }) = note
-            {
-                return Err(format!(
-                    "Program terminated with a trap: {}",
-                    trap.unwrap_or_else(|| "No reason".to_string())
-                )
-                .into_bytes());
-            };
+                JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                    trap, ..
+                }) => {
+                    return Err(format!(
+                        "Program terminated with a trap: {}",
+                        trap.clone().unwrap_or_else(|| "No reason".to_string())
+                    )
+                    .into_bytes());
+                }
+                _ => {}
+            }
         }
+
+        core_processor::handle_journal(journal, &mut ext_manager);
     }
 
     Ok(burned)

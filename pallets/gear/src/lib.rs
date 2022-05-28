@@ -571,10 +571,8 @@ pub mod pallet {
                             b"Internal error: unable to get gas limit after execution".to_vec()
                         })?
                     {
-                        let gas_spent = initial_gas.saturating_sub(remaining_gas);
-                        if gas_spent > max_gas_spent {
-                            max_gas_spent = gas_spent;
-                        }
+                        max_gas_spent =
+                            max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
                     };
 
                     if let JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
