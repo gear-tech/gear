@@ -95,34 +95,6 @@ fn set_pages<T: Ext>(
     Ok(())
 }
 
-impl<E> WasmtimeEnvironment<E>
-where
-    E: Ext + IntoExtInfo,
-    E::Error: AsTerminationReason,
-{
-    fn prepare_post_execution_data(
-        self,
-    ) -> Result<(ExtInfo, HostPointer), BackendError<WasmtimeEnvironmentError>> {
-        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-        let WasmtimeEnvironment {
-            mut store,
-            ext,
-            memory,
-            ..
-        } = self;
-        ext.into_inner()
-            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                memory.read(&mut store, offset, buffer)
-            })
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                description: None,
-                gas_amount,
-            })
-            .map(|info| (info, wasm_memory_addr))
-    }
-}
-
 impl<E> Environment<E> for WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,

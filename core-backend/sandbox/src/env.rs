@@ -243,8 +243,6 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-
         let Runtime {
             ext,
             memory,
