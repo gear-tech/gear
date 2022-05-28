@@ -88,7 +88,8 @@ pub struct CreateProgramError(());
 ///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
 ///             .into();
 ///     let new_program_id =
-///         prog::create_program_with_gas(submitted_code, &get().to_le_bytes(), b"", 10_000, 0).unwrap();
+///         prog::create_program_with_gas(submitted_code, &get().to_le_bytes(), b"", 10_000, 0)
+///             .unwrap();
 /// }
 /// ```
 /// Another case for salt is to receive it as an input:
