@@ -70,15 +70,15 @@ pub trait ProcessorExt {
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_protect_and_init_info(
+        mem: &dyn Memory,
         lazy_pages: &BTreeSet<PageNumber>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
+        mem: &dyn Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 }
 
@@ -215,31 +215,28 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_protect_and_init_info(
+        _mem: &dyn Memory,
         _memory_pages: &BTreeSet<PageNumber>,
         _prog_id: ProgramId,
-        _wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         unreachable!()
     }
 
     fn lazy_pages_post_execution_actions(
+        _mem: &dyn Memory,
         _memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-        _wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         unreachable!()
     }
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
-        self,
-        mut get_page_data: F,
-    ) -> Result<ExtInfo, (T, GasAmount)> {
+    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
             let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
+            if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
                 return Err((err, self.gas_counter.into()));
             }
             pages_data.insert(page, buf);

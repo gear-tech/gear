@@ -27,8 +27,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, BackendError, BackendReport, Environment, HostPointer, IntoExtInfo,
-    TerminationReason, TerminationReasonKind,
+    AsTerminationReason, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
+    TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -224,8 +224,8 @@ where
         })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> HostPointer {
-        self.runtime.memory.get_wasm_memory_begin_addr()
+    fn get_mem(&self) -> &dyn Memory {
+        &self.runtime.memory
     }
 
     fn execute<F, T>(
@@ -234,7 +234,7 @@ where
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), T>,
+        F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
@@ -256,7 +256,7 @@ where
 
         let info = ext
             .into_inner()
-            .into_ext_info(|ptr, buff| memory.read(ptr, buff))
+            .into_ext_info(&memory)
             .map_err(|(reason, gas_amount)| BackendError {
                 reason: SandboxEnvironmentError::Memory(reason),
                 description: None,
@@ -284,7 +284,7 @@ where
             TerminationReason::Success
         };
 
-        match post_execution_handler(wasm_memory_addr) {
+        match post_execution_handler(&memory) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
