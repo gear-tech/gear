@@ -380,9 +380,10 @@ where
         }
 
         log::debug!(
-            "Sending message {:?} from {:?}",
+            "Sending message {:?} from {:?} with gas limit {:?}",
             dispatch.message(),
-            message_id
+            message_id,
+            gas_limit,
         );
 
         if GearProgramPallet::<T>::program_exists(dispatch.destination().into_origin())

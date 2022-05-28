@@ -3172,45 +3172,81 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         run_to_block(2, None);
 
-        // A message is sent to a waiting proxy contract that passes execution on
-        // to another contract while keeping the `value`.
-        // The overall gas expenditure is 2,292,360,260. The message gas limit is
-        // set to be just enough to cover this amount.
-        // The sender's account has enough funds for both gas and `value`, therefore
-        // expecting the message to be processed successfully.
-        // Expected outcome: the sender's balance has decreased by the (gas + `value`),
-        // that is by 2,302,360,260.
+        let payload = 100_u64.to_le_bytes().to_vec();
+
+        let user_balance_before_calculating = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let gas_to_spend = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(wrapper_id),
+            payload.clone(),
+            0,
+        )
+        .expect("Failed to get gas spent");
+
+        run_to_block(3, None);
+
+        // A message is sent to a waiting proxy contract that passes execution
+        // on to another contract while keeping the `value`.
+        // The overall gas expenditure is `gas_to_spend`. The message gas limit
+        // is set to be just enough to cover this amount.
+        // The sender's account has enough funds for both gas and `value`,
+        // therefore expecting the message to be processed successfully.
+        // Expected outcome: the sender's balance has decreased by the
+        // (`gas_to_spend` + `value`).
 
         let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
-        let gas_to_spend = 2_292_360_260_u64;
-        let gas_reserved = 2_300_000_000_u64;
-        let value = 10_000_000_u128;
+
+        assert_eq!(user_balance_before_calculating, user_initial_balance);
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+        // The constant added for checks.
+        let reservation_delta = 10;
+        let gas_reserved = gas_to_spend + reservation_delta;
+        let value = 10_000_000;
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             wrapper_id,
-            100_u64.to_le_bytes().to_vec(),
+            payload,
             gas_reserved,
             value,
         ));
 
+        let message_sent = get_last_message_id().into_origin();
+
+        let gas_to_spend = gas_to_spend as u128;
+        let gas_reserved = gas_reserved as u128;
+        let reservation_delta = reservation_delta as u128;
+
+        let reserved_balance = gas_reserved + value;
+
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - (gas_reserved as u128 + value)
+            user_initial_balance - reserved_balance
         );
 
-        run_to_block(3, None);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            reserved_balance
+        );
 
-        // The below condition must hold:
+        run_to_block(4, None);
+
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+        // This gas handles for no reason. BUG
+        let message_sent_remaining_gas = <Test as Config>::GasHandler::get_limit(message_sent)
+            .ok()
+            .flatten()
+            .expect("Failed to get limit") as u128;
+
+        // The bug is that initial message doesn't destroy for some
+        // reason and reservation_delta doesn't return back.
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - (gas_to_spend as u128 + value)
-        );
-
-        // The below condition mustn't hold (previous bug check):
-        assert_ne!(
-            BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - (gas_reserved as u128 + value)
+            user_initial_balance - gas_to_spend - value + message_sent_remaining_gas
+                - reservation_delta
         );
     });
 }

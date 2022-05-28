@@ -565,9 +565,8 @@ pub mod pallet {
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
                 let remaining_gas = T::GasHandler::get_limit(root_message_id)
-                    .map_err(|_| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?
+                    .ok()
+                    .flatten()
                     .ok_or_else(|| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
