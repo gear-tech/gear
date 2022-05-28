@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+. $(dirname "$SELF")/src/common.sh
+
 build_usage() {
   cat << EOF
 
@@ -37,6 +39,10 @@ node_build() {
   cargo build -p gear-node "$@"
 }
 
+gear_test_build() {
+  cargo build -p gear-test "$@"
+}
+
 wasm_proc_build() {
   cargo build -p wasm-proc --release
 }
@@ -53,23 +59,11 @@ examples_build() {
   shift
   shift
 
+  YAMLS=$(parse_yamls_list "$1")
 
-  if [ -n "$1" ]
+  is_yamls_arg=$(echo "$1" | grep "yamls=" || true)
+  if [ -n "$is_yamls_arg" ]
   then
-    has_yamls=$(echo "$1" | grep "yamls=" || true)
-  else
-    has_yamls=""
-  fi
-
-  if  [ -n "$has_yamls" ]
-  then
-    if ! hash perl 2>/dev/null
-    then
-      echo "Can not parse yamls without \"perl\" installed =("
-      exit 1
-    fi
-
-    YAMLS=$(echo $1 | perl -ne 'print $1 if /yamls=(.*)/s')
     shift
   fi
 
@@ -83,19 +77,11 @@ examples_build() {
   else
     # If there is specified yaml list, then parses yaml files and build
     # all examples which is used as deps inside yamls.
-    for yaml in $YAMLS
+    for path in $(get_demo_list $ROOT_DIR $YAMLS)
     do
-      names=$(cat $yaml | perl -ne 'print "$1 " if /.*path: .*\/(.*?)\./s')
-      names=$(echo $names | tr _ -)
-      for name in $names
-      do
-        path=$(grep -rbnl --include \*.toml \"$name\" "$ROOT_DIR"/examples/)
-        path=$(echo "$path" | tail -1 )
-        path=$(echo $path | perl -ne 'print $1 if /(.*)Cargo\.toml/s')
-        cd $path
-        CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
-        cd -
-      done
+      cd $path
+      CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
+      cd -
     done
   fi
 }
