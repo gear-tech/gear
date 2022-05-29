@@ -112,6 +112,10 @@ case "$COMMAND" in
         header "Building gear workspace"
         gear_build "$@"; ;;
 
+      gear-test)
+        header "Building gear test"
+        gear_build "$@"; ;;
+
       examples)
         check_extensions
         header "Building gear examples"

@@ -130,6 +130,7 @@ impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {
@@ -235,7 +236,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     }
 }
 
-pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
+pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
     let initial_gas = <Test as pallet_gas::Config>::BlockGasLimit::get();
@@ -243,7 +244,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     let message = Message::new(
         Default::default(),
         ProgramId::from_origin(source),
-        ProgramId::from_origin(dest),
+        dest,
         payload,
         Some(initial_gas),
         0,
@@ -282,7 +283,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
+            dest,
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
@@ -295,7 +296,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
+            dest,
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
@@ -338,7 +339,7 @@ where
     let mut ext_manager = ExtManager::<T>::default();
 
     let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-    let root_message_id = MessageId::from(bn).into_origin();
+    let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
@@ -362,7 +363,7 @@ where
             Dispatch::new(
                 DispatchKind::Init,
                 Message::new(
-                    MessageId::from_origin(root_message_id),
+                    root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
                     payload,
@@ -375,7 +376,7 @@ where
         HandleKind::Handle(dest) => Dispatch::new(
             DispatchKind::Handle,
             Message::new(
-                MessageId::from_origin(root_message_id),
+                root_message_id,
                 ProgramId::from_origin(source),
                 ProgramId::from_origin(dest),
                 payload,
@@ -393,7 +394,7 @@ where
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
-                    MessageId::from_origin(root_message_id),
+                    root_message_id,
                     ProgramId::from_origin(source),
                     msg.source(),
                     payload,
@@ -406,8 +407,12 @@ where
     };
 
     let initial_gas = gas_limit.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get);
-    T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
-        .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
+    T::GasHandler::create(
+        source.into_origin(),
+        root_message_id.into_origin(),
+        initial_gas,
+    )
+    .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
 
     let dispatch = dispatch.into_stored();
 
@@ -433,7 +438,7 @@ where
             cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
         let actor = ext_manager
-            .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
+            .get_executable_actor(actor_id, !lazy_pages_enabled)
             .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
         let allocations_config = AllocationsConfig {

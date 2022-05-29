@@ -25,7 +25,7 @@ use crate::{
 use colored::{ColoredString, Colorize};
 use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
@@ -211,7 +211,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         return format!("Initialization error ({})", err).bright_red();
     }
 
-    log::trace!("intial programs: {:?}", &programs);
+    log::trace!("initial programs: {:?}", &programs);
 
     let mut errors = vec![];
     let mut expected_log = vec![];
@@ -247,7 +247,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 .unwrap_or_default(),
         };
 
-        let dest = programs[&message.destination.to_program_id()];
+        let dest = ProgramId::from_origin(programs[&message.destination.to_program_id()]);
 
         let gas_limit = message
             .gas_limit
@@ -260,12 +260,16 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             let source = H256::from_slice(source.to_program_id().as_ref());
             let id = GearPallet::<Runtime>::next_message_id(source);
 
-            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
+            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(
+                source,
+                id.into_origin(),
+                gas_limit,
+            );
 
             let msg = StoredMessage::new(
-                MessageId::from_origin(id),
+                id,
                 ProgramId::from_origin(source),
-                ProgramId::from_origin(dest),
+                dest,
                 payload,
                 value,
                 None,
@@ -302,17 +306,14 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // After processing queue some new programs could be created, so we
     // search for them
     for snapshot_program in &snapshots.last().unwrap().programs {
-        let exists = programs
-            .iter()
-            .any(|(k, v)| k.into_origin() == snapshot_program.id || v == &snapshot_program.id);
+        let exists = programs.iter().any(|(k, v)| {
+            *k == snapshot_program.id || ProgramId::from_origin(*v) == snapshot_program.id
+        });
         if exists {
             continue;
         } else {
             // A new program was created
-            programs.insert(
-                ProgramId::from_origin(snapshot_program.id),
-                snapshot_program.id,
-            );
+            programs.insert(snapshot_program.id, snapshot_program.id.into_origin());
         }
     }
 
@@ -377,7 +378,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             .iter()
             .filter_map(|p| {
                 if let ProgramState::Active(info) = &p.state {
-                    if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                    if let Some((pid, _)) = programs
+                        .iter()
+                        .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
+                    {
                         let code_id = CodeId::from_origin(info.code_hash);
                         let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
                             .expect("code should be in the storage");
@@ -429,7 +433,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             .programs
             .iter()
             .filter_map(|p| {
-                if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                if let Some((pid, _)) = programs
+                    .iter()
+                    .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
+                {
                     Some((*pid, p.state == ProgramState::Terminated))
                 } else {
                     None
