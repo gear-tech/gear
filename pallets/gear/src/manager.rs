@@ -355,7 +355,11 @@ where
                     let gas_left = neg_imbalance.peek();
 
                     if gas_left > 0 {
-                        log::debug!("Unreserve balance on message processed: {}", gas_left);
+                        log::debug!(
+                            "Unreserve balance on message processed: {} to {}",
+                            gas_left,
+                            external
+                        );
 
                         let refund = T::GasPrice::gas_price(gas_left);
 
@@ -382,9 +386,10 @@ where
         }
 
         log::debug!(
-            "Sending message {:?} from {:?}",
+            "Sending message {:?} from {:?} with gas limit {:?}",
             dispatch.message(),
-            message_id
+            message_id,
+            gas_limit,
         );
 
         if GearProgramPallet::<T>::program_exists(dispatch.destination())

@@ -19,8 +19,9 @@
 use crate::{
     manager::HandleKind,
     mock::{
-        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
-        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        calc_handle_gas_spent, get_gas_burned, new_test_ext, run_to_block, Event as MockEvent,
+        Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
+        USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
     MessageInfo, Pallet as GearPallet, Reason,
@@ -3169,45 +3170,79 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         run_to_block(2, None);
 
-        // A message is sent to a waiting proxy contract that passes execution on
-        // to another contract while keeping the `value`.
-        // The overall gas expenditure is 2,292,360,260. The message gas limit is
-        // set to be just enough to cover this amount.
-        // The sender's account has enough funds for both gas and `value`, therefore
-        // expecting the message to be processed successfully.
-        // Expected outcome: the sender's balance has decreased by the (gas + `value`),
-        // that is by 2,302,360,260.
+        let payload = 100_u64.to_le_bytes().to_vec();
+
+        let user_balance_before_calculating = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let gas_reserved = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(wrapper_id.into_origin()),
+            payload.clone(),
+            0,
+        )
+        .expect("Failed to get gas spent");
+
+        run_to_block(3, None);
+
+        let gas_to_spend = get_gas_burned::<Test>(
+            USER_1.into_origin(),
+            HandleKind::Handle(wrapper_id.into_origin()),
+            payload.clone(),
+            Some(gas_reserved),
+            0,
+        )
+        .expect("Failed to get gas burned");
+
+        assert!(gas_reserved > gas_to_spend);
+
+        run_to_block(4, None);
+
+        // A message is sent to a waiting proxy contract that passes execution
+        // on to another contract while keeping the `value`.
+        // The overall gas expenditure is `gas_to_spend`. The message gas limit
+        // is set to be just enough to cover this amount.
+        // The sender's account has enough funds for both gas and `value`,
+        // therefore expecting the message to be processed successfully.
+        // Expected outcome: the sender's balance has decreased by the
+        // (`gas_to_spend` + `value`).
 
         let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
-        let gas_to_spend = 2_292_360_260_u64;
-        let gas_reserved = 2_300_000_000_u64;
-        let value = 10_000_000_u128;
+
+        assert_eq!(user_balance_before_calculating, user_initial_balance);
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+        // The constant added for checks.
+        let value = 10_000_000;
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             wrapper_id,
-            100_u64.to_le_bytes().to_vec(),
+            payload,
             gas_reserved,
             value,
         ));
 
+        let gas_to_spend = gas_to_spend as u128;
+        let gas_reserved = gas_reserved as u128;
+        let reserved_balance = gas_reserved + value;
+
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - (gas_reserved as u128 + value)
+            user_initial_balance - reserved_balance
         );
 
-        run_to_block(3, None);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            reserved_balance
+        );
 
-        // The below condition must hold:
+        run_to_block(5, None);
+
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - (gas_to_spend as u128 + value)
-        );
-
-        // The below condition mustn't hold (previous bug check):
-        assert_ne!(
-            BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - (gas_reserved as u128 + value)
+            user_initial_balance - gas_to_spend - value
         );
     });
 }
