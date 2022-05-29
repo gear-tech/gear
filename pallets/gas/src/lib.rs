@@ -418,7 +418,7 @@ where
 
                     if node.refs() == 0 {
                         // Delete current node
-                        GasTree::<T>::remove(id);
+                        GasTree::<T>::remove(key);
 
                         Some((NegativeImbalance::new(value), id))
                     } else {
