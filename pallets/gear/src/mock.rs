@@ -478,7 +478,7 @@ where
         };
 
         // TODO: Check whether we charge gas fee for submitting code after #646
-        for note in journal.iter() {
+        for note in &journal {
             match note {
                 JournalNote::GasBurned { amount, .. } => {
                     burned += amount;

@@ -570,7 +570,7 @@ pub mod pallet {
                 };
 
                 // TODO: Check whether we charge gas fee for submitting code after #646
-                for note in journal.into_iter() {
+                for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
                     if let Some(remaining_gas) =
