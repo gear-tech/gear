@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Ext,
     address::Address,
     check::ExecutionContext,
     js::{MetaData, MetaType},
     sample::{PayloadVariant, Test},
+    Ext,
 };
-use core_processor::{common::*, configs::*, Ext};
+use core_processor::{common::*, configs::*};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},

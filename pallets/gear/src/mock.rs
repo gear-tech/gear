@@ -22,7 +22,6 @@ use common::{lazy_pages, Origin as _};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::{AllocationsConfig, BlockInfo},
-    Ext,
 };
 use frame_support::{
     construct_runtime, parameter_types,

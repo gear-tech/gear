@@ -17,17 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Ext,
     js::{MetaData, MetaType},
     proc,
     sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test},
+    Ext,
 };
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
-use core_processor::{
-    common::{CollectState, ExecutableActor, JournalHandler},
-    Ext,
-};
+use core_processor::common::{CollectState, ExecutableActor, JournalHandler};
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;

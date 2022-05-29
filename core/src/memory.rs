@@ -30,6 +30,7 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use core::fmt;
+pub use gear_core_errors::MemoryError as Error;
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
@@ -107,8 +108,6 @@ pub fn vec_page_data_map_to_page_buf_map(
     }
     Ok(pages_data_res)
 }
-
-pub use gear_core_errors::MemoryError as Error;
 
 /// Page number.
 #[derive(
