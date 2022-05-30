@@ -63,6 +63,7 @@ demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
+demo-exec-over-blocks = { path = "../../examples/binaries/exec-over-blocks" }
 page_size = "0.4.2"
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 

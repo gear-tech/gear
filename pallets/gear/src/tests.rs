@@ -3247,6 +3247,45 @@ fn cascading_messages_with_value_do_not_overcharge() {
     });
 }
 
+#[test]
+fn exec_program_over_multiple_blocks() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_exec_over_blocks::WASM_BINARY;
+
+        // Deploy program
+        let (prog_id, _) = safe_submit_program(
+            USER_1,
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+        );
+        run_to_block(2, None);
+
+        // send message
+        assert!(Gear::is_initialized(prog_id));
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            prog_id,
+            b"PING".to_vec(),
+            400_000_000u64,
+            0
+        ));
+        run_to_block(3, None);
+
+        log::debug!(
+            "{:?}",
+            String::from_utf8_lossy(
+                MailboxOf::<Test>::iter_key(USER_1)
+                    .nth(0)
+                    .expect("send message failed")
+                    .payload()
+            )
+        );
+    });
+}
+
 mod utils {
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -3258,8 +3297,8 @@ mod utils {
     use sp_std::convert::TryFrom;
 
     use super::{
-        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
-        Origin, SystemPallet, Test,
+        assert_ok, pallet, run_to_block, BalancesPallet, Event, Gear, GearPallet, HandleKind,
+        MessageInfo, MockEvent, Origin, SystemPallet, Test,
     };
     use common::Origin as _;
 
@@ -3398,6 +3437,35 @@ mod utils {
                 frame_support::traits::ExistenceRequirement::AllowDeath
             )
         );
+    }
+
+    /// submit program with gas estimation
+    pub(super) fn safe_submit_program(
+        user: AccountId,
+        code: Vec<u8>,
+        salt: Vec<u8>,
+        payload: Vec<u8>,
+        value: u128,
+    ) -> (ProgramId, MessageId) {
+        let origin = user.into_origin();
+        let gas_spent = Gear::get_gas_spent(
+            origin,
+            HandleKind::Init(code.clone()),
+            payload.clone(),
+            value,
+        )
+        .expect("get gas burned failed");
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(user),
+            code,
+            salt,
+            payload,
+            gas_spent,
+            value
+        ));
+
+        (get_last_program_id(), get_last_message_id())
     }
 
     // Submits program with default options (salt, gas limit, value, payload)
