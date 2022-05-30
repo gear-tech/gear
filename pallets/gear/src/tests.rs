@@ -3254,10 +3254,10 @@ fn exec_program_over_multiple_blocks() {
         use demo_exec_over_blocks::WASM_BINARY;
 
         // Deploy program
-        let (prog_id, _) = safe_submit_program(
+        let (prog_id, _) = safe_handle_program(
             USER_1,
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            Some(DEFAULT_SALT.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         );
@@ -3439,31 +3439,44 @@ mod utils {
         );
     }
 
-    /// submit program with gas estimation
-    pub(super) fn safe_submit_program(
+    /// Handle program with gas estimation
+    pub(super) fn safe_handle_program(
         user: AccountId,
-        code: Vec<u8>,
-        salt: Vec<u8>,
+        kind: HandleKind,
+        salt: Option<Vec<u8>>,
         payload: Vec<u8>,
         value: u128,
     ) -> (ProgramId, MessageId) {
-        let origin = user.into_origin();
-        let gas_spent = Gear::get_gas_spent(
-            origin,
-            HandleKind::Init(code.clone()),
-            payload.clone(),
-            value,
-        )
-        .expect("get gas burned failed");
+        let cloned_payload = payload.clone();
+        let gas_spent = move |kind: HandleKind| {
+            Gear::get_gas_spent(user.into_origin(), kind, cloned_payload, value)
+                .expect("get gas spent failed")
+        };
 
-        assert_ok!(Gear::submit_program(
-            Origin::signed(user),
-            code,
-            salt,
-            payload,
-            gas_spent,
-            value
-        ));
+        assert_ok!(match &kind {
+            HandleKind::Init(code) => Gear::submit_program(
+                Origin::signed(user),
+                code.clone(),
+                salt.unwrap_or(DEFAULT_SALT.to_vec()),
+                payload,
+                gas_spent(kind),
+                value
+            ),
+            HandleKind::Handle(prog_id) => Gear::send_message(
+                Origin::signed(user),
+                prog_id.as_bytes().into(),
+                payload,
+                gas_spent(kind),
+                value,
+            ),
+            HandleKind::Reply(message_id, _) => Gear::send_reply(
+                Origin::signed(user),
+                message_id.as_bytes().into(),
+                payload,
+                gas_spent(kind),
+                value,
+            ),
+        });
 
         (get_last_program_id(), get_last_message_id())
     }
