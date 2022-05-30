@@ -115,16 +115,16 @@ fn collect_data<P: AsRef<Path>>(
     disable_filter: bool,
     preallocate: usize,
 ) {
-    let mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> = BTreeMap::default();
+    let mut statistics: BTreeMap<_, BTreeMap<_, Vec<_>>> = BTreeMap::default();
     for entry in fs::read_dir(data_folder_path).unwrap() {
         let executions = build_tree(disable_filter, &entry.unwrap().path());
-        executions.iter().for_each(|(key, times)| {
+        for (ref key, ref times) in executions {
             if !statistics.contains_key(key) {
                 statistics.insert(key.clone(), Default::default());
             }
 
             let previous_times = statistics.get_mut(key).unwrap();
-            times.iter().for_each(|(key, &time)| {
+            for (key, &time) in times {
                 let time = (1_000_000_000.0 * time) as u64;
 
                 if let Some(time_vec) = previous_times.get_mut(key) {
@@ -140,8 +140,8 @@ fn collect_data<P: AsRef<Path>>(
 
                     previous_times.insert(key.clone(), time_vec);
                 }
-            });
-        });
+            }
+        }
     }
 
     let writer = std::fs::File::create(output_path).unwrap();
