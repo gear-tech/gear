@@ -22,7 +22,7 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, IterableDoubleMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, IterableByKeyMap, KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -162,12 +162,12 @@ where
     }
 }
 
-// Implementation of `IterableDoubleMap` trait for `MailboxImpl` in case,
-// when inner `DoubleMapStorage` implements `IterableDoubleMap`.
-impl<T, Error, OutputError, Callbacks, KeyGen> IterableDoubleMap<T::Value>
+// Implementation of `IterableByKeyMap` trait for `MailboxImpl` in case,
+// when inner `DoubleMapStorage` implements `IterableByKeyMap`.
+impl<T, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
     for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage + IterableDoubleMap<T::Value, Key = T::Key1>,
+    T: DoubleMapStorage + IterableByKeyMap<T::Value, Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
@@ -177,11 +177,11 @@ where
     type DrainIter = T::DrainIter;
     type Iter = T::Iter;
 
-    fn drain(key: Self::Key) -> Self::DrainIter {
-        T::drain(key)
+    fn drain_key(key: Self::Key) -> Self::DrainIter {
+        T::drain_key(key)
     }
 
-    fn iter(key: Self::Key) -> Self::Iter {
-        T::iter(key)
+    fn iter_key(key: Self::Key) -> Self::Iter {
+        T::iter_key(key)
     }
 }

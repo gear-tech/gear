@@ -187,9 +187,9 @@ impl IntoExtInfo for Ext {
         let allocations = self.allocations_context.allocations().clone();
         let pages_data = if cfg!(feature = "lazy-pages") {
             let mut accessed_pages: BTreeSet<PageNumber> = allocations
-                .iter()
-                .flat_map(|p| p.to_gear_pages_iter())
-                .collect();
+            .iter()
+            .flat_map(|p| p.to_gear_pages_iter())
+            .collect();
             let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
             lazy_pages_numbers.into_iter().for_each(|p| {
                 accessed_pages.remove(&p);

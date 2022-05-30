@@ -154,7 +154,7 @@ where
 
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = 1;
-    let root_message_id = MessageId::from(bn).into_origin();
+    let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
@@ -177,7 +177,7 @@ where
             Dispatch::new(
                 DispatchKind::Init,
                 Message::new(
-                    MessageId::from_origin(root_message_id),
+                    root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
                     payload,
@@ -190,7 +190,7 @@ where
         HandleKind::Handle(dest) => Dispatch::new(
             DispatchKind::Handle,
             Message::new(
-                MessageId::from_origin(root_message_id),
+                root_message_id,
                 ProgramId::from_origin(source),
                 ProgramId::from_origin(dest),
                 payload,
@@ -208,7 +208,7 @@ where
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
-                    MessageId::from_origin(root_message_id),
+                    root_message_id,
                     ProgramId::from_origin(source),
                     msg.source(),
                     payload,
@@ -221,8 +221,12 @@ where
     };
 
     let initial_gas = T::BlockGasLimit::get();
-    T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
-        .map_err(|_| "Internal error: unable to create gas handler")?;
+    T::GasHandler::create(
+        source.into_origin(),
+        root_message_id.into_origin(),
+        initial_gas,
+    )
+    .map_err(|_| "Internal error: unable to create gas handler")?;
 
     let dispatch = dispatch.into_stored();
 
@@ -242,7 +246,7 @@ where
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
-            .get_executable_actor(actor_id.into_origin(), false)
+            .get_executable_actor(actor_id, false)
             .ok_or("Program not found in the storage")?;
         Ok(Exec {
             ext_manager,
@@ -312,9 +316,9 @@ benchmarks! {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
+        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program(program_id, code, 1.into());
+        benchmarking::set_program(program_id.into_origin(), code, 1.into());
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
@@ -1955,12 +1959,7 @@ benchmarks! {
         for message_id in message_ids {
             let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
             let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
-            common::insert_waiting_message(
-                dispatch.destination().into_origin(),
-                dispatch.id().into_origin(),
-                dispatch.clone(),
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-            );
+            WaitlistOf::<T>::insert(dispatch.clone()).expect("Duplicate wl message");
         }
         let Exec {
             mut ext_manager,
