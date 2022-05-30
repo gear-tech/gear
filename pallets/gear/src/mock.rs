@@ -274,16 +274,16 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
     let existential_deposit =
         <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
     let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
-            Some(actor),
-            dispatch.into_stored().into_incoming(initial_gas),
-            block_info,
-            allocations_config,
-            existential_deposit,
-            ProgramId::from_origin(source),
-            dest,
-            u64::MAX,
-            <Test as pallet_gear::Config>::OutgoingLimit::get(),
-            schedule.host_fn_weights.into_core(),
+        Some(actor),
+        dispatch.into_stored().into_incoming(initial_gas),
+        block_info,
+        allocations_config,
+        existential_deposit,
+        ProgramId::from_origin(source),
+        dest,
+        u64::MAX,
+        <Test as pallet_gear::Config>::OutgoingLimit::get(),
+        schedule.host_fn_weights.into_core(),
     );
 
     let mut gas_burned: u64 = 0;
@@ -437,33 +437,18 @@ where
             .flatten()
             .ok_or_else(|| b"Internal error: unable to get gas limit after execution".to_vec())?;
 
-        let journal = if lazy_pages_enabled {
-            core_processor::process::<Ext, SandboxEnvironment<_>>(
-                Some(actor),
-                queued_dispatch.into_incoming(gas_limit),
-                block_info,
-                allocations_config,
-                existential_deposit,
-                ProgramId::from_origin(source),
-                actor_id,
-                u64::MAX,
-                T::OutgoingLimit::get(),
-                schedule.host_fn_weights.clone().into_core(),
-            )
-        } else {
-            core_processor::process::<Ext, SandboxEnvironment<_>>(
-                Some(actor),
-                queued_dispatch.into_incoming(gas_limit),
-                block_info,
-                allocations_config,
-                existential_deposit,
-                ProgramId::from_origin(source),
-                actor_id,
-                u64::MAX,
-                T::OutgoingLimit::get(),
-                schedule.host_fn_weights.clone().into_core(),
-            )
-        };
+        let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
+            Some(actor),
+            queued_dispatch.into_incoming(gas_limit),
+            block_info,
+            allocations_config,
+            existential_deposit,
+            ProgramId::from_origin(source),
+            actor_id,
+            u64::MAX,
+            T::OutgoingLimit::get(),
+            schedule.host_fn_weights.clone().into_core(),
+        );
 
         // TODO: Check whether we charge gas fee for submitting code after #646
         for note in &journal {

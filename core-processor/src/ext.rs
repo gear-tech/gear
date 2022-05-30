@@ -29,7 +29,6 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::MessageContext,
 };
-use gear_core_errors::{ExtError, MemoryError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
