@@ -59,7 +59,7 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
-        /// Storage with codes for proograms
+        /// Storage with codes for programs.
         type CodeStorage: CodeStorage;
 
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
@@ -83,7 +83,7 @@ pub mod pallet {
     pub enum Error<T> {}
 
     /// Program debug info.
-    // TODO: unfortunatelly we cannot store pages data in [PageBuf],
+    // TODO: unfortunately we cannot store pages data in [PageBuf],
     // because polkadot-js api can not support this type.
     #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
@@ -113,7 +113,7 @@ pub mod pallet {
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub struct ProgramDetails {
-        pub id: H256,
+        pub id: ProgramId,
         pub state: ProgramState,
     }
 
@@ -188,12 +188,12 @@ pub mod pallet {
                 .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
                 .collect();
 
-            let programs = PrefixIterator::<(H256, Program)>::new(
+            let programs = PrefixIterator::<(ProgramId, Program)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 |key, mut value| {
                     assert_eq!(key.len(), 32);
-                    let program_id = H256::from_slice(key);
+                    let program_id = ProgramId::from_origin(H256::from_slice(key));
                     let program = Program::decode(&mut value)?;
                     Ok((program_id, program))
                 },
@@ -213,7 +213,7 @@ pub mod pallet {
                     Some(code) => code.static_pages(),
                     None => WasmPageNumber(0),
                 };
-                let persistent_pages = common::get_program_pages_data(id, &active)
+                let persistent_pages = common::get_program_pages_data(id.into_origin(), &active)
                     .unwrap()
                     .into_iter()
                     .map(|(page, data)| (page, data.into_vec()))

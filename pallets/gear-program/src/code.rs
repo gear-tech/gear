@@ -17,9 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-
-use common::CodeStorageError;
-use gear_core::code::{CodeAndId, InstrumentedCodeAndId};
+use common::{CodeMetadata, CodeStorageError};
+use gear_core::{
+    code::{CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    ids::CodeId,
+};
+use sp_std::vec::Vec;
 
 impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
     fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), CodeStorageError> {
