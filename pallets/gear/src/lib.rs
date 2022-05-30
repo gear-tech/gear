@@ -185,6 +185,8 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// Log event from the specific program.
         Log(StoredMessage),
+        /// Program exited.
+        Exit(MessageInfo),
         /// Program created and an init message enqueued.
         InitMessageEnqueued(MessageInfo),
         /// Program initialization error.

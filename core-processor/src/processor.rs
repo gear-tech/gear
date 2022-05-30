@@ -226,6 +226,12 @@ fn process_success(
 
     match kind {
         Exit(value_destination) => {
+            let outcome = DispatchOutcome::Exit {
+                message_id,
+                origin,
+                program_id,
+            };
+            journal.push(JournalNote::MessageDispatched(outcome));
             journal.push(JournalNote::MessageConsumed(message_id));
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,

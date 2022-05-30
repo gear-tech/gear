@@ -156,6 +156,19 @@ where
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
+            CoreDispatchOutcome::Exit {
+                message_id,
+                origin,
+                program_id,
+            } => {
+                log::trace!("Dispatch outcome exit: {:?}", message_id);
+
+                Event::Exit(MessageInfo {
+                    message_id: message_id.into_origin(),
+                    origin: origin.into_origin(),
+                    program_id: program_id.into_origin(),
+                })
+            }
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
 
