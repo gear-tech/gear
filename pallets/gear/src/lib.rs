@@ -533,52 +533,65 @@ pub mod pallet {
                     load_page_cost: schedule.memory_weights.load_cost,
                 };
 
-                let journal = core_processor::process::<Ext, SandboxEnvironment<_>>(
-                    Some(actor),
-                    queued_dispatch.into_incoming(initial_gas),
-                    block_info,
-                    allocations_config,
-                    existential_deposit,
-                    ProgramId::from_origin(source),
-                    actor_id,
-                    u64::MAX,
-                    T::OutgoingLimit::get(),
-                    schedule.host_fn_weights.clone().into_core(),
-                );
-
-                core_processor::handle_journal(journal.clone(), &mut ext_manager);
-
-                let remaining_gas = T::GasHandler::get_limit(root_message_id)
-                    .map_err(|_| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?
+                let gas_limit = T::GasHandler::get_limit(queued_dispatch.id().into_origin())
+                    .ok()
+                    .flatten()
                     .ok_or_else(|| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
+                let journal = if lazy_pages_enabled {
+                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(gas_limit),
+                        block_info,
+                        allocations_config,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                    )
+                } else {
+                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(gas_limit),
+                        block_info,
+                        allocations_config,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                    )
+                };
+
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
-                    match note {
-                        JournalNote::SendDispatch { .. }
-                        | JournalNote::WaitDispatch(..)
-                        | JournalNote::MessageConsumed(..) => {
-                            let gas_spent = initial_gas.saturating_sub(remaining_gas);
-                            if gas_spent > max_gas_spent {
-                                max_gas_spent = gas_spent;
-                            }
-                        }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            trap,
-                            ..
-                        }) => {
-                            return Err(format!(
-                                "Program terminated with a trap: {}",
-                                trap.unwrap_or_else(|| "No reason".to_string())
-                            )
-                            .into_bytes());
-                        }
-                        _ => (),
-                    }
+                    core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
+
+                    if let Some(remaining_gas) =
+                        T::GasHandler::get_limit(root_message_id).map_err(|_| {
+                            b"Internal error: unable to get gas limit after execution".to_vec()
+                        })?
+                    {
+                        max_gas_spent =
+                            max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
+                    };
+
+                    if let JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                        trap,
+                        ..
+                    }) = note
+                    {
+                        return Err(format!(
+                            "Program terminated with a trap: {}",
+                            trap.unwrap_or_else(|| "No reason".to_string())
+                        )
+                        .into_bytes());
+                    };
                 }
             }
 

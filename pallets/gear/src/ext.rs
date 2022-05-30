@@ -33,7 +33,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExtError, TerminationReason};
+use gear_core_errors::{CoreError, ExtError, MemoryError, TerminationReason};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,9 +161,9 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_protect_and_init_info(
+        mem: &dyn Memory,
         memory_pages: &BTreeSet<PageNumber>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         if cfg!(feature = "lazy-pages") {
             lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
@@ -174,8 +174,8 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(
+        mem: &dyn Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error> {
         if cfg!(feature = "lazy-pages") {
             lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
@@ -262,60 +262,7 @@ impl EnvExt for Ext {
 
         let old_mem_size = mem.size();
 
-        log::debug!(
-            "lazy_pages::try_to_enable_lazy_pages = {}",
-            cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages()
-        );
-        let page_number = if cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages()
-        {
-            // New pages allocation may change wasm memory buffer location.
-            // So we remove protections from lazy-pages
-            // and set protection back for new wasm memory buffer pages.
-            // Also we correct lazy-pages info if need.
-            let old_mem_addr = mem.get_wasm_memory_begin_addr();
-            lazy_pages::remove_lazy_pages_prot(old_mem_addr)?;
 
-            let result = self
-                .allocations_context
-                .alloc(pages_num, mem)
-                .map_err(ExtError::Alloc);
-
-            let page_number = self.return_and_store_err(result)?;
-
-            // Add new allocations to lazy pages.
-            // All pages except ones which has been already allocated,
-            // during current execution.
-            // This is because only such pages contains Default (zeros in WebAsm) page data.
-            // Pages which has been already allocated may contain garbage.
-            let id = self.program_id.into_origin();
-            let new_allocated_pages =
-                (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
-            for wasm_page in new_allocated_pages {
-                if self.allocations_context.is_init_page(wasm_page)
-                    || self.fresh_allocations.contains(&wasm_page)
-                {
-                    continue;
-                }
-                self.fresh_allocations.insert(wasm_page);
-                wasm_page.to_gear_pages_iter().for_each(|page| {
-                    log::trace!("add {:?} to lazy pages", page);
-                    save_page_lazy_info(id, page);
-                });
-            }
-
-            // Protect all lazy pages including new allcations
-            let new_mem_addr = mem.get_wasm_memory_begin_addr();
-            lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)?;
-
-            page_number
-        } else {
-            let result = self
-                .allocations_context
-                .alloc(pages_num, mem)
-                .map_err(ExtError::Alloc);
-
-            self.return_and_store_err(result)?
-        };
 
         // Returns back greedily used gas for grow
         let new_mem_size = mem.size();

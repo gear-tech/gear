@@ -18,11 +18,8 @@ clean:
 .PHONY: clean-examples
 clean-examples:
 	@ rm -rf ./target/wasm32-unknown-unknown
+	@ rm -rvf target/release/build/demo-*
 	@ cargo clean --manifest-path=./examples/Cargo.toml
-
-.PHONY: clean-node
-clean-node:
-	@ cargo clean -p gear-node
 
 # Build section
 .PHONY: all
@@ -42,8 +39,6 @@ gear-release:
 .PHONY: examples
 examples: build-examples proc-examples
 
-# You can specify yaml list to build coresponding examples
-# using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: build-examples
 build-examples:
 	@ ./scripts/gear.sh build examples yamls="$(yamls)"
@@ -63,6 +58,10 @@ node:
 .PHONY: node-release
 node-release:
 	@ ./scripts/gear.sh build node --release
+
+.PHONY: gear-test
+gear-test:
+	@ ./scripts/gear.sh build gear-test --release
 
 # Check section
 .PHONY: check
@@ -218,14 +217,13 @@ test-gear-release: init-js examples
 test-js: init-js
 	@ ./scripts/gear.sh test js
 
-# You can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: gtest
-gtest: init-js examples
+gtest: init-js gear-test examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js examples
-	@ ./scripts/gear.sh test rtest
+rtest: init-js node-release examples
+	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:

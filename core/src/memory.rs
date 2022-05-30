@@ -230,7 +230,11 @@ impl core::ops::Sub for WasmPageNumber {
     }
 }
 
-/// Memory interface for the allocator.
+/// Host pointer type.
+/// Host pointer can be 64bit or less, to support both we use u64.
+pub type HostPointer = u64;
+
+/// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
     fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error>;
@@ -248,7 +252,7 @@ pub trait Memory {
     fn data_size(&self) -> usize;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_wasm_memory_begin_addr(&self) -> u64;
+    fn get_buffer_host_addr(&self) -> HostPointer;
 }
 
 /// Pages allocations context for the running program.

@@ -29,6 +29,7 @@ use gear_core::{
     memory::{AllocationsContext, PageBuf, PageNumber},
     message::MessageContext,
 };
+use gear_core_errors::{ExtError, MemoryError, TerminationReason};
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -63,14 +64,14 @@ pub trait ProcessorExt {
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_protect_and_init_info(
+        mem: &dyn Memory,
         lazy_pages: &BTreeSet<PageNumber>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
+        mem: &dyn Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-        wasm_mem_begin_addr: u64,
     ) -> Result<(), Self::Error>;
 }
