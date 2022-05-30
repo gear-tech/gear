@@ -259,6 +259,7 @@ fn process_success(
                 id_exited: program_id,
                 value_destination,
             });
+
             DispatchOutcome::Exit {
                 message_id,
                 origin,

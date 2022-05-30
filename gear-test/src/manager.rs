@@ -125,8 +125,8 @@ impl JournalHandler for InMemoryExtManager {
                 }
                 true
             }
-            DispatchOutcome::Exit { .. }
-            | DispatchOutcome::Success(_)
+            DispatchOutcome::Success(_)
+            | DispatchOutcome::Exit { .. }
             | DispatchOutcome::NoExecution(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 if let Some(Some(actor)) = self.actors.get_mut(&program_id) {

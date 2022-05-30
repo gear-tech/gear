@@ -446,8 +446,8 @@ impl JournalHandler for ExtManager {
         match outcome {
             DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(message_id),
             DispatchOutcome::Success(_)
-            | DispatchOutcome::NoExecution(_)
-            | DispatchOutcome::Exit { .. } => {}
+            | DispatchOutcome::Exit { .. }
+            | DispatchOutcome::NoExecution(_) => {}
             DispatchOutcome::InitFailure {
                 message_id,
                 program_id,
