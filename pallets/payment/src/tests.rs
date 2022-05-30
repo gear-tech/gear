@@ -26,7 +26,7 @@ use frame_support::{
     weights::{DispatchInfo, GetDispatchInfo, PostDispatchInfo, Weight},
 };
 use gear_core::{
-    ids::MessageId,
+    ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, StoredDispatch},
 };
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
@@ -125,7 +125,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
         // - relatively small weight, relatively large multiplier
 
         let test_case =
-            |call: &<Test as frame_system::Config>::Call, weights: Vec<u64>, mult: u64| {
+            |call: &<Test as frame_system::Config>::Call, weights: Vec<u64>, mul: u64| {
                 // not charging for tx len to make rounding error more significant
                 let len = 0;
 
@@ -139,7 +139,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
                     assert_approx_eq!(
                         Balances::free_balance(ALICE),
                         alice_initial_balance - w as u128,
-                        mult as u128
+                        mul as u128
                     );
 
                     assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
@@ -152,7 +152,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
                     assert_approx_eq!(
                         Balances::free_balance(BLOCK_AUTHOR),
                         author_initial_balance + w as u128,
-                        mult as u128
+                        mul as u128
                     );
                 }
             };
@@ -187,7 +187,7 @@ fn mq_size_affecting_fee_works() {
         //
         // - clear dispatch queue
         // - submit transaction of known weight and len that affects MQ
-        // - ensure the fee is "standard": `len_fee` + `unadjsted_weight_fee`
+        // - ensure the fee is "standard": `len_fee` + `unadjusted_weight_fee`
 
         // Populate MQ
         // In the next block re-submit the transaction from before and check that
@@ -197,7 +197,7 @@ fn mq_size_affecting_fee_works() {
         let alice_initial_balance = Balances::free_balance(ALICE);
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-        let program_id = H256::random();
+        let program_id = ProgramId::from_origin(H256::random());
 
         let call: &<Test as frame_system::Config>::Call =
             &Call::Gear(pallet_gear::Call::send_message {
@@ -216,7 +216,7 @@ fn mq_size_affecting_fee_works() {
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
             .unwrap();
-        // Can use strict equality for calls that do not introduce ronding error
+        // Can use strict equality for calls that do not introduce rounding error
         assert_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance - weight as u128 - len_fee
@@ -281,7 +281,7 @@ fn mq_size_not_affecting_fee_works() {
         //
         // - clear dispatch queue
         // - submit transaction of known weight and len that does not affect MQ
-        // - ensure the fee is "standard": `len_fee` + `unadjsted_weight_fee`
+        // - ensure the fee is "standard": `len_fee` + `unadjusted_weight_fee`
 
         // Populate MQ
         // In the next block re-submit the transaction from before and check that
@@ -376,7 +376,7 @@ fn mq_size_not_affecting_fee_works() {
 #[test]
 #[allow(clippy::let_unit_value)]
 fn query_info_and_fee_details_work() {
-    let program_id = H256::random();
+    let program_id = ProgramId::from_origin(H256::random());
     let call_affecting_mq = Call::Gear(pallet_gear::Call::send_message {
         destination: program_id,
         payload: Default::default(),
@@ -384,7 +384,7 @@ fn query_info_and_fee_details_work() {
         value: 0,
     });
     let call_not_affecting_mq = Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
-        message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
+        message_id: 1.into(),
     });
     let extra = ();
 

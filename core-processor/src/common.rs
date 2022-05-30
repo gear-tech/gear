@@ -104,7 +104,7 @@ pub enum DispatchOutcome {
         message_id: MessageId,
         /// Original actor.
         origin: ProgramId,
-        /// Id of the program that was successfully initialized.
+        /// Id of the program that was successfully exited.
         program_id: ProgramId,
     },
     /// Message was an initialization success.
