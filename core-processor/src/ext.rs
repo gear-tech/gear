@@ -26,7 +26,7 @@ use gear_core::{
     costs::HostFnWeights,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, PageBuf, PageNumber},
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::MessageContext,
 };
 use gear_core_errors::{ExtError, MemoryError, TerminationReason};

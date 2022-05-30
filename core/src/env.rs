@@ -52,7 +52,7 @@ pub trait Ext {
     /// The resulting page number should point to `pages` consecutives memory pages.
     fn alloc(
         &mut self,
-        pages: WasmPageNumber,
+        pages_num: WasmPageNumber,
         mem: &mut dyn Memory,
     ) -> Result<WasmPageNumber, Self::Error>;
 

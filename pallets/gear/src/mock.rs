@@ -434,7 +434,7 @@ where
             .ok_or_else(|| b"Internal error: unable to get gas limit after execution".to_vec())?;
 
         let journal = if lazy_pages_enabled {
-            core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+            core_processor::process::<Ext, SandboxEnvironment<_>>(
                 Some(actor),
                 queued_dispatch.into_incoming(gas_limit),
                 block_info,

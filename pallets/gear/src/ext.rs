@@ -107,7 +107,6 @@ pub struct Ext {
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
-    pub lazy_pages_enabled: bool,
     // Pages which has been alloced during current execution
     pub fresh_allocations: BTreeSet<WasmPageNumber>,
 }
@@ -146,14 +145,12 @@ impl ProcessorExt for Ext {
             program_id,
             program_candidates_data,
             host_fn_weights,
-            lazy_pages_enabled: cfg!(feature = "lazy-pages")
-                && lazy_pages::try_to_enable_lazy_pages(),
             fresh_allocations: Default::default(),
         }
     }
 
     fn is_lazy_pages_enabled() -> bool {
-        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages()
+        cfg!(feature = "lazy-pages")
     }
 
     fn check_lazy_pages_consistent_state() -> bool {
@@ -166,7 +163,7 @@ impl ProcessorExt for Ext {
         prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
         if cfg!(feature = "lazy-pages") {
-            lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
+            lazy_pages::protect_pages_and_init_info(mem, memory_pages, prog_id)
                 .map_err(Error::LazyPages)
         } else {
             unreachable!()
@@ -178,8 +175,7 @@ impl ProcessorExt for Ext {
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error> {
         if cfg!(feature = "lazy-pages") {
-            lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
-                .map_err(Error::LazyPages)
+            lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
         } else {
             unreachable!()
         }
@@ -187,13 +183,9 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), T>, T>(
-        self,
-        mut get_page_data: F,
-    ) -> Result<ExtInfo, (T, GasAmount)> {
+    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let allocations = self.allocations_context.allocations().clone();
-        let pages_data = if self.lazy_pages_enabled {
-            // accessed pages are all pages except current lazy pages
+        let pages_data = if cfg!(feature = "lazy-pages") {
             let mut accessed_pages: BTreeSet<PageNumber> = allocations
                 .iter()
                 .flat_map(|p| p.to_gear_pages_iter())
@@ -208,8 +200,8 @@ impl IntoExtInfo for Ext {
             let mut accessed_pages_data = BTreeMap::new();
             for page in accessed_pages {
                 let mut buf = PageBuf::new_zeroed();
-                if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
-                    return Err((err, self.gas_counter.into()));
+                if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
+                    return Err((err, self.into_gas_amount()));
                 }
                 accessed_pages_data.insert(page, buf);
             }
@@ -218,7 +210,7 @@ impl IntoExtInfo for Ext {
             let mut pages_data = BTreeMap::new();
             for page in allocations.iter().flat_map(|p| p.to_gear_pages_iter()) {
                 let mut buf = PageBuf::new_zeroed();
-                if let Err(err) = get_page_data(page.offset(), buf.as_mut_slice()) {
+                if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
                     return Err((err, self.gas_counter.into()));
                 }
                 pages_data.insert(page, buf);
@@ -260,9 +252,57 @@ impl EnvExt for Ext {
         // Greedily charge gas for grow
         self.charge_gas(pages_num.0.saturating_mul(self.config.mem_grow_cost as u32))?;
 
+        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
+
         let old_mem_size = mem.size();
 
+        let page_number = if cfg!(feature = "lazy-pages") {
+            // New pages allocation may change wasm memory buffer location.
+            // So we remove protections from lazy-pages
+            // and set protection back for new wasm memory buffer pages.
+            // Also we correct lazy-pages info if need.
+            let old_mem_addr = mem.get_buffer_host_addr();
+            lazy_pages::remove_lazy_pages_prot(mem)?;
 
+            let result = self
+                .allocations_context()
+                .alloc(pages_num, mem)
+                .map_err(ExtError::Alloc);
+
+            let page_number = self.return_and_store_err(result)?;
+
+            // Add new allocations to lazy pages.
+            // All pages except ones which has been already allocated,
+            // during current execution.
+            // This is because only such pages contains Default (zeros in WebAsm) page data.
+            // Pages which has been already allocated may contain garbage.
+            let id = self.program_id.into_origin();
+            let new_allocated_pages =
+                (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
+            for wasm_page in new_allocated_pages {
+                if self.allocations_context().is_init_page(wasm_page)
+                    || self.fresh_allocations.contains(&wasm_page)
+                {
+                    continue;
+                }
+                self.fresh_allocations.insert(wasm_page);
+                wasm_page.to_gear_pages_iter().for_each(|page| {
+                    log::trace!("add {:?} to lazy pages", page);
+                    save_page_lazy_info(id, page);
+                });
+            }
+
+            // Protect all lazy pages including new allocations
+            lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(mem, old_mem_addr)?;
+            page_number
+        } else {
+            let result = self
+                .allocations_context
+                .alloc(pages_num, mem)
+                .map_err(ExtError::Alloc);
+
+            self.return_and_store_err(result)?
+        };
 
         // Returns back greedily used gas for grow
         let new_mem_size = mem.size();
@@ -277,7 +317,7 @@ impl EnvExt for Ext {
         let last_page = first_page + pages_num - 1.into();
         let mut new_allocated_pages_num = WasmPageNumber(0);
         for page in first_page.0..=last_page.0 {
-            if !self.allocations_context.is_init_page(page.into()) {
+            if !self.allocations_context().is_init_page(page.into()) {
                 new_allocated_pages_num = new_allocated_pages_num + 1.into();
             }
         }
