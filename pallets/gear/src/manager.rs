@@ -166,9 +166,9 @@ where
                 log::trace!("Dispatch outcome exit: {:?}", message_id);
 
                 Event::Exit(MessageInfo {
-                    message_id: message_id.into_origin(),
+                    message_id,
+                    program_id,
                     origin: origin.into_origin(),
-                    program_id: program_id.into_origin(),
                 })
             }
             CoreDispatchOutcome::Success(message_id) => {

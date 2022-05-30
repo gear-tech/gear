@@ -2439,26 +2439,24 @@ fn no_redundant_gas_value_after_exiting() {
 
         run_to_block(2, None);
 
-        let gas_limit = 50_000_000_000;
+        let (gas_spent, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             prog_id,
             EMPTY_PAYLOAD.to_vec(),
-            gas_limit,
+            gas_spent,
             0,
         ));
 
         let msg_id = get_last_message_id().into_origin();
-
         let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, Some(gas_limit));
+        assert_eq!(maybe_limit, Some(gas_spent));
 
         // before execution
         let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
         let reserved_after_send = BalancesPallet::<Test>::reserved_balance(USER_1);
-        let (gas_spent, _) =
-            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
-        assert_eq!(reserved_after_send, gas_limit as u128);
+        assert_eq!(reserved_after_send, gas_spent as u128);
 
         run_to_block(3, None);
 
