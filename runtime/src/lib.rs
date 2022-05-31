@@ -339,6 +339,7 @@ impl pallet_gear_program::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_program::weights::GearProgramWeight<Runtime>;
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {

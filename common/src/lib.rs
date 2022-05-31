@@ -37,7 +37,6 @@ use frame_support::{
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
-    message::StoredDispatch,
 };
 use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
@@ -52,7 +51,6 @@ use sp_std::{
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
-pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub type ExitCode = i32;
 
@@ -310,7 +308,7 @@ pub enum ProgramState {
     /// the program is not considered as initialized. All messages to such a
     /// program go to the wait list.
     /// `message_id` contains identifier of the initialization message.
-    Uninitialized { message_id: H256 },
+    Uninitialized { message_id: MessageId },
     /// Program has been successfully initialized and can process messages.
     Initialized,
 }
@@ -350,20 +348,6 @@ fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     let mut key = pages_prefix(id);
     key.extend(b"::");
     page.0.encode_to(&mut key);
-    key
-}
-
-pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_WAITLIST_PREFIX);
-    prog_id.encode_to(&mut key);
-    key.extend(b"::");
-    key
-}
-
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
-    let mut key = wait_prefix(prog_id);
-    msg_id.encode_to(&mut key);
     key
 }
 
@@ -491,23 +475,7 @@ pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: StoredDispatch, bn: u32) {
-    let payload = (dispatch, bn);
-    sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
-}
-
-pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(StoredDispatch, u32)> {
-    let id = wait_key(dest_prog_id, msg_id);
-    let msg = sp_io::storage::get(&id)
-        .and_then(|val| <(StoredDispatch, u32)>::decode(&mut &val[..]).ok());
-
-    if msg.is_some() {
-        sp_io::storage::clear(&id);
-    }
-    msg
-}
-
-pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: ProgramId) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);
@@ -515,31 +483,15 @@ pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     key
 }
 
-fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_WAITLIST_PREFIX);
-    prog_id.encode_to(&mut key);
-
-    key
-}
-
-pub fn remove_program_waitlist(prog_id: H256) -> Vec<StoredDispatch> {
-    let key = program_waitlist_prefix(prog_id);
-    let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<StoredDispatch>::decode(&mut &v[..]).ok());
-    sp_io::storage::clear(&key);
-
-    messages.unwrap_or_default()
-}
-
-pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
+pub fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
     let key = waiting_init_prefix(dest_prog_id);
     sp_io::storage::append(&key, message_id.encode());
 }
 
-pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
+pub fn waiting_init_take_messages(dest_prog_id: ProgramId) -> Vec<MessageId> {
     let key = waiting_init_prefix(dest_prog_id);
-    let messages = sp_io::storage::get(&key).and_then(|v| Vec::<H256>::decode(&mut &v[..]).ok());
+    let messages =
+        sp_io::storage::get(&key).and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok());
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()
@@ -548,5 +500,7 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
+
+    // TODO: Remove this legacy after next runtime upgrade.
+    sp_io::storage::clear_prefix(b"g::wait::", None);
 }

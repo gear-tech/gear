@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{ActiveProgram, CodeStorage, Origin as _, ProgramState};
+use super::*;
+use crate::mock::*;
+use common::{storage::*, ActiveProgram, CodeMetadata, CodeStorage, Origin as _, ProgramState};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
@@ -26,10 +28,6 @@ use gear_core::{
 };
 use hex_literal::hex;
 use sp_std::collections::btree_map::BTreeMap;
-
-use super::*;
-use crate::mock::*;
-
 use utils::CreateProgramResult;
 use wasm_instrument::gas_metering::ConstantCostRules;
 
@@ -64,10 +62,10 @@ fn pause_program_works() {
         let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
-        let program_id = H256::from_low_u64_be(1);
+        let program_id: ProgramId = 1.into();
 
         common::set_program_and_pages_data(
-            program_id,
+            program_id.into_origin(),
             ActiveProgram {
                 allocations,
                 pages_with_data,
@@ -78,43 +76,21 @@ fn pause_program_works() {
         )
         .expect("memory pages are not valid");
 
-        let msg_id_1 = H256::from_low_u64_be(1);
-        common::insert_waiting_message(
-            program_id,
-            msg_id_1,
-            StoredDispatch::new(
-                DispatchKind::Handle,
-                StoredMessage::new(
-                    MessageId::from_origin(msg_id_1),
-                    3.into(),
-                    ProgramId::from_origin(program_id),
-                    Default::default(),
-                    0,
-                    None,
-                ),
-                None,
-            ),
-            0,
-        );
+        let msg_id_1: MessageId = 1.into();
+        WaitlistOf::<Test>::insert(StoredDispatch::new(
+            DispatchKind::Handle,
+            StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
+            None,
+        ))
+        .expect("Duplicate message is wl");
 
-        let msg_id_2 = H256::from_low_u64_be(2);
-        common::insert_waiting_message(
-            program_id,
-            msg_id_2,
-            StoredDispatch::new(
-                DispatchKind::Handle,
-                StoredMessage::new(
-                    MessageId::from_origin(msg_id_2),
-                    4.into(),
-                    ProgramId::from_origin(program_id),
-                    Default::default(),
-                    0,
-                    None,
-                ),
-                None,
-            ),
-            0,
-        );
+        let msg_id_2: MessageId = 2.into();
+        WaitlistOf::<Test>::insert(StoredDispatch::new(
+            DispatchKind::Handle,
+            StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
+            None,
+        ))
+        .expect("Duplicate message is wl");
 
         run_to_block(2, None);
 
@@ -126,13 +102,13 @@ fn pause_program_works() {
 
         // although the memory pages should be removed
         assert!(
-            common::get_program_data_for_pages(program_id, memory_pages.keys())
+            common::get_program_data_for_pages(program_id.into_origin(), memory_pages.keys())
                 .unwrap()
                 .is_empty()
         );
 
-        assert!(common::remove_waiting_message(program_id, msg_id_1).is_none());
-        assert!(common::remove_waiting_message(program_id, msg_id_2).is_none());
+        assert!(WaitlistOf::<Test>::remove(program_id, msg_id_1).is_err());
+        assert!(WaitlistOf::<Test>::remove(program_id, msg_id_2).is_err());
     });
 }
 
@@ -148,9 +124,9 @@ fn pause_program_twice_fails() {
 
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
-        let program_id = H256::from_low_u64_be(1);
+        let program_id: ProgramId = 1.into();
         common::set_program(
-            program_id,
+            program_id.into_origin(),
             ActiveProgram {
                 allocations: Default::default(),
                 pages_with_data: Default::default(),
@@ -181,9 +157,9 @@ fn pause_terminated_program_fails() {
 
         Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
-        let program_id = H256::from_low_u64_be(1);
+        let program_id: ProgramId = 1.into();
         common::set_program(
-            program_id,
+            program_id.into_origin(),
             ActiveProgram {
                 allocations: Default::default(),
                 pages_with_data: Default::default(),
@@ -194,7 +170,9 @@ fn pause_terminated_program_fails() {
 
         run_to_block(2, None);
 
-        assert_ok!(common::set_program_terminated_status(program_id));
+        assert_ok!(common::set_program_terminated_status(
+            program_id.into_origin()
+        ));
 
         assert_noop!(
             GearProgram::pause_program(program_id),
@@ -221,20 +199,20 @@ fn pause_uninitialized_program_works() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         assert!(GearProgram::program_paused(program_id));
-        assert!(common::get_program(program_id).is_none());
+        assert!(common::get_program(program_id.into_origin()).is_none());
 
         assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
         assert!(
-            common::get_program_data_for_pages(program_id, memory_pages.keys())
+            common::get_program_data_for_pages(program_id.into_origin(), memory_pages.keys())
                 .unwrap()
                 .is_empty()
         );
 
-        assert!(common::remove_waiting_message(program_id, msg_1.id().into_origin()).is_none());
-        assert!(common::remove_waiting_message(program_id, msg_2.id().into_origin()).is_none());
-        assert!(common::remove_waiting_message(program_id, init_msg.id().into_origin()).is_none());
+        assert!(WaitlistOf::<Test>::remove(program_id, msg_1.id()).is_err());
+        assert!(WaitlistOf::<Test>::remove(program_id, msg_2.id()).is_err());
+        assert!(WaitlistOf::<Test>::remove(program_id, init_msg.id()).is_err());
 
         assert!(common::waiting_init_take_messages(program_id).is_empty());
     });
@@ -262,44 +240,44 @@ fn resume_uninitialized_program_works() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let wait_list = IntoIterator::into_iter([&init_msg, &msg_1, &msg_2])
-            .map(|d| (d.id().into_origin(), d.clone()))
+            .map(|d| (d.id(), d.clone()))
             .collect::<BTreeMap<_, _>>();
 
-        let block_number = 100;
+        run_to_block(100, None);
         assert_ok!(GearProgram::resume_program_impl(
             program_id,
             memory_pages.clone(),
             wait_list,
-            block_number
         ));
         assert!(!GearProgram::program_paused(program_id));
 
         let new_memory_pages =
-            common::get_program_data_for_pages(program_id, memory_pages.keys()).unwrap();
+            common::get_program_data_for_pages(program_id.into_origin(), memory_pages.keys())
+                .unwrap();
         assert_eq!(memory_pages, new_memory_pages);
 
         let waiting_init = common::waiting_init_take_messages(program_id);
         assert_eq!(waiting_init.len(), 2);
-        assert!(waiting_init.contains(&msg_1.id().into_origin()));
-        assert!(waiting_init.contains(&msg_2.id().into_origin()));
+        assert!(waiting_init.contains(&msg_1.id()));
+        assert!(waiting_init.contains(&msg_2.id()));
 
         assert_eq!(
-            block_number,
-            common::remove_waiting_message(program_id, init_msg.id().into_origin())
+            WaitlistOf::<Test>::remove(program_id, init_msg.id())
                 .map(|(_, bn)| bn)
-                .unwrap()
+                .unwrap(),
+            100
         );
         assert_eq!(
-            block_number,
-            common::remove_waiting_message(program_id, msg_1.id().into_origin())
+            WaitlistOf::<Test>::remove(program_id, msg_1.id())
                 .map(|(_, bn)| bn)
-                .unwrap()
+                .unwrap(),
+            100
         );
         assert_eq!(
-            block_number,
-            common::remove_waiting_message(program_id, msg_2.id().into_origin())
+            WaitlistOf::<Test>::remove(program_id, msg_2.id())
                 .map(|(_, bn)| bn)
-                .unwrap()
+                .unwrap(),
+            100
         );
     });
 }
@@ -322,18 +300,18 @@ fn resume_program_twice_fails() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let wait_list = IntoIterator::into_iter([init_msg, msg_1, msg_2])
-            .map(|d| (d.id().into_origin(), d))
+            .map(|d| (d.id(), d))
             .collect::<BTreeMap<_, _>>();
 
-        let block_number = 100;
+        run_to_block(100, None);
+
         assert_ok!(GearProgram::resume_program_impl(
             program_id,
             memory_pages.clone(),
             wait_list.clone(),
-            block_number
         ));
         assert_noop!(
-            GearProgram::resume_program_impl(program_id, memory_pages, wait_list, block_number),
+            GearProgram::resume_program_impl(program_id, memory_pages, wait_list),
             Error::<Test>::PausedProgramNotFound
         );
     });
@@ -356,16 +334,15 @@ fn resume_program_wrong_memory_fails() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        let block_number = 100;
+        run_to_block(100, None);
         memory_pages.remove(&0.into());
         assert_noop!(
             GearProgram::resume_program_impl(
                 program_id,
                 memory_pages,
                 IntoIterator::into_iter([init_msg, msg_1, msg_2])
-                    .map(|d| (d.id().into_origin(), d))
-                    .collect(),
-                block_number
+                    .map(|d| (d.id(), d))
+                    .collect()
             ),
             Error::<Test>::WrongMemoryPages
         );
@@ -389,7 +366,7 @@ fn resume_program_wrong_list_fails() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        let block_number = 100;
+        run_to_block(100, None);
 
         let (kind, message, opt_context) = msg_2.into_parts();
 
@@ -411,9 +388,8 @@ fn resume_program_wrong_list_fails() {
                 program_id,
                 memory_pages,
                 IntoIterator::into_iter([init_msg, msg_1, msg_2])
-                    .map(|d| (d.id().into_origin(), d))
-                    .collect(),
-                block_number
+                    .map(|d| (d.id(), d))
+                    .collect()
             ),
             Error::<Test>::WrongWaitList
         );
@@ -426,7 +402,7 @@ mod utils {
     use super::*;
 
     pub struct CreateProgramResult {
-        pub program_id: H256,
+        pub program_id: ProgramId,
         pub code_id: CodeId,
         pub init_msg: StoredDispatch,
         pub msg_1: StoredDispatch,
@@ -463,10 +439,10 @@ mod utils {
         let allocations = memory_pages.iter().map(|(p, _)| p.to_wasm_page()).collect();
         let pages_with_data = memory_pages.keys().copied().collect();
 
-        let init_msg_id = H256::from_low_u64_be(3);
-        let program_id = H256::from_low_u64_be(1);
+        let init_msg_id: MessageId = 3.into();
+        let program_id: ProgramId = 1.into();
         common::set_program_and_pages_data(
-            program_id,
+            program_id.into_origin(),
             ActiveProgram {
                 allocations,
                 pages_with_data,
@@ -483,48 +459,34 @@ mod utils {
         let init_msg = StoredDispatch::new(
             DispatchKind::Handle,
             StoredMessage::new(
-                MessageId::from_origin(init_msg_id),
+                init_msg_id,
                 3.into(),
-                ProgramId::from_origin(program_id),
+                program_id,
                 Default::default(),
                 0,
                 None,
             ),
             None,
         );
-        common::insert_waiting_message(program_id, init_msg_id, init_msg.clone(), 0);
+        WaitlistOf::<Test>::insert(init_msg.clone()).expect("Duplicate message is wl");
 
-        let msg_id_1 = H256::from_low_u64_be(1);
+        let msg_id_1: MessageId = 1.into();
         let msg_1 = StoredDispatch::new(
             DispatchKind::Handle,
-            StoredMessage::new(
-                MessageId::from_origin(msg_id_1),
-                3.into(),
-                ProgramId::from_origin(program_id),
-                Default::default(),
-                0,
-                None,
-            ),
+            StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
             None,
         );
-        common::insert_waiting_message(program_id, msg_id_1, msg_1.clone(), 0);
+        WaitlistOf::<Test>::insert(msg_1.clone()).expect("Duplicate message is wl");
         common::waiting_init_append_message_id(program_id, msg_id_1);
 
         let msg_id_2 = 2.into();
         let msg_2 = StoredDispatch::new(
             DispatchKind::Handle,
-            StoredMessage::new(
-                msg_id_2,
-                4.into(),
-                ProgramId::from_origin(program_id),
-                Default::default(),
-                0,
-                None,
-            ),
+            StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
             None,
         );
-        common::insert_waiting_message(program_id, msg_id_2.into_origin(), msg_2.clone(), 0);
-        common::waiting_init_append_message_id(program_id, msg_id_2.into_origin());
+        WaitlistOf::<Test>::insert(msg_2.clone()).expect("Duplicate message is wl");
+        common::waiting_init_append_message_id(program_id, msg_id_2);
 
         CreateProgramResult {
             program_id,
