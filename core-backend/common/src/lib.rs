@@ -38,7 +38,7 @@ use gear_core::{
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
-use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_core_errors::{ExtError, MemoryError};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReasonKind {
@@ -166,7 +166,7 @@ where
     pub fn with<U, F>(mut self, f: F) -> Result<Self, U>
     where
         F: FnOnce(&mut E) -> Result<T, U>,
-        U: CoreError,
+        U: IntoExtError,
     {
         match f(self.ext) {
             Ok(t) => {
@@ -193,6 +193,10 @@ where
             .map(|err| err.encoded_size() as u32)
             .unwrap_or(0)
     }
+}
+
+pub trait IntoExtError: Sized {
+    fn into_ext_error(self) -> Result<ExtError, Self>;
 }
 
 pub trait AsTerminationReason {

@@ -24,7 +24,7 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind, TrapExplanation,
+    AsTerminationReason, ExtInfo, IntoExtError, IntoExtInfo, TerminationReasonKind, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -133,7 +133,9 @@ impl From<ExecutionError> for ProcessorError {
     }
 }
 
-impl CoreError for ProcessorError {
+impl CoreError for ProcessorError {}
+
+impl IntoExtError for ProcessorError {
     fn into_ext_error(self) -> Result<ExtError, Self> {
         match self {
             ProcessorError::Core(err) => Ok(err),

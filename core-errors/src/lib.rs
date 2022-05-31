@@ -30,10 +30,7 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: Sized + fmt::Display + fmt::Debug {
-    /// Converts self into [`ExtError`]
-    fn into_ext_error(self) -> Result<ExtError, Self>;
-}
+pub trait CoreError: fmt::Display + fmt::Debug {}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
@@ -161,8 +158,4 @@ impl ExtError {
     }
 }
 
-impl CoreError for ExtError {
-    fn into_ext_error(self) -> Result<ExtError, Self> {
-        Ok(self)
-    }
-}
+impl CoreError for ExtError {}

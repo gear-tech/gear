@@ -24,7 +24,9 @@ use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
     Ext, ProcessorError, ProcessorExt,
 };
-use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind};
+use gear_backend_common::{
+    AsTerminationReason, ExtInfo, IntoExtError, IntoExtInfo, TerminationReasonKind,
+};
 use gear_core::{
     costs::HostFnWeights,
     env::Ext as EnvExt,
@@ -42,7 +44,9 @@ pub enum Error {
     LazyPages(lazy_pages::Error),
 }
 
-impl CoreError for Error {
+impl CoreError for Error {}
+
+impl IntoExtError for Error {
     fn into_ext_error(self) -> Result<ExtError, Self> {
         match self {
             Error::Processor(err) => Ok(err.into_ext_error()?),

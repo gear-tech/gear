@@ -25,7 +25,7 @@ use alloc::{
 };
 use codec::Encode;
 use gear_backend_common::{
-    funcs::*, AsTerminationReason, ExtErrorProcessor, IntoExtInfo, TerminationReason,
+    funcs::*, AsTerminationReason, ExtErrorProcessor, IntoExtError, IntoExtInfo, TerminationReason,
     TerminationReasonKind,
 };
 use gear_core::{
@@ -118,7 +118,7 @@ fn write_to_caller_memory<'a, T: Ext>(
 impl<E> FuncsHandler<E>
 where
     E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     pub fn alloc(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {

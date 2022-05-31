@@ -30,7 +30,7 @@ use core::{
     slice::Iter,
 };
 use gear_backend_common::{
-    funcs, AsTerminationReason, ExtErrorProcessor, IntoExtInfo, TerminationReasonKind,
+    funcs, AsTerminationReason, ExtErrorProcessor, IntoExtError, IntoExtInfo, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -127,7 +127,7 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
 impl<E> FuncsHandler<E>
 where
     E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();

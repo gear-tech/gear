@@ -27,8 +27,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
-    TerminationReasonKind,
+    AsTerminationReason, BackendError, BackendReport, Environment, IntoExtError, IntoExtInfo,
+    TerminationReason, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -104,7 +104,7 @@ fn set_pages(
 impl<E> Environment<E> for SandboxEnvironment<E>
 where
     E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     type Error = SandboxEnvironmentError;
 
