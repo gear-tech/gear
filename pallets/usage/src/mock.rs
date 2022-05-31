@@ -125,6 +125,7 @@ impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {
