@@ -2488,7 +2488,7 @@ fn init_wait_reply_exit() {
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(1),
             WASM_BINARY.to_vec(),
-            vec![],
+            b"EXIT".to_vec(),
             Vec::new(),
             2_000_000_000u64,
             0u128
@@ -2527,7 +2527,7 @@ fn init_wait_reply_exit() {
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
             msg_id,
-            b"exit".to_vec(),
+            b"PONG".to_vec(),
             100_000_000_000u64,
             0,
         ));

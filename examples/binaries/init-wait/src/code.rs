@@ -32,6 +32,10 @@ pub unsafe extern "C" fn init() {
             msg::send(msg::source(), b"PING", 0).unwrap();
             STATE = State::WaitForReply;
             exec::wait();
+
+            if msg::load_bytes() == b"EXIT".to_vec() {
+                exec::exit(msg::source())
+            }
         }
         State::WaitForReply => {
             for k in 0..20 {
@@ -49,10 +53,6 @@ pub unsafe extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
-    if msg::load_bytes() == b"exit".to_vec() {
-        exec::exit(msg::source())
-    }
-
     if STATE == State::WaitForReply {
         for k in 20..40 {
             TEST_DYNAMIC_MEMORY.insert(k, ());
