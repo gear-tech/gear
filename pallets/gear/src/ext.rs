@@ -42,20 +42,20 @@ pub enum Error {
     LazyPages(lazy_pages::Error),
 }
 
-impl CoreError for Error {}
+impl CoreError for Error {
+    fn into_ext_error(self) -> Result<ExtError, Self> {
+        match self {
+            Error::Processor(err) => Ok(err.into_ext_error()?),
+            err => Err(err),
+        }
+    }
+}
 
 impl AsTerminationReason for Error {
     fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
         match self {
             Error::Processor(err) => err.as_termination_reason(),
             Error::LazyPages(_) => None,
-        }
-    }
-
-    fn into_ext_error(self) -> Result<ExtError, Self> {
-        match self {
-            Error::Core(core) => Ok(core),
-            err => Err(err),
         }
     }
 }

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use gear_core_errors::{ExtError, MemoryError, MessageError, TerminationReason};
+pub use gear_core_errors::{ExtError, MemoryError, MessageError};
 
 #[cfg(feature = "codec")]
 mod sys {

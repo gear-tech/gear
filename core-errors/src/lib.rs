@@ -136,6 +136,7 @@ pub enum ExecutionError {
 
 /// An error occurred in API.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
     #[display(fmt = "Some error")]

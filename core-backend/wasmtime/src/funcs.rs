@@ -23,6 +23,7 @@ use alloc::{
     string::{FromUtf8Error, String, ToString},
     vec,
 };
+use codec::Encode;
 use gear_backend_common::{
     funcs::*, AsTerminationReason, ExtErrorProcessor, IntoExtInfo, TerminationReason,
     TerminationReasonKind,
