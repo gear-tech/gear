@@ -139,7 +139,8 @@ macro_rules! wrap_storage_double_map {
 }
 
 /// Same as `wrap_storage_double_map!`, but with extra implementations
-/// of `CountedByKey` and `IterableDoubleMap` over double map values.
+/// of `CountedByKey`, `IterableMap` and `IterableByKeyMap`
+/// over double map values.
 ///
 /// `PrefixIterator` from `frame_support` and `KeyValueIteratorWrap` from
 /// this crate should be in scope.
@@ -165,17 +166,32 @@ macro_rules! wrap_extended_storage_double_map {
             }
         }
 
-        impl<T: crate::Config> IterableDoubleMap<$val> for $name<T> {
+        impl<T: crate::Config> IterableByKeyMap<$val> for $name<T> {
             type Key = $key1;
             type DrainIter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
             type Iter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
 
-            fn drain(key: Self::Key) -> Self::DrainIter {
+            fn drain_key(key: Self::Key) -> Self::DrainIter {
                 $storage::<T>::drain_prefix(key).into()
             }
 
-            fn iter(key: Self::Key) -> Self::Iter {
+            fn iter_key(key: Self::Key) -> Self::Iter {
                 $storage::<T>::iter_prefix(key).into()
+            }
+        }
+
+        impl<T: crate::Config> IterableMap<$val> for $name<T> {
+            type DrainIter =
+                KeysValueIteratorWrap<$key1, $key2, $val, PrefixIterator<($key1, $key2, $val)>>;
+            type Iter =
+                KeysValueIteratorWrap<$key1, $key2, $val, PrefixIterator<($key1, $key2, $val)>>;
+
+            fn drain() -> Self::DrainIter {
+                $storage::<T>::drain().into()
+            }
+
+            fn iter() -> Self::Iter {
+                $storage::<T>::iter().into()
             }
         }
     };

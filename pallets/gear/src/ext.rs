@@ -83,16 +83,16 @@ impl fmt::Display for Error {
     }
 }
 
-/// Ext with lazy pages support
+/// Ext with lazy pages support.
 pub struct LazyPagesExt {
     inner: Ext,
-    // Pages which has been alloced during current execution
+    // Pages which has been allocated during current execution.
     fresh_allocations: BTreeSet<WasmPageNumber>,
 }
 
 impl IntoExtInfo for LazyPagesExt {
     fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
-        // accessed pages are all pages except current lazy pages
+        // Accessed pages are all pages except current lazy pages
         let allocations = self.inner.allocations_context.allocations().clone();
         let mut accessed_pages: BTreeSet<PageNumber> = allocations
             .iter()
