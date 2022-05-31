@@ -2478,7 +2478,7 @@ fn no_redundant_gas_value_after_exiting() {
 }
 
 #[test]
-fn init_wait_reply_exit() {
+fn init_wait_exit_cleaned_storage() {
     use demo_init_wait::WASM_BINARY;
 
     init_logger();
@@ -2486,7 +2486,7 @@ fn init_wait_reply_exit() {
         System::reset_events();
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(1),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"EXIT".to_vec(),
             Vec::new(),
@@ -2503,7 +2503,7 @@ fn init_wait_reply_exit() {
         let count = 5;
         for _ in 0..count {
             assert_ok!(GearPallet::<Test>::send_message(
-                Origin::signed(1),
+                Origin::signed(USER_1),
                 pid,
                 vec![],
                 10_000u64,
