@@ -56,3 +56,18 @@ pub trait FallibleCallback<T, R = ()> {
     /// Triggers the callback's logic.
     fn call(arg: &T) -> Result<R, Self::Error>;
 }
+
+/// Represents callback action for cases
+/// without input for getting some data.
+pub trait GetCallback<T> {
+    /// Returns value by callback's logic.
+    fn call() -> T;
+}
+
+// Blank `GetCallback` implementation
+// for returning default values.
+impl<T: Default> GetCallback<T> for () {
+    fn call() -> T {
+        Default::default()
+    }
+}
