@@ -151,12 +151,6 @@ impl TryFrom<&[u8]> for ActorId {
 )]
 pub struct MessageId([u8; 32]);
 
-impl MessageId {
-    pub(crate) fn inner(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
 #[cfg(feature = "debug")]
 impl MessageId {
     pub const fn new(arr: [u8; 32]) -> Self {
