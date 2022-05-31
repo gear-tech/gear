@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use clap::{Parser, Subcommand};
+use common::TestSuites;
+use quick_xml::de::from_str;
 use std::{
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     str::FromStr,
 };
-use clap::{Parser, Subcommand};
-use quick_xml::de::from_str;
-use common::TestSuites;
 use tabled::{Style, Table};
 
 mod junit_tree;
