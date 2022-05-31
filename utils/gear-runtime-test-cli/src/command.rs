@@ -49,7 +49,10 @@ use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 use std::{
     collections::BTreeMap,
     sync::atomic::{AtomicUsize, Ordering},
+    time::Instant,
 };
+
+use junit_common::{TestCase, TestSuite, TestSuites};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -69,20 +72,63 @@ impl GearRuntimeTestCmd {
         let total_failed = AtomicUsize::new(0);
 
         println!("Total fixtures: {}", total_fixtures);
-        tests.par_iter().for_each(|test| {
-            test.fixtures.par_iter().for_each(|fixture| {
-                new_test_ext().execute_with(|| {
-                    gear_common::reset_storage();
-                    let output = run_fixture(test, fixture);
-                    MailboxOf::<Runtime>::remove_all();
+        let (executions, times) = tests
+            .par_iter()
+            .map(|test| {
+                let (fixtures, times) = test
+                    .fixtures
+                    .par_iter()
+                    .map(|fixture| {
+                        new_test_ext().execute_with(|| {
+                            gear_common::reset_storage();
 
-                    println!("Fixture {}: {}", fixture.title.bold(), output);
-                    if !output.contains("Ok") && !output.contains("Skip") {
-                        total_failed.fetch_add(1, Ordering::SeqCst);
-                    }
-                });
-            });
-        });
+                            let now = Instant::now();
+                            let output = run_fixture(test, fixture);
+                            let elapsed = now.elapsed();
+
+                            MailboxOf::<Runtime>::remove_all();
+
+                            println!("Fixture {}: {}", fixture.title.bold(), output);
+                            if !output.contains("Ok") && !output.contains("Skip") {
+                                total_failed.fetch_add(1, Ordering::SeqCst);
+                            }
+
+                            (
+                                TestCase {
+                                    name: fixture.title.clone(),
+                                    time: elapsed.as_secs_f64().to_string(),
+                                },
+                                elapsed.as_secs_f64(),
+                            )
+                        })
+                    })
+                    .collect::<(Vec<_>, Vec<_>)>();
+
+                (
+                    TestSuite {
+                        name: test.title.clone(),
+                        testcase: fixtures,
+                    },
+                    times.iter().sum::<f64>(),
+                )
+            })
+            .collect::<(Vec<_>, Vec<_>)>();
+
+        if let Some(ref junit_path) = self.generate_junit {
+            let writer = std::fs::File::create(junit_path)?;
+            quick_xml::se::to_writer(
+                writer,
+                &TestSuites {
+                    time: times.iter().sum::<f64>().to_string(),
+                    testsuite: executions,
+                },
+            )
+            .map_err(|e| {
+                let mapped: Box<dyn std::error::Error + Send + Sync + 'static> = Box::new(e);
+                mapped
+            })?;
+        }
+
         if total_failed.load(Ordering::SeqCst) == 0 {
             Ok(())
         } else {

@@ -16,23 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 
-mod command;
-mod util;
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TestCase {
+    pub name: String,
+    pub time: String,
+}
 
-/// The `runtests` command used to test gear with yaml.
-#[derive(Debug, clap::Parser)]
-pub struct GearRuntimeTestCmd {
-    /// Input dir/file with yaml for testing.
-    #[clap(parse(from_os_str))]
-    pub input: Vec<PathBuf>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TestSuite {
+    pub name: String,
+    pub testcase: Vec<TestCase>,
+}
 
-    /// Produce output in the (almost) JUnit/XUnit XML format.
-    #[clap(long)]
-    pub generate_junit: Option<PathBuf>,
-
-    #[allow(missing_docs)]
-    #[clap(flatten)]
-    pub shared_params: sc_cli::SharedParams,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TestSuites {
+    pub time: String,
+    pub testsuite: Vec<TestSuite>,
 }
