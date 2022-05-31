@@ -1,5 +1,5 @@
 [package]
-name = "regression-common"
+name = "junit-common"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"

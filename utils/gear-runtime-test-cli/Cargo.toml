@@ -34,4 +34,4 @@ pallet-gear = { path = "../../pallets/gear" }
 pallet-gas = { path = "../../pallets/gas" }
 pallet-gear-debug = { path = "../../pallets/gear-debug" }
 gear-core-processor = { path = "../../core-processor" }
-regression-common = { path = "../regression-common" }
+junit-common = { path = "../junit-common" }

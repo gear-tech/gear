@@ -34,7 +34,7 @@ members = [
     "runtime",
     "utils/gear-runtime-test-cli",
     "utils/regression-analysis",
-    "utils/regression-common",
+    "utils/junit-common",
     "utils/wasm-proc",
     "utils/wasm-builder",
 ]

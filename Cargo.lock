@@ -2499,6 +2499,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime",
  "gear-test",
+ "junit-common",
  "log",
  "pallet-balances",
  "pallet-gas",
@@ -2507,7 +2508,6 @@ dependencies = [
  "parity-scale-codec",
  "quick-xml",
  "rayon",
- "regression-common",
  "sc-cli",
  "sc-service",
  "serde_json",
@@ -3427,6 +3427,13 @@ dependencies = [
  "jsonrpsee-client-transport",
  "jsonrpsee-core",
  "jsonrpsee-types 0.8.0",
+]
+
+[[package]]
+name = "junit-common"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -6099,18 +6106,11 @@ name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "junit-common",
  "quick-xml",
- "regression-common",
  "serde_json",
  "tabled",
  "thousands",
-]
-
-[[package]]
-name = "regression-common"
-version = "0.1.0"
-dependencies = [
- "serde",
 ]
 
 [[package]]

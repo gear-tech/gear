@@ -52,7 +52,7 @@ use std::{
     time::Instant,
 };
 
-use regression_common::{TestCase, TestSuite, TestSuites};
+use junit_common::{TestCase, TestSuite, TestSuites};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
