@@ -31,6 +31,7 @@ use scale_info::TypeInfo;
 
 /// Core error.
 pub trait CoreError: Sized + fmt::Display + fmt::Debug {
+    /// Converts self into [`ExtError`]
     fn into_ext_error(self) -> Result<ExtError, Self>;
 }
 
