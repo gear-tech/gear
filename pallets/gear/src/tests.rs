@@ -24,7 +24,7 @@ use crate::{
         USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
-    MessageInfo, Pallet as GearPallet, Reason,
+    MessageInfo, Pallet as GearPallet, Reason, WaitlistOf,
 };
 use codec::Encode;
 use common::{storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
@@ -2478,6 +2478,77 @@ fn no_redundant_gas_value_after_exiting() {
 }
 
 #[test]
+fn init_wait_reply_exit() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            Vec::new(),
+            2_000_000_000u64,
+            0u128
+        ));
+        let pid = get_last_program_id();
+
+        // block 2
+        //
+        // - send exit message to the program
+        // - send messages to the program
+        run_to_block(2, None);
+        let count = 5;
+        for _ in 0..count {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(1),
+                pid,
+                vec![],
+                10_000u64,
+                0u128
+            ));
+        }
+
+        // block 3
+        //
+        // - count waiting init messages
+        // - reply and wake program
+        // - check program status
+        run_to_block(3, None);
+        assert_eq!(waiting_init_messages(pid).len(), count);
+        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), count + 1);
+
+        let msg_id = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1),
+            msg_id,
+            b"exit".to_vec(),
+            100_000_000_000u64,
+            0,
+        ));
+
+        assert!(!Gear::is_initialized(pid));
+        assert!(!Gear::is_terminated(pid));
+
+        // block 4
+        //
+        // - check if program has terminated
+        // - check waiting_init storage is empty
+        // - check wait list is empty
+        run_to_block(4, None);
+        assert!(!Gear::is_initialized(pid));
+        assert!(Gear::is_terminated(pid));
+        assert_eq!(waiting_init_messages(pid).len(), 0);
+        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 0);
+    })
+}
+
+#[test]
 fn paused_program_keeps_id() {
     use demo_init_wait::WASM_BINARY;
 
@@ -3305,6 +3376,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 mod utils {
     use frame_support::{
+        codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::currency::Currency,
     };
@@ -3642,5 +3714,12 @@ mod utils {
         for (pos, line) in v.iter().enumerate() {
             println!("{}). {:?}", pos, line);
         }
+    }
+
+    pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
+        let key = common::waiting_init_prefix(pid);
+        sp_io::storage::get(&key)
+            .and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok())
+            .unwrap_or_default()
     }
 }

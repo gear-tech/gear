@@ -49,6 +49,10 @@ pub unsafe extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
+    if msg::load_bytes() == b"exit".to_vec() {
+        exec::exit(msg::source())
+    }
+
     if STATE == State::WaitForReply {
         for k in 20..40 {
             TEST_DYNAMIC_MEMORY.insert(k, ());

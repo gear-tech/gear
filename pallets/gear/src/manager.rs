@@ -338,6 +338,7 @@ where
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
+        let _ = common::waiting_init_take_messages(id_exited);
         let res = common::set_program_terminated_status(id_exited.into_origin());
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
