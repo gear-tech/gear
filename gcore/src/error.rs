@@ -39,7 +39,7 @@ impl SyscallError {
         } else {
             #[cfg(feature = "codec")]
             {
-                get_syscall_error(self.len)
+                Err(get_syscall_error(self.len))
             }
 
             #[cfg(not(feature = "codec"))]
