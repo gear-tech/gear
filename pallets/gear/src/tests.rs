@@ -3254,7 +3254,7 @@ fn exec_program_over_multiple_blocks() {
         use demo_exec_over_blocks::WASM_BINARY;
 
         // Deploy program
-        let (prog_id, _) = safe_handle_program(
+        let prog_id = handle_program(
             USER_1,
             HandleKind::Init(WASM_BINARY.to_vec()),
             Some(DEFAULT_SALT.to_vec()),
@@ -3264,14 +3264,13 @@ fn exec_program_over_multiple_blocks() {
         run_to_block(2, None);
 
         // send message
-        assert!(Gear::is_initialized(prog_id));
-        assert_ok!(Gear::send_message(
-            Origin::signed(USER_1),
-            prog_id,
+        handle_program(
+            USER_1,
+            HandleKind::Handle(prog_id.into_origin()),
+            None,
             b"PING".to_vec(),
-            400_000_000u64,
-            0
-        ));
+            0,
+        );
         run_to_block(3, None);
 
         log::debug!(
@@ -3440,45 +3439,52 @@ mod utils {
     }
 
     /// Handle program with gas estimation
-    pub(super) fn safe_handle_program(
+    pub(super) fn handle_program(
         user: AccountId,
         kind: HandleKind,
         salt: Option<Vec<u8>>,
         payload: Vec<u8>,
         value: u128,
-    ) -> (ProgramId, MessageId) {
+    ) -> H256 {
         let cloned_payload = payload.clone();
         let gas_spent = move |kind: HandleKind| {
             Gear::get_gas_spent(user.into_origin(), kind, cloned_payload, value)
                 .expect("get gas spent failed")
         };
 
-        assert_ok!(match &kind {
-            HandleKind::Init(code) => Gear::submit_program(
-                Origin::signed(user),
-                code.clone(),
-                salt.unwrap_or(DEFAULT_SALT.to_vec()),
-                payload,
-                gas_spent(kind),
-                value
-            ),
-            HandleKind::Handle(prog_id) => Gear::send_message(
-                Origin::signed(user),
-                prog_id.as_bytes().into(),
-                payload,
-                gas_spent(kind),
-                value,
-            ),
-            HandleKind::Reply(message_id, _) => Gear::send_reply(
-                Origin::signed(user),
-                message_id.as_bytes().into(),
-                payload,
-                gas_spent(kind),
-                value,
-            ),
-        });
-
-        (get_last_program_id(), get_last_message_id())
+        match &kind {
+            HandleKind::Init(code) => {
+                assert_ok!(Gear::submit_program(
+                    Origin::signed(user),
+                    code.clone(),
+                    salt.unwrap_or(DEFAULT_SALT.to_vec()),
+                    payload,
+                    gas_spent(kind),
+                    value
+                ));
+                get_last_program_id().into_origin()
+            }
+            HandleKind::Handle(prog_id) => {
+                assert_ok!(Gear::send_message(
+                    Origin::signed(user),
+                    prog_id.as_bytes().into(),
+                    payload,
+                    gas_spent(kind),
+                    value,
+                ));
+                get_last_message_id().into_origin()
+            }
+            HandleKind::Reply(message_id, _) => {
+                assert_ok!(Gear::send_reply(
+                    Origin::signed(user),
+                    message_id.as_bytes().into(),
+                    payload,
+                    gas_spent(kind),
+                    value,
+                ));
+                get_last_message_id().into_origin()
+            }
+        }
     }
 
     // Submits program with default options (salt, gas limit, value, payload)
