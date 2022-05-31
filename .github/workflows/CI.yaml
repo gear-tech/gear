@@ -219,6 +219,7 @@ jobs:
       - name: "Create comment (performance)"
         uses: peter-evans/create-or-update-comment@v2
         if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
+        continue-on-error: true
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
@@ -237,6 +238,7 @@ jobs:
       - name: "Update comment (performance)"
         uses: peter-evans/create-or-update-comment@v2
         if: steps.find_comment_id.outputs.comment-id != ''
+        continue-on-error: true
         with:
           comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
           body: |
