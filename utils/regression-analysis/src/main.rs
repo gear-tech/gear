@@ -146,17 +146,19 @@ fn collect_data<P: AsRef<Path>>(
 }
 
 fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: bool) {
-    let statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
+    let mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
         serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
     let executions = build_tree(disable_filter, current_junit_path);
     let mut compared = executions
         .iter()
         .filter_map(|(key, tests)| {
-            statistics.get(key).map(|test_times| {
+            statistics.get_mut(key).map(|test_times| {
                 let test_stats = tests
                     .iter()
                     .filter_map(|(key, &time)| {
-                        test_times.get(key).map(|times| {
+                        test_times.get_mut(key).map(|times| {
+                            // this is necessary as the order may be wrong after deserialization
+                            times.sort_unstable();
                             let len = times.len();
                             let len_remainder = len % 2;
                             let quartile_lower = median(&times[..len / 2]);
