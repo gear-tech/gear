@@ -92,7 +92,7 @@ pub enum ProcessorError {
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReasonKind),
     /// User's code panicked
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "Panic occurred: {}", _0)]
     Panic(String),
 }
 
@@ -463,7 +463,7 @@ impl EnvExt for Ext {
     fn debug(&mut self, data: &str) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Debug)?;
 
-        if data.starts_with("panic occurred: ") {
+        if let Some(data) = data.strip_prefix("panic occurred: ") {
             self.error_explanation = Some(ProcessorError::Panic(data.to_string()));
         }
         log::debug!(target: "gwasm", "DEBUG: {}", data);
