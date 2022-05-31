@@ -43,7 +43,7 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/getting-started-in-5-minutes) to compile the Rust test smart contract to WebAssembly. :running: Upload and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. 
 
-3. :scroll: Write your own smart contract or take one from the [examples](https://github.com/gear-tech/gear/tree/master/examples). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
+3. :scroll: Write your own smart contract or take one from the [examples](https://github.com/gear-academy). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
 
 4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
 
@@ -80,7 +80,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     
 ## Implement and run your own blockchain application
 
-1. Write your own smart contract or take one from the available templates. Adapt a template in accordance to your business needs. Gear provides templates for many dApp types - DeFi, DAO, NFT, Wallet, Staking, Oracle and more. [Application templates](https://github.com/gear-tech/apps).
+1. Gear provides dApp [application templates](https://github.com/gear-academy) that cover various use cases - DeFi, DAO, NFT and more. Write your own smart contract or take one from the available templates. Adapt a template in accordance to your business needs.
 
 2. Test your smart contract off-chain, test it on-chain using a local node, then upload to Gear network.
 
@@ -179,19 +179,19 @@ Gear is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
 <h4>
 <p align="left" nowrap>
     <a href="https://twitter.com/gear_techs">
-        <img src="https://gear-tech.io/img/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
+        <img src="./images/social-icon-1.svg" alt="twit" style="vertical-align:middle" >
     </a>
     <a href="https://github.com/gear-tech">
-        <img src="https://gear-tech.io/img/social-icon-2.svg" alt="github" style="vertical-align:middle" >
+        <img src="./images/social-icon-2.svg" alt="github" style="vertical-align:middle" >
     </a>
     <a href="https://discord.gg/7BQznC9uD9">
-        <img src="https://gear-tech.io/img/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
+        <img src="./images/social-icon-3.svg" alt="discord" style="vertical-align:middle" >
     </a>
     <a href="https://medium.com/@gear_techs">
-        <img src="https://gear-tech.io/img/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
+        <img src="./images/social-icon-4.svg" alt="medium" style="vertical-align:middle" >
     </a>
     <a href="https://t.me/gear_tech">
-        <img src="https://gear-tech.io/img/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
+        <img src="./images/social-icon-5.svg" alt="medium" style="vertical-align:middle" >
    </a>
     <br>
     <a href="https://wiki.gear-tech.io/" nowrap>
