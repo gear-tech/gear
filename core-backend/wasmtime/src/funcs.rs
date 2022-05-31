@@ -23,15 +23,17 @@ use alloc::{
     string::{FromUtf8Error, String, ToString},
     vec,
 };
-use codec::Encode;
-use gear_backend_common::{funcs::*, ExtErrorProcessor, IntoExtInfo, TerminationReason};
+use gear_backend_common::{
+    funcs::*, AsTerminationReason, ExtErrorProcessor, IntoExtInfo, TerminationReason,
+    TerminationReasonKind,
+};
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
+use gear_core_errors::{CoreError, MemoryError};
 use wasmtime::{AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static> {
@@ -115,6 +117,7 @@ fn write_to_caller_memory<'a, T: Ext>(
 impl<E> FuncsHandler<E>
 where
     E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason,
 {
     pub fn alloc(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {
@@ -201,8 +204,9 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| {
-                    if let Some(CoreTerminationReason::GasAllowanceExceeded) =
-                        e.as_core().and_then(E::Error::as_termination_reason)
+                    if let Some(TerminationReasonKind::GasAllowanceExceeded) = e
+                        .as_core()
+                        .and_then(AsTerminationReason::as_termination_reason)
                     {
                         caller.data_mut().termination_reason =
                             Some(TerminationReason::GasAllowanceExceeded);

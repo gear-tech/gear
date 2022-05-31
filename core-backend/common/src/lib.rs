@@ -27,6 +27,7 @@ pub mod funcs;
 use alloc::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use core::fmt;
@@ -39,17 +40,33 @@ use gear_core::{
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum TerminationReasonKind {
+    Exit,
+    Leave,
+    Wait,
+    GasAllowanceExceeded,
+}
+
 #[derive(Debug, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Trap {
-        explanation: Option<ExtError>,
+        explanation: Option<TrapExplanation>,
         description: Option<Cow<'static, str>>,
     },
     Wait,
     GasAllowanceExceeded,
+}
+
+#[derive(Debug, Clone, derive_more::Display)]
+pub enum TrapExplanation {
+    #[display(fmt = "{}", _0)]
+    Core(ExtError),
+    #[display(fmt = "{}", _0)]
+    Other(String),
 }
 
 pub struct ExtInfo {
@@ -60,7 +77,7 @@ pub struct ExtInfo {
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<ExtError>,
+    pub trap_explanation: Option<TrapExplanation>,
     pub exit_argument: Option<ProgramId>,
 }
 
@@ -176,4 +193,8 @@ where
             .map(|err| err.encoded_size() as u32)
             .unwrap_or(0)
     }
+}
+
+pub trait AsTerminationReason {
+    fn as_termination_reason(&self) -> Option<&TerminationReasonKind>;
 }

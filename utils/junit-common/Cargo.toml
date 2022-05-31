@@ -1,0 +1,9 @@
+[package]
+name = "junit-common"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+serde = { version = "1.0.137", features = ["derive"] }
