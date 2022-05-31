@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::{collections::BTreeMap, str::FromStr};
-
 use common::TestSuites;
 
 pub fn build_tree<Filter>(

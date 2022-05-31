@@ -169,10 +169,9 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
-      - name: "Test (regressions): pallets"
+      - name: "Test (performance): pallets"
         if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-regressions-pallets
-        continue-on-error: true
+        id: test-performance-pallets
         run: |
           cp /root/cache/pallet-tests.json /tmp/
           ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
@@ -193,10 +192,9 @@ jobs:
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
-      - name: "Test (regressions): node runtime testsuite"
+      - name: "Test (performance): node runtime testsuite"
         if: ${{ github.ref != 'refs/heads/master' }}
-        id: test-regressions-runtime
-        continue-on-error: true
+        id: test-performance-runtime
         run: |
           cp /root/cache/runtime-tests.json /tmp/
           ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
@@ -209,7 +207,7 @@ jobs:
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
-      - name: Find comment (regressions)
+      - name: Find comment (performance)
         uses: peter-evans/find-comment@v2
         if: ${{ github.ref != 'refs/heads/master' }}
         id: find_comment_id
@@ -218,41 +216,39 @@ jobs:
           comment-author: 'github-actions[bot]'
           direction: last
 
-      - name: "Create comment (regressions)"
+      - name: "Create comment (performance)"
         uses: peter-evans/create-or-update-comment@v2
         if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
-        continue-on-error: true
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             <details><summary>${{ github.event.pull_request.head.sha }}</summary>
             <details><summary>Pallet tests (values are in nanosegconds)</summary>
             
-            ${{ steps.test-regressions-pallets.outputs.body }}
+            ${{ steps.test-performance-pallets.outputs.body }}
             </details>
             
             <details><summary>Runtime tests (values are in nanoseconds)</summary>
             
-            ${{ steps.test-regressions-runtime.outputs.body }}
+            ${{ steps.test-performance-runtime.outputs.body }}
             </details>
             </details>
 
-      - name: "Update comment (regressions)"
+      - name: "Update comment (performance)"
         uses: peter-evans/create-or-update-comment@v2
         if: steps.find_comment_id.outputs.comment-id != ''
-        continue-on-error: true
         with:
           comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
           body: |
             <details><summary>${{ github.event.pull_request.head.sha }}</summary>
             <details><summary>Pallet tests (values are in nanoseconds)</summary>
             
-            ${{ steps.test-regressions-pallets.outputs.body }}
+            ${{ steps.test-performance-pallets.outputs.body }}
             </details>
             
             <details><summary>Runtime tests (values are in nanoseconds)</summary>
             
-            ${{ steps.test-regressions-runtime.outputs.body }}
+            ${{ steps.test-performance-runtime.outputs.body }}
             </details>
             </details>
 

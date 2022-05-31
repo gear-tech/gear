@@ -22,16 +22,13 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
-
 use clap::{Parser, Subcommand};
-
 use quick_xml::de::from_str;
+use common::TestSuites;
+use tabled::{Style, Table};
 
 mod junit_tree;
 mod output;
-
-use common::TestSuites;
-use tabled::{Style, Table};
 
 const PALLET_NAMES: [&str; 7] = [
     "pallet-gas",
@@ -87,7 +84,7 @@ fn build_tree<P: AsRef<Path>>(
 
     let junit_xml = std::fs::read_to_string(path).unwrap();
     let test_suites: TestSuites = from_str(&junit_xml).unwrap();
-    let total_time: BTreeMap<_, _> = [(
+    let total_time = [(
         String::from("Total time"),
         f64::from_str(&test_suites.time).unwrap(),
     )]
