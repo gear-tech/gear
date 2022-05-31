@@ -37,19 +37,9 @@ impl SyscallError {
         if self.len == 0 {
             Ok(())
         } else {
-            // We get error using `gr_error` syscall which expects
-            // error occurred earlier in another syscall or you'll get trap.
-            // Error decoding expected to be successful because we use
-            // SCALE codec crate of same versions (at least major ones)
-            // to encode and to decode error so error representation stays same
             #[cfg(feature = "codec")]
-            unsafe {
-                use alloc::vec;
-                use codec::Decode;
-
-                let mut data = vec![0; self.len as usize];
-                sys::gr_error(data.as_mut_ptr());
-                Err(ExtError::decode(&mut data.as_slice()).expect("error decoded successfully"))
+            {
+                get_syscall_error(self.len)
             }
 
             #[cfg(not(feature = "codec"))]
@@ -57,5 +47,23 @@ impl SyscallError {
                 Err(ExtError::Some)
             }
         }
+    }
+}
+
+/// We get an error using `gr_error` syscall which expects
+/// the error occurred earlier in another syscall or you'll get trap.
+/// Error decoding is expected to be successful because we use
+/// SCALE codec crate of same versions (at least major ones)
+/// to encode and to decode error so error representation stays same.
+/// If `len` argument is less than actual encoded error length you'll get trap.
+#[cfg(feature = "codec")]
+fn get_syscall_error(len: u32) -> ExtError {
+    use alloc::vec;
+    use codec::Decode;
+
+    unsafe {
+        let mut data = vec![0; len as usize];
+        sys::gr_error(data.as_mut_ptr());
+        ExtError::decode(&mut data.as_slice()).expect("error decoded successfully")
     }
 }
