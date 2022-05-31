@@ -23,6 +23,7 @@ pub struct Test {
     pub name: String,
     pub current_time: u64,
     pub median: u64,
+    pub average: u64,
     pub quartile_lower: u64,
     pub quartile_upper: u64,
     pub min: u64,
@@ -30,7 +31,7 @@ pub struct Test {
 }
 
 impl tabled::Tabled for Test {
-    const LENGTH: usize = 6;
+    const LENGTH: usize = 7;
 
     fn fields(&self) -> Vec<String> {
         let current = self.current_time as f64;
@@ -54,7 +55,8 @@ impl tabled::Tabled for Test {
                 percent,
                 symbol
             ),
-            median.separate_with_spaces(),
+            self.median.separate_with_spaces(),
+            self.average.separate_with_spaces(),
             format!(
                 "({}; {})",
                 self.quartile_lower.separate_with_spaces(),
@@ -70,6 +72,7 @@ impl tabled::Tabled for Test {
             "name".to_owned(),
             "current".to_owned(),
             "median".to_owned(),
+            "average".to_owned(),
             "lower/upper quartile".to_owned(),
             "min".to_owned(),
             "max".to_owned(),

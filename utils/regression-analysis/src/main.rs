@@ -164,11 +164,13 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
                             let quartile_lower = median(&times[..len / 2]);
                             let quartile_upper = median(&times[len / 2 + len_remainder..]);
                             let median = median(times.as_ref());
+                            let average = times.iter().sum::<u64>() / (len as u64);
 
                             output::Test {
                                 name: key.clone(),
                                 current_time: (1_000_000_000.0 * time) as u64,
                                 median,
+                                average,
                                 quartile_lower,
                                 quartile_upper,
                                 min: *times.first().unwrap(),
