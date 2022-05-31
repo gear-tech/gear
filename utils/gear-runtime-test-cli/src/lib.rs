@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::path::PathBuf;
+
 mod command;
 mod util;
 
@@ -24,7 +26,11 @@ mod util;
 pub struct GearRuntimeTestCmd {
     /// Input dir/file with yaml for testing.
     #[clap(parse(from_os_str))]
-    pub input: Vec<std::path::PathBuf>,
+    pub input: Vec<PathBuf>,
+
+    /// Produce output in the (almost) JUnit/XUnit XML format.
+    #[clap(long)]
+    pub generate_junit: Option<PathBuf>,
 
     #[allow(missing_docs)]
     #[clap(flatten)]

@@ -25,8 +25,10 @@
 mod mailbox;
 mod messenger;
 mod queue;
+mod waitlist;
 
 // Public exports from complex modules.
 pub use mailbox::{Mailbox, MailboxCallbacks, MailboxError, MailboxImpl};
 pub use messenger::Messenger;
 pub use queue::{Queue, QueueImpl};
+pub use waitlist::{Waitlist, WaitlistCallbacks, WaitlistError, WaitlistImpl};

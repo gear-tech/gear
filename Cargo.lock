@@ -1432,6 +1432,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-waiting-proxy"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2491,12 +2499,14 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime",
  "gear-test",
+ "junit-common",
  "log",
  "pallet-balances",
  "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
  "parity-scale-codec",
+ "quick-xml",
  "rayon",
  "sc-cli",
  "sc-service",
@@ -3417,6 +3427,13 @@ dependencies = [
  "jsonrpsee-client-transport",
  "jsonrpsee-core",
  "jsonrpsee-types 0.8.0",
+]
+
+[[package]]
+name = "junit-common"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -4858,6 +4875,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
+ "demo-waiting-proxy",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
@@ -4998,6 +5016,7 @@ dependencies = [
  "hex-literal",
  "log",
  "pallet-balances",
+ "pallet-gear-messenger",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -5212,6 +5231,15 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "papergrid"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63709d10e2c2ec58f7bd91d8258d27ce80de090064b0ddf3a4bf38b907b61b8a"
+dependencies = [
+ "unicode-width",
 ]
 
 [[package]]
@@ -5797,6 +5825,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
+name = "quick-xml"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0452695941410a58c8ce4391707ba9bad26a247173bd9886a05a5e8a8babec75"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quicksink"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6061,6 +6099,18 @@ dependencies = [
  "libc",
  "mach",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "regression-analysis"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "junit-common",
+ "quick-xml",
+ "serde_json",
+ "tabled",
+ "thousands",
 ]
 
 [[package]]
@@ -8406,6 +8456,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "tabled"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d15827061abcf689257b1841c8e2732b1dfcc3ef825b24ce6c606e1e9e1a7bde"
+dependencies = [
+ "papergrid",
+ "tabled_derive",
+]
+
+[[package]]
+name = "tabled_derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "278ea3921cee8c5a69e0542998a089f7a14fa43c9c4e4f9951295da89bd0c943"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8895,6 +8966,12 @@ name = "unicode-segmentation"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e8820f5d777f6224dc4be3632222971ac30164d4a258d595640799554ebfd99"
+
+[[package]]
+name = "unicode-width"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ed742d4ea2bd1176e236172c8429aaf54486e7ac098db29ffe6529e0ce50973"
 
 [[package]]
 name = "unicode-xid"
