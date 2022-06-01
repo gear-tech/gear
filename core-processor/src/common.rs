@@ -25,6 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
@@ -32,7 +33,7 @@ use gear_core::{
     message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -40,7 +41,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<ExtError>),
+    Trap(Option<TrapExplanation>),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.

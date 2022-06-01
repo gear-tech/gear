@@ -16,23 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
+use common::TestSuites;
+use std::{collections::BTreeMap, str::FromStr};
 
-mod command;
-mod util;
+pub fn build_tree<Filter>(
+    filter: Filter,
+    test_suites: TestSuites,
+) -> BTreeMap<String, BTreeMap<String, f64>>
+where
+    Filter: Fn(&str) -> bool,
+{
+    test_suites
+        .testsuite
+        .into_iter()
+        .filter_map(|test_suite| {
+            if !filter(&test_suite.name) {
+                return None;
+            }
 
-/// The `runtests` command used to test gear with yaml.
-#[derive(Debug, clap::Parser)]
-pub struct GearRuntimeTestCmd {
-    /// Input dir/file with yaml for testing.
-    #[clap(parse(from_os_str))]
-    pub input: Vec<PathBuf>,
+            let pallet_suite = test_suite
+                .testcase
+                .into_iter()
+                .map(|test_case| (test_case.name, f64::from_str(&test_case.time).unwrap()))
+                .collect::<BTreeMap<_, _>>();
 
-    /// Produce output in the (almost) JUnit/XUnit XML format.
-    #[clap(long)]
-    pub generate_junit: Option<PathBuf>,
-
-    #[allow(missing_docs)]
-    #[clap(flatten)]
-    pub shared_params: sc_cli::SharedParams,
+            Some((test_suite.name, pallet_suite))
+        })
+        .collect::<BTreeMap<_, _>>()
 }

@@ -28,14 +28,16 @@ use core::{
     marker::PhantomData,
     slice::Iter,
 };
-use gear_backend_common::{funcs, IntoErrorCode, OnSuccessCode};
+use gear_backend_common::{
+    funcs, AsTerminationReason, IntoErrorCode, OnSuccessCode, TerminationReasonKind,
+};
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -86,6 +88,21 @@ pub enum FuncError<E> {
     NoReplyContext,
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
+    #[display(fmt = "`gr_exit` has been called")]
+    Exit,
+    #[display(fmt = "`gr_leave` has been called")]
+    Leave,
+    #[display(fmt = "`gr_wait` has been called")]
+    Wait,
+}
+
+impl<E> FuncError<E> {
+    fn as_core(&self) -> Option<&E> {
+        match self {
+            Self::Core(err) => Some(err),
+            _ => None,
+        }
+    }
 }
 
 impl<E> From<ExtCarrierWithError> for FuncError<E> {
@@ -104,7 +121,11 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
-impl<E: Ext + 'static> FuncsHandler<E> {
+impl<E> FuncsHandler<E>
+where
+    E: Ext + 'static,
+    E::Error: AsTerminationReason,
+{
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
@@ -293,9 +314,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             })
             .err()
             .or_else(|| {
-                Some(FuncError::Core(E::Error::from_termination_reason(
-                    TerminationReason::Exit,
-                )))
+                ctx.termination_reason = Some(TerminationReasonKind::Exit);
+                Some(FuncError::Exit)
             });
 
         Err(HostError)
@@ -327,6 +347,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.gas(val).map_err(FuncError::Core))
             .map(|()| ReturnValue::Unit)
             .map_err(|e| {
+                if let reason @ Some(TerminationReasonKind::GasAllowanceExceeded) = e
+                    .as_core()
+                    .and_then(AsTerminationReason::as_termination_reason)
+                    .cloned()
+                {
+                    ctx.termination_reason = reason;
+                }
                 ctx.trap = Some(e);
                 HostError
             })
@@ -677,9 +704,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
             .or_else(|| {
-                Some(FuncError::Core(E::Error::from_termination_reason(
-                    TerminationReason::Leave,
-                )))
+                ctx.termination_reason = Some(TerminationReasonKind::Leave);
+                Some(FuncError::Leave)
             });
         Err(HostError)
     }
@@ -690,9 +716,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
             .or_else(|| {
-                Some(FuncError::Core(E::Error::from_termination_reason(
-                    TerminationReason::Wait,
-                )))
+                ctx.termination_reason = Some(TerminationReasonKind::Wait);
+                Some(FuncError::Wait)
             });
         Err(HostError)
     }
