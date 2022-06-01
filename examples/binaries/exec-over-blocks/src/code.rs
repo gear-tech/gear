@@ -1,19 +1,34 @@
-use gstd::{debug, msg, prelude::*};
+use gstd::{debug, exec, msg, prelude::*};
 
-static mut MESSAGE_LOG: Vec<String> = vec![];
+static mut RESULT: u8 = 0;
+
+#[derive(Debug, Decode, TypeInfo)]
+pub struct InputArgs {
+    pub value: u8,
+    pub times: u8,
+}
+
+gstd::metadata! {
+    title: "demo sum over blocks",
+    init:
+    input: InputArgs,
+}
+
+#[gstd::async_init]
+async fn init() {
+    for num in nums {
+        RESULT = RESULT.saturating_add(
+            msg::send_and_wait_for_reply::<u8, u8>(exec::program_id(), num, 0)
+                .expect("send message failed")
+                .await
+                .expect("get reply failed"),
+        );
+    }
+
+    msg::reply(result, 0).unwrap();
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message");
-
-    if new_msg == "PING" {
-        msg::reply_bytes("PONG", 0).unwrap();
-    }
-
-    MESSAGE_LOG.push(new_msg);
-
-    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
+    msg::reply(RESULT, 0);
 }
-
-// #[no_mangle]
-// pub unsafe extern "C" fn init() {}
