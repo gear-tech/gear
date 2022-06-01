@@ -184,11 +184,6 @@ where
             }
         };
 
-        log::debug!(
-            "wasm mem addr = {:#x?}",
-            runtime.memory.get_buffer_host_addr()
-        );
-
         let entries = match get_module_exports(binary) {
             Ok(entries) => entries,
             Err(e) => {
