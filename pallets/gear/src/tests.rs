@@ -2478,8 +2478,8 @@ fn no_redundant_gas_value_after_exiting() {
 }
 
 #[test]
-fn init_wait_exit_cleaned_storage() {
-    use demo_init_wait::WASM_BINARY;
+fn init_wait_reply_exit_cleaned_storage() {
+    use demo_init_wait_reply_exit::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2488,7 +2488,7 @@ fn init_wait_exit_cleaned_storage() {
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
-            b"EXIT".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             Vec::new(),
             2_000_000_000u64,
             0u128

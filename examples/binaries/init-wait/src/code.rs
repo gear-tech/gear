@@ -22,10 +22,6 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    if msg::load_bytes() == b"EXIT".to_vec() {
-        exec::exit(msg::source())
-    }
-
     match STATE {
         State::NotInited => {
             for k in 0..20 {
