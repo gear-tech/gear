@@ -1346,14 +1346,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-exec-over-blocks"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-exit-handle"
 version = "0.1.0"
 dependencies = [
@@ -1406,6 +1398,16 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-pow"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -4867,12 +4869,12 @@ dependencies = [
  "demo-btree",
  "demo-compose",
  "demo-distributor",
- "demo-exec-over-blocks",
  "demo-exit-handle",
  "demo-exit-init",
  "demo-init-wait",
  "demo-init-with-value",
  "demo-mul-by-const",
+ "demo-pow",
  "demo-program-factory",
  "demo-proxy",
  "demo-waiting-proxy",

@@ -3248,40 +3248,29 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 #[test]
-fn exec_program_over_multiple_blocks() {
+fn exec_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_exec_over_blocks::WASM_BINARY;
+        use demo_pow::WASM_BINARY;
+        let (base, exponent, round) = (2u8, 7, 4);
 
-        // Deploy program
-        let prog_id = handle_program(
-            USER_1,
-            HandleKind::Init(WASM_BINARY.to_vec()),
-            Some(DEFAULT_SALT.to_vec()),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-        );
+        // deploy program
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            (base, exponent).encode(),
+            4_000_000_000,
+            4_000_000_000,
+        ));
         run_to_block(2, None);
 
-        // send message
-        handle_program(
-            USER_1,
-            HandleKind::Handle(prog_id.into_origin()),
-            None,
-            b"PING".to_vec(),
-            0,
-        );
-        run_to_block(3, None);
+        // calcuating
+        for r in 0..round {
+            run_to_block(3 + r, None);
+        }
 
-        log::debug!(
-            "{:?}",
-            String::from_utf8_lossy(
-                MailboxOf::<Test>::iter_key(USER_1)
-                    .nth(0)
-                    .expect("send message failed")
-                    .payload()
-            )
-        );
+        assert_eq!(get_last_mail(USER_1).payload(), vec![base.pow(exponent)]);
     });
 }
 
@@ -3290,16 +3279,19 @@ mod utils {
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::currency::Currency,
     };
-    use gear_core::ids::{CodeId, MessageId, ProgramId};
+    use gear_core::{
+        ids::{CodeId, MessageId, ProgramId},
+        message::StoredMessage,
+    };
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::convert::TryFrom;
 
     use super::{
-        assert_ok, pallet, run_to_block, BalancesPallet, Event, Gear, GearPallet, HandleKind,
-        MessageInfo, MockEvent, Origin, SystemPallet, Test,
+        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MailboxOf, MessageInfo,
+        MockEvent, Origin, SystemPallet, Test,
     };
-    use common::Origin as _;
+    use common::{storage::IterableByKeyMap, Origin as _};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -3438,55 +3430,6 @@ mod utils {
         );
     }
 
-    /// Handle program with gas estimation
-    pub(super) fn handle_program(
-        user: AccountId,
-        kind: HandleKind,
-        salt: Option<Vec<u8>>,
-        payload: Vec<u8>,
-        value: u128,
-    ) -> H256 {
-        let cloned_payload = payload.clone();
-        let gas_spent = move |kind: HandleKind| {
-            Gear::get_gas_spent(user.into_origin(), kind, cloned_payload, value)
-                .expect("get gas spent failed")
-        };
-
-        match &kind {
-            HandleKind::Init(code) => {
-                assert_ok!(Gear::submit_program(
-                    Origin::signed(user),
-                    code.clone(),
-                    salt.unwrap_or(DEFAULT_SALT.to_vec()),
-                    payload,
-                    gas_spent(kind),
-                    value
-                ));
-                get_last_program_id().into_origin()
-            }
-            HandleKind::Handle(prog_id) => {
-                assert_ok!(Gear::send_message(
-                    Origin::signed(user),
-                    prog_id.as_bytes().into(),
-                    payload,
-                    gas_spent(kind),
-                    value,
-                ));
-                get_last_message_id().into_origin()
-            }
-            HandleKind::Reply(message_id, _) => {
-                assert_ok!(Gear::send_reply(
-                    Origin::signed(user),
-                    message_id.as_bytes().into(),
-                    payload,
-                    gas_spent(kind),
-                    value,
-                ));
-                get_last_message_id().into_origin()
-            }
-        }
-    }
-
     // Submits program with default options (salt, gas limit, value, payload)
     pub(super) fn submit_program_default(
         user: AccountId,
@@ -3525,6 +3468,12 @@ mod utils {
             DEFAULT_GAS_LIMIT,
             0,
         )
+    }
+
+    pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
+        MailboxOf::<Test>::iter_key(account)
+            .last()
+            .expect("get last mail failed")
     }
 
     pub(super) fn get_last_program_id() -> ProgramId {
