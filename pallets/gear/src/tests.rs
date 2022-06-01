@@ -958,7 +958,7 @@ fn block_gas_limit_works() {
             Event::MessageDispatched(DispatchOutcome {
                 message_id: msg1,
                 outcome: ExecutionResult::Failure(
-                    format!("{}", ExtError::GasLimitExceeded).into_bytes(),
+                    format!("{}", ExtError::Message(MessageError::NotEnoughGas)).into_bytes(),
                 ),
             })
             .into(),
@@ -1032,7 +1032,7 @@ fn init_message_logging_works() {
             (
                 ProgramCodeKind::GreedyInit,
                 true,
-                format!("{}", ExtError::GasLimitExceeded).into_bytes(),
+                format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded)).into_bytes(),
             ),
         ];
 
@@ -1136,7 +1136,10 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, true),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(format!("{}", ExtError::GasLimitExceeded).into_bytes()),
+                Some(
+                    format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded))
+                        .into_bytes(),
+                ),
                 false,
             ),
             (
@@ -2980,8 +2983,14 @@ fn test_create_program_with_value_lt_ed() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason =
-            format!("{}", ExtError::InsufficientMessageValue).into_bytes();
+        let expected_failure_reason = format!(
+            "{}",
+            ExtError::Message(MessageError::InsufficientValue {
+                message_value: 499,
+                existential_deposit: 500
+            })
+        )
+        .into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -3070,7 +3079,14 @@ fn test_create_program_with_exceeding_value() {
         check_dequeued(1);
 
         // There definitely should be event with init failure reason
-        let expected_failure_reason = format!("{}", ExtError::NotEnoughValue).into_bytes();
+        let expected_failure_reason = format!(
+            "{}",
+            ExtError::Message(MessageError::NotEnoughValue {
+                message_value: 1001,
+                value_left: 1000
+            })
+        )
+        .into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {

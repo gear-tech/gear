@@ -1,0 +1,81 @@
+name: Test measurements
+
+on:
+  schedule:
+    - cron:  '10 21 * * *'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
+  COUNT: 100
+
+jobs:
+  build:
+    runs-on: [self-hosted, cachepot]
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: "Show: Versioning"
+        run: ./scripts/gear.sh show
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
+
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
+          cp binaryen-version_105/bin/wasm-opt /usr/bin/
+
+      - name: "Cache: Unpack"
+        continue-on-error: true
+        run: |
+          cp /root/cache/build* /tmp/
+          tar -xf /tmp/build_cache.tar -C /
+          tar -xf /tmp/build_cargo_registry.tar -C /
+          tar -xf /tmp/build_target.tar
+
+      - name: "Build: Gear"
+        run: ./scripts/gear.sh build gear --release --locked
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
+
+      - name: "Collect: Gear workspace tests"
+        run: |
+          mkdir ./target/tests/
+          mkdir ./target/tests-output/
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --release > ./target/tests-output/$i 2>&1; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
+          ./target/release/regression-analysis collect-data --data-folder-path ./target/tests/ --output-path ./target/pallet-tests.json
+
+      - name: "Collect: Node runtime tests"
+        run: |
+          mkdir ./target/runtime-tests/
+          mkdir ./target/runtime-tests-output/
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i 2>&1; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
+          ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/runtime-tests/ --output-path ./target/runtime-tests.json
+
+      - name: "Cache: collected data"
+        run: |
+          mv ./target/pallet-tests.json /root/cache/
+          mv ./target/runtime-tests.json /root/cache/

@@ -62,13 +62,13 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
         (Some(msg), None) => crate::debug!("panic occurred: '{:?}'", msg),
         (None, Some(loc)) => {
             crate::debug!(
-                "panic occurred, {}:{}:{}",
+                "panic occurred: {}:{}:{}",
                 loc.file(),
                 loc.line(),
                 loc.column()
             )
         }
-        _ => crate::debug!("panic occurred"),
+        _ => crate::debug!("panic occurred: no info"),
     }
 
     core::arch::wasm32::unreachable();

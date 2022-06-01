@@ -89,3 +89,17 @@ impl DispatchKind {
         matches!(self, Self::Reply)
     }
 }
+
+/// Message packet.
+///
+/// Provides common behaviour for any message's packet: accessing to payload, gas limit and value.
+pub trait Packet {
+    /// Packet payload reference.
+    fn payload(&self) -> &[u8];
+
+    /// Packet optional gas limit.
+    fn gas_limit(&self) -> Option<GasLimit>;
+
+    /// Packet value.
+    fn value(&self) -> Value;
+}
