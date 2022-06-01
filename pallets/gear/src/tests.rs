@@ -3248,7 +3248,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 #[test]
-fn exec_over_blocks() {
+fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
         use demo_pow::WASM_BINARY;
