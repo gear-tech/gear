@@ -23,11 +23,10 @@ use crate::{
         Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
         USER_3,
     },
-    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
-    MessageInfo, Pallet as GearPallet, Reason,
+    pallet, Config, Error, Event, GearProgramPallet, MailboxOf, Pallet as GearPallet,
 };
 use codec::Encode;
-use common::{storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
@@ -82,9 +81,7 @@ fn unstoppable_block_execution_works() {
 
         run_to_block(3, Some(real_gas_to_burn));
 
-        SystemPallet::<Test>::assert_last_event(
-            Event::MessagesDequeued(executions_amount as u32).into(),
-        );
+        assert_last_dequeued(executions_amount as u32);
 
         assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
 
@@ -297,7 +294,7 @@ fn messages_processing_works() {
 
         run_to_block(2, None);
 
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
+        assert_last_dequeued(2);
 
         assert_ok!(send_default_message(USER_1, USER_2.into()));
         assert_ok!(send_default_message(USER_1, program_id));
@@ -305,7 +302,7 @@ fn messages_processing_works() {
         run_to_block(3, None);
 
         // "Mail" from user to user should not be processed as messages
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_last_dequeued(1);
     });
 }
 
@@ -317,7 +314,7 @@ fn spent_gas_to_reward_block_author_works() {
         assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(2, None);
 
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_last_dequeued(1);
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
@@ -619,7 +616,7 @@ fn memory_access_cases() {
         let pid = res.expect("submit result is not ok");
 
         run_to_block(2, Some(1_000_000_000));
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // First handle: access pages
@@ -633,7 +630,7 @@ fn memory_access_cases() {
         assert_ok!(res);
 
         run_to_block(3, Some(1_000_000_000));
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // Second handle: check pages data
@@ -647,7 +644,7 @@ fn memory_access_cases() {
         assert_ok!(res);
 
         run_to_block(4, Some(1_000_000_000));
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
 }
@@ -722,7 +719,7 @@ fn lazy_pages() {
 
         run_to_block(2, Some(1_000_000_000));
         log::debug!("submit done {:?}", pid);
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_last_dequeued(1);
 
         let res = GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
@@ -878,7 +875,7 @@ fn block_gas_limit_works() {
         };
 
         run_to_block(2, Some(remaining_weight));
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
+        assert_last_dequeued(2);
 
         // Count gas needed to process programs with default payload
         let (expected_gas_msg_to_pid1, _) =
@@ -906,7 +903,7 @@ fn block_gas_limit_works() {
         ));
 
         run_to_block(3, Some(remaining_weight));
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
+        assert_last_dequeued(2);
 
         // Run to the next block to reset the gas limit
         run_to_block(4, Some(remaining_weight));
@@ -954,17 +951,8 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  | 3 |
         // | 3 |        |   |
 
-        SystemPallet::<Test>::assert_has_event(
-            Event::MessageDispatched(DispatchOutcome {
-                message_id: msg1,
-                outcome: ExecutionResult::Failure(
-                    format!("{}", ExtError::GasLimitExceeded).into_bytes(),
-                ),
-            })
-            .into(),
-        );
-
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_dispatched(msg1, DispatchStatus::Failed);
+        assert_last_dequeued(1);
 
         // Equals 0 due to trying execution of msg2.
         assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
@@ -984,7 +972,7 @@ fn block_gas_limit_works() {
         // | 3 |  ===>  |   |
         // |   |        |   |
 
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
+        assert_last_dequeued(2);
         assert_eq!(
             pallet_gas::Pallet::<Test>::gas_allowance(),
             last_block_allowance - real_gas_to_burn
@@ -1036,7 +1024,7 @@ fn init_message_logging_works() {
             ),
         ];
 
-        for (code_kind, is_failing, trap_explanation) in codes {
+        for (code_kind, is_failing, _trap_explanation) in codes {
             SystemPallet::<Test>::reset_events();
 
             assert_ok!(submit_program_default(USER_1, code_kind));
@@ -1051,16 +1039,23 @@ fn init_message_logging_works() {
 
             run_to_block(next_block, None);
 
-            let msg_info = match event {
-                Event::InitMessageEnqueued(info) => info,
+            let msg_id = match event {
+                Event::MessageEnqueued { id, entry, .. } => {
+                    if entry == Entry::Init {
+                        id
+                    } else {
+                        unreachable!("expect Event::InitMessageEnqueued")
+                    }
+                }
                 _ => unreachable!("expect Event::InitMessageEnqueued"),
             };
 
-            SystemPallet::<Test>::assert_has_event(if is_failing {
-                Event::InitFailure(msg_info, Reason::Dispatch(trap_explanation)).into()
+            let status = if is_failing {
+                DispatchStatus::Failed
             } else {
-                Event::InitSuccess(msg_info).into()
-            });
+                DispatchStatus::Success
+            };
+            assert_dispatched(msg_id, status);
 
             next_block += 1;
         }
@@ -1156,24 +1151,23 @@ fn events_logging_works() {
 
             let message_id = get_last_message_id();
 
-            let init_msg_info = MessageInfo {
-                program_id,
-                message_id,
-                origin: USER_1.into_origin(),
-            };
-
             SystemPallet::<Test>::assert_last_event(
-                Event::InitMessageEnqueued(init_msg_info.clone()).into(),
+                Event::MessageEnqueued {
+                    id: message_id,
+                    source: USER_1,
+                    destination: program_id,
+                    entry: Entry::Init,
+                }
+                .into(),
             );
 
             run_to_block(next_block, None);
             next_block += 1;
 
             // Init failed program checks
-            if let Some(init_failure_reason) = init_failure_reason {
-                SystemPallet::<Test>::assert_has_event(
-                    Event::InitFailure(init_msg_info, Reason::Dispatch(init_failure_reason)).into(),
-                );
+            if let Some(_init_failure_reason) = init_failure_reason {
+                assert_dispatched(message_id, DispatchStatus::Failed);
+
                 // Sending messages to failed-to-init programs shouldn't be allowed
                 assert_noop!(
                     send_default_message(USER_1, program_id),
@@ -1182,36 +1176,32 @@ fn events_logging_works() {
                 continue;
             }
 
-            SystemPallet::<Test>::assert_has_event(Event::InitSuccess(init_msg_info).into());
+            assert_dispatched(message_id, DispatchStatus::Success);
 
             // Messages to fully-initialized programs are accepted
             assert_ok!(send_default_message(USER_1, program_id));
 
             let message_id = get_last_message_id();
 
-            let dispatch_msg_info = MessageInfo {
-                program_id,
-                message_id,
-                origin: USER_1.into_origin(),
-            };
-
             SystemPallet::<Test>::assert_last_event(
-                Event::DispatchMessageEnqueued(dispatch_msg_info.clone()).into(),
+                Event::MessageEnqueued {
+                    id: message_id,
+                    source: USER_1,
+                    destination: program_id,
+                    entry: Entry::Handle,
+                }
+                .into(),
             );
 
             run_to_block(next_block, None);
 
-            SystemPallet::<Test>::assert_has_event(
-                Event::MessageDispatched(DispatchOutcome {
-                    message_id: dispatch_msg_info.message_id,
-                    outcome: if handle_succeed {
-                        ExecutionResult::Success
-                    } else {
-                        ExecutionResult::Failure(Vec::new())
-                    },
-                })
-                .into(),
-            );
+            let status = if handle_succeed {
+                DispatchStatus::Success
+            } else {
+                DispatchStatus::Failed
+            };
+
+            assert_dispatched(message_id, status);
 
             next_block += 1;
         }
@@ -1259,11 +1249,12 @@ fn send_reply_works() {
             _ => unreachable!("Should be one Gear event"),
         };
 
-        let MessageInfo {
-            message_id: actual_reply_message_id,
-            ..
-        } = match event {
-            Event::DispatchMessageEnqueued(info) => info,
+        let actual_reply_message_id = match event {
+            Event::MessageEnqueued {
+                id,
+                entry: Entry::Reply(_reply_to_id),
+                ..
+            } => id,
             _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
@@ -1432,7 +1423,13 @@ fn claim_value_from_mailbox_works() {
             expected_sender_balance
         );
 
-        SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(reply_to_id).into());
+        SystemPallet::<Test>::assert_last_event(
+            Event::UserMessageRead {
+                id: reply_to_id,
+                reason: UserMessageReadRuntimeReason::Claimed.into_reason(),
+            }
+            .into(),
+        );
     })
 }
 
@@ -1535,7 +1532,13 @@ fn test_code_submission_pass() {
         let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         assert_eq!(expected_meta, actual_meta);
 
-        SystemPallet::<Test>::assert_last_event(Event::CodeSaved(code_hash).into());
+        SystemPallet::<Test>::assert_last_event(
+            Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active { expiration: None },
+            }
+            .into(),
+        );
     })
 }
 
@@ -1567,7 +1570,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_hash = generate_code_hash(&code).into();
+        let code_id = generate_code_hash(&code).into();
 
         // First submit program, which will set code and metadata
         assert_ok!(GearPallet::<Test>::submit_program(
@@ -1578,10 +1581,14 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             DEFAULT_GAS_LIMIT,
             0
         ));
-        SystemPallet::<Test>::assert_has_event(Event::CodeSaved(code_hash).into());
-        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
-            code_hash
-        )));
+        SystemPallet::<Test>::assert_has_event(
+            Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active { expiration: None },
+            }
+            .into(),
+        );
+        assert!(<Test as Config>::CodeStorage::exists(code_id));
 
         // Trying to set the same code twice.
         assert_noop!(
@@ -1620,7 +1627,15 @@ fn test_code_is_not_reset_within_program_submission() {
         let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         let actual_code_saved_events = SystemPallet::<Test>::events()
             .iter()
-            .filter(|e| matches!(e.event, MockEvent::Gear(Event::CodeSaved(_))))
+            .filter(|e| {
+                matches!(
+                    e.event,
+                    MockEvent::Gear(Event::CodeChanged {
+                        change: CodeChangeKind::Active { expiration: None },
+                        ..
+                    })
+                )
+            })
             .count();
 
         assert_eq!(expected_meta, actual_meta);
@@ -1860,9 +1875,7 @@ fn test_message_processing_for_non_existing_destination() {
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
 
-        SystemPallet::<Test>::assert_has_event(
-            Event::MessageNotExecuted(skipped_message_id).into(),
-        );
+        assert_dispatched(skipped_message_id, DispatchStatus::NotExecuted);
 
         assert!(Gear::is_terminated(program_id));
         assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
@@ -1950,9 +1963,9 @@ fn test_create_program_no_code_hash() {
 
         // Init and dispatch messages from the contract are dequeued, but not executed
         // 2 error replies are generated, and executed
-        check_dequeued(4 + 2); // +2 for submit_program/send_messages
-        check_dispatched(2 + 1); // +1 for send_messages
-        check_init_success(1); // 1 for submitting factory
+        assert_total_dequeued(4 + 2); // +2 for submit_program/send_messages
+                                      // TODO: rewrite it properly check_dispatched(2 + 1); // +1 for send_messages
+        assert_init_success(1); // 1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
 
@@ -1972,9 +1985,9 @@ fn test_create_program_no_code_hash() {
         run_to_block(3, None);
         // Init and dispatch messages from the contract are dequeued, but not executed
         // 2 error replies are generated, and executed
-        check_dequeued(12 + 1); // +1 for send_message
-        check_dispatched(6 + 1); // +1 for send_message
-        check_init_success(0);
+        assert_total_dequeued(12 + 1); // +1 for send_message
+                                       // TODO: rewrite it properly check_dispatched(6 + 1); // +1 for send_message
+        assert_init_success(0);
 
         assert_noop!(
             GearPallet::<Test>::submit_code(
@@ -2003,9 +2016,9 @@ fn test_create_program_no_code_hash() {
 
         // Init and dispatch messages from the contract are dequeued, but not executed
         // 2 error replies are generated, and executed
-        check_dequeued(12 + 1); // +1 for send_message
-        check_dispatched(6 + 1); // +1 for send_message
-        check_init_success(0);
+        assert_total_dequeued(12 + 1); // +1 for send_message
+                                       // TODO: rewrite it properly check_dispatched(6 + 1); // +1 for send_message
+        assert_init_success(0);
     });
 }
 
@@ -2060,9 +2073,9 @@ fn test_create_program_simple() {
 
         // First extrinsic call with successful program creation dequeues and executes init and dispatch messages
         // Second extrinsic is failing one, for each message it generates replies, which are executed (4 dequeued, 2 dispatched)
-        check_dequeued(6 + 3); // +3 for extrinsics
-        check_dispatched(3 + 2); // +2 for extrinsics
-        check_init_success(1 + 1); // +1 for submitting factory
+        assert_total_dequeued(6 + 3); // +3 for extrinsics
+                                      // TODO: rewrite it properly check_dispatched(3 + 2); // +2 for extrinsics
+        assert_init_success(1 + 1); // +1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
 
@@ -2094,9 +2107,9 @@ fn test_create_program_simple() {
         ));
         run_to_block(6, None);
 
-        check_dequeued(12 + 2); // +2 for extrinsics
-        check_dispatched(6 + 2); // +2 for extrinsics
-        check_init_success(2);
+        assert_total_dequeued(12 + 2); // +2 for extrinsics
+                                       // TODO: rewrite it properly check_dispatched(6 + 2); // +2 for extrinsics
+        assert_init_success(2);
     })
 }
 
@@ -2143,9 +2156,9 @@ fn test_create_program_duplicate() {
 
         // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
         // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
-        check_dequeued(3 + 3); // +3 from extrinsics (2 submit_program, 1 send_message)
-        check_dispatched(2 + 1); // +1 from extrinsic (send_message)
-        check_init_success(2); // +2 from extrinsics (2 submit_program)
+        assert_total_dequeued(3 + 3); // +3 from extrinsics (2 submit_program, 1 send_message)
+                                      // TODO: rewrite it properly check_dispatched(2 + 1); // +1 from extrinsic (send_message)
+        assert_init_success(2); // +2 from extrinsics (2 submit_program)
 
         SystemPallet::<Test>::reset_events();
 
@@ -2172,9 +2185,9 @@ fn test_create_program_duplicate() {
         // First call successfully creates a program and sends a messages to it (+2 dequeued, +1 dispatched)
         // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
         // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
-        check_dequeued(5 + 2); // +2 from extrinsics (send_message)
-        check_dispatched(3 + 2); // +2 from extrinsics (send_message)
-        check_init_success(1);
+        assert_total_dequeued(5 + 2); // +2 from extrinsics (send_message)
+                                      // TODO: rewrite it properly check_dispatched(3 + 2); // +2 from extrinsics (send_message)
+        assert_init_success(1);
 
         assert_noop!(
             GearPallet::<Test>::submit_program(
@@ -2235,9 +2248,9 @@ fn test_create_program_duplicate_in_one_execution() {
 
         // Duplicate init fails the call and returns error reply to the caller, which is USER_1.
         // State roll-back is performed.
-        check_dequeued(2); // 2 for extrinsics
-        check_dispatched(1); // 1 for send_message
-        check_init_success(1); // 1 for creating a factory
+        assert_total_dequeued(2); // 2 for extrinsics
+                                  // TODO: rewrite it properly check_dispatched(1); // 1 for send_message
+        assert_init_success(1); // 1 for creating a factory
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -2254,9 +2267,9 @@ fn test_create_program_duplicate_in_one_execution() {
 
         run_to_block(4, None);
 
-        check_dequeued(2 + 1); // 1 for extrinsics
-        check_dispatched(1 + 1); // 1 for send_message
-        check_init_success(1);
+        assert_total_dequeued(2 + 1); // 1 for extrinsics
+                                      // TODO: rewrite it properly check_dispatched(1 + 1); // 1 for send_message
+        assert_init_success(1);
     });
 }
 
@@ -2355,9 +2368,9 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(5, None);
 
-        check_dequeued(18 + 4); // +4 for 3 send_message calls and 1 submit_program call
-        check_dispatched(9 + 3); // +3 for send_message calls
-        check_init_success(3 + 1); // +1 for submitting factory
+        assert_total_dequeued(18 + 4); // +4 for 3 send_message calls and 1 submit_program call
+                                       // TODO: rewrite it properly check_dispatched(9 + 3); // +3 for send_message calls
+        assert_init_success(3 + 1); // +1 for submitting factory
     });
 }
 
@@ -2939,9 +2952,9 @@ fn test_create_program_with_value_lt_ed() {
         run_to_block(2, None);
 
         // init messages sent by user and by program
-        check_dequeued(2);
+        assert_total_dequeued(2);
         // programs deployed by user and by program
-        check_init_success(2);
+        assert_init_success(2);
 
         let origin_msg_id =
             MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
@@ -2969,6 +2982,8 @@ fn test_create_program_with_value_lt_ed() {
             1000,
         ));
 
+        let msg_id = get_last_message_id();
+
         run_to_block(3, None);
 
         // User's message execution will result in trap, because program tries
@@ -2977,29 +2992,32 @@ fn test_create_program_with_value_lt_ed() {
         let mailbox_msg_id = get_last_message_id();
         assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
-        check_dequeued(1);
+        assert_total_dequeued(1);
 
-        // There definitely should be event with init failure reason
-        let expected_failure_reason =
-            format!("{}", ExtError::InsufficientMessageValue).into_bytes();
-        let reason = SystemPallet::<Test>::events()
-            .iter()
-            .filter_map(|e| {
-                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
-                    Some(reason.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .pop()
-            .expect("no init failure events");
+        assert_dispatched(msg_id, DispatchStatus::Failed);
 
-        if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(actual_failure_reason, expected_failure_reason);
-        } else {
-            panic!("error reason is of wrong type")
-        }
+        // TODO: rewrite it once error replies added
+        // // There definitely should be event with init failure reason
+        // let expected_failure_reason =
+        //     format!("{}", ExtError::InsufficientMessageValue).into_bytes();
+        // let reason = SystemPallet::<Test>::events()
+        //     .iter()
+        //     .filter_map(|e| {
+        //         if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
+        //             Some(reason.clone())
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect::<Vec<_>>()
+        //     .pop()
+        //     .expect("no init failure events");
+
+        // if let OldReason::Dispatch(actual_failure_reason) = reason {
+        //     assert_eq!(actual_failure_reason, expected_failure_reason);
+        // } else {
+        //     panic!("error reason is of wrong type")
+        // }
     })
 }
 
@@ -3067,28 +3085,32 @@ fn test_create_program_with_exceeding_value() {
         let mailbox_msg_id = get_last_message_id();
         assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
-        check_dequeued(1);
+        assert_total_dequeued(1);
 
-        // There definitely should be event with init failure reason
-        let expected_failure_reason = format!("{}", ExtError::NotEnoughValue).into_bytes();
-        let reason = SystemPallet::<Test>::events()
-            .iter()
-            .filter_map(|e| {
-                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
-                    Some(reason.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .pop()
-            .expect("no init failure events");
+        assert_dispatched(origin_msg_id, DispatchStatus::Failed);
 
-        if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(actual_failure_reason, expected_failure_reason);
-        } else {
-            panic!("error reason is of wrong type")
-        }
+        // TODO: rewrite it once error replies added
+
+        // // There definitely should be event with init failure reason
+        // let expected_failure_reason = format!("{}", ExtError::NotEnoughValue).into_bytes();
+        // let reason = SystemPallet::<Test>::events()
+        //     .iter()
+        //     .filter_map(|e| {
+        //         if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
+        //             Some(reason.clone())
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect::<Vec<_>>()
+        //     .pop()
+        //     .expect("no init failure events");
+
+        // if let OldReason::Dispatch(actual_failure_reason) = reason {
+        //     assert_eq!(actual_failure_reason, expected_failure_reason);
+        // } else {
+        //     panic!("error reason is of wrong type")
+        // }
     })
 }
 
@@ -3139,7 +3161,13 @@ fn test_reply_to_terminated_program() {
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
-        SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(mail_id).into())
+        SystemPallet::<Test>::assert_last_event(
+            Event::UserMessageRead {
+                id: mail_id,
+                reason: UserMessageReadRuntimeReason::Claimed.into_reason(),
+            }
+            .into(),
+        )
     })
 }
 
@@ -3248,6 +3276,11 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 mod utils {
+    use super::{
+        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MockEvent, Origin,
+        SystemPallet, Test,
+    };
+    use common::{event::*, Origin as _};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::currency::Currency,
@@ -3256,12 +3289,6 @@ mod utils {
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::convert::TryFrom;
-
-    use super::{
-        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
-        Origin, SystemPallet, Test,
-    };
-    use common::Origin as _;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -3283,10 +3310,14 @@ mod utils {
         <Test as pallet::Config>::Currency::minimum_balance().unique_saturated_into()
     }
 
-    pub(super) fn check_init_success(expected: u32) {
+    pub(super) fn assert_init_success(expected: u32) {
         let mut actual_children_amount = 0;
         SystemPallet::<Test>::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::InitSuccess(_)) = e.event {
+            if let MockEvent::Gear(Event::ProgramChanged {
+                change: ProgramChangeKind::Active { .. },
+                ..
+            }) = e.event
+            {
                 actual_children_amount += 1
             }
         });
@@ -3294,26 +3325,35 @@ mod utils {
         assert_eq!(expected, actual_children_amount);
     }
 
-    pub(super) fn check_dequeued(expected: u32) {
-        let mut actual_dequeued = 0;
-        SystemPallet::<Test>::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::MessagesDequeued(num)) = e.event {
-                actual_dequeued += num
-            }
-        });
+    pub(super) fn assert_last_dequeued(expected: u32) {
+        let last_dequeued = SystemPallet::<Test>::events()
+            .iter()
+            .filter_map(|e| {
+                if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
+                    Some(total)
+                } else {
+                    None
+                }
+            })
+            .last()
+            .expect("Not found Event::MessagesDispatched");
 
-        assert_eq!(expected, actual_dequeued);
+        assert_eq!(expected, last_dequeued);
     }
 
-    pub(super) fn check_dispatched(expected: u32) {
-        let mut actual_dispatched = 0;
-        SystemPallet::<Test>::events().iter().for_each(|e| {
-            if let MockEvent::Gear(Event::MessageDispatched(_)) = e.event {
-                actual_dispatched += 1
-            }
-        });
+    pub(super) fn assert_total_dequeued(expected: u32) {
+        let actual_dequeued: u32 = SystemPallet::<Test>::events()
+            .iter()
+            .filter_map(|e| {
+                if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
+                    Some(total)
+                } else {
+                    None
+                }
+            })
+            .sum();
 
-        assert_eq!(expected, actual_dispatched);
+        assert_eq!(expected, actual_dequeued);
     }
 
     // Creates a new program and puts message from program to `user` in mailbox
@@ -3440,6 +3480,19 @@ mod utils {
         )
     }
 
+    pub(super) fn assert_dispatched(message_id: MessageId, status: DispatchStatus) {
+        let mut found_status: Option<DispatchStatus> = None;
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
+                found_status = statuses.get(&message_id).map(Clone::clone);
+            }
+        });
+
+        let found_status = found_status.expect("Unable to find given message ids dispatch status");
+
+        assert_eq!(status, found_status)
+    }
+
     pub(super) fn get_last_program_id() -> ProgramId {
         let event = match SystemPallet::<Test>::events()
             .last()
@@ -3449,12 +3502,16 @@ mod utils {
             _ => unreachable!("Should be one Gear event"),
         };
 
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
-
-        program_id
+        if let Event::MessageEnqueued {
+            destination,
+            entry: Entry::Init,
+            ..
+        } = event
+        {
+            destination
+        } else {
+            unreachable!("expect Event::InitMessageEnqueued")
+        }
     }
 
     pub(super) fn get_last_message_id() -> MessageId {
@@ -3469,9 +3526,8 @@ mod utils {
                 }
             })
             .find_map(|e| match e {
-                Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
-                Event::Log(msg) => Some(msg.id()),
-                Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => Some(message_id),
+                Event::MessageEnqueued { id, .. } => Some(id),
+                Event::UserMessageSent { message, .. } => Some(message.id()),
                 _ => None,
             })
             .expect("can't find message send event")

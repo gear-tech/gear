@@ -10,6 +10,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 log = "0.4.17"
+gear-common-codegen = { path = "./codegen" }
 
 # Internal deps
 gear-core = { path = "../core" }

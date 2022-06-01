@@ -135,19 +135,21 @@ fn process_error(
 
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
-            message_id,
             origin,
             program_id,
             reason: err.map(|e| e.to_string()),
         },
         _ => DispatchOutcome::MessageTrap {
-            message_id,
             program_id,
             trap: err.map(|e| e.to_string()),
         },
     };
 
-    journal.push(JournalNote::MessageDispatched(outcome));
+    journal.push(JournalNote::MessageDispatched {
+        message_id,
+        source: origin,
+        outcome,
+    });
     journal.push(JournalNote::MessageConsumed(message_id));
 
     journal
@@ -252,15 +254,15 @@ fn process_success(
         }
         Success => {
             let outcome = match dispatch.kind() {
-                DispatchKind::Init => DispatchOutcome::InitSuccess {
-                    message_id,
-                    origin,
-                    program_id,
-                },
-                _ => DispatchOutcome::Success(message_id),
+                DispatchKind::Init => DispatchOutcome::InitSuccess { origin, program_id },
+                _ => DispatchOutcome::Success,
             };
 
-            journal.push(JournalNote::MessageDispatched(outcome));
+            journal.push(JournalNote::MessageDispatched {
+                message_id,
+                source: origin,
+                outcome,
+            });
             journal.push(JournalNote::MessageConsumed(message_id));
         }
     };
@@ -361,6 +363,7 @@ fn process_non_executable(
     let mut journal = Vec::with_capacity(4);
 
     let message_id = dispatch.id();
+    let source = dispatch.source();
     let value = dispatch.value();
 
     if value != 0 {
@@ -384,9 +387,11 @@ fn process_non_executable(
         });
     }
 
-    journal.push(JournalNote::MessageDispatched(
-        DispatchOutcome::NoExecution(message_id),
-    ));
+    journal.push(JournalNote::MessageDispatched {
+        message_id,
+        source,
+        outcome: DispatchOutcome::NoExecution,
+    });
 
     journal.push(JournalNote::MessageConsumed(message_id));
 

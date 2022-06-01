@@ -44,13 +44,12 @@
 //! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
 
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
-    MailboxOf, MessageInfo, Pallet, QueueOf, SentOf, WaitlistOf,
+    Authorship, Config, Event, GearProgramPallet, MailboxOf, Pallet, QueueOf, SentOf, WaitlistOf,
 };
-use alloc::collections::BTreeMap;
 use codec::{Decode, Encode};
 use common::{
-    storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState, ValueTree,
+    event::*, storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState,
+    ValueTree,
 };
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
@@ -70,19 +69,36 @@ use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData, prelude::*};
-
-pub struct ExtManager<T: Config> {
-    // Messages with these destinations will be forcibly pushed to the queue.
-    marked_destinations: BTreeSet<ProgramId>,
-    _phantom: PhantomData<T>,
-}
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    convert::TryInto,
+    marker::PhantomData,
+    prelude::*,
+};
 
 #[derive(Decode, Encode)]
 pub enum HandleKind {
     Init(Vec<u8>),
     Handle(H256),
     Reply(H256, ExitCode),
+}
+
+pub struct ExtManager<T: Config> {
+    // Messages with these destinations will be forcibly pushed to the queue.
+    marked_destinations: BTreeSet<ProgramId>,
+    // Ids checked that they are users.
+    users_ids: BTreeSet<ProgramId>,
+    // Ids checked that they are programs. TODO: merge with marked_destinations.
+    programs_ids: BTreeSet<ProgramId>,
+    // Messages dispatches.
+    messages_dispatches: BTreeMap<MessageId, DispatchStatus>,
+    _phantom: PhantomData<T>,
+}
+
+impl<T: Config> ExtManager<T> {
+    pub(crate) fn into_dispatch_statuses(self) -> BTreeMap<MessageId, DispatchStatus> {
+        self.messages_dispatches
+    }
 }
 
 impl<T: Config> Default for ExtManager<T>
@@ -93,6 +109,9 @@ where
         ExtManager {
             _phantom: PhantomData,
             marked_destinations: Default::default(),
+            users_ids: Default::default(),
+            programs_ids: Default::default(),
+            messages_dispatches: Default::default(),
         }
     }
 }
@@ -101,6 +120,27 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
+    pub fn is_user(&mut self, id: &ProgramId) -> bool {
+        if self.users_ids.contains(id) {
+            true
+        } else if self.marked_destinations.contains(id) || self.programs_ids.contains(id) {
+            false
+        } else {
+            // For checking of existence.
+            GasPallet::<T>::decrease_gas_allowance(T::DbWeight::get().reads(1));
+
+            let id = *id;
+            if GearProgramPallet::<T>::program_exists(id) {
+                self.programs_ids.insert(id);
+
+                false
+            } else {
+                self.users_ids.insert(id);
+
+                true
+            }
+        }
+    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
@@ -156,22 +196,20 @@ impl<T: Config> JournalHandler for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
-        let event = match outcome {
-            CoreDispatchOutcome::Success(message_id) => {
+    fn message_dispatched(
+        &mut self,
+        message_id: MessageId,
+        source: ProgramId,
+        outcome: CoreDispatchOutcome,
+    ) {
+        let status = match outcome {
+            CoreDispatchOutcome::Success => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
 
-                Event::MessageDispatched(DispatchOutcome {
-                    message_id,
-                    outcome: ExecutionResult::Success,
-                })
+                DispatchStatus::Success
             }
-            CoreDispatchOutcome::MessageTrap {
-                message_id,
-                program_id,
-                trap,
-            } => {
-                let reason = trap
+            CoreDispatchOutcome::MessageTrap { program_id, trap } => {
+                let _reason = trap
                     .map(|v| {
                         log::info!(
                             target: "runtime::gear",
@@ -185,22 +223,9 @@ where
 
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
 
-                Event::MessageDispatched(DispatchOutcome {
-                    message_id,
-                    outcome: ExecutionResult::Failure(reason),
-                })
+                DispatchStatus::Failed
             }
-            CoreDispatchOutcome::InitSuccess {
-                message_id,
-                origin,
-                program_id,
-            } => {
-                let event = Event::InitSuccess(MessageInfo {
-                    message_id,
-                    program_id,
-                    origin: origin.into_origin(),
-                });
-
+            CoreDispatchOutcome::InitSuccess { program_id, .. } => {
                 common::waiting_init_take_messages(program_id)
                     .into_iter()
                     .for_each(|m_id| {
@@ -221,16 +246,17 @@ where
                     program_id
                 );
 
-                event
-            }
-            CoreDispatchOutcome::InitFailure {
-                message_id,
-                origin,
-                program_id,
-                reason,
-            } => {
-                let origin = origin.into_origin();
+                // TODO: replace it with proper expiration
+                Pallet::<T>::deposit_event(Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Active {
+                        expiration: T::BlockNumber::zero(),
+                    },
+                });
 
+                DispatchStatus::Success
+            }
+            CoreDispatchOutcome::InitFailure { program_id, .. } => {
                 // Some messages addressed to the program could be processed
                 // in the queue before init message. For example, that could
                 // happen when init message had more gas limit then rest block
@@ -257,19 +283,14 @@ where
                     program_id
                 );
 
-                Event::InitFailure(
-                    MessageInfo {
-                        message_id,
-                        origin,
-                        program_id,
-                    },
-                    Reason::Dispatch(reason.unwrap_or_default().into_bytes()),
-                )
+                DispatchStatus::Failed
             }
-            CoreDispatchOutcome::NoExecution(message_id) => Event::MessageNotExecuted(message_id),
+            CoreDispatchOutcome::NoExecution => DispatchStatus::NotExecuted,
         };
 
-        Pallet::<T>::deposit_event(event);
+        if self.is_user(&source) {
+            self.messages_dispatches.insert(message_id, status);
+        }
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
@@ -414,7 +435,11 @@ where
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
             if MailboxOf::<T>::insert(message.clone()).is_ok() {
-                Pallet::<T>::deposit_event(Event::Log(message));
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    // TODO: Replace with proper block number of expiration.
+                    expiration: Some(T::BlockNumber::zero()),
+                });
             } else {
                 log::error!("Error occurred in mailbox insertion")
             }
@@ -425,7 +450,14 @@ where
         WaitlistOf::<T>::insert(dispatch.clone())
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
-        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch));
+        Pallet::<T>::deposit_event(Event::MessageWaited {
+            id: dispatch.id(),
+            // TODO: Replace with proper origin message id.
+            origin: None,
+            reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+            // TODO: Replace with proper block number of expiration.
+            expiration: T::BlockNumber::zero(),
+        });
     }
 
     fn wake_message(
@@ -480,10 +512,15 @@ where
                 }
             };
 
+            let event = Event::MessageWaken {
+                id: dispatch.id(),
+                reason: MessageWakenRuntimeReason::WakeCalled.into_reason(),
+            };
+
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
-            Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
+            Pallet::<T>::deposit_event(event);
         } else {
             log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",

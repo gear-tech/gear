@@ -59,9 +59,8 @@ use gear_core::{
 };
 use pallet_gas::Pallet as GasPallet;
 use primitive_types::H256;
-use scale_info::TypeInfo;
-use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{convert::TryInto, fmt::Debug, prelude::*};
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
@@ -73,6 +72,7 @@ pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
+pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
 
@@ -107,7 +107,8 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState, ValueTree,
+        self, event::*, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState,
+        ValueTree,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -188,33 +189,60 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// Log event from the specific program.
-        Log(StoredMessage),
-        /// Program created and an init message enqueued.
-        InitMessageEnqueued(MessageInfo),
-        /// Program initialization error.
-        InitFailure(MessageInfo, Reason),
-        /// Program initialized.
-        InitSuccess(MessageInfo),
-        /// Dispatch message with a specific ID enqueued for processing.
-        DispatchMessageEnqueued(MessageInfo),
-        /// Dispatched message has resulted in an outcome
-        MessageDispatched(DispatchOutcome),
-        /// Some number of messages processed.
-        // TODO: will be replaced by more comprehensive stats
-        MessagesDequeued(u32),
-        /// Value and gas has been claimed from a message in mailbox by the addressee
-        ClaimedValueFromMailbox(MessageId),
-        /// A message has been added to the wait list
-        AddedToWaitList(StoredDispatch),
-        /// A message has been removed from the wait list
-        RemovedFromWaitList(MessageId),
-        /// Program code with a calculated code hash is saved to the storage
-        CodeSaved(H256),
-        /// Pallet associated storage has been wiped.
+        /// TODO: append docs.
+        MessageEnqueued {
+            id: MessageId,
+            source: T::AccountId,
+            destination: ProgramId,
+            entry: Entry,
+        },
+
+        /// TODO: append docs.
+        UserMessageSent {
+            message: StoredMessage,
+            expiration: Option<T::BlockNumber>,
+        },
+
+        /// TODO: append docs.
+        UserMessageRead {
+            id: MessageId,
+            reason: UserMessageReadReason,
+        },
+
+        /// TODO: append docs.
+        MessagesDispatched {
+            total: MessengerCapacityOf<T>,
+            statuses: BTreeMap<MessageId, DispatchStatus>,
+        },
+
+        /// TODO: append docs.
         DatabaseWiped,
-        /// Message was not executed
-        MessageNotExecuted(MessageId),
+
+        /// TODO: append docs.
+        MessageWaited {
+            id: MessageId,
+            origin: Option<MessageId>,
+            reason: MessageWaitedReason,
+            expiration: T::BlockNumber,
+        },
+
+        /// TODO: append docs.
+        MessageWaken {
+            id: MessageId,
+            reason: MessageWakenReason,
+        },
+
+        /// TODO: append docs.
+        CodeChanged {
+            id: CodeId,
+            change: CodeChangeKind<T::BlockNumber>,
+        },
+
+        /// TODO: append docs.
+        ProgramChanged {
+            id: ProgramId,
+            change: ProgramChangeKind<T::BlockNumber>,
+        },
     }
 
     // Gear pallet error.
@@ -257,32 +285,6 @@ pub mod pallet {
         CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
-    pub enum Reason {
-        Error,
-        ValueTransfer,
-        Dispatch(Vec<u8>),
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
-    pub enum ExecutionResult {
-        Success,
-        Failure(Vec<u8>),
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
-    pub struct DispatchOutcome {
-        pub message_id: MessageId,
-        pub outcome: ExecutionResult,
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
-    pub struct MessageInfo {
-        pub message_id: MessageId,
-        pub program_id: ProgramId,
-        pub origin: H256,
     }
 
     #[pallet::hooks]
@@ -350,6 +352,8 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            use common::event::CodeChangeKind;
+
             let who = ensure_signed(origin)?;
 
             let schedule = T::Schedule::get();
@@ -390,12 +394,16 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.into_origin();
+            let origin = who.clone().into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
-                Self::deposit_event(Event::CodeSaved(code_hash));
+            if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
+                Self::deposit_event(Event::CodeChanged {
+                    id: code_id,
+                    // replace with proper value
+                    change: CodeChangeKind::Active { expiration: None },
+                });
             }
 
             let message_id = Self::next_message_id(origin);
@@ -415,11 +423,12 @@ pub mod pallet {
 
             QueueOf::<T>::queue(dispatch).map_err(|_| "Unable to push message")?;
 
-            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
-                message_id,
-                program_id,
-                origin,
-            }));
+            Self::deposit_event(Event::MessageEnqueued {
+                id: message_id,
+                source: who,
+                destination: program_id,
+                entry: Entry::Init,
+            });
 
             Ok(().into())
         }
@@ -593,10 +602,10 @@ pub mod pallet {
                             max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
                     };
 
-                    if let JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                        trap,
+                    if let JournalNote::MessageDispatched {
+                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
                         ..
-                    }) = note
+                    } = note
                     {
                         return Err(format!(
                             "Program terminated with a trap: {}",
@@ -755,7 +764,15 @@ pub mod pallet {
                             let is_for_wait_list = maybe_message_reply.is_none()
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
                             if is_for_wait_list {
-                                Self::deposit_event(Event::AddedToWaitList(dispatch.clone()));
+                                Pallet::<T>::deposit_event(Event::MessageWaited {
+                                    id: dispatch.id(),
+                                    // TODO: Replace with proper origin message id.
+                                    origin: None,
+                                    reason: MessageWaitedSystemReason::DidNotFinishInit
+                                        .into_reason(),
+                                    // TODO: Replace with proper expiration block.
+                                    expiration: T::BlockNumber::zero(),
+                                });
                                 common::waiting_init_append_message_id(
                                     program_id,
                                     current_message_id,
@@ -877,7 +894,10 @@ pub mod pallet {
             let total_handled = DequeuedOf::<T>::get();
 
             if total_handled > 0 {
-                Self::deposit_event(Event::MessagesDequeued(total_handled));
+                Self::deposit_event(Event::MessagesDispatched {
+                    total: total_handled,
+                    statuses: ext_manager.into_dispatch_statuses(),
+                });
             }
 
             weight.saturating_sub(GasPallet::<T>::gas_allowance())
@@ -893,8 +913,8 @@ pub mod pallet {
         pub(crate) fn set_code_with_metadata(
             code_and_id: CodeAndId,
             who: H256,
-        ) -> Result<H256, Error<T>> {
-            let hash: H256 = code_and_id.code_id().into_origin();
+        ) -> Result<CodeId, Error<T>> {
+            let code_id = code_and_id.code_id();
 
             let metadata = {
                 let block_number =
@@ -905,7 +925,7 @@ pub mod pallet {
             T::CodeStorage::add_code(code_and_id, metadata)
                 .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
-            Ok(hash)
+            Ok(code_id)
         }
 
         pub(crate) fn reinstrument_code(
@@ -980,9 +1000,15 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let code_hash = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
-            Self::deposit_event(Event::CodeSaved(code_hash));
+            Self::deposit_event(Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active {
+                    // TODO: add proper expiration block
+                    expiration: None,
+                },
+            });
 
             Ok(().into())
         }
@@ -1098,14 +1124,20 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.into_origin();
+            let origin = who.clone().into_origin();
 
             let code_id = code_and_id.code_id();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
-                Self::deposit_event(Event::CodeSaved(code_hash));
+                Self::deposit_event(Event::CodeChanged {
+                    id: code_hash,
+                    change: CodeChangeKind::Active {
+                        // TODO: add proper expiration block
+                        expiration: None,
+                    },
+                });
             }
 
             let message_id = Self::next_message_id(origin);
@@ -1123,13 +1155,16 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
+            let event = Event::MessageEnqueued {
+                id: dispatch.id(),
+                source: who,
+                destination: dispatch.destination(),
+                entry: Entry::Init,
+            };
+
             QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
-                message_id,
-                program_id,
-                origin,
-            }));
+            Self::deposit_event(event);
 
             Ok(().into())
         }
@@ -1206,17 +1241,20 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.into_origin();
+                let origin = who.clone().into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+
+                let event = Event::MessageEnqueued {
+                    id: message.id(),
+                    source: who,
+                    destination: message.destination(),
+                    entry: Entry::Handle,
+                };
 
                 QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin)))
                     .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                    message_id,
-                    origin,
-                    program_id: destination,
-                }));
+                Self::deposit_event(event);
             } else {
                 // Message in mailbox is not meant for any processing, hence 0 gas limit
                 // and no gas tree needs to be created
@@ -1224,7 +1262,11 @@ pub mod pallet {
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
                 MailboxOf::<T>::insert(message.clone())?;
-                Self::deposit_event(Event::Log(message));
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    // TODO: Replace with proper block number of expiration.
+                    expiration: Some(T::BlockNumber::zero()),
+                });
             }
 
             Ok(().into())
@@ -1295,8 +1337,20 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.into_origin();
+                let origin = who.clone().into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+
+                Self::deposit_event(Event::UserMessageRead {
+                    id: reply_to_id,
+                    reason: UserMessageReadRuntimeReason::Replied.into_reason(),
+                });
+
+                let event = Event::MessageEnqueued {
+                    id: message.id(),
+                    source: who,
+                    destination,
+                    entry: Entry::Reply(reply_to_id),
+                };
 
                 QueueOf::<T>::queue(message.into_stored_dispatch(
                     ProgramId::from_origin(origin),
@@ -1305,11 +1359,7 @@ pub mod pallet {
                 ))
                 .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                    message_id,
-                    origin,
-                    program_id: destination,
-                }));
+                Self::deposit_event(event);
             } else {
                 // Message in mailbox is not meant for any processing, hence 0 gas limit
                 // and no gas tree needs to be created
@@ -1322,7 +1372,11 @@ pub mod pallet {
                 );
 
                 MailboxOf::<T>::insert(message.clone())?;
-                Self::deposit_event(Event::Log(message));
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    // TODO: Replace with proper block number of expiration.
+                    expiration: Some(T::BlockNumber::zero()),
+                });
             }
 
             Ok(().into())
@@ -1336,7 +1390,10 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
 
-            Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
+            Self::deposit_event(Event::UserMessageRead {
+                id: message_id,
+                reason: UserMessageReadRuntimeReason::Claimed.into_reason(),
+            });
 
             Ok(().into())
         }

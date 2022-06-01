@@ -18,6 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[macro_use]
+extern crate gear_common_codegen;
+
+pub mod event;
 pub mod lazy_pages;
 pub mod storage;
 

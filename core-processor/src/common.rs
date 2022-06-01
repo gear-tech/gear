@@ -100,8 +100,6 @@ impl DispatchResult {
 pub enum DispatchOutcome {
     /// Message was an initialization success.
     InitSuccess {
-        /// Message id.
-        message_id: MessageId,
         /// Original actor.
         origin: ProgramId,
         /// Id of the program that was successfully initialized.
@@ -109,8 +107,6 @@ pub enum DispatchOutcome {
     },
     /// Message was an initialization failure.
     InitFailure {
-        /// Message id.
-        message_id: MessageId,
         /// Original actor.
         origin: ProgramId,
         /// Program that was failed initializing.
@@ -120,24 +116,29 @@ pub enum DispatchOutcome {
     },
     /// Message was a trap.
     MessageTrap {
-        /// Message id.
-        message_id: MessageId,
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
         trap: Option<String>,
     },
     /// Message was a success.
-    Success(MessageId),
+    Success,
     /// Message was processed, but not executed
-    NoExecution(MessageId),
+    NoExecution,
 }
 
 /// Journal record for the state update.
 #[derive(Clone, Debug)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
-    MessageDispatched(DispatchOutcome),
+    MessageDispatched {
+        /// Message id of dispatched message.
+        message_id: MessageId,
+        /// Source of the dispatched message.
+        source: ProgramId,
+        /// Outcome of the processing.
+        outcome: DispatchOutcome,
+    },
     /// Some gas was burned.
     GasBurned {
         /// Message id in which gas was burned.
@@ -172,7 +173,7 @@ pub enum JournalNote {
         message_id: MessageId,
         /// Program which has initiated wake.
         program_id: ProgramId,
-        /// Message that should be wokoen.
+        /// Message that should be woken.
         awakening_id: MessageId,
     },
     /// Update page.
@@ -222,7 +223,12 @@ pub enum JournalNote {
 /// Something that can update state.
 pub trait JournalHandler {
     /// Process message dispatch.
-    fn message_dispatched(&mut self, outcome: DispatchOutcome);
+    fn message_dispatched(
+        &mut self,
+        message_id: MessageId,
+        source: ProgramId,
+        outcome: DispatchOutcome,
+    );
     /// Process gas burned.
     fn gas_burned(&mut self, message_id: MessageId, amount: u64);
     /// Process exit dispatch.
