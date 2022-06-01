@@ -308,7 +308,7 @@ case "$COMMAND" in
 
       rtest)
         header "Running node runtime testsuite"
-        rtest "$ROOT_DIR" "$@"; ;;
+        rtest "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
       pallet)
         header "Running pallet-gear tests"

@@ -954,6 +954,19 @@ fn block_gas_limit_works() {
         assert_dispatched(msg1, DispatchStatus::Failed);
         assert_last_dequeued(1);
 
+        // TODO: rewrite it in a proper way.
+        // SystemPallet::<Test>::assert_has_event(
+        //     Event::MessageDispatched(DispatchOutcome {
+        //         message_id: msg1,
+        //         outcome: ExecutionResult::Failure(
+        //             format!("{}", ExtError::Message(MessageError::NotEnoughGas)).into_bytes(),
+        //         ),
+        //     })
+        //     .into(),
+        // );
+
+        // SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+
         // Equals 0 due to trying execution of msg2.
         assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
 
@@ -1020,7 +1033,7 @@ fn init_message_logging_works() {
             (
                 ProgramCodeKind::GreedyInit,
                 true,
-                format!("{}", ExtError::GasLimitExceeded).into_bytes(),
+                format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded)).into_bytes(),
             ),
         ];
 
@@ -1131,7 +1144,10 @@ fn events_logging_works() {
             (ProgramCodeKind::Default, None, true),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(format!("{}", ExtError::GasLimitExceeded).into_bytes()),
+                Some(
+                    format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded))
+                        .into_bytes(),
+                ),
                 false,
             ),
             (
@@ -2997,9 +3013,17 @@ fn test_create_program_with_value_lt_ed() {
         assert_dispatched(msg_id, DispatchStatus::Failed);
 
         // TODO: rewrite it once error replies added
+        // check_dequeued(1);
+
         // // There definitely should be event with init failure reason
-        // let expected_failure_reason =
-        //     format!("{}", ExtError::InsufficientMessageValue).into_bytes();
+        // let expected_failure_reason = format!(
+        //     "{}",
+        //     ExtError::Message(MessageError::InsufficientValue {
+        //         message_value: 499,
+        //         existential_deposit: 500
+        //     })
+        // )
+        // .into_bytes();
         // let reason = SystemPallet::<Test>::events()
         //     .iter()
         //     .filter_map(|e| {
@@ -3013,7 +3037,7 @@ fn test_create_program_with_value_lt_ed() {
         //     .pop()
         //     .expect("no init failure events");
 
-        // if let OldReason::Dispatch(actual_failure_reason) = reason {
+        // if let Reason::Dispatch(actual_failure_reason) = reason {
         //     assert_eq!(actual_failure_reason, expected_failure_reason);
         // } else {
         //     panic!("error reason is of wrong type")
@@ -3090,9 +3114,17 @@ fn test_create_program_with_exceeding_value() {
         assert_dispatched(origin_msg_id, DispatchStatus::Failed);
 
         // TODO: rewrite it once error replies added
+        // check_dequeued(1);
 
         // // There definitely should be event with init failure reason
-        // let expected_failure_reason = format!("{}", ExtError::NotEnoughValue).into_bytes();
+        // let expected_failure_reason = format!(
+        //     "{}",
+        //     ExtError::Message(MessageError::NotEnoughValue {
+        //         message_value: 1001,
+        //         value_left: 1000
+        //     })
+        // )
+        // .into_bytes();
         // let reason = SystemPallet::<Test>::events()
         //     .iter()
         //     .filter_map(|e| {
@@ -3106,7 +3138,7 @@ fn test_create_program_with_exceeding_value() {
         //     .pop()
         //     .expect("no init failure events");
 
-        // if let OldReason::Dispatch(actual_failure_reason) = reason {
+        // if let Reason::Dispatch(actual_failure_reason) = reason {
         //     assert_eq!(actual_failure_reason, expected_failure_reason);
         // } else {
         //     panic!("error reason is of wrong type")
