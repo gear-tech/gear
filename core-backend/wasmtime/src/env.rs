@@ -27,8 +27,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    AsTerminationReason, BackendError, BackendReport, Environment, ExtInfo, IntoExtError,
-    IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    ExtInfo, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},

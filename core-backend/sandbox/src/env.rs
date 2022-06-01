@@ -27,8 +27,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, BackendError, BackendReport, Environment, IntoExtError, IntoExtInfo,
-    TerminationReason, TerminationReasonKind,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    IntoExtInfo, TerminationReason, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},

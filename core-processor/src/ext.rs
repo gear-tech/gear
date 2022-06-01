@@ -24,7 +24,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, ExtInfo, IntoExtError, IntoExtInfo, TerminationReasonKind, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo,
+    TerminationReasonKind, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,

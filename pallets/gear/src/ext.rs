@@ -25,7 +25,7 @@ use core_processor::{
     Ext, ProcessorError, ProcessorExt,
 };
 use gear_backend_common::{
-    AsTerminationReason, ExtInfo, IntoExtError, IntoExtInfo, TerminationReasonKind,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind,
 };
 use gear_core::{
     costs::HostFnWeights,

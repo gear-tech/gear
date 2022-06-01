@@ -22,6 +22,7 @@
 
 extern crate alloc;
 
+pub mod error_processor;
 pub mod funcs;
 
 use alloc::{
@@ -148,55 +149,6 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Consumes environment and returns gas state.
     fn into_gas_amount(self) -> GasAmount;
-}
-
-pub struct ExtErrorProcessor<'a, T, E> {
-    ext: &'a mut E,
-    success: Option<T>,
-}
-
-impl<'a, T, E> ExtErrorProcessor<'a, T, E>
-where
-    E: Ext + IntoExtInfo,
-{
-    pub fn new(ext: &'a mut E) -> Self {
-        Self { ext, success: None }
-    }
-
-    pub fn with<U, F>(mut self, f: F) -> Result<Self, U>
-    where
-        F: FnOnce(&mut E) -> Result<T, U>,
-        U: IntoExtError,
-    {
-        match f(self.ext) {
-            Ok(t) => {
-                self.success = Some(t);
-            }
-            Err(err) => {
-                err.into_ext_error()?;
-            }
-        };
-        Ok(self)
-    }
-
-    pub fn on_success<U, F>(mut self, f: F) -> Result<Self, U>
-    where
-        F: FnOnce(T) -> Result<(), U>,
-    {
-        self.success.take().map(f).transpose()?;
-        Ok(self)
-    }
-
-    pub fn error_len(self) -> u32 {
-        self.ext
-            .last_error()
-            .map(|err| err.encoded_size() as u32)
-            .unwrap_or(0)
-    }
-}
-
-pub trait IntoExtError: Sized {
-    fn into_ext_error(self) -> Result<ExtError, Self>;
 }
 
 pub trait AsTerminationReason {
