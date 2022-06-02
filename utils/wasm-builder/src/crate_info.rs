@@ -34,36 +34,6 @@ pub struct CrateInfo {
 }
 
 impl CrateInfo {
-    /// check package
-    ///
-    /// - if crate-type includes "lib" or "rlib":
-    fn check(pkg: &Package) -> StdResult<&Package, BuilderError> {
-        // cargo can't import executables (bin, cdylib etc), but libs
-        // only (rlib).
-        //
-        // if no `[lib]` table, the `crate_types` will be [ "lib" ]
-        // by default, we can not detect if this is "rlib" because it
-        // is the "compiler recommended" style of library.
-        //
-        // see also https://doc.rust-lang.org/reference/linkage.html
-        let lib_s = "lib".to_string();
-        let rlib_s = "rlib".to_string();
-        let _ = pkg
-            .targets
-            .iter()
-            .find(|target| {
-                target.name.eq(&target.name)
-                    && target
-                        .crate_types
-                        .iter()
-                        .find(|ty| **ty == lib_s || **ty == rlib_s)
-                        .is_some()
-            })
-            .ok_or(BuilderError::InvalidCrateType)?;
-
-        Ok(pkg)
-    }
-
     /// Create a new `CrateInfo` from a path to the `Cargo.toml`.
     pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
         anyhow::ensure!(
@@ -97,5 +67,35 @@ impl CrateInfo {
             .packages
             .iter()
             .find(|package| package.id == *root_id)
+    }
+
+    /// check package
+    ///
+    /// - if crate-type contains "lib" or "rlib":
+    fn check(pkg: &Package) -> StdResult<&Package, BuilderError> {
+        // cargo can't import executables (bin, cdylib etc), but libs
+        // only (rlib).
+        //
+        // if no `[lib]` table, the `crate_types` will be [ "lib" ]
+        // by default, we can not detect if this is "rlib" because it
+        // is the "compiler recommended" style of library.
+        //
+        // see also https://doc.rust-lang.org/reference/linkage.html
+        let lib_s = "lib".to_string();
+        let rlib_s = "rlib".to_string();
+        let _ = pkg
+            .targets
+            .iter()
+            .find(|target| {
+                target.name.eq(&target.name)
+                    && target
+                        .crate_types
+                        .iter()
+                        .find(|ty| **ty == lib_s || **ty == rlib_s)
+                        .is_some()
+            })
+            .ok_or(BuilderError::InvalidCrateType)?;
+
+        Ok(pkg)
     }
 }
