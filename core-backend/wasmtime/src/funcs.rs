@@ -640,7 +640,7 @@ where
                          value_ptr: i32,
                          program_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with_fallible(|ext| -> Result<i32, FuncError<E::Error>> {
+            ext.with_fallible(|ext| -> Result<u32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let code_hash = get_bytes32(&mem_wrap, code_hash_ptr as usize)?;
                 let salt = get_vec(&mem_wrap, salt_ptr as usize, salt_len as usize)?;
@@ -655,7 +655,7 @@ where
                         value,
                     ))
                     .process_error()
-                    .map_err(FuncError::Core)
+                    .map_err(FuncError::Core)?
                     .error_len_on_success(|new_actor_id| {
                         write_to_caller_memory(
                             &mut caller,

@@ -2983,7 +2983,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // There definitely should be event with init failure reason
         // TODO: return error back after #937 being merged
-        let expected_failure_reason = format!("{}", ExtError::PanicOccurred).into_bytes();
+        let expected_failure_reason = format!("{}", ExtError::Some).into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {
@@ -3072,7 +3072,7 @@ fn test_create_program_with_exceeding_value() {
 
         // There definitely should be event with init failure reason
         // TODO: return error back after #937 being merged
-        let expected_failure_reason = format!("{}", ExtError::PanicOccurred).into_bytes();
+        let expected_failure_reason = format!("{}", ExtError::Some).into_bytes();
         let reason = SystemPallet::<Test>::events()
             .iter()
             .filter_map(|e| {

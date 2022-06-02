@@ -33,8 +33,3 @@ pub use general::*;
 mod utils;
 #[cfg(feature = "debug")]
 pub use utils::ext;
-
-#[must_use]
-#[repr(transparent)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ErrorCode(i32);

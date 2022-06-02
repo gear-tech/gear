@@ -821,17 +821,22 @@ where
             let salt = funcs::get_vec(memory, salt_ptr, salt_len)?;
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.create_program(InitPacket::new_with_gas(
-                code_hash.into(),
-                salt,
-                payload,
-                gas_limit,
-                value,
-            ))
-            .map_err(FuncError::Core)
-            .on_success_code(|new_actor_id| wto(memory, program_id_ptr, new_actor_id.as_ref()))
+            let error_len = ext
+                .create_program(InitPacket::new_with_gas(
+                    code_hash.into(),
+                    salt,
+                    payload,
+                    gas_limit,
+                    value,
+                ))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|new_actor_id| {
+                    wto(memory, program_id_ptr, new_actor_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError

@@ -18,10 +18,10 @@
 
 //! Program creation API for Gear programs.
 
-use crate::{ActorId, CodeHash, ErrorCode};
+use crate::{error::ExtError, ActorId, CodeHash};
 
 mod sys {
-    use crate::ErrorCode;
+    use crate::error::SyscallError;
 
     extern "C" {
         pub fn gr_create_program_wgas(
@@ -33,23 +33,9 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             program_id_ptr: *mut u8,
-        ) -> ErrorCode;
+        ) -> SyscallError;
     }
 }
-
-impl ErrorCode {
-    fn into_create_program_error(self) -> Result<(), CreateProgramError> {
-        if self.0 == 0 {
-            Ok(())
-        } else {
-            Err(CreateProgramError(()))
-        }
-    }
-}
-
-/// An error occurred during program creation
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct CreateProgramError(());
 
 /// Creates a new program and returns its address.
 ///
@@ -124,7 +110,7 @@ pub fn create_program_with_gas(
     payload: &[u8],
     gas_limit: u64,
     value: u128,
-) -> Result<ActorId, CreateProgramError> {
+) -> Result<ActorId, ExtError> {
     unsafe {
         let mut program_id = ActorId::default();
         sys::gr_create_program_wgas(
@@ -137,7 +123,7 @@ pub fn create_program_with_gas(
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_create_program_error()?;
+        .into_result()?;
         Ok(program_id)
     }
 }
