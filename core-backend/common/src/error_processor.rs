@@ -23,7 +23,7 @@ pub struct ExtErrorProcessor<T> {
 }
 
 impl<T> ExtErrorProcessor<T> {
-    pub fn new<E>(result: Result<T, E>) -> Result<Self, E>
+    fn new<E>(result: Result<T, E>) -> Result<Self, E>
     where
         E: IntoExtError,
     {

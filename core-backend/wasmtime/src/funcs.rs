@@ -25,7 +25,7 @@ use alloc::{
 };
 use codec::Encode;
 use gear_backend_common::{
-    error_processor::{ExtErrorProcessor, IntoExtError, ProcessError},
+    error_processor::{IntoExtError, ProcessError},
     funcs::*,
     AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind,
 };
@@ -306,7 +306,9 @@ where
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
 
-                let error_len = ExtErrorProcessor::new(ext.reply(ReplyPacket::new(payload, value)))
+                let error_len = ext
+                    .reply(ReplyPacket::new(payload, value))
+                    .process_error()
                     .map_err(FuncError::Core)?
                     .error_len_on_success(|message_id| {
                         write_to_caller_memory(
@@ -336,20 +338,18 @@ where
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
 
-                let error_len = ExtErrorProcessor::new(ext.reply(ReplyPacket::new_with_gas(
-                    payload,
-                    gas_limit as _,
-                    value,
-                )))
-                .map_err(FuncError::Core)?
-                .error_len_on_success(|message_id| {
-                    write_to_caller_memory(
-                        &mut caller,
-                        &mem,
-                        message_id_ptr as isize as _,
-                        message_id.as_ref(),
-                    )
-                })?;
+                let error_len = ext
+                    .reply(ReplyPacket::new_with_gas(payload, gas_limit as _, value))
+                    .process_error()
+                    .map_err(FuncError::Core)?
+                    .error_len_on_success(|message_id| {
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            message_id_ptr as isize as _,
+                            message_id.as_ref(),
+                        )
+                    })?;
                 Ok(error_len)
             })
             .map_err(Trap::new)
