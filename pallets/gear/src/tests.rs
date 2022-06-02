@@ -3268,25 +3268,35 @@ fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
         use demo_pow::WASM_BINARY;
-        let (base, exponent, round) = (2u8, 7, 4);
+        let (base, exponent, ptr, result) = (2u8, 7, 0, 1);
 
         // deploy program
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            (base, exponent).encode(),
-            4_000_000_000,
-            4_000_000_000,
+            EMPTY_PAYLOAD.encode(),
+            100_000_000_000,
+            100_000_000_000,
         ));
+        let prog_id = get_last_program_id();
         run_to_block(2, None);
 
-        // calcuating
-        for r in 0..round {
-            run_to_block(3 + r, None);
-        }
+        assert!(Gear::is_initialized(prog_id));
+        // start calculating
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            prog_id,
+            vec![base, exponent, ptr, result],
+            100_000_000_000,
+            100_000_000_000,
+        ));
+        run_to_block(3, None);
 
-        assert_eq!(get_last_mail(USER_1).payload(), vec![base.pow(exponent)]);
+        assert_eq!(
+            get_last_mail(USER_1).and_then(|msg| Some(msg.payload().to_vec())),
+            Some(vec![2, 7, 7, 128])
+        );
     });
 }
 
@@ -3486,10 +3496,8 @@ mod utils {
         )
     }
 
-    pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
-        MailboxOf::<Test>::iter_key(account)
-            .last()
-            .expect("get last mail failed")
+    pub(super) fn get_last_mail(account: AccountId) -> Option<StoredMessage> {
+        MailboxOf::<Test>::iter_key(account).last()
     }
 
     pub(super) fn get_last_program_id() -> ProgramId {
