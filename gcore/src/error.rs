@@ -37,15 +37,7 @@ impl SyscallError {
         if self.len == 0 {
             Ok(())
         } else {
-            #[cfg(feature = "codec")]
-            {
-                Err(get_syscall_error(self.len))
-            }
-
-            #[cfg(not(feature = "codec"))]
-            {
-                Err(ExtError::Some)
-            }
+            Err(get_syscall_error(self.len))
         }
     }
 }
@@ -66,4 +58,9 @@ fn get_syscall_error(len: u32) -> ExtError {
         sys::gr_error(data.as_mut_ptr());
         ExtError::decode(&mut data.as_slice()).expect("error decoded successfully")
     }
+}
+
+#[cfg(not(feature = "codec"))]
+fn get_syscall_error(_len: u32) -> ExtError {
+    ExtError::Some
 }
