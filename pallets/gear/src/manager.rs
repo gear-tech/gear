@@ -84,20 +84,18 @@ pub enum HandleKind {
 }
 
 pub struct ExtManager<T: Config> {
-    // Messages with these destinations will be forcibly pushed to the queue.
-    marked_destinations: BTreeSet<ProgramId>,
     // Ids checked that they are users.
-    users_ids: BTreeSet<ProgramId>,
-    // Ids checked that they are programs. TODO: merge with marked_destinations.
-    programs_ids: BTreeSet<ProgramId>,
+    users: BTreeSet<ProgramId>,
+    // Ids checked that they are programs.
+    programs: BTreeSet<ProgramId>,
     // Messages dispatches.
-    messages_dispatches: BTreeMap<MessageId, DispatchStatus>,
+    dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     _phantom: PhantomData<T>,
 }
 
 impl<T: Config> ExtManager<T> {
     pub(crate) fn into_dispatch_statuses(self) -> BTreeMap<MessageId, DispatchStatus> {
-        self.messages_dispatches
+        self.dispatch_statuses
     }
 }
 
@@ -108,10 +106,9 @@ where
     fn default() -> Self {
         ExtManager {
             _phantom: PhantomData,
-            marked_destinations: Default::default(),
-            users_ids: Default::default(),
-            programs_ids: Default::default(),
-            messages_dispatches: Default::default(),
+            users: Default::default(),
+            programs: Default::default(),
+            dispatch_statuses: Default::default(),
         }
     }
 }
@@ -120,27 +117,26 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn is_user(&mut self, id: &ProgramId) -> bool {
-        if self.users_ids.contains(id) {
+    /// Check if id is program.
+    pub fn is_program(&mut self, id: &ProgramId) -> bool {
+        if self.programs.contains(id) {
             true
-        } else if self.marked_destinations.contains(id) || self.programs_ids.contains(id) {
+        } else if self.users.contains(id) {
             false
+        } else if GearProgramPallet::<T>::program_exists(*id) {
+            self.programs.insert(*id);
+            true
         } else {
-            // For checking of existence.
-            GasPallet::<T>::decrease_gas_allowance(T::DbWeight::get().reads(1));
-
-            let id = *id;
-            if GearProgramPallet::<T>::program_exists(id) {
-                self.programs_ids.insert(id);
-
-                false
-            } else {
-                self.users_ids.insert(id);
-
-                true
-            }
+            self.users.insert(*id);
+            false
         }
     }
+
+    /// Check if id is not program.
+    pub fn is_user(&mut self, id: &ProgramId) -> bool {
+        !self.is_program(id)
+    }
+
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
@@ -202,49 +198,51 @@ where
         source: ProgramId,
         outcome: CoreDispatchOutcome,
     ) {
+        use CoreDispatchOutcome::*;
+
+        let wake_waiting_init_msgs = |p_id: ProgramId| {
+            common::waiting_init_take_messages(p_id)
+                .into_iter()
+                .for_each(|m_id| {
+                    if let Ok((m, _)) = WaitlistOf::<T>::remove(p_id, m_id) {
+                        // TODO: update gas limit in ValueTree here.
+                        QueueOf::<T>::queue(m)
+                            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+                    } else {
+                        log::error!("Cannot find message in wl")
+                    }
+                })
+        };
+
         let status = match outcome {
-            CoreDispatchOutcome::Success => {
+            Success => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
 
                 DispatchStatus::Success
             }
-            CoreDispatchOutcome::MessageTrap { program_id, trap } => {
-                let _reason = trap
-                    .map(|v| {
-                        log::info!(
-                            target: "runtime::gear",
-                            "🪤 Program {} terminated with a trap: {}",
-                            program_id.into_origin(),
-                            v
-                        );
-                        v.as_bytes().to_vec()
-                    })
-                    .unwrap_or_default();
-
+            MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
+
+                if let Some(reason) = trap {
+                    log::info!(
+                        target: "runtime::gear",
+                        "🪤 Program {} terminated with a trap: {}",
+                        program_id.into_origin(),
+                        reason
+                    );
+                };
 
                 DispatchStatus::Failed
             }
-            CoreDispatchOutcome::InitSuccess { program_id, .. } => {
-                common::waiting_init_take_messages(program_id)
-                    .into_iter()
-                    .for_each(|m_id| {
-                        if let Ok((m, _)) = WaitlistOf::<T>::remove(program_id, m_id) {
-                            QueueOf::<T>::queue(m).unwrap_or_else(|e| {
-                                unreachable!("Message queue corrupted! {:?}", e)
-                            });
-                        } else {
-                            log::error!("Cannot find message in wl")
-                        }
-                    });
-
-                common::set_program_initialized(program_id.into_origin());
-
+            InitSuccess { program_id, .. } => {
                 log::trace!(
                     "Dispatch ({:?}) init success for program {:?}",
                     message_id,
                     program_id
                 );
+
+                wake_waiting_init_msgs(program_id);
+                common::set_program_initialized(program_id.into_origin());
 
                 // TODO: replace it with proper expiration
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
@@ -256,40 +254,34 @@ where
 
                 DispatchStatus::Success
             }
-            CoreDispatchOutcome::InitFailure { program_id, .. } => {
-                // Some messages addressed to the program could be processed
-                // in the queue before init message. For example, that could
-                // happen when init message had more gas limit then rest block
-                // gas allowance, but a dispatch message to the program was
-                // dequeued. The other case is async init.
-                common::waiting_init_take_messages(program_id)
-                    .into_iter()
-                    .for_each(|m_id| {
-                        if let Ok((m, _)) = WaitlistOf::<T>::remove(program_id, m_id) {
-                            QueueOf::<T>::queue(m).unwrap_or_else(|e| {
-                                unreachable!("Message queue corrupted! {:?}", e)
-                            });
-                        } else {
-                            log::error!("Cannot find message in wl");
-                        }
-                    });
-
-                let res = common::set_program_terminated_status(program_id.into_origin());
-                assert!(res.is_ok(), "only active program can cause init failure");
-
+            InitFailure { program_id, .. } => {
                 log::trace!(
                     "Dispatch ({:?}) init failure for program {:?}",
                     message_id,
                     program_id
                 );
 
+                // Some messages addressed to the program could be processed
+                // in the queue before init message. For example, that could
+                // happen when init message had more gas limit then rest block
+                // gas allowance, but a dispatch message to the program was
+                // dequeued. The other case is async init.
+                wake_waiting_init_msgs(program_id);
+
+                common::set_program_terminated_status(program_id.into_origin())
+                    .expect("Only active program can cause init failure");
+
                 DispatchStatus::Failed
             }
-            CoreDispatchOutcome::NoExecution => DispatchStatus::NotExecuted,
+            CoreDispatchOutcome::NoExecution => {
+                log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
+
+                DispatchStatus::NotExecuted
+            }
         };
 
         if self.is_user(&source) {
-            self.messages_dispatches.insert(message_id, status);
+            self.dispatch_statuses.insert(message_id, status);
         }
     }
 
@@ -413,9 +405,7 @@ where
             gas_limit,
         );
 
-        if GearProgramPallet::<T>::program_exists(dispatch.destination())
-            || self.marked_destinations.contains(&dispatch.destination())
-        {
+        if self.is_program(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
                 let _ = T::GasHandler::split_with_value(
                     message_id,
@@ -637,7 +627,7 @@ where
                 code_id
             );
             for (candidate, _) in candidates {
-                self.marked_destinations.insert(candidate);
+                self.programs.insert(candidate);
             }
         }
     }
