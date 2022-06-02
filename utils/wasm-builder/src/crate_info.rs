@@ -18,7 +18,7 @@
 
 use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
-use std::path::Path;
+use std::{path::Path, result::Result as StdResult};
 
 use crate::builder_error::BuilderError;
 
@@ -34,6 +34,36 @@ pub struct CrateInfo {
 }
 
 impl CrateInfo {
+    /// check package
+    ///
+    /// - if crate-type includes "lib" or "rlib":
+    fn check(pkg: &Package) -> StdResult<&Package, BuilderError> {
+        // cargo can't import executables (bin, cdylib etc), but libs
+        // only (rlib).
+        //
+        // if no `[lib]` table, the `crate_types` will be [ "lib" ]
+        // by default, we can not detect if this is "rlib" because it
+        // is the "compiler recommended" style of library.
+        //
+        // see also https://doc.rust-lang.org/reference/linkage.html
+        let lib_s = "lib".to_string();
+        let rlib_s = "rlib".to_string();
+        let _ = pkg
+            .targets
+            .iter()
+            .find(|target| {
+                target.name.eq(&target.name)
+                    && target
+                        .crate_types
+                        .iter()
+                        .find(|ty| **ty == lib_s || **ty == rlib_s)
+                        .is_some()
+            })
+            .ok_or(BuilderError::InvalidCrateType)?;
+
+        Ok(pkg)
+    }
+
     /// Create a new `CrateInfo` from a path to the `Cargo.toml`.
     pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
         anyhow::ensure!(
@@ -47,8 +77,9 @@ impl CrateInfo {
             .exec()
             .context("unable to invoke `cargo metadata`")?;
 
-        let root_package =
-            Self::root_package(&metadata).ok_or(BuilderError::RootPackageNotFound)?;
+        let root_package = Self::root_package(&metadata)
+            .ok_or(BuilderError::RootPackageNotFound)
+            .and_then(Self::check)?;
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
