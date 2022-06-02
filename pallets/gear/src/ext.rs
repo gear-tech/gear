@@ -24,7 +24,9 @@ use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
     Ext, ProcessorError, ProcessorExt,
 };
-use gear_backend_common::{AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind};
+use gear_backend_common::{
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind,
+};
 use gear_core::{
     costs::HostFnWeights,
     env::Ext as EnvExt,
@@ -43,6 +45,15 @@ pub enum Error {
 }
 
 impl CoreError for Error {}
+
+impl IntoExtError for Error {
+    fn into_ext_error(self) -> Result<ExtError, Self> {
+        match self {
+            Error::Processor(err) => Ok(err.into_ext_error()?),
+            err => Err(err),
+        }
+    }
+}
 
 impl AsTerminationReason for Error {
     fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
@@ -126,6 +137,10 @@ impl IntoExtInfo for LazyPagesExt {
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
         self.inner.gas_counter.into()
+    }
+
+    fn last_error(&self) -> Option<&ExtError> {
+        self.inner.last_error()
     }
 }
 

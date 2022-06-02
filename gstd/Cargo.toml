@@ -7,8 +7,9 @@ license = "GPL-3.0"
 
 [dependencies]
 galloc = { path = "../galloc" }
-gcore = { path = "../gcore" }
+gcore = { path = "../gcore", features = ["codec"] }
 gstd-codegen = { path = "codegen" }
+gear-core-errors = { path = "../core-errors" }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "full"]}

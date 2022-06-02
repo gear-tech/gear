@@ -16,20 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-
-extern crate alloc;
-
-pub mod error;
-pub mod exec;
-pub mod msg;
-pub mod prog;
-
-mod general;
-pub use general::*;
-
-mod utils;
-#[cfg(feature = "debug")]
-pub use utils::ext;
+fn main() {
+    gear_wasm_builder::build();
+}
