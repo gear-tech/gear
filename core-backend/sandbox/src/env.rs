@@ -27,14 +27,15 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    IntoExtInfo, TerminationReason, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -67,6 +68,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
+    pub termination_reason: Option<TerminationReasonKind>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -99,7 +101,11 @@ fn set_pages(
     Ok(())
 }
 
-impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
+impl<E> Environment<E> for SandboxEnvironment<E>
+where
+    E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason + IntoExtError,
+{
     type Error = SandboxEnvironmentError;
 
     fn new(
@@ -157,12 +163,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_leave", funcs::leave);
         env_builder.add_host_func("env", "gr_wait", funcs::wait);
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
+        env_builder.add_host_func("env", "gr_error", funcs::error);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
         let mut runtime = Runtime {
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
+            termination_reason: None,
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
@@ -236,9 +244,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(ReturnValue::Unit)
         };
 
-        log::debug!("execution res = {:?}", res);
+        let Runtime {
+            ext,
+            memory,
+            trap,
+            termination_reason,
+        } = self.runtime;
 
-        let Runtime { ext, memory, trap } = self.runtime;
+        log::debug!("execution res = {:?}", res);
 
         let info = ext
             .into_inner()
@@ -250,24 +263,20 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             })?;
 
         let termination = if res.is_err() {
-            let reason = if let Some(FuncError::Core(err)) = &trap {
-                match err.as_termination_reason() {
-                    Some(CoreTerminationReason::Exit) => {
-                        info.exit_argument.map(TerminationReason::Exit)
-                    }
-                    Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
-                    Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
-                    Some(CoreTerminationReason::GasAllowanceExceeded) => {
-                        Some(TerminationReason::GasAllowanceExceeded)
-                    }
-                    None => None,
+            let reason = match termination_reason {
+                Some(TerminationReasonKind::Exit) => {
+                    info.exit_argument.map(TerminationReason::Exit)
                 }
-            } else {
-                None
+                Some(TerminationReasonKind::Wait) => Some(TerminationReason::Wait),
+                Some(TerminationReasonKind::Leave) => Some(TerminationReason::Leave),
+                Some(TerminationReasonKind::GasAllowanceExceeded) => {
+                    Some(TerminationReason::GasAllowanceExceeded)
+                }
+                None => None,
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: trap.map(|e| e.to_string()).map(Into::into),
             })
         } else {

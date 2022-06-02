@@ -25,11 +25,12 @@
 //! processing a program can send messages to other programs and users including
 //! reply to the initial message.
 
-use crate::{ActorId, ErrorCode, MessageHandle, MessageId};
+use crate::{ActorId, MessageHandle, MessageId};
 use core::mem::MaybeUninit;
+use gear_core_errors::ExtError;
 
 mod sys {
-    use crate::msg::ErrorCode;
+    use crate::error::SyscallError;
 
     extern "C" {
         pub fn gr_exit_code() -> i32;
@@ -40,21 +41,21 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        ) -> ErrorCode;
+        ) -> SyscallError;
         pub fn gr_reply_wgas(
             data_ptr: *const u8,
             data_len: u32,
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        ) -> ErrorCode;
-        pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> ErrorCode;
+        ) -> SyscallError;
+        pub fn gr_reply_commit(value_ptr: *const u8, message_id_ptr: *mut u8) -> SyscallError;
         pub fn gr_reply_commit_wgas(
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        ) -> ErrorCode;
-        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
+        ) -> SyscallError;
+        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> SyscallError;
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
             program: *const u8,
@@ -62,7 +63,7 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        ) -> ErrorCode;
+        ) -> SyscallError;
         pub fn gr_send_wgas(
             program: *const u8,
             data_ptr: *const u8,
@@ -70,53 +71,27 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        ) -> ErrorCode;
+        ) -> SyscallError;
         pub fn gr_send_commit(
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
             value_ptr: *const u8,
-        ) -> ErrorCode;
+        ) -> SyscallError;
         pub fn gr_send_commit_wgas(
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
             gas_limit: u64,
             value_ptr: *const u8,
-        ) -> ErrorCode;
-        pub fn gr_send_init(handle: *mut u32) -> ErrorCode;
-        pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> ErrorCode;
+        ) -> SyscallError;
+        pub fn gr_send_init(handle: *mut u32) -> SyscallError;
+        pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32) -> SyscallError;
         pub fn gr_size() -> u32;
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
     }
 }
-
-impl ErrorCode {
-    fn into_send_error(self) -> Result<(), SendError> {
-        if self.0 == 0 {
-            Ok(())
-        } else {
-            Err(SendError(()))
-        }
-    }
-
-    fn into_reply_error(self) -> Result<(), ReplyError> {
-        if self.0 == 0 {
-            Ok(())
-        } else {
-            Err(ReplyError(()))
-        }
-    }
-}
-
-/// An error occurred during sending a message
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct SendError(());
-
-/// An error occurred during replying to a message
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ReplyError(());
 
 /// Get the exit code of the message being processed.
 ///
@@ -213,7 +188,7 @@ pub fn load(buffer: &mut [u8]) {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
+pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply(
@@ -222,7 +197,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_reply_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -260,11 +235,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_with_gas(
-    payload: &[u8],
-    gas_limit: u64,
-    value: u128,
-) -> Result<MessageId, ReplyError> {
+pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_wgas(
@@ -274,7 +245,7 @@ pub fn reply_with_gas(
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_reply_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -309,14 +280,14 @@ pub fn reply_with_gas(
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
+pub fn reply_commit(value: u128) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_reply_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -351,7 +322,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message with in parts.
-pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, ReplyError> {
+pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit_wgas(
@@ -359,7 +330,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, R
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_reply_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -386,8 +357,8 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, R
 ///     msg::reply_push(b"Part 2").unwrap();
 /// }
 /// ```
-pub fn reply_push(payload: &[u8]) -> Result<(), ReplyError> {
-    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _).into_reply_error() }
+pub fn reply_push(payload: &[u8]) -> Result<(), ExtError> {
+    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _).into_result() }
 }
 
 /// Get an identifier of the initial message which the current handle_reply
@@ -449,7 +420,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId, SendError> {
+pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send(
@@ -459,7 +430,7 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId, 
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_send_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -501,7 +472,7 @@ pub fn send_with_gas(
     payload: &[u8],
     gas_limit: u64,
     value: u128,
-) -> Result<MessageId, SendError> {
+) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_wgas(
@@ -512,7 +483,7 @@ pub fn send_with_gas(
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         )
-        .into_send_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -555,7 +526,7 @@ pub fn send_commit(
     handle: MessageHandle,
     program: ActorId,
     value: u128,
-) -> Result<MessageId, SendError> {
+) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit(
@@ -564,7 +535,7 @@ pub fn send_commit(
             program.as_slice().as_ptr(),
             value.to_le_bytes().as_ptr(),
         )
-        .into_send_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -606,7 +577,7 @@ pub fn send_commit_with_gas(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-) -> Result<MessageId, SendError> {
+) -> Result<MessageId, ExtError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit_wgas(
@@ -616,7 +587,7 @@ pub fn send_commit_with_gas(
             gas_limit,
             value.to_le_bytes().as_ptr(),
         )
-        .into_send_error()?;
+        .into_result()?;
         Ok(message_id)
     }
 }
@@ -645,10 +616,10 @@ pub fn send_commit_with_gas(
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
-pub fn send_init() -> Result<MessageHandle, SendError> {
+pub fn send_init() -> Result<MessageHandle, ExtError> {
     unsafe {
         let mut handle = MaybeUninit::uninit();
-        sys::gr_send_init(handle.as_mut_ptr()).into_send_error()?;
+        sys::gr_send_init(handle.as_mut_ptr()).into_result()?;
         Ok(MessageHandle(handle.assume_init()))
     }
 }
@@ -678,8 +649,8 @@ pub fn send_init() -> Result<MessageHandle, SendError> {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-pub fn send_push(handle: &MessageHandle, payload: &[u8]) -> Result<(), SendError> {
-    unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _).into_send_error() }
+pub fn send_push(handle: &MessageHandle, payload: &[u8]) -> Result<(), ExtError> {
+    unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _).into_result() }
 }
 
 /// Get the payload size of the message being processed.

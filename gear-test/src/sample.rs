@@ -237,6 +237,8 @@ pub struct Message {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    /// Short name of the test describing its logic
+    pub title: String,
     /// Code that are needed to be submitted for tests
     pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests
@@ -281,6 +283,7 @@ fn check_sample() {
     let test: Test = serde_yaml::from_str(yaml).unwrap();
     let path = test.programs.get(0).expect("Must have one").path.clone();
 
+    assert_eq!(test.title, "basic");
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(

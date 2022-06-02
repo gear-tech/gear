@@ -80,7 +80,7 @@ impl PageBuf {
     /// except vector's buffer capacity, which is removed.
     pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
         Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
-            .map_err(|data| Error::InvalidPageDataSize(data.len()))
+            .map_err(|data| Error::InvalidPageDataSize(data.len() as u64))
             .map(Self)
     }
 

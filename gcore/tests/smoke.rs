@@ -92,6 +92,11 @@ mod sys {
         let src = VALUE.to_le_bytes().as_ptr();
         ptr::copy(src, val, mem::size_of::<u128>());
     }
+
+    #[no_mangle]
+    unsafe extern "C" fn gr_error(_data: *mut u8) {
+        unreachable!()
+    }
 }
 
 #[test]

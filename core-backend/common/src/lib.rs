@@ -22,11 +22,13 @@
 
 extern crate alloc;
 
+pub mod error_processor;
 pub mod funcs;
 
 use alloc::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use core::fmt;
@@ -39,17 +41,33 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum TerminationReasonKind {
+    Exit,
+    Leave,
+    Wait,
+    GasAllowanceExceeded,
+}
+
 #[derive(Debug, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
     Trap {
-        explanation: Option<ExtError>,
+        explanation: Option<TrapExplanation>,
         description: Option<Cow<'static, str>>,
     },
     Wait,
     GasAllowanceExceeded,
+}
+
+#[derive(Debug, Clone, derive_more::Display)]
+pub enum TrapExplanation {
+    #[display(fmt = "{}", _0)]
+    Core(ExtError),
+    #[display(fmt = "{}", _0)]
+    Other(String),
 }
 
 pub struct ExtInfo {
@@ -60,13 +78,16 @@ pub struct ExtInfo {
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<ExtError>,
+    pub trap_explanation: Option<TrapExplanation>,
     pub exit_argument: Option<ProgramId>,
 }
 
 pub trait IntoExtInfo {
     fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+
     fn into_gas_amount(self) -> GasAmount;
+
+    fn last_error(&self) -> Option<&ExtError>;
 }
 
 pub struct BackendReport {
@@ -130,34 +151,6 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn into_gas_amount(self) -> GasAmount;
 }
 
-pub trait OnSuccessCode<T, E> {
-    fn on_success_code<F>(self, f: F) -> Result<i32, E>
-    where
-        F: FnMut(T) -> Result<(), E>;
-}
-
-impl<T, E, E2> OnSuccessCode<T, E> for Result<T, E2> {
-    fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
-    where
-        F: FnMut(T) -> Result<(), E>,
-    {
-        match self {
-            Ok(t) => f(t).map(|_| 0),
-            Err(_) => Ok(1),
-        }
-    }
-}
-
-pub trait IntoErrorCode {
-    fn into_error_code(self) -> i32;
-}
-
-impl<E> IntoErrorCode for Result<(), E> {
-    fn into_error_code(self) -> i32 {
-        match self {
-            Ok(()) => 0,
-            // TODO: actual error codes
-            Err(_) => 1,
-        }
-    }
+pub trait AsTerminationReason {
+    fn as_termination_reason(&self) -> Option<&TerminationReasonKind>;
 }

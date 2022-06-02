@@ -27,7 +27,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    ExtInfo, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
@@ -97,6 +98,7 @@ fn set_pages<T: Ext>(
 impl<E> Environment<E> for WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     type Error = WasmtimeEnvironmentError;
 
@@ -175,6 +177,7 @@ where
         funcs.insert("gr_leave", funcs::leave(&mut store));
         funcs.insert("gr_wait", funcs::wait(&mut store));
         funcs.insert("gr_wake", funcs::wake(&mut store, memory));
+        funcs.insert("gr_error", funcs::error(&mut store, memory));
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,
@@ -343,7 +346,7 @@ where
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: Some(e.to_string().into()),
             })
         } else {
