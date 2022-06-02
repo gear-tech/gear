@@ -119,6 +119,7 @@ where
 {
     /// Check if id is program.
     pub fn is_program(&mut self, id: &ProgramId) -> bool {
+        // TODO: research how much need to charge for `program_exists` query.
         if self.programs.contains(id) {
             true
         } else if self.users.contains(id) {
