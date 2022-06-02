@@ -91,8 +91,7 @@ impl CrateInfo {
                     && target
                         .crate_types
                         .iter()
-                        .find(|ty| **ty == lib_s || **ty == rlib_s)
-                        .is_some()
+                        .any(|ty| **ty == lib_s || **ty == rlib_s)
             })
             .ok_or(BuilderError::InvalidCrateType)?;
 
