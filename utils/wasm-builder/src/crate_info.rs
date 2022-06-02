@@ -18,7 +18,7 @@
 
 use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
-use std::{path::Path, result::Result as StdResult};
+use std::path::Path;
 
 use crate::builder_error::BuilderError;
 
@@ -48,7 +48,7 @@ impl CrateInfo {
             .context("unable to invoke `cargo metadata`")?;
 
         let root_package = Self::root_package(&metadata)
-            .ok_or(BuilderError::RootPackageNotFound)
+            .ok_or(BuilderError::RootPackageNotFound.into())
             .and_then(Self::check)?;
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
@@ -72,7 +72,7 @@ impl CrateInfo {
     /// check package
     ///
     /// - if crate-type contains "lib" or "rlib":
-    fn check(pkg: &Package) -> StdResult<&Package, BuilderError> {
+    fn check(pkg: &Package) -> Result<&Package> {
         // cargo can't import executables (bin, cdylib etc), but libs
         // only (rlib).
         //
@@ -81,17 +81,17 @@ impl CrateInfo {
         // is the "compiler recommended" style of library.
         //
         // see also https://doc.rust-lang.org/reference/linkage.html
-        let lib_s = "lib".to_string();
-        let rlib_s = "rlib".to_string();
+        let lib_s = "lib";
+        let rlib_s = "rlib";
         let _ = pkg
             .targets
             .iter()
             .find(|target| {
-                target.name.eq(&target.name)
+                target.name.eq(&pkg.name)
                     && target
                         .crate_types
                         .iter()
-                        .any(|ty| **ty == lib_s || **ty == rlib_s)
+                        .any(|ty| ty == lib_s || ty == rlib_s)
             })
             .ok_or(BuilderError::InvalidCrateType)?;
 
