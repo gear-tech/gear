@@ -48,7 +48,7 @@ impl CrateInfo {
             .context("unable to invoke `cargo metadata`")?;
 
         let root_package = Self::root_package(&metadata)
-            .ok_or(BuilderError::RootPackageNotFound.into())
+            .ok_or_else(|| BuilderError::RootPackageNotFound.into())
             .and_then(Self::check)?;
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
