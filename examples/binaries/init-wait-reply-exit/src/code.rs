@@ -5,9 +5,9 @@ use gstd::{
 
 #[gstd::async_init]
 async fn init() {
-    msg::send_and_wait_for_reply::<Vec<u8>, Vec<u8>>(msg::source(), vec![], 0)
+    msg::send_bytes_and_wait_for_reply(msg::source(), vec![], 0)
         .expect("send message failed")
         .await
-        .expect("get reply failed");
+        .expect("ran into error-reply");
     exec::exit(msg::source());
 }

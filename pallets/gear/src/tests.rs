@@ -2500,7 +2500,6 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         // block 2
         //
-        // - send exit message to the program
         // - send messages to the program
         run_to_block(2, None);
         let count = 5;
@@ -2530,7 +2529,7 @@ fn init_wait_reply_exit_cleaned_storage() {
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
             msg_id,
-            b"PONG".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             100_000_000_000u64,
             0,
         ));
