@@ -149,7 +149,9 @@ where
                 .send(HandlePacket::new(dest, payload, value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -180,7 +182,9 @@ where
                 .send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -211,7 +215,9 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -243,7 +249,9 @@ where
                 )
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -265,7 +273,7 @@ where
                 .send_init()
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))?;
+                .error_len_on_success(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -479,7 +487,9 @@ where
                 .reply(ReplyPacket::new(payload, value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -507,7 +517,9 @@ where
                 .reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -531,7 +543,9 @@ where
                 .reply_commit(ReplyPacket::new(Default::default(), value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())
@@ -560,7 +574,9 @@ where
                 ))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))?;
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
             Ok(error_len)
         })
         .map(|code| Value::I32(code as i32).into())

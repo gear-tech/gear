@@ -36,7 +36,7 @@ impl<T> ExtErrorProcessor<T> {
         }
     }
 
-    pub fn and_then<F, E>(self, f: F) -> Result<u32, E>
+    pub fn error_len_on_success<F, E>(self, f: F) -> Result<u32, E>
     where
         F: FnOnce(T) -> Result<(), E>,
     {

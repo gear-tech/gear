@@ -308,7 +308,7 @@ where
 
                 let error_len = ExtErrorProcessor::new(ext.reply(ReplyPacket::new(payload, value)))
                     .map_err(FuncError::Core)?
-                    .and_then(|message_id| {
+                    .error_len_on_success(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
@@ -342,7 +342,7 @@ where
                     value,
                 )))
                 .map_err(FuncError::Core)?
-                .and_then(|message_id| {
+                .error_len_on_success(|message_id| {
                     write_to_caller_memory(
                         &mut caller,
                         &mem,
@@ -368,7 +368,7 @@ where
                         .reply_commit(ReplyPacket::new(Default::default(), value))
                         .process_error()
                         .map_err(FuncError::Core)?
-                        .and_then(|message_id| {
+                        .error_len_on_success(|message_id| {
                             write_to_caller_memory(
                                 &mut caller,
                                 &mem,
@@ -400,7 +400,7 @@ where
                     ))
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .and_then(|message_id| {
+                    .error_len_on_success(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
@@ -464,7 +464,7 @@ where
                     .send(HandlePacket::new(dest, payload, value))
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .and_then(|message_id| {
+                    .error_len_on_success(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
@@ -503,7 +503,7 @@ where
                     ))
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .and_then(|message_id| {
+                    .error_len_on_success(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
@@ -536,7 +536,7 @@ where
                     )
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .and_then(|message_id| {
+                    .error_len_on_success(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
@@ -570,7 +570,7 @@ where
                     )
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .and_then(|message_id| {
+                    .error_len_on_success(|message_id| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
@@ -593,7 +593,7 @@ where
                     .send_init()
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .and_then(|handle| {
+                    .error_len_on_success(|handle| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
