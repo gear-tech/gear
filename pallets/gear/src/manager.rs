@@ -425,6 +425,8 @@ where
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
+
+            // TODO: insert into mailbox and deposit appropriate event (issue #1010).
             if MailboxOf::<T>::insert(message.clone()).is_ok() {
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,

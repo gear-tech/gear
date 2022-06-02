@@ -1261,6 +1261,7 @@ pub mod pallet {
                 let origin = who.into_origin();
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
+                // TODO: insert into mailbox and deposit appropriate event (issue #1010).
                 MailboxOf::<T>::insert(message.clone())?;
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
@@ -1371,6 +1372,7 @@ pub mod pallet {
                     original_message.id(),
                 );
 
+                // TODO: insert into mailbox and deposit appropriate event (issue #1010).
                 MailboxOf::<T>::insert(message.clone())?;
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
