@@ -81,17 +81,12 @@ impl CrateInfo {
         // is the "compiler recommended" style of library.
         //
         // see also https://doc.rust-lang.org/reference/linkage.html
-        let lib_s = "lib";
-        let rlib_s = "rlib";
+        let validated_lib = |ty: &String| ty == "lib" || ty == "rlib";
         let _ = pkg
             .targets
             .iter()
             .find(|target| {
-                target.name.eq(&pkg.name)
-                    && target
-                        .crate_types
-                        .iter()
-                        .any(|ty| ty == lib_s || ty == rlib_s)
+                target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
             })
             .ok_or(BuilderError::InvalidCrateType)?;
 
