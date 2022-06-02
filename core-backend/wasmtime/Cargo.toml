@@ -7,9 +7,10 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../../core" }
-gear-core-errors = { path = "../../core-errors" }
+gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
 
 wasmtime = { version = "0.35.1", default-features = false, features = ["parallel-compilation", "cranelift"] }
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 log = "0.4.17"
 derive_more = "0.99.17"

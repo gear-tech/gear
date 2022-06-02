@@ -7,6 +7,6 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../../core" }
-gear-core-errors = { path = "../../core-errors" }
+gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"

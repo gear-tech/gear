@@ -23,28 +23,18 @@
 
 extern crate alloc;
 
+#[cfg(feature = "codec")]
 use codec::{Decode, Encode};
 use core::fmt;
+#[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
 /// Core error.
 pub trait CoreError: fmt::Display + fmt::Debug {}
 
 /// Error using messages.
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Decode,
-    Encode,
-    TypeInfo,
-    derive_more::Display,
-)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
@@ -108,6 +98,7 @@ pub enum MessageError {
 
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
     /// allowed.
@@ -126,11 +117,12 @@ pub enum MemoryError {
 
     /// WASM page does not contain all necessary Gear pages.
     #[display(fmt = "Page data has wrong size: {:#x}", _0)]
-    InvalidPageDataSize(usize),
+    InvalidPageDataSize(u64),
 }
 
 /// Execution error.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
@@ -142,7 +134,11 @@ pub enum ExecutionError {
 
 /// An error occurred in API.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
+    /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
+    #[display(fmt = "Some error")]
+    Some,
     /// Memory error.
     #[display(fmt = "Memory error: {}", _0)]
     Memory(MemoryError),
@@ -152,6 +148,14 @@ pub enum ExtError {
     /// Execution error.
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
+}
+
+impl ExtError {
+    /// Size of error encoded in SCALE codec
+    #[cfg(feature = "codec")]
+    pub fn encoded_size(&self) -> usize {
+        Encode::encoded_size(self)
+    }
 }
 
 impl CoreError for ExtError {}
