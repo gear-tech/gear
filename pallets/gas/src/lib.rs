@@ -120,6 +120,19 @@ impl ValueNode {
             }
         }
     }
+
+    /// Returns the MessageId (as Origin) of the external node of current value tree.
+    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
+    pub fn root_id<T: Config>(&self) -> Result<H256, DispatchError> {
+        match self.inner {
+            ValueType::External { .. } => Ok(self.id),
+            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
+                <Pallet<T>>::get_node(parent)
+                    .ok_or(<Error<T>>::GasTreeInvalidated)?
+                    .root_origin::<T>()
+            }
+        }
+    }
 }
 
 pub type ConsumeOutput<T> = Option<(NegativeImbalance<T>, H256)>;
@@ -311,6 +324,16 @@ where
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
             Some(node.root_origin::<T>()?)
+        } else {
+            // key unknown - legitimate result
+            None
+        })
+    }
+
+    fn get_origin_id(key: H256) -> Result<Option<H256>, DispatchError> {
+        Ok(if let Some(node) = Self::get_node(key) {
+            // key known, must return the origin, unless corrupted
+            Some(node.root_id::<T>()?)
         } else {
             // key unknown - legitimate result
             None

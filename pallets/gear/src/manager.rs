@@ -448,13 +448,26 @@ where
         WaitlistOf::<T>::insert(dispatch.clone())
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
+        let origin = if let Some(origin) =
+            GasPallet::<T>::get_origin_id(dispatch.id().into_origin())
+                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
+                .map(MessageId::from_origin)
+        {
+            if origin == dispatch.id() {
+                None
+            } else {
+                Some(origin)
+            }
+        } else {
+            unreachable!("ValueTree corrupted!")
+        };
+
         // TODO: replace this temporary (zero) value
         // for expiration block number with properly
         // calculated one (issues #646 and #969).
         Pallet::<T>::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
-            // TODO: Replace with proper origin message id.
-            origin: None,
+            origin,
             reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
             expiration: T::BlockNumber::zero(),
         });

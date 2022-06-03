@@ -195,6 +195,12 @@ pub trait ValueTree {
     /// the `key` belongs to a subtree originating at such "orphan" node.
     fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
 
+    /// The id of external node for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin_id(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
+
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
     ///
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
