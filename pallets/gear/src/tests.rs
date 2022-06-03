@@ -1548,6 +1548,9 @@ fn test_code_submission_pass() {
         let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         assert_eq!(expected_meta, actual_meta);
 
+        // TODO: replace this temporary (`None`) value
+        // for expiration block number with properly
+        // calculated one (issues #646 and #969).
         SystemPallet::<Test>::assert_last_event(
             Event::CodeChanged {
                 id: code_id,
@@ -1597,6 +1600,10 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             DEFAULT_GAS_LIMIT,
             0
         ));
+
+        // TODO: replace this temporary (`None`) value
+        // for expiration block number with properly
+        // calculated one (issues #646 and #969).
         SystemPallet::<Test>::assert_has_event(
             Event::CodeChanged {
                 id: code_id,
@@ -1647,7 +1654,7 @@ fn test_code_is_not_reset_within_program_submission() {
                 matches!(
                     e.event,
                     MockEvent::Gear(Event::CodeChanged {
-                        change: CodeChangeKind::Active { expiration: None },
+                        change: CodeChangeKind::Active { .. },
                         ..
                     })
                 )

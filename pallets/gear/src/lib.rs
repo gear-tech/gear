@@ -399,9 +399,11 @@ pub mod pallet {
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
+                // TODO: replace this temporary (`None`) value
+                // for expiration block number with properly
+                // calculated one (issues #646 and #969).
                 Self::deposit_event(Event::CodeChanged {
                     id: code_id,
-                    // replace with proper value
                     change: CodeChangeKind::Active { expiration: None },
                 });
             }
@@ -761,16 +763,18 @@ pub mod pallet {
                                 continue;
                             };
 
-                            let is_for_wait_list = maybe_message_reply.is_none()
-                                && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
-                            if is_for_wait_list {
+                            if maybe_message_reply.is_none()
+                                && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
+                            {
+                                // TODO: replace this temporary (zero) value
+                                // for expiration block number with properly
+                                // calculated one (issues #646 and #969).
                                 Pallet::<T>::deposit_event(Event::MessageWaited {
                                     id: dispatch.id(),
                                     // TODO: Replace with proper origin message id.
                                     origin: None,
                                     reason: MessageWaitedSystemReason::DidNotFinishInit
                                         .into_reason(),
-                                    // TODO: Replace with proper expiration block.
                                     expiration: T::BlockNumber::zero(),
                                 });
                                 common::waiting_init_append_message_id(
@@ -1002,12 +1006,12 @@ pub mod pallet {
 
             let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
+            // TODO: replace this temporary (`None`) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
             Self::deposit_event(Event::CodeChanged {
                 id: code_id,
-                change: CodeChangeKind::Active {
-                    // TODO: add proper expiration block
-                    expiration: None,
-                },
+                change: CodeChangeKind::Active { expiration: None },
             });
 
             Ok(().into())
@@ -1131,12 +1135,12 @@ pub mod pallet {
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
+                // TODO: replace this temporary (`None`) value
+                // for expiration block number with properly
+                // calculated one (issues #646 and #969).
                 Self::deposit_event(Event::CodeChanged {
                     id: code_hash,
-                    change: CodeChangeKind::Active {
-                        // TODO: add proper expiration block
-                        expiration: None,
-                    },
+                    change: CodeChangeKind::Active { expiration: None },
                 });
             }
 
@@ -1261,11 +1265,15 @@ pub mod pallet {
                 let origin = who.into_origin();
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
-                // TODO: insert into mailbox and deposit appropriate event (issue #1010).
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
                 MailboxOf::<T>::insert(message.clone())?;
+
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    // TODO: Replace with proper block number of expiration.
                     expiration: Some(T::BlockNumber::zero()),
                 });
             }
@@ -1372,11 +1380,15 @@ pub mod pallet {
                     original_message.id(),
                 );
 
-                // TODO: insert into mailbox and deposit appropriate event (issue #1010).
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
                 MailboxOf::<T>::insert(message.clone())?;
+
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    // TODO: Replace with proper block number of expiration.
                     expiration: Some(T::BlockNumber::zero()),
                 });
             }

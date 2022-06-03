@@ -245,7 +245,9 @@ where
                 wake_waiting_init_msgs(program_id);
                 common::set_program_initialized(program_id.into_origin());
 
-                // TODO: replace it with proper expiration
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
                     change: ProgramChangeKind::Active {
@@ -426,11 +428,14 @@ where
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
 
-            // TODO: insert into mailbox and deposit appropriate event (issue #1010).
+            // TODO: update logic of insertion into mailbox following new
+            // flow and deposit appropriate event (issue #1010).
             if MailboxOf::<T>::insert(message.clone()).is_ok() {
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    // TODO: Replace with proper block number of expiration.
                     expiration: Some(T::BlockNumber::zero()),
                 });
             } else {
@@ -443,12 +448,14 @@ where
         WaitlistOf::<T>::insert(dispatch.clone())
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
+        // TODO: replace this temporary (zero) value
+        // for expiration block number with properly
+        // calculated one (issues #646 and #969).
         Pallet::<T>::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
             // TODO: Replace with proper origin message id.
             origin: None,
             reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
-            // TODO: Replace with proper block number of expiration.
             expiration: T::BlockNumber::zero(),
         });
     }
