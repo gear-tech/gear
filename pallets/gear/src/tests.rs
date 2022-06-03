@@ -2892,7 +2892,7 @@ fn test_two_contracts_composition_works() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_init_with_value::{ExpectedError, SendMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2929,9 +2929,18 @@ fn test_create_program_with_value_lt_ed() {
             // Must be stated, that "handle" messages send value to some non-existing address
             // so messages will go to mailbox
             vec![
-                SendMessage::Handle(msg_receiver_1, 500),
-                SendMessage::Handle(msg_receiver_2, 500),
-                SendMessage::Init(0),
+                SendMessage::Handle {
+                    custom_destination_id: msg_receiver_1,
+                    value: 500
+                },
+                SendMessage::Handle {
+                    custom_destination_id: msg_receiver_2,
+                    value: 500
+                },
+                SendMessage::Init {
+                    expected_error: None,
+                    value: 0
+                },
             ]
             .encode(),
             10_000_000_000,
@@ -2962,9 +2971,18 @@ fn test_create_program_with_value_lt_ed() {
             // First two messages won't fail, because provided values are in a valid range
             // The last message value (which is the value of init message) will end execution with trap
             vec![
-                SendMessage::Handle(msg_receiver_1, 0),
-                SendMessage::Handle(msg_receiver_2, 0),
-                SendMessage::Init(ed - 1),
+                SendMessage::Handle {
+                    custom_destination_id: msg_receiver_1,
+                    value: 500
+                },
+                SendMessage::Handle {
+                    custom_destination_id: msg_receiver_2,
+                    value: 500
+                },
+                SendMessage::Init {
+                    expected_error: Some(ExpectedError::InsufficientValue),
+                    value: ed - 1
+                },
             ]
             .encode(),
             10_000_000_000,
@@ -2973,35 +2991,13 @@ fn test_create_program_with_value_lt_ed() {
 
         run_to_block(3, None);
 
-        // User's message execution will result in trap, because program tries
-        // to send init message with value in invalid range. As a result, 1 dispatch
-        // is dequeued (user's  message) and one message is sent to mailbox.
+        // User's message execution will not result in trap, because program handles
+        // error of sending init message with value in invalid range itself. As a result,
+        // dispatch is not dequeued (user's  message) and message is not sent to mailbox.
         let mailbox_msg_id = get_last_message_id();
-        assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
+        assert!(!MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
         check_dequeued(1);
-
-        // There definitely should be event with init failure reason
-        // TODO: return error back after #937 being merged
-        let expected_failure_reason = format!("{}", ExtError::Some).into_bytes();
-        let reason = SystemPallet::<Test>::events()
-            .iter()
-            .filter_map(|e| {
-                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
-                    Some(reason.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .pop()
-            .expect("no init failure events");
-
-        if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(actual_failure_reason, expected_failure_reason);
-        } else {
-            panic!("error reason is of wrong type")
-        }
     })
 }
 
@@ -3018,7 +3014,7 @@ fn test_create_program_with_value_lt_ed() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
-    use demo_init_with_value::{SendMessage, WASM_BINARY};
+    use demo_init_with_value::{ExpectedError, SendMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3036,9 +3032,18 @@ fn test_create_program_with_exceeding_value() {
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
             vec![
-                SendMessage::Handle(random_receiver, sending_to_program / 3),
-                SendMessage::Handle(random_receiver, sending_to_program / 3),
-                SendMessage::Init(sending_to_program + 1),
+                SendMessage::Handle {
+                    custom_destination_id: random_receiver,
+                    value: sending_to_program / 3
+                },
+                SendMessage::Handle {
+                    custom_destination_id: random_receiver,
+                    value: sending_to_program / 3
+                },
+                SendMessage::Init {
+                    value: sending_to_program + 1,
+                    expected_error: Some(ExpectedError::NotEnoughValue)
+                },
             ]
             .encode(),
             10_000_000_000,
@@ -3062,35 +3067,13 @@ fn test_create_program_with_exceeding_value() {
             &receiver_mail_msg2
         ));
 
-        // User's message execution will result in trap, because program tries
-        // to send init message with value more than program has. As a result, 1 dispatch
-        // is dequeued (user's  message) and one message is sent to mailbox.
+        // User's message execution will not result in trap, because program handles
+        // error of sending init message with value more than program has itself. As a result,
+        // dispatch is not dequeued (user's  message) and message is not sent to mailbox.
         let mailbox_msg_id = get_last_message_id();
-        assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
+        assert!(!MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
         check_dequeued(1);
-
-        // There definitely should be event with init failure reason
-        // TODO: return error back after #937 being merged
-        let expected_failure_reason = format!("{}", ExtError::Some).into_bytes();
-        let reason = SystemPallet::<Test>::events()
-            .iter()
-            .filter_map(|e| {
-                if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
-                    Some(reason.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .pop()
-            .expect("no init failure events");
-
-        if let Reason::Dispatch(actual_failure_reason) = reason {
-            assert_eq!(actual_failure_reason, expected_failure_reason);
-        } else {
-            panic!("error reason is of wrong type")
-        }
     })
 }
 

@@ -25,6 +25,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
+use gstd::errors::MessageError;
 #[cfg(not(feature = "std"))]
 use gstd::prelude::*;
 
@@ -32,20 +33,49 @@ use gstd::prelude::*;
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
-
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub enum ExpectedError {
+    NotEnoughValue,
+    InsufficientValue,
+}
+
+impl ExpectedError {
+    pub fn into_message_error(self) -> MessageError {
+        match self {
+            ExpectedError::NotEnoughValue => MessageError::NotEnoughValue {
+                message_value: 1001,
+                value_left: 1000,
+            },
+            ExpectedError::InsufficientValue => MessageError::InsufficientValue {
+                message_value: 499,
+                existential_deposit: 500,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
-    Init(u128),
-    // First value is custom destination id
-    Handle(u64, u128),
+    Init {
+        expected_error: Option<ExpectedError>,
+        value: u128,
+    },
+    Handle {
+        custom_destination_id: u64,
+        value: u128,
+    },
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{msg, prog, Vec};
+    use crate::ExpectedError;
+    use gstd::{
+        errors::{ContractError, ExtError},
+        msg, prog,
+    };
 
     use super::SendMessage;
 
@@ -60,21 +90,41 @@ mod wasm {
         let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
         for msg_data in data {
             match msg_data {
-                SendMessage::Init(value) => {
+                SendMessage::Init {
+                    value,
+                    expected_error,
+                } => {
                     let submitted_code = CHILD_CODE_HASH.into();
-                    let _ = prog::create_program_with_gas(
+                    let res = prog::create_program_with_gas(
                         submitted_code,
                         COUNTER.to_le_bytes(),
                         [],
                         1_000_001,
                         value,
-                    )
-                    .unwrap();
+                    );
 
-                    COUNTER += 1;
+                    match res {
+                        Ok(_) => {
+                            COUNTER += 1;
+                        }
+                        Err(err) => {
+                            gstd::debug!("Error occurred during program creation: {}", err);
+                            if let Some(expected_error) = expected_error {
+                                assert_eq!(
+                                    err,
+                                    ContractError::Ext(ExtError::Message(
+                                        expected_error.into_message_error()
+                                    ))
+                                )
+                            }
+                        }
+                    }
                 }
-                SendMessage::Handle(receiver, value) => {
-                    let _ = msg::send(receiver.into(), b"", value);
+                SendMessage::Handle {
+                    custom_destination_id,
+                    value,
+                } => {
+                    let _ = msg::send(custom_destination_id.into(), b"", value);
                 }
             }
         }
