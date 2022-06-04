@@ -951,21 +951,8 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  | 3 |
         // | 3 |        |   |
 
-        assert_dispatched(msg1, DispatchStatus::Failed);
+        assert_failed(msg1, ExtError::Message(MessageError::NotEnoughGas));
         assert_last_dequeued(1);
-
-        // TODO: rewrite it in a proper way.
-        // SystemPallet::<Test>::assert_has_event(
-        //     Event::MessageDispatched(DispatchOutcome {
-        //         message_id: msg1,
-        //         outcome: ExecutionResult::Failure(
-        //             format!("{}", ExtError::Message(MessageError::NotEnoughGas)).into_bytes(),
-        //         ),
-        //     })
-        //     .into(),
-        // );
-
-        // SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         // Equals 0 due to trying execution of msg2.
         assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
@@ -1027,17 +1014,17 @@ fn init_message_logging_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
+
         let codes = [
-            (ProgramCodeKind::Default, false, Vec::new()),
+            (ProgramCodeKind::Default, None),
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                true,
-                format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded)).into_bytes(),
+                Some(ExtError::Execution(ExecutionError::GasLimitExceeded)),
             ),
         ];
 
-        for (code_kind, is_failing, _trap_explanation) in codes {
+        for (code_kind, trap) in codes {
             SystemPallet::<Test>::reset_events();
 
             assert_ok!(submit_program_default(USER_1, code_kind));
@@ -1063,12 +1050,11 @@ fn init_message_logging_works() {
                 _ => unreachable!("expect Event::InitMessageEnqueued"),
             };
 
-            let status = if is_failing {
-                DispatchStatus::Failed
+            if let Some(trap) = trap {
+                assert_failed(msg_id, trap);
             } else {
-                DispatchStatus::Success
-            };
-            assert_dispatched(msg_id, status);
+                assert_succeed(msg_id);
+            }
 
             next_block += 1;
         }
@@ -1139,25 +1125,29 @@ fn events_logging_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
+
+        // TODO: replace this unknown errors (`ExtError::Some`) with real ones.
         let tests = [
             // Code, init failure reason, handle succeed flag
-            (ProgramCodeKind::Default, None, true),
+            (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(
-                    format!("{}", ExtError::Execution(ExecutionError::GasLimitExceeded))
-                        .into_bytes(),
-                ),
-                false,
+                Some(ExtError::Execution(ExecutionError::GasLimitExceeded)),
+                Some(ExtError::Some),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(Vec::new()),
-                false,
+                Some(ExtError::Some),
+                Some(ExtError::Some),
             ),
-            (ProgramCodeKind::Custom(wat_trap_in_handle), None, false),
+            (
+                ProgramCodeKind::Custom(wat_trap_in_handle),
+                None,
+                Some(ExtError::Some),
+            ),
         ];
-        for (code_kind, init_failure_reason, handle_succeed) in tests {
+
+        for (code_kind, init_failure_reason, handle_failure_reason) in tests {
             SystemPallet::<Test>::reset_events();
             let program_id = {
                 let res = submit_program_default(USER_1, code_kind);
@@ -1181,18 +1171,19 @@ fn events_logging_works() {
             next_block += 1;
 
             // Init failed program checks
-            if let Some(_init_failure_reason) = init_failure_reason {
-                assert_dispatched(message_id, DispatchStatus::Failed);
+            if let Some(init_failure_reason) = init_failure_reason {
+                assert_failed(message_id, init_failure_reason);
 
                 // Sending messages to failed-to-init programs shouldn't be allowed
                 assert_noop!(
                     send_default_message(USER_1, program_id),
                     Error::<Test>::ProgramIsTerminated
                 );
+
                 continue;
             }
 
-            assert_dispatched(message_id, DispatchStatus::Success);
+            assert_succeed(message_id);
 
             // Messages to fully-initialized programs are accepted
             assert_ok!(send_default_message(USER_1, program_id));
@@ -1211,13 +1202,11 @@ fn events_logging_works() {
 
             run_to_block(next_block, None);
 
-            let status = if handle_succeed {
-                DispatchStatus::Success
+            if let Some(handle_failure_reason) = handle_failure_reason {
+                assert_failed(message_id, handle_failure_reason);
             } else {
-                DispatchStatus::Failed
-            };
-
-            assert_dispatched(message_id, status);
+                assert_succeed(message_id);
+            }
 
             next_block += 1;
         }
@@ -1898,7 +1887,7 @@ fn test_message_processing_for_non_existing_destination() {
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
 
-        assert_dispatched(skipped_message_id, DispatchStatus::NotExecuted);
+        assert_not_executed(skipped_message_id);
 
         assert!(Gear::is_terminated(program_id));
         assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
@@ -3014,41 +3003,17 @@ fn test_create_program_with_value_lt_ed() {
         // is dequeued (user's  message) and one message is sent to mailbox.
         let mailbox_msg_id = get_last_message_id();
         assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
+
         // This check means, that program's invalid init message didn't reach the queue.
         assert_total_dequeued(1);
 
-        assert_dispatched(msg_id, DispatchStatus::Failed);
-
-        // TODO: rewrite it once error replies added
-        // check_dequeued(1);
-
-        // // There definitely should be event with init failure reason
-        // let expected_failure_reason = format!(
-        //     "{}",
-        //     ExtError::Message(MessageError::InsufficientValue {
-        //         message_value: 499,
-        //         existential_deposit: 500
-        //     })
-        // )
-        // .into_bytes();
-        // let reason = SystemPallet::<Test>::events()
-        //     .iter()
-        //     .filter_map(|e| {
-        //         if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
-        //             Some(reason.clone())
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .collect::<Vec<_>>()
-        //     .pop()
-        //     .expect("no init failure events");
-
-        // if let Reason::Dispatch(actual_failure_reason) = reason {
-        //     assert_eq!(actual_failure_reason, expected_failure_reason);
-        // } else {
-        //     panic!("error reason is of wrong type")
-        // }
+        assert_failed(
+            msg_id,
+            ExtError::Message(MessageError::InsufficientValue {
+                message_value: 499,
+                existential_deposit: 500,
+            }),
+        );
     })
 }
 
@@ -3115,41 +3080,17 @@ fn test_create_program_with_exceeding_value() {
         // is dequeued (user's  message) and one message is sent to mailbox.
         let mailbox_msg_id = get_last_message_id();
         assert!(MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
+
         // This check means, that program's invalid init message didn't reach the queue.
         assert_total_dequeued(1);
 
-        assert_dispatched(origin_msg_id, DispatchStatus::Failed);
-
-        // TODO: rewrite it once error replies added
-        // check_dequeued(1);
-
-        // // There definitely should be event with init failure reason
-        // let expected_failure_reason = format!(
-        //     "{}",
-        //     ExtError::Message(MessageError::NotEnoughValue {
-        //         message_value: 1001,
-        //         value_left: 1000
-        //     })
-        // )
-        // .into_bytes();
-        // let reason = SystemPallet::<Test>::events()
-        //     .iter()
-        //     .filter_map(|e| {
-        //         if let MockEvent::Gear(Event::InitFailure(_, reason)) = &e.event {
-        //             Some(reason.clone())
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .collect::<Vec<_>>()
-        //     .pop()
-        //     .expect("no init failure events");
-
-        // if let Reason::Dispatch(actual_failure_reason) = reason {
-        //     assert_eq!(actual_failure_reason, expected_failure_reason);
-        // } else {
-        //     panic!("error reason is of wrong type")
-        // }
+        assert_failed(
+            origin_msg_id,
+            ExtError::Message(MessageError::NotEnoughValue {
+                message_value: 1001,
+                value_left: 1000,
+            }),
+        );
     })
 }
 
@@ -3315,10 +3256,13 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 mod utils {
+    #![allow(unused)]
+
     use super::{
         assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MockEvent, Origin,
         SystemPallet, Test,
     };
+    use codec::Decode;
     use common::{event::*, Origin as _};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -3327,7 +3271,7 @@ mod utils {
     use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
-    use sp_std::convert::TryFrom;
+    use sp_std::{convert::TryFrom, fmt::Debug};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -3519,7 +3463,7 @@ mod utils {
         )
     }
 
-    pub(super) fn assert_dispatched(message_id: MessageId, status: DispatchStatus) {
+    pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
         SystemPallet::<Test>::events().iter().for_each(|e| {
             if let MockEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
@@ -3527,9 +3471,59 @@ mod utils {
             }
         });
 
-        let found_status = found_status.expect("Unable to find given message ids dispatch status");
+        found_status
+    }
 
-        assert_eq!(status, found_status)
+    pub(super) fn assert_dispatched(message_id: MessageId) {
+        assert!(dispatch_status(message_id).is_some())
+    }
+
+    pub(super) fn assert_succeed(message_id: MessageId) {
+        let status =
+            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+
+        assert_eq!(status, DispatchStatus::Success)
+    }
+
+    pub(super) fn assert_failed<D>(message_id: MessageId, _error: D)
+    where
+        D: Decode + Debug + PartialEq,
+    {
+        let status =
+            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+
+        assert_eq!(status, DispatchStatus::Failed);
+
+        // TODO: uncomment code below, once issue #970 resolved.
+
+        // let mut actual_error = None;
+
+        // SystemPallet::<Test>::events().iter().for_each(|e| {
+        //     if let MockEvent::Gear(Event::UserMessageSent {
+        //         message,
+        //         ..
+        //     }) = e.event
+        //     {
+        //         if let Some((id, exit_code)) = message.reply() {
+        //             if id == message_id {
+        //                 assert_ne!(exit_code, 0);
+        //                 actual_error = Some(D::decode(&mut message.payload())
+        //                     .expect("Unable to decode bytes from error reply"));
+        //             }
+        //         }
+        //     }
+        // });
+
+        // let actual_error = actual_error.expect("Error message not found in any `Event::UserMessageSent`");
+
+        // assert_eq!(error, actual_error)
+    }
+
+    pub(super) fn assert_not_executed(message_id: MessageId) {
+        let status =
+            dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
+
+        assert_eq!(status, DispatchStatus::NotExecuted)
     }
 
     pub(super) fn get_last_program_id() -> ProgramId {
@@ -3670,7 +3664,6 @@ mod utils {
         }
     }
 
-    #[allow(unused)]
     pub(super) fn print_gear_events<T: crate::Config>() {
         let v = SystemPallet::<T>::events()
             .into_iter()

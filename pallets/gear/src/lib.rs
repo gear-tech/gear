@@ -352,8 +352,6 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            use common::event::CodeChangeKind;
-
             let who = ensure_signed(origin)?;
 
             let schedule = T::Schedule::get();
