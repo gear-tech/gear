@@ -108,7 +108,7 @@ where
             module.code,
             salt,
             data,
-            250_000_000,
+            250_000_000_000,
             value,
         )?;
 
@@ -153,11 +153,13 @@ where
     );
 
     let ext_manager = ExtManager::<T>::default();
-    let bn: u64 = 1;
+    let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
+            let program_id = ProgramId::generate(CodeId::generate(code), b"bench_salt");
+
             let schedule = T::Schedule::get();
             let code = Code::try_new(
                 code.clone(),
@@ -169,9 +171,8 @@ where
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
-            let _ = Gear::<T>::set_code_with_metadata(code_and_id, source)?;
+            let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            let program_id = ProgramId::generate(code_id, b"salt");
             ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
             Dispatch::new(
@@ -231,18 +232,18 @@ where
     let dispatch = dispatch.into_stored();
 
     QueueOf::<T>::remove_all();
-    QueueOf::<T>::queue(dispatch).map_err(|_| "Unable to push message")?;
+
+    QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
 
     let block_info = BlockInfo {
-        height: 1,
-        timestamp: 1,
+        height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+        timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
-    let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+    let existential_deposit =
+        <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-    let maybe_dispatch = QueueOf::<T>::dequeue().map_err(|_| "Unable to pop message")?;
-
-    if let Some(queued_dispatch) = maybe_dispatch {
+    if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled

@@ -366,10 +366,9 @@ pub mod pallet {
                 })?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_id = code_and_id.code_id();
 
             let packet = InitPacket::new_with_gas(
-                code_id,
+                code_and_id.code_id(),
                 salt,
                 init_payload,
                 gas_limit,
@@ -392,6 +391,8 @@ pub mod pallet {
 
             let origin = who.into_origin();
 
+            let code_id = code_and_id.code_id();
+
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
@@ -413,7 +414,7 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            QueueOf::<T>::queue(dispatch).map_err(|_| "Unable to push message")?;
+            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id,
