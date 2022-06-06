@@ -184,15 +184,17 @@ pub enum ProgramChangeKind<BlockNumber> {
     // TODO: consider about addition expiration block number
     // to `Self::Inactive` variant for cleaning storage and
     // adding ability to take this id for other actors.
-
     /// Program become inactive forever due to `gr_exit` call.
     Inactive,
 
     /// Program paused, so is no longer available for interaction, but can be
     /// resumed by paying rent and giving whole data related to it.
     Paused {
+        /// Code hash them program relates to.
         code_hash: H256,
+        /// Hash of memory pages of the program.
         memory_hash: H256,
+        /// Waitlist hash addressed to the program.
         waitlist_hash: H256,
     },
 
