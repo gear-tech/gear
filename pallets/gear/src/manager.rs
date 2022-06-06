@@ -83,16 +83,17 @@ pub enum HandleKind {
     Reply(H256, ExitCode),
 }
 
+/// Journal handler implementation for `pallet_gear`.
 pub struct ExtManager<T: Config> {
-    // Ids checked that they are users.
+    /// Ids checked that they are users.
     users: BTreeSet<ProgramId>,
-    // Ids checked that they are programs.
+    /// Ids checked that they are programs.
     programs: BTreeSet<ProgramId>,
-    // Messages dispatches.
+    /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
-    // Programs, which state changed.
+    /// Programs, which state changed.
     state_changes: BTreeSet<ProgramId>,
-    // Phantom data for generic usage.
+    /// Phantom data for generic usage.
     _phantom: PhantomData<T>,
 }
 
