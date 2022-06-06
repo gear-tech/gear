@@ -573,7 +573,7 @@ impl EnvExt for Ext {
     }
 
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
+        self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
 
         self.charge_expiring_resources(&packet)?;
 

@@ -348,6 +348,9 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `create_program_wgas`.
     pub gr_create_program_wgas: Weight,
 
+    /// Weight per payload byte by `create_program_wgas`.
+    pub gr_create_program_wgas_per_byte: Weight,
+
     /// Weight of calling `gas`.
     pub gas: Weight,
 
@@ -571,6 +574,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_wait: self.gr_wait,
             gr_wake: self.gr_wake,
             gr_create_program_wgas: self.gr_create_program_wgas,
+            gr_create_program_wgas_per_byte: self.gr_create_program_wgas_per_byte,
             gas: self.gas,
         }
     }
@@ -609,6 +613,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_wait: cost!(gr_wait),
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
+            gr_create_program_wgas_per_byte: cost_byte_batched!(gr_create_program_wgas_per_kb),
             gas: cost_batched!(gas),
             _phantom: PhantomData,
         }

@@ -2133,7 +2133,7 @@ benchmarks! {
         let value_bytes = 0_u128.encode();
         let value_bytes_len = value_bytes.len();
         let pid_bytes = ProgramId::from(101).encode();
-        let instance = Program::<T>::new(module, vec![])?;
+        let _ = Gear::<T>::submit_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
@@ -2160,16 +2160,16 @@ benchmarks! {
                     value: pid_bytes,
                 },
             ],
-            handle_body: Some(body::repeated(r, &[
-                Instruction::I32Const(0),
-                Instruction::I32Const(code_hash_len as i32),
-                Instruction::I32Const(salt_bytes_len as i32),
-                Instruction::I32Const(0),
-                Instruction::I32Const(0),
-                Instruction::I64Const(100000000),
-                Instruction::I32Const((salt_bytes_len + code_hash_len) as i32),
-                Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32),
-                Instruction::Call(0),
+            handle_body: Some(body::repeated_dyn(r, vec![
+                Regular(Instruction::I32Const(0)),
+                Regular(Instruction::I32Const(code_hash_len as i32)),
+                Counter(0_u32, r as u32), // salt len
+                Regular(Instruction::I32Const(0)),
+                Regular(Instruction::I32Const(0)), // payload_len
+                Regular(Instruction::I64Const(100000000)),
+                Regular(Instruction::I32Const((salt_bytes_len + code_hash_len) as i32)),
+                Regular(Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32)),
+                Regular(Instruction::Call(0)),
             ])),
             .. Default::default()
         });
@@ -2207,7 +2207,94 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                 );
-        log::debug!("journal: {:?}", &journal);
+        core_processor::handle_journal(journal, &mut ext_manager);
+
+    }
+
+    gr_create_program_wgas_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let module = WasmModule::<T>::dummy();
+        let code_hash_bytes = module.hash.encode();
+        let code_hash_len = code_hash_bytes.len();
+        let salt_bytes = n.encode();
+        let salt_bytes_len = salt_bytes.len();
+        let value_bytes = 0_u128.encode();
+        let value_bytes_len = value_bytes.len();
+        let pid_bytes = ProgramId::from(101).encode();
+        let _ = Gear::<T>::submit_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_create_program_wgas",
+                params: vec![ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I32, ValueType::I64, ValueType::I32, ValueType::I32],
+                return_type: None,
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0_u32,
+                    value: code_hash_bytes,
+                },
+                DataSegment {
+                    offset: code_hash_len as u32,
+                    value: salt_bytes,
+                },
+                DataSegment {
+                    offset: (salt_bytes_len + code_hash_len) as u32,
+                    value: value_bytes,
+                },
+                DataSegment {
+                    offset: (value_bytes_len + salt_bytes_len + code_hash_len) as u32,
+                    value: pid_bytes,
+                },
+            ],
+            handle_body: Some(body::repeated_dyn(API_BENCHMARK_BATCH_SIZE, vec![
+                Regular(Instruction::I32Const(0)),
+                Regular(Instruction::I32Const(code_hash_len as i32)),
+                Counter(0_u32, API_BENCHMARK_BATCH_SIZE as u32), // salt len
+                Regular(Instruction::I32Const(0)),
+                Regular(Instruction::I32Const((n * 1024) as i32)), // payload_len
+                Regular(Instruction::I64Const(100000000)),
+                Regular(Instruction::I32Const((salt_bytes_len + code_hash_len) as i32)),
+                Regular(Instruction::I32Const((value_bytes_len + salt_bytes_len + code_hash_len) as i32)),
+                Regular(Instruction::Call(0)),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            mut ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+    }: {
+        let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                    Default::default(),
+                );
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }

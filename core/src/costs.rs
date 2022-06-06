@@ -115,6 +115,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_create_program_wgas`.
     pub gr_create_program_wgas: u64,
 
+    /// Weight per payload byte by `gr_create_program_wgas`.
+    pub gr_create_program_wgas_per_byte: u64,
+
     /// Weight of calling `gas`.
     pub gas: u64,
 }
@@ -199,7 +202,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
-    CreateProgram,
+    CreateProgram(u32),
 }
 
 impl RuntimeCosts {
@@ -242,7 +245,9 @@ impl RuntimeCosts {
             Leave => s.gr_leave,
             Wait => s.gr_wait,
             Wake => s.gr_wake,
-            CreateProgram => s.gr_create_program_wgas, // todo #924 charge for payload length
+            CreateProgram(len) => s
+                .gr_create_program_wgas
+                .saturating_add(s.gr_create_program_wgas_per_byte.saturating_mul(len.into())),
         };
         RuntimeToken { weight }
     }
