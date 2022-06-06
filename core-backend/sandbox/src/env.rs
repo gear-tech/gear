@@ -27,8 +27,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
-    TerminationReasonKind,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    IntoExtInfo, TerminationReason, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -104,7 +104,7 @@ fn set_pages(
 impl<E> Environment<E> for SandboxEnvironment<E>
 where
     E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     type Error = SandboxEnvironmentError;
 
@@ -164,6 +164,7 @@ where
         env_builder.add_host_func("env", "gr_leave", funcs::leave);
         env_builder.add_host_func("env", "gr_wait", funcs::wait);
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
+        env_builder.add_host_func("env", "gr_error", funcs::error);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
         let mut runtime = Runtime {

@@ -22,6 +22,7 @@
 
 extern crate alloc;
 
+pub mod error_processor;
 pub mod funcs;
 
 use alloc::{
@@ -83,7 +84,10 @@ pub struct ExtInfo {
 
 pub trait IntoExtInfo {
     fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+
     fn into_gas_amount(self) -> GasAmount;
+
+    fn last_error(&self) -> Option<&ExtError>;
 }
 
 pub struct BackendReport {
@@ -145,38 +149,6 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Consumes environment and returns gas state.
     fn into_gas_amount(self) -> GasAmount;
-}
-
-pub trait OnSuccessCode<T, E> {
-    fn on_success_code<F>(self, f: F) -> Result<i32, E>
-    where
-        F: FnMut(T) -> Result<(), E>;
-}
-
-impl<T, E, E2> OnSuccessCode<T, E> for Result<T, E2> {
-    fn on_success_code<F>(self, mut f: F) -> Result<i32, E>
-    where
-        F: FnMut(T) -> Result<(), E>,
-    {
-        match self {
-            Ok(t) => f(t).map(|_| 0),
-            Err(_) => Ok(1),
-        }
-    }
-}
-
-pub trait IntoErrorCode {
-    fn into_error_code(self) -> i32;
-}
-
-impl<E> IntoErrorCode for Result<(), E> {
-    fn into_error_code(self) -> i32 {
-        match self {
-            Ok(()) => 0,
-            // TODO: actual error codes
-            Err(_) => 1,
-        }
-    }
 }
 
 pub trait AsTerminationReason {

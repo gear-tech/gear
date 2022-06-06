@@ -24,7 +24,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo,
+    TerminationReasonKind, TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -97,6 +98,14 @@ pub enum ProcessorError {
 }
 
 impl ProcessorError {
+    /// Tries to represent this error as [`ExtError`]
+    pub fn as_ext_error(&self) -> Option<&ExtError> {
+        match self {
+            ProcessorError::Core(err) => Some(err),
+            _ => None,
+        }
+    }
+
     /// Converts error into [`TrapExplanation`]
     pub fn into_trap_explanation(self) -> Option<TrapExplanation> {
         match self {
@@ -126,6 +135,15 @@ impl From<ExecutionError> for ProcessorError {
 }
 
 impl CoreError for ProcessorError {}
+
+impl IntoExtError for ProcessorError {
+    fn into_ext_error(self) -> Result<ExtError, Self> {
+        match self {
+            ProcessorError::Core(err) => Ok(err),
+            err => Err(err),
+        }
+    }
+}
 
 impl AsTerminationReason for ProcessorError {
     fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
@@ -262,6 +280,12 @@ impl IntoExtInfo for Ext {
 
     fn into_gas_amount(self) -> GasAmount {
         self.gas_counter.into()
+    }
+
+    fn last_error(&self) -> Option<&ExtError> {
+        self.error_explanation
+            .as_ref()
+            .and_then(ProcessorError::as_ext_error)
     }
 }
 
