@@ -18,7 +18,7 @@ jobs:
       - name: Build docs
         run: |
           cargo doc -p galloc -p gcore -p gear-backend-common -p gear-backend-sandbox \
-                -p gear-core -p gear-core-processor -p gear-lazy-pages \
+                -p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
                 -p gstd -p gtest -p gear-wasm-builder -p gear-common --no-deps
           echo "<html><head><meta http-equiv=\"refresh\" content=\"0; url=/galloc/index.html\" /></head><body></body></html>" > ./target/doc/index.html
 

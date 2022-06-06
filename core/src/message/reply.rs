@@ -19,7 +19,7 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, ExitCode, GasLimit, Message, Payload, StoredDispatch,
+        Dispatch, DispatchKind, ExitCode, GasLimit, Message, Packet, Payload, StoredDispatch,
         StoredMessage, Value,
     },
 };
@@ -181,23 +181,22 @@ impl ReplyPacket {
         self.payload.splice(0..0, data);
     }
 
-    /// Packet payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
-    }
-
-    /// Packet optional gas limit.
-    pub fn gas_limit(&self) -> Option<GasLimit> {
-        self.gas_limit
-    }
-
-    /// Packet value.
-    pub fn value(&self) -> Value {
-        self.value
-    }
-
     /// Packet exit code.
     pub fn exit_code(&self) -> ExitCode {
         self.exit_code
+    }
+}
+
+impl Packet for ReplyPacket {
+    fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    fn gas_limit(&self) -> Option<GasLimit> {
+        self.gas_limit
+    }
+
+    fn value(&self) -> Value {
+        self.value
     }
 }

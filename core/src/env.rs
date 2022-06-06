@@ -241,7 +241,6 @@ impl<E: Ext> Clone for ClonedExtCarrier<E> {
 mod tests {
     use super::*;
     use core::fmt;
-    use gear_core_errors::TerminationReason;
 
     #[derive(Debug)]
     struct AllocError;
@@ -252,15 +251,7 @@ mod tests {
         }
     }
 
-    impl CoreError for AllocError {
-        fn from_termination_reason(_reason: TerminationReason) -> Self {
-            unreachable!()
-        }
-
-        fn as_termination_reason(&self) -> Option<TerminationReason> {
-            unreachable!()
-        }
-    }
+    impl CoreError for AllocError {}
 
     // Test function of format `Fn(&mut E: Ext) -> R`
     // to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.

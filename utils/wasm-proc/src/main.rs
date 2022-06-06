@@ -27,7 +27,6 @@ use std::path::PathBuf;
 #[derive(Debug)]
 enum Error {
     OptimizerFailed,
-    WasmOptFailed,
     SerializationFailed(parity_wasm::elements::Error),
     UndefinedPaths,
     InvalidSkip,
@@ -37,7 +36,6 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::OptimizerFailed => write!(f, "Optimizer failed"),
-            Self::WasmOptFailed => write!(f, "wasm-opt failed"),
             Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
             Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
             Self::InvalidSkip => write!(f, "Multiple skipping functional"),
@@ -160,8 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let res = gear_wasm_builder::optimize::optimize_wasm(PathBuf::from(file), "s", true)
-            .map_err(|_| Error::WasmOptFailed)?;
+        let res = gear_wasm_builder::optimize::optimize_wasm(PathBuf::from(file), "s", true)?;
 
         log::info!(
             "wasm-opt: {} {} Kb -> {} Kb",

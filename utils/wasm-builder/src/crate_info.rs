@@ -47,8 +47,9 @@ impl CrateInfo {
             .exec()
             .context("unable to invoke `cargo metadata`")?;
 
-        let root_package =
-            Self::root_package(&metadata).ok_or(BuilderError::RootPackageNotFound)?;
+        let root_package = Self::root_package(&metadata)
+            .ok_or_else(|| BuilderError::RootPackageNotFound.into())
+            .and_then(Self::check)?;
         let name = root_package.name.clone();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
@@ -66,5 +67,29 @@ impl CrateInfo {
             .packages
             .iter()
             .find(|package| package.id == *root_id)
+    }
+
+    /// check package
+    ///
+    /// - if crate-type contains "lib" or "rlib":
+    fn check(pkg: &Package) -> Result<&Package> {
+        // cargo can't import executables (bin, cdylib etc), but libs
+        // only (rlib).
+        //
+        // if no `[lib]` table, the `crate_types` will be [ "lib" ]
+        // by default, we can not detect if this is "rlib" because it
+        // is the "compiler recommended" style of library.
+        //
+        // see also https://doc.rust-lang.org/reference/linkage.html
+        let validated_lib = |ty: &String| ty == "lib" || ty == "rlib";
+        let _ = pkg
+            .targets
+            .iter()
+            .find(|target| {
+                target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
+            })
+            .ok_or(BuilderError::InvalidCrateType)?;
+
+        Ok(pkg)
     }
 }
