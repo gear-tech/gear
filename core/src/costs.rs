@@ -79,11 +79,17 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
-    /// Weight of calling `gr_reply`.
-    pub gr_reply: u64,
+    /// Weight of calling `gr_reply_commit`.
+    pub gr_reply_commit: u64,
 
-    /// Weight per payload byte by `gr_reply`.
-    pub gr_reply_per_byte: u64,
+    /// Weight per payload byte by `gr_reply_commit`.
+    pub gr_reply_commit_per_byte: u64,
+
+    /// Weight of calling `gr_reply_push`.
+    pub gr_reply_push: u64,
+
+    /// Weight per payload byte by `gr_reply_push`.
+    pub gr_reply_push_per_byte: u64,
 
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
@@ -174,8 +180,10 @@ pub enum RuntimeCosts {
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
-    /// Weight of calling `gr_reply`.
-    Reply(u32),
+    /// Weight of calling `gr_reply_commit`.
+    ReplyCommit(u32),
+    /// Weight of calling `gr_reply_push`.
+    ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
@@ -221,9 +229,12 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
-            Reply(len) => s
-                .gr_reply
-                .saturating_add(s.gr_reply_per_byte.saturating_mul(len.into())),
+            ReplyCommit(len) => s
+                .gr_reply_commit
+                .saturating_add(s.gr_reply_commit_per_byte.saturating_mul(len.into())),
+            ReplyPush(len) => s
+                .gr_reply_push
+                .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
             Debug => s.gr_debug,
             ExitCode => s.gr_exit_code,

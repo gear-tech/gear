@@ -240,8 +240,7 @@ where
         timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
-    let existential_deposit =
-        <T as Config>::Currency::minimum_balance().unique_saturated_into();
+    let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
         let actor_id = queued_dispatch.destination();
@@ -301,7 +300,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     submit_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
-        let s in 0 .. code::max_pages::<T>() * 64 * 1024;
+        let s in 0 .. code::max_pages::<T>() * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
@@ -1457,8 +1456,8 @@ benchmarks! {
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
-    // Benchmark the `gr_reply` call.
-    gr_reply {
+    // Benchmark the `gr_reply_commit` call.
+    gr_reply_commit {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
         let value_bytes = 0_u128.encode();
@@ -1524,7 +1523,7 @@ benchmarks! {
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
-    gr_reply_per_kb {
+    gr_reply_commit_per_kb {
         let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
         let value_bytes = 0_u128.encode();
         let value_len = value_bytes.len();
@@ -1587,6 +1586,132 @@ benchmarks! {
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
+    }
+
+    // Benchmark the `gr_reply_push` call.
+    gr_reply_push {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
+        let value_bytes = 0_u128.encode();
+        let value_len = value_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_reply_push",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0u32,
+                    value: value_bytes,
+                },
+            ],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0), // payload_ptr
+                Instruction::I32Const(0), // payload_len
+                Instruction::Call(0),
+                Instruction::Drop,
+                ])),
+                .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+    }: {
+        core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                    Default::default(),
+                );
+    }
+
+    gr_reply_push_per_kb {
+        let n in 0 .. T::Schedule::get().limits.payload_len / 1024;
+        let value_bytes = 0_u128.encode();
+        let value_len = value_bytes.len();
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_reply_push",
+                params: vec![ValueType::I32, ValueType::I32],
+                return_type: Some(ValueType::I32),
+            }],
+            data_segments: vec![
+                DataSegment {
+                    offset: 0u32,
+                    value: value_bytes,
+                },
+            ],
+            handle_body: Some(body::repeated(API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(0), // payload_ptr
+                Instruction::I32Const((n * 1024) as i32), // payload_len
+                Instruction::Call(0),
+                Instruction::Drop,
+                ])),
+                .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            maybe_actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            program_id,
+            gas_allowance,
+            outgoing_limit,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+    }: {
+        core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_actor,
+                    dispatch,
+                    block_info,
+                    AllocationsConfig {
+                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+                        init_cost: T::Schedule::get().memory_weights.initial_cost,
+                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
+                    },
+                    existential_deposit,
+                    origin,
+                    program_id,
+                    gas_allowance,
+                    outgoing_limit,
+                    Default::default(),
+                );
     }
 
     gr_reply_to {

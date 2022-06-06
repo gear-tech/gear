@@ -420,7 +420,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Reply(buffer.len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
         let result = self.message_context.reply_push(buffer);
 
         self.return_and_store_err(result)
@@ -437,7 +437,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
         self.charge_expiring_resources(&msg)?;
 
