@@ -34,6 +34,34 @@ fn get_salt_generator_nonce() -> u32 {
     result
 }
 
+/// [`ProgramGenerator`] allows you to create programs without having to set the
+/// salt manually
+///
+/// # Examples
+///
+/// You can rewrite `../../gear/examples/binaries/init-with-value/src/lib.rs`
+/// like this
+///
+/// ```
+/// use gstd::prog::ProgramGenerator;
+///
+/// pub unsafe extern "C" fn init() {
+///     let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
+///     let mut generator = ProgramGenerator::Default();
+///     for msg_data in data {
+///         match msg_data {
+///             SendMessage::Init(value) => {
+///                 let submitted_code = CHILD_CODE_HASH.into();
+///                 generator.create_program_with_gas(submitted_code, [], 1_000_001, value);
+///             }
+///             SendMessage::Handle(receiver, value) => {
+///                 let _ = msg::send(receiver.into(), b"", value);
+///             }
+///         }
+///     }
+/// }
+/// ```
+#[derive(Default)]
 pub struct ProgramGenerator {
     /// number unique for every creator.
     creator_nonce: u32,
@@ -57,6 +85,8 @@ impl ProgramGenerator {
         let creator_nonce = &self.creator_nonce.to_be_bytes();
         let salt_nonce = &self.salt_nonce.to_be_bytes();
 
+        self.salt_nonce += 1;
+
         [unique_key, message_id.as_ref(), creator_nonce, salt_nonce].concat()
     }
 
@@ -68,11 +98,5 @@ impl ProgramGenerator {
         value: u128,
     ) -> ActorId {
         create_program_with_gas(code_hash, self.get_salt(), payload, gas_limit, value)
-    }
-}
-
-impl Default for ProgramGenerator {
-    fn default() -> Self {
-        Self::new()
     }
 }
