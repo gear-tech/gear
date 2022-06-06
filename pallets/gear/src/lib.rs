@@ -596,8 +596,12 @@ pub mod pallet {
                     // All requested value for unreserve must be freed. For more info, see module docs
                     // ```
                     match note {
-                        JournalNote::SendValue{from: _, to: _, value: _} => continue,
-                        _ => {},
+                        JournalNote::SendValue {
+                            from: _,
+                            to: _,
+                            value: _,
+                        } => continue,
+                        _ => {}
                     };
 
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
