@@ -840,7 +840,7 @@ pub mod pallet {
                                 Pallet::<T>::deposit_event(Event::MessageWaited {
                                     id: dispatch.id(),
                                     origin,
-                                    reason: MessageWaitedSystemReason::DidNotFinishInit
+                                    reason: MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                     expiration: T::BlockNumber::zero(),
                                 });
@@ -1428,7 +1428,7 @@ pub mod pallet {
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
-                    reason: UserMessageReadRuntimeReason::Replied.into_reason(),
+                    reason: UserMessageReadRuntimeReason::MessageWasReplied.into_reason(),
                 });
 
                 let event = Event::MessageEnqueued {
@@ -1483,7 +1483,7 @@ pub mod pallet {
 
             Self::deposit_event(Event::UserMessageRead {
                 id: message_id,
-                reason: UserMessageReadRuntimeReason::Claimed.into_reason(),
+                reason: UserMessageReadRuntimeReason::MessageWasClaimed.into_reason(),
             });
 
             Ok(().into())

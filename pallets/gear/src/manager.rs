@@ -221,6 +221,11 @@ where
                 .into_iter()
                 .for_each(|m_id| {
                     if let Ok((m, _)) = WaitlistOf::<T>::remove(p_id, m_id) {
+                        Pallet::<T>::deposit_event(Event::<T>::MessageWaken {
+                            id: m_id,
+                            reason: MessageWakenSystemReason::ProgramGotInitialized.into_reason(),
+                        });
+
                         // TODO: update gas limit in ValueTree here.
                         QueueOf::<T>::queue(m)
                             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
