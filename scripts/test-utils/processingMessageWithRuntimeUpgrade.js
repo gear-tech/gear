@@ -138,10 +138,10 @@ main(pathToRuntimeCode, pathToDemoPing)
     exitCode = 1;
   })
   .finally(() => {
-    // exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
-    //   if (err) {
-    //     console.log(`Unable to execute kill command`);
-    //   }
+    exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
+      if (err) {
+        console.log(`Unable to execute kill command`);
+      }
 
     if (exitCode == 0) {
       console.log('✅ Test passed');
@@ -150,5 +150,5 @@ main(pathToRuntimeCode, pathToDemoPing)
     }
 
     process.exit(exitCode);
-    // });
+    });
   });
