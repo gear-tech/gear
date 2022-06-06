@@ -172,22 +172,23 @@ pub type UserMessageReadReason = Reason<UserMessageReadRuntimeReason, UserMessag
 /// Type of changes applied to program in storage.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub enum ProgramChangeKind<BlockNumber> {
-    /// Program become active and ready for interaction.
+    /// Active status achieved.
     ///
-    /// Appear when new program created, paused program was resumed
+    /// Occurs when new program created, paused program was resumed
     /// or expiration block number updated.
     ///
     /// Expiration block number presents block number when this program become
     /// paused due to losing ability to pay rent for holding.
     Active { expiration: BlockNumber },
 
-    // TODO: consider about addition expiration block number
-    // to `Self::Inactive` variant for cleaning storage and
-    // adding ability to take this id for other actors.
+    // TODO: consider about addition expiration block number (issue #1014).
     /// Program become inactive forever due to `gr_exit` call.
     Inactive,
 
-    /// Program paused, so is no longer available for interaction, but can be
+    // TODO: consider about addition expiration block number (issue #1014).
+    /// Paused status.
+    ///
+    /// Program is no longer available for interaction, but can be
     /// resumed by paying rent and giving whole data related to it.
     Paused {
         /// Code hash them program relates to.

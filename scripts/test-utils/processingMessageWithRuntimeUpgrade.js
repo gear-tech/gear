@@ -39,7 +39,7 @@ const getNextBlock = async (api, hash) => {
 
 const listenToProgramChanged = async (api) => {
   const success = [];
-  const unsub = await api.query.system.events((events) => {
+  const unsubscribe = await api.query.system.events((events) => {
     events
       .filter(({ event }) => api.events.gear.ProgramChanged.is(event))
       .forEach(({ event: { data } }) => {
@@ -49,7 +49,7 @@ const listenToProgramChanged = async (api) => {
       });
   });
   return (programId) => {
-    unsub();
+    unsubscribe();
     if (success.includes(programId)) {
       return true;
     } else {
@@ -58,7 +58,7 @@ const listenToProgramChanged = async (api) => {
   };
 };
 
-const messageDispatchedIsOccured = async (api, hash) => {
+const messageDispatchedIsOccurred = async (api, hash) => {
   const apiAt = await api.at(hash);
   const events = await apiAt.query.system.events();
   return new Promise((resolve) => {
@@ -89,7 +89,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
   const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
-  const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
+  const setCodeUncheckedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
   // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
   const message = api.tx.gear.sendMessage(programId, 'PING', 200_000_000_000, 0);
@@ -97,7 +97,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   let codeUpdatedBlock = undefined;
   let messages = [undefined, undefined];
   await new Promise((resolve) => {
-    api.tx.utility.batchAll([setCodeUnchekedWeight, message]).signAndSend(account, (events) => {
+    api.tx.utility.batchAll([setCodeUncheckedWeight, message]).signAndSend(account, (events) => {
       if (events.status.isInBlock) {
         messages[0] = getMessageEnqueuedBlock(api, events);
         events.events.forEach(({ event }) => {
@@ -118,7 +118,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   assert.notEqual(messages[0], messages[1], 'both sendMessage txs were processed in the same block');
   assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not processed successfully');
   assert.notEqual(
-    await messageDispatchedIsOccured(api, await getNextBlock(api, codeUpdatedBlock)),
+    await messageDispatchedIsOccurred(api, await getNextBlock(api, codeUpdatedBlock)),
     true,
     'A message was processed in the next block after CodeUpdated event',
   );
