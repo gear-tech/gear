@@ -269,13 +269,13 @@ pub mod pallet {
 
         /// Message is ready to continue its execution
         /// and was removed from `Waitlist`.
-        MessageWaken {
-            /// Id of the message waken.
+        MessageWoken {
+            /// Id of the message woken.
             id: MessageId,
             /// The reason of the waking (removal from `Waitlist`).
             ///
             /// NOTE: See more docs about reasons at `gear_common::event`.
-            reason: MessageWakenReason,
+            reason: MessageWokenReason,
         },
 
         /// Any data related to programs codes changed.
@@ -819,7 +819,7 @@ pub mod pallet {
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
                             {
                                 let origin = if let Some(origin) =
-                                    GasPallet::<T>::get_origin_id(dispatch.id().into_origin())
+                                    GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
                                         .unwrap_or_else(|e| {
                                             unreachable!("ValueTree corrupted: {:?}!", e)
                                         })
@@ -1428,7 +1428,7 @@ pub mod pallet {
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
-                    reason: UserMessageReadRuntimeReason::MessageWasReplied.into_reason(),
+                    reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
                 });
 
                 let event = Event::MessageEnqueued {
@@ -1483,7 +1483,7 @@ pub mod pallet {
 
             Self::deposit_event(Event::UserMessageRead {
                 id: message_id,
-                reason: UserMessageReadRuntimeReason::MessageWasClaimed.into_reason(),
+                reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
             });
 
             Ok(().into())

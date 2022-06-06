@@ -79,7 +79,7 @@ impl SystemReason for () {}
 pub enum Reason<R: RuntimeReason, S: SystemReason> {
     /// Runtime reason variant.
     ///
-    /// This means that actor manually forced some action,
+    /// This means that actor explicitly forced some action,
     /// which this reason explains.
     Runtime(R),
     /// System reason variant.
@@ -109,14 +109,14 @@ pub type MessageWaitedReason = Reason<MessageWaitedRuntimeReason, MessageWaitedS
 
 /// Runtime reason for messages waking.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
-pub enum MessageWakenRuntimeReason {
+pub enum MessageWokenRuntimeReason {
     /// Program called `gr_wake` with corresponding message id.
     WakeCalled,
 }
 
 /// System reason for messages waking.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
-pub enum MessageWakenSystemReason {
+pub enum MessageWokenSystemReason {
     /// Program had finished initialization.
     ///
     /// Note that this variant doesn't contain info
@@ -129,7 +129,7 @@ pub enum MessageWakenSystemReason {
 }
 
 /// Composite reason for messages waking.
-pub type MessageWakenReason = Reason<MessageWakenRuntimeReason, MessageWakenSystemReason>;
+pub type MessageWokenReason = Reason<MessageWokenRuntimeReason, MessageWokenSystemReason>;
 
 /// Type of changes applied to code in storage.
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
@@ -154,9 +154,9 @@ pub enum CodeChangeKind<BlockNumber> {
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, RuntimeReason)]
 pub enum UserMessageReadRuntimeReason {
     /// Message was replied by user.
-    MessageWasReplied,
+    MessageReplied,
     /// Message was claimed by user.
-    MessageWasClaimed,
+    MessageClaimed,
 }
 
 /// System reason for messages reading from `Mailbox`.

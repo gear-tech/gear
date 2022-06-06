@@ -123,13 +123,13 @@ impl ValueNode {
 
     /// Returns the MessageId (as Origin) of the external node of current value tree.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root_id<T: Config>(&self) -> Result<H256, DispatchError> {
+    pub fn root_key<T: Config>(&self) -> Result<H256, DispatchError> {
         match self.inner {
             ValueType::External { .. } => Ok(self.id),
             ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
                 <Pallet<T>>::get_node(parent)
                     .ok_or(<Error<T>>::GasTreeInvalidated)?
-                    .root_origin::<T>()
+                    .root_key::<T>()
             }
         }
     }
@@ -209,7 +209,7 @@ pub mod pallet {
 
         /// Check if a node is consumed and does not have any child nodes so it can be deleted.
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
-        /// Otherwise this function is called for the parent node to propagate the process furter.
+        /// Otherwise this function is called for the parent node to propagate the process further.
         pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
             let mut delete_current_node = false;
             let maybe_node = Self::get_node(key);
@@ -330,10 +330,10 @@ where
         })
     }
 
-    fn get_origin_id(key: H256) -> Result<Option<H256>, DispatchError> {
+    fn get_origin_key(key: H256) -> Result<Option<H256>, DispatchError> {
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
-            Some(node.root_id::<T>()?)
+            Some(node.root_key::<T>()?)
         } else {
             // key unknown - legitimate result
             None
@@ -475,7 +475,7 @@ where
         );
         *node.inner_value_mut().expect("Querying node with value") -= amount;
 
-        // Save node that deliveres limit
+        // Save node that delivers limit
         GasTree::<T>::mutate(node.id, |value| {
             *value = Some(node);
         });

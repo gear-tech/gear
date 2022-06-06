@@ -222,9 +222,9 @@ where
                 .into_iter()
                 .for_each(|m_id| {
                     if let Ok((m, _)) = WaitlistOf::<T>::remove(p_id, m_id) {
-                        Pallet::<T>::deposit_event(Event::<T>::MessageWaken {
+                        Pallet::<T>::deposit_event(Event::<T>::MessageWoken {
                             id: m_id,
-                            reason: MessageWakenSystemReason::ProgramGotInitialized.into_reason(),
+                            reason: MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
                         });
 
                         // TODO: update gas limit in ValueTree here.
@@ -470,7 +470,7 @@ where
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
         let origin = if let Some(origin) =
-            GasPallet::<T>::get_origin_id(dispatch.id().into_origin())
+            GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
                 .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
                 .map(MessageId::from_origin)
         {
@@ -546,9 +546,9 @@ where
                 }
             };
 
-            let event = Event::MessageWaken {
+            let event = Event::MessageWoken {
                 id: dispatch.id(),
-                reason: MessageWakenRuntimeReason::WakeCalled.into_reason(),
+                reason: MessageWokenRuntimeReason::WakeCalled.into_reason(),
             };
 
             QueueOf::<T>::queue(dispatch)

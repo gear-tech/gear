@@ -1431,7 +1431,7 @@ fn claim_value_from_mailbox_works() {
         SystemPallet::<Test>::assert_last_event(
             Event::UserMessageRead {
                 id: reply_to_id,
-                reason: UserMessageReadRuntimeReason::MessageWasClaimed.into_reason(),
+                reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
             }
             .into(),
         );
@@ -3149,7 +3149,7 @@ fn test_reply_to_terminated_program() {
         SystemPallet::<Test>::assert_last_event(
             Event::UserMessageRead {
                 id: mail_id,
-                reason: UserMessageReadRuntimeReason::MessageWasClaimed.into_reason(),
+                reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
             }
             .into(),
         )
