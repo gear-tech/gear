@@ -38,3 +38,4 @@ members = [
     "utils/wasm-proc",
     "utils/wasm-builder",
 ]
+
