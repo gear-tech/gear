@@ -50,6 +50,7 @@ rand = { version = "0.8", optional = true, default-features = false }
 rand_pcg = { version = "0.3", optional = true }
 
 [dev-dependencies]
+sp-externalities = { version = "0.12.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 env_logger = "0.9"
 wabt = "0.10"
 demo-btree = { path = "../../examples/binaries/btree" }
@@ -82,6 +83,7 @@ std = [
 	"sp-std/std",
 	"sp-core/std",
 	"sp-runtime/std",
+	"sp-externalities/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",
