@@ -90,12 +90,26 @@ pub struct ExtManager<T: Config> {
     programs: BTreeSet<ProgramId>,
     // Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
+    // Programs, which state changed.
+    state_changes: BTreeSet<ProgramId>,
+    // Phantom data for generic usage.
     _phantom: PhantomData<T>,
 }
 
-impl<T: Config> ExtManager<T> {
-    pub(crate) fn into_dispatch_statuses(self) -> BTreeMap<MessageId, DispatchStatus> {
-        self.dispatch_statuses
+/// Data need for depositing event about queue processing result.
+pub struct QueuePostProcessingData {
+    /// Message dispatches results.
+    pub dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
+    /// Programs, which state changed.
+    pub state_changes: BTreeSet<ProgramId>,
+}
+
+impl<T: Config> From<ExtManager<T>> for QueuePostProcessingData {
+    fn from(ext_manager: ExtManager<T>) -> Self {
+        Self {
+            dispatch_statuses: ext_manager.dispatch_statuses,
+            state_changes: ext_manager.state_changes,
+        }
     }
 }
 
@@ -109,6 +123,7 @@ where
             users: Default::default(),
             programs: Default::default(),
             dispatch_statuses: Default::default(),
+            state_changes: Default::default(),
         }
     }
 }
@@ -548,6 +563,7 @@ where
         program_id: ProgramId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
+        self.state_changes.insert(program_id);
         let program_id = program_id.into_origin();
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");

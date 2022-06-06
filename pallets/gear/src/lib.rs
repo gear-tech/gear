@@ -103,7 +103,7 @@ pub mod pallet {
 
     use crate::{
         ext::LazyPagesExt,
-        manager::{ExtManager, HandleKind},
+        manager::{ExtManager, HandleKind, QueuePostProcessingData},
     };
     use alloc::format;
     use common::{
@@ -189,58 +189,112 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// TODO: append docs.
+        /// User send message to program, which was successfully
+        /// added to gear message queue.
         MessageEnqueued {
+            /// Generated id of the message.
             id: MessageId,
+            /// Account id of the source of the message.
             source: T::AccountId,
+            /// Program id, who is a destination of the message.
             destination: ProgramId,
+            /// Entry point for processing of the message.
+            /// On the sending stage, processing function
+            /// of program is always known.
             entry: Entry,
         },
 
-        /// TODO: append docs.
+        /// Somebody sent message to user.
         UserMessageSent {
+            /// Message sent.
             message: StoredMessage,
+            /// Block number of expiration from `Mailbox`.
+            ///
+            /// Equals `Some(_)` with block number when message
+            /// will be removed from `Mailbox` due to some
+            /// reasons (see #642, #646 and #1010).
+            ///
+            /// Equals `None` if message wasn't inserted to
+            /// `Mailbox` and appears as only `Event`.
             expiration: Option<T::BlockNumber>,
         },
 
-        /// TODO: append docs.
+        /// Message marked as "read" and removes it from `Mailbox`.
+        /// This event only affects messages, which were
+        /// already inserted in `Mailbox` before.
         UserMessageRead {
+            /// Id of the message read.
             id: MessageId,
+            /// The reason of the reading (removal from `Mailbox`).
+            ///
+            /// NOTE: See more docs about reasons at `gear_common::event`.
             reason: UserMessageReadReason,
         },
 
-        /// TODO: append docs.
+        /// The result of the messages processing within the block.
         MessagesDispatched {
+            /// Total amount of messages removed from message queue.
             total: MessengerCapacityOf<T>,
+            /// Execution statuses of the messages, which were already known
+            /// by `Event::MessageEnqueued` (sent from user to program).
             statuses: BTreeMap<MessageId, DispatchStatus>,
         },
 
-        /// TODO: append docs.
+        /// Temporary `Event` variant, showing that all storages was cleared.
+        ///
+        /// Will be removed in favor of proper database migrations.
         DatabaseWiped,
 
-        /// TODO: append docs.
+        /// Messages execution delayed (waited) and it was successfully
+        /// added to gear waitlist.
         MessageWaited {
+            /// Id of the message waited.
             id: MessageId,
+            /// Origin message id, which started messaging chain with programs,
+            /// where currently waited message was created.
+            ///
+            /// Used for identifying by user, that this message associated
+            /// with him and with the concrete initial message.
             origin: Option<MessageId>,
+            /// The reason of the waiting (addition to `Waitlist`).
+            ///
+            /// NOTE: See more docs about reasons at `gear_common::event`.
             reason: MessageWaitedReason,
+            /// Block number of expiration from `Waitlist`.
+            ///
+            /// Equals block number when message will be removed from `Waitlist`
+            /// due to some reasons (see #642, #646 and #1010).
             expiration: T::BlockNumber,
         },
 
-        /// TODO: append docs.
+        /// Message is ready to continue its execution
+        /// and was removed from `Waitlist`.
         MessageWaken {
+            /// Id of the message waken.
             id: MessageId,
+            /// The reason of the waking (removal from `Waitlist`).
+            ///
+            /// NOTE: See more docs about reasons at `gear_common::event`.
             reason: MessageWakenReason,
         },
 
-        /// TODO: append docs.
+        /// Any data related to programs codes changed.
         CodeChanged {
+            /// Id of the code affected.
             id: CodeId,
+            /// Change applied on code with current id.
+            ///
+            /// NOTE: See more docs about change kinds at `gear_common::event`.
             change: CodeChangeKind<T::BlockNumber>,
         },
 
-        /// TODO: append docs.
+        /// Any data related to programs changed.
         ProgramChanged {
+            /// Id of the program affected.
             id: ProgramId,
+            /// Change applied on program with current id.
+            ///
+            /// NOTE: See more docs about change kinds at `gear_common::event`.
             change: ProgramChangeKind<T::BlockNumber>,
         },
     }
@@ -908,12 +962,22 @@ pub mod pallet {
                 }
             }
 
+            let post_data: QueuePostProcessingData = ext_manager.into();
+
+            // TODO: consider about merging this data into separate event or `Event::MessagesDispatched`
+            for id in post_data.state_changes {
+                Self::deposit_event(Event::ProgramChanged {
+                    id,
+                    change: ProgramChangeKind::StateChanged,
+                })
+            }
+
             let total_handled = DequeuedOf::<T>::get();
 
             if total_handled > 0 {
                 Self::deposit_event(Event::MessagesDispatched {
                     total: total_handled,
-                    statuses: ext_manager.into_dispatch_statuses(),
+                    statuses: post_data.dispatch_statuses,
                 });
             }
 
