@@ -1974,31 +1974,31 @@ fn test_create_program_no_code_hash() {
         run_to_block(2, None);
 
         // Init and dispatch messages from the contract are dequeued, but not executed
-        // 2 error replies are generated, and executed
+        // 2 error replies are generated, and executed (forwarded to USER_2 mailbox).
+        assert_eq!(MailboxOf::<Test>::len(&USER_2), 2);
         assert_total_dequeued(4 + 2); // +2 for submit_program/send_messages
-                                      // TODO: rewrite it properly check_dispatched(2 + 1); // +1 for send_messages
         assert_init_success(1); // 1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
+        MailboxOf::<Test>::remove_all();
 
         // Try to create multiple programs with non existing code hash
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (valid_code_hash, b"salt1".to_vec(), 10_000),
-                (valid_code_hash, b"salt2".to_vec(), 10_000),
-                (valid_code_hash, b"salt3".to_vec(), 10_000),
+                (valid_code_hash, b"salt1".to_vec(), 2_000_000_000),
+                (valid_code_hash, b"salt2".to_vec(), 2_000_000_000),
+                (valid_code_hash, b"salt3".to_vec(), 2_000_000_000),
             ])
             .encode(),
-            10_000_000_000,
+            20_000_000_000,
             0,
         ));
         run_to_block(3, None);
-        // Init and dispatch messages from the contract are dequeued, but not executed
-        // 2 error replies are generated, and executed
-        assert_total_dequeued(12 + 1); // +1 for send_message
-                                       // TODO: rewrite it properly check_dispatched(6 + 1); // +1 for send_message
+
+        assert_eq!(MailboxOf::<Test>::len(&USER_2), 6);
+        assert_total_dequeued(12 + 1);
         assert_init_success(0);
 
         assert_noop!(
@@ -2010,26 +2010,26 @@ fn test_create_program_no_code_hash() {
         );
 
         SystemPallet::<Test>::reset_events();
+        MailboxOf::<Test>::remove_all();
 
         // Try to create with invalid code hash
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (invalid_prog_code_hash, b"salt1".to_vec(), 10_000),
-                (invalid_prog_code_hash, b"salt2".to_vec(), 10_000),
-                (invalid_prog_code_hash, b"salt3".to_vec(), 10_000),
+                (invalid_prog_code_hash, b"salt1".to_vec(), 2_000_000_000),
+                (invalid_prog_code_hash, b"salt2".to_vec(), 2_000_000_000),
+                (invalid_prog_code_hash, b"salt3".to_vec(), 2_000_000_000),
             ])
             .encode(),
-            10_000_000_000,
+            20_000_000_000,
             0,
         ));
+
         run_to_block(4, None);
 
-        // Init and dispatch messages from the contract are dequeued, but not executed
-        // 2 error replies are generated, and executed
-        assert_total_dequeued(12 + 1); // +1 for send_message
-                                       // TODO: rewrite it properly check_dispatched(6 + 1); // +1 for send_message
+        assert_eq!(MailboxOf::<Test>::len(&USER_2), 6);
+        assert_total_dequeued(12 + 1);
         assert_init_success(0);
     });
 }
@@ -2086,7 +2086,6 @@ fn test_create_program_simple() {
         // First extrinsic call with successful program creation dequeues and executes init and dispatch messages
         // Second extrinsic is failing one, for each message it generates replies, which are executed (4 dequeued, 2 dispatched)
         assert_total_dequeued(6 + 3); // +3 for extrinsics
-                                      // TODO: rewrite it properly check_dispatched(3 + 2); // +2 for extrinsics
         assert_init_success(1 + 1); // +1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
@@ -2120,7 +2119,6 @@ fn test_create_program_simple() {
         run_to_block(6, None);
 
         assert_total_dequeued(12 + 2); // +2 for extrinsics
-                                       // TODO: rewrite it properly check_dispatched(6 + 2); // +2 for extrinsics
         assert_init_success(2);
     })
 }
@@ -2146,7 +2144,7 @@ fn test_create_program_duplicate() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
+            20_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -2159,27 +2157,33 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 10_000_000),])
-                .encode(),
-            50_000_000_000,
+            CreateProgram::Custom(vec![(
+                child_code_hash,
+                DEFAULT_SALT.to_vec(),
+                2_000_000_000
+            )])
+            .encode(),
+            20_000_000_000,
             0,
         ));
         run_to_block(4, None);
 
         // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
         // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
+        assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
         assert_total_dequeued(3 + 3); // +3 from extrinsics (2 submit_program, 1 send_message)
-                                      // TODO: rewrite it properly check_dispatched(2 + 1); // +1 from extrinsic (send_message)
         assert_init_success(2); // +2 from extrinsics (2 submit_program)
 
         SystemPallet::<Test>::reset_events();
+        MailboxOf::<Test>::remove_all();
 
         // Create a new program from program
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
-            50_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 2_000_000_000)])
+                .encode(),
+            20_000_000_000,
             0,
         ));
         run_to_block(5, None);
@@ -2188,8 +2192,9 @@ fn test_create_program_duplicate() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_2),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
-            50_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 2_000_000_000)])
+                .encode(),
+            20_000_000_000,
             0,
         ));
         run_to_block(6, None);
@@ -2197,8 +2202,8 @@ fn test_create_program_duplicate() {
         // First call successfully creates a program and sends a messages to it (+2 dequeued, +1 dispatched)
         // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
         // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
+        assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
         assert_total_dequeued(5 + 2); // +2 from extrinsics (send_message)
-                                      // TODO: rewrite it properly check_dispatched(3 + 2); // +2 from extrinsics (send_message)
         assert_init_success(1);
 
         assert_noop!(
@@ -2246,11 +2251,11 @@ fn test_create_program_duplicate_in_one_execution() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 1_000_000), // could be successful init
-                (child_code_hash, b"salt1".to_vec(), 1_000_000), // duplicate
+                (child_code_hash, b"salt1".to_vec(), 1_000_000_000), // could be successful init
+                (child_code_hash, b"salt1".to_vec(), 1_000_000_000), // duplicate
             ])
             .encode(),
-            2_000_000_000,
+            20_000_000_000,
             0,
         ));
 
@@ -2261,26 +2266,27 @@ fn test_create_program_duplicate_in_one_execution() {
         // Duplicate init fails the call and returns error reply to the caller, which is USER_1.
         // State roll-back is performed.
         assert_total_dequeued(2); // 2 for extrinsics
-                                  // TODO: rewrite it properly check_dispatched(1); // 1 for send_message
         assert_init_success(1); // 1 for creating a factory
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::reset_events();
+        MailboxOf::<Test>::remove_all();
 
         // Successful child creation
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             factory_id,
-            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 10_000_000),]).encode(),
-            2_000_000_000,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 1_000_000_000)])
+                .encode(),
+            20_000_000_000,
             0,
         ));
 
         run_to_block(4, None);
 
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
         assert_total_dequeued(2 + 1); // 1 for extrinsics
-                                      // TODO: rewrite it properly check_dispatched(1 + 1); // 1 for send_message
         assert_init_success(1);
     });
 }
@@ -2381,7 +2387,6 @@ fn test_create_program_miscellaneous() {
         run_to_block(5, None);
 
         assert_total_dequeued(18 + 4); // +4 for 3 send_message calls and 1 submit_program call
-                                       // TODO: rewrite it properly check_dispatched(9 + 3); // +3 for send_message calls
         assert_init_success(3 + 1); // +1 for submitting factory
     });
 }
