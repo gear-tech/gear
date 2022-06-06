@@ -863,7 +863,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 791822425 + 6228060 - 1; // calc gas pid1 + pid2 - 1
+        let remaining_weight = 1076960017 + 11542110 - 1; // calc gas pid1 + pid2 - 1
 
         // Submit programs and get their ids
         let pid1 = {
@@ -1396,7 +1396,7 @@ fn claim_value_from_mailbox_works() {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
         let claimer_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_sent = 1_000_000_000;
+        let gas_sent = 5_000_000_000;
         let value_sent = 1000;
 
         let prog_id = {
@@ -3171,7 +3171,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract".to_vec(),
             50_u64.encode(),
-            400_000_000,
+            800_000_000,
             0,
         ));
 
@@ -3180,7 +3180,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             <[u8; 32]>::from(contract_id).encode(),
-            400_000_000,
+            800_000_000,
             0,
         ));
 
