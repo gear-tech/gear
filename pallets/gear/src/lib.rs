@@ -535,9 +535,13 @@ pub mod pallet {
                 let lazy_pages_enabled =
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
-                let actor = ext_manager
+                let mut actor = ext_manager
                     .get_executable_actor(actor_id, !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
+
+                // TODO: remove after fix issue #1018
+                // set big balance for actor, so that value sys calls can work properly.
+                actor.balance = 50_000_000_000;
 
                 let allocations_config = AllocationsConfig {
                     max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
@@ -584,6 +588,18 @@ pub mod pallet {
 
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
+                    // TODO: remove after fix issue #1018
+                    // Skip send value handling in order to avoid problems with lack of reserved gas,
+                    // which can lead to runtime panic in get_gas_spent:
+                    // ```
+                    // Application, Execution, RuntimePanicked, internal error: entered unreachable code:
+                    // All requested value for unreserve must be freed. For more info, see module docs
+                    // ```
+                    match note {
+                        JournalNote::SendValue{from: _, to: _, value: _} => continue,
+                        _ => {},
+                    };
+
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
                     if let Some(remaining_gas) =
