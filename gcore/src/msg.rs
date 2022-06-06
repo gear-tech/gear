@@ -90,25 +90,6 @@ mod sys {
         pub fn gr_size() -> u32;
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
-        pub fn gr_create_program(
-            code_hash: *const u8,
-            salt_ptr: *const u8,
-            salt_len: u32,
-            payload_ptr: *const u8,
-            payload_len: u32,
-            value_ptr: *const u8,
-            program_id_ptr: *const u8,
-        );
-        pub fn gr_create_program(
-            code_hash: *const u8,
-            salt_ptr: *const u8,
-            salt_len: u32,
-            payload_ptr: *const u8,
-            payload_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u8,
-            program_id_ptr: *const u8,
-        );
     }
 }
 
@@ -733,15 +714,4 @@ pub fn value() -> u128 {
         sys::gr_value(value_data.as_mut_ptr());
     }
     u128::from_le_bytes(value_data)
-}
-
-pub fn create_program(
-    code_hash: [u8; 32],
-    payload: &[u8],
-    value: u128,
-    program_id: ActorId,
-) -> ActorId {
-    let mut program_id = Default::default();
-    unsafe { sys::gr_create_program(program_id.as_mut_slice().as_mut_ptr()).as_mut_ptr() }
-    program_id
 }
