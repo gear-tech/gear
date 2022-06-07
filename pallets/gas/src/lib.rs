@@ -96,7 +96,8 @@ impl ValueNode {
         self.spec_refs.saturating_add(self.unspec_refs)
     }
 
-    /// The first upstream node (self included), that holds a concrete value.
+    /// The first upstream node (self included), that is able to holds a concrete value, but doesn't
+    /// necessarily has a non-zero value.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn node_with_value<T: Config>(&self) -> Result<ValueNode, DispatchError> {
         let mut ret_node = self.clone();
@@ -111,7 +112,9 @@ impl ValueNode {
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
         let mut ret_node = self.clone();
-        while let ValueType::UnspecifiedLocal { parent } | ValueType::SpecifiedLocal { parent, .. } = ret_node.inner {
+        while let ValueType::UnspecifiedLocal { parent }
+        | ValueType::SpecifiedLocal { parent, .. } = ret_node.inner
+        {
             ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
         }
 
@@ -205,7 +208,9 @@ pub mod pallet {
                 match current_node.inner {
                     ValueType::SpecifiedLocal { parent, .. }
                     | ValueType::UnspecifiedLocal { parent } => {
+                        // эту проверку можно вынести за матчинг
                         if current_node.consumed && current_node.refs() == 0 {
+                            // попадание сюда уже означает удаление
                             // Parent node must exist for any node; if it doesn't, the tree's become invalid
                             let mut parent_node =
                                 Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
@@ -364,10 +369,13 @@ where
 
                         // Update parent node
                         GasTree::<T>::mutate(parent, |value| {
-                            *value = Some(parent_node);
+                            *value = Some(parent_node); // сохраняет refs, на случай узел не будет Specified (ветка кода ниже)
                         });
                     }
 
+                    // не обязательно, чтобы у узла не было refs. Главное, чтобы не было Unspec.
+                    // Это странно, потому что если для любого узла есть родитель с value, то можно и не проверять unspec
+                    // хотя это чревато тем, что мы получим узел с value равным 0 при обращении к node_with_value
                     if let ValueType::SpecifiedLocal {
                         value: self_value, ..
                     } = node.inner
@@ -399,7 +407,7 @@ where
                         if node.unspec_refs == 0 {
                             if let Some(inner_value) = node.inner_value_mut() {
                                 *inner_value = 0
-                            };
+                            }; // перенеси вверх
                         }
                         // Save current node
                         GasTree::<T>::mutate(key, |value| {
@@ -419,7 +427,7 @@ where
 
                     if node.refs() == 0 {
                         // Delete current node
-                        GasTree::<T>::remove(id);
+                        GasTree::<T>::remove(key);
 
                         Some((NegativeImbalance::new(value), id))
                     } else {
@@ -461,6 +469,7 @@ where
         Ok(NegativeImbalance::new(amount))
     }
 
+    // не проверяет, есть ли хоть один узел с value выше него!! Надо ли?
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
@@ -487,7 +496,7 @@ where
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
         let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
-        // Upstream node with a concrete value exist for any node.
+        // Upstream node with a concrete value exist for any node./ не проверяет, есть ли хоть один узел с value выше него!! Надо ли?
         // If it doesn't, the tree is considered invalidated.
         let node_with_value = node.node_with_value::<T>()?;
 
