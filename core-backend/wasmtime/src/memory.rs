@@ -60,8 +60,8 @@ impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
         self.mem.data_size(&self.store)
     }
 
-    fn get_buffer_host_addr(&self) -> u64 {
-        self.mem.data_ptr(&self.store) as u64
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+        self.mem.data_ptr(&self.store) as HostPointer
     }
 }
 
@@ -98,7 +98,7 @@ impl<E: Ext> Memory for MemoryWrapExternal<E> {
         self.mem.data_size(&self.store)
     }
 
-    fn get_buffer_host_addr(&self) -> HostPointer {
-        self.mem.data_ptr(&self.store) as u64
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+        self.mem.data_ptr(&self.store) as HostPointer
     }
 }

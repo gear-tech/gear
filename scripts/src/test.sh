@@ -22,6 +22,7 @@ test_usage() {
     rtest          run node runtime testing tool
     pallet         run pallet-gear tests
     runtime-upgrade run runtime-upgrade test for queue processing
+    fuzz           run fuzzer with a fuzz target
 
 EOF
 }
@@ -98,4 +99,21 @@ runtime_upgrade_test() {
   npm test "$RUNTIME_PATH" "$DEMO_PING_PATH"
 
   # Killing node process added in js script
+}
+
+run_fuzzer() {
+  ROOT_DIR="$1"
+  TARGET="$2"
+
+  if [[ -z $TARGET ]]
+  then
+    TARGET="simple_fuzz_target"
+  fi
+
+  # Navigate to fuzzer dir
+  cd $ROOT_DIR/utils/economic-checks
+
+  # Run fuzzer
+  RUST_LOG="essential=debug,pallet_gear=debug,pallet_usage=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
+  cargo fuzz run --release --sanitizer=none $TARGET
 }

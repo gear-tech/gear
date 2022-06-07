@@ -40,49 +40,70 @@ mod wasm {
     use gstd::{debug, exec, msg, prelude::*, ActorId};
 
     static mut STATE: State = State {
-        contract_a: Program {
+        iter: 0,
+        max_iter: 0,
+        me: Program {
             handle: ActorId::new([0u8; 32]),
         },
-        contract_b: Program {
+        other: Program {
             handle: ActorId::new([0u8; 32]),
         },
     };
 
     struct State {
-        contract_a: Program,
-        contract_b: Program,
+        iter: u16,
+        max_iter: u16,
+        me: Program,
+        other: Program,
     }
 
     impl State {
-        fn new(actor_a: impl Into<ActorId>, actor_b: impl Into<ActorId>) -> Self {
+        fn new(max_iter: u16, actor: impl Into<ActorId>) -> Self {
             Self {
-                contract_a: Program::new(actor_a),
-                contract_b: Program::new(actor_b),
+                iter: 0,
+                max_iter,
+                me: Program::new(exec::program_id()),
+                other: Program::new(actor),
             }
         }
 
-        async fn compose(&mut self, input: Vec<u8>) -> Result<Vec<u8>, &'static str> {
+        fn inc(&mut self) {
+            self.iter += 1;
+        }
+
+        async fn compose_with_self(&mut self, input: Vec<u8>) -> Result<Vec<u8>, &'static str> {
+            if self.iter >= self.max_iter {
+                debug!(
+                    "[0x{} ncompose::compose_with_self] Max number of iterations {} reached; no further progress is possible",
+                    hex::encode(self.me.handle),
+                    self.max_iter
+                );
+                return Err("Max iteration reached");
+            }
+            // Increase iter
+            self.inc();
+
             debug!(
-                "[0x{} compose::compose] Composing programs 0x{} and 0x{} on input {:?}",
-                hex::encode(exec::program_id()),
-                hex::encode(self.contract_a.handle),
-                hex::encode(self.contract_b.handle),
-                input
+                "[ncompose::compose_with_self] Iter: {} out of {}",
+                self.iter, self.max_iter
             );
+
+            // Pass the input to the `other` contract first
             debug!(
-                "[0x{} compose::compose] Calling contract #1 at 0x{}",
-                hex::encode(exec::program_id()),
-                hex::encode(self.contract_a.handle),
+                "[0x{} ncompose::compose_with_self] Calling contract 0x{} with available gas {}",
+                hex::encode(self.me.handle),
+                hex::encode(self.other.handle),
+                exec::gas_available(),
             );
-            let output_a = self.contract_a.call(input).await?;
+            let output_other = self.other.call(input).await?;
             debug!(
-                "[0x{} compose::compose] Calling contract #2 at 0x{}",
+                "[0x{} ncompose::compose_with_self] Calling self with available gas {}",
                 hex::encode(exec::program_id()),
-                hex::encode(self.contract_b.handle),
+                exec::gas_available(),
             );
-            let output = self.contract_b.call(output_a).await?;
+            let output = self.me.call(output_other).await?;
             debug!(
-                "[0x{} compose::compose] Composition output: {:?}",
+                "[0x{} ncompose::compose_with_self] Composition output: {:?}",
                 hex::encode(exec::program_id()),
                 output
             );
@@ -109,7 +130,7 @@ mod wasm {
                 .await
                 .map_err(|_| "Error in async message processing")?;
             debug!(
-                "[0x{} compose::Program::call] Received reply from remote contract: {}",
+                "[0x{} ncompose::Program::call] Received reply from remote contract: {:?}",
                 hex::encode(exec::program_id()),
                 hex::encode(&reply_bytes),
             );
@@ -122,15 +143,15 @@ mod wasm {
     async fn main() {
         let input = msg::load_bytes();
         debug!(
-            "[0x{} compose::handle] input = {:?}, gas_available = {}",
-            hex::encode(exec::program_id()),
+            "[0x{} ncompose::handle] input = {:?}, available gas: {}",
+            hex::encode(unsafe { STATE.me.handle }),
             input,
             exec::gas_available()
         );
 
-        if let Ok(outcome) = (unsafe { STATE.compose(input) }).await {
+        if let Ok(outcome) = (unsafe { STATE.compose_with_self(input) }).await {
             debug!(
-                "[0x{} compose::handle] Composition output: {:?}",
+                "[0x{} ncompose::handle] Composition output: {:?}",
                 hex::encode(exec::program_id()),
                 outcome
             );
@@ -140,9 +161,13 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {
-        let (contract_a, contract_b): (ActorId, ActorId) =
-            msg::load().expect("Expecting two contract addresses");
-        STATE = State::new(contract_a, contract_b);
+        let (actor, max_iter): (ActorId, u16) =
+            msg::load().expect("Malformed input: expecting a program ID and a number");
+        STATE = State::new(max_iter, actor);
         msg::reply_bytes([], 0).unwrap();
+        debug!(
+            "[0x{} ncompose::init] Program initialized",
+            hex::encode(exec::program_id())
+        );
     }
 }
