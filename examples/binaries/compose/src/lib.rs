@@ -37,7 +37,6 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 mod wasm {
     extern crate alloc;
 
-    use codec::{Decode, Encode};
     use gstd::{debug, exec, msg, prelude::*, ActorId};
 
     static mut STATE: State = State {
@@ -135,7 +134,7 @@ mod wasm {
                 hex::encode(exec::program_id()),
                 outcome
             );
-            msg::reply(outcome, 0);
+            msg::reply(outcome, 0).unwrap();
         }
     }
 
@@ -144,10 +143,6 @@ mod wasm {
         let (contract_a, contract_b): (ActorId, ActorId) =
             msg::load().expect("Expecting two contract addresses");
         STATE = State::new(contract_a, contract_b);
-        msg::reply((), 0);
-        debug!(
-            "[0x{} compose::init] Program initialized",
-            hex::encode(exec::program_id())
-        );
+        msg::reply_bytes([], 0).unwrap();
     }
 }

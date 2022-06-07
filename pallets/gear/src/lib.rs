@@ -190,6 +190,8 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// Log event from the specific program.
         Log(StoredMessage),
+        /// Program exited.
+        Exit(MessageInfo),
         /// Program created and an init message enqueued.
         InitMessageEnqueued(MessageInfo),
         /// Program initialization error.
@@ -1366,12 +1368,23 @@ pub mod pallet {
             dest: &T::AccountId,
             amount: Self::Balance,
         ) -> Result<(), DispatchError> {
-            let _ = <T as Config>::Currency::repatriate_reserved(
+            let leftover = <T as Config>::Currency::repatriate_reserved(
                 &<T::AccountId as Origin>::from_origin(source),
                 dest,
                 amount,
                 BalanceStatus::Free,
             )?;
+
+            if leftover > 0_u128.unique_saturated_into() {
+                log::debug!(
+                    target: "essential",
+                    "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",
+                    source,
+                    dest,
+                    amount,
+                    leftover,
+                );
+            }
 
             Ok(())
         }

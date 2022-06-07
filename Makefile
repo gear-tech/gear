@@ -240,3 +240,7 @@ test-pallet-release:
 .PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
+
+.PHONY: fuzz
+fuzz:
+	@ ./scripts/gear.sh test fuzz

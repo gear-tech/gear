@@ -77,7 +77,7 @@ mod wasm {
             DEBUG.me,
             exec::gas_available()
         );
-        msg::reply(STATE.unchecked_mul(x), 0);
+        msg::reply(STATE.unchecked_mul(x), 0).unwrap();
     }
 
     #[no_mangle]
@@ -87,7 +87,7 @@ mod wasm {
         DEBUG = DebugInfo {
             me: hex::encode(exec::program_id()),
         };
-        msg::reply((), 0);
+        msg::reply_bytes([], 0).unwrap();
         debug!(
             "[0x{} mul_by_const::init] Program initialized with input {}",
             DEBUG.me, val
