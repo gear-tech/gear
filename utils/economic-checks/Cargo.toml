@@ -73,3 +73,4 @@ lazy-pages = [
     "gear-runtime/lazy-pages",
     "pallet-gear/lazy-pages",
 ]
+debug-wasm-mutate = []
