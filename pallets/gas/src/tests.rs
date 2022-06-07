@@ -168,7 +168,7 @@ impl GasTreePropTester {
     }
 
     fn nodes(&self) -> BTreeSet<H256> {
-        BTreeSet::from_iter(self.nodes.clone())
+        BTreeSet::from_iter(super::GasTree::<Test>::iter_values().map(|v| v.id))
     }
 }
 
