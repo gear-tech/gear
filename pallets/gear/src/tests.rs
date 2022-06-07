@@ -2892,7 +2892,7 @@ fn test_two_contracts_composition_works() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
-    use demo_init_with_value::{ExpectedError, SendMessage, WASM_BINARY};
+    use demo_init_with_value::{SendMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2930,11 +2930,11 @@ fn test_create_program_with_value_lt_ed() {
             // so messages will go to mailbox
             vec![
                 SendMessage::Handle {
-                    custom_destination_id: msg_receiver_1,
+                    destination: msg_receiver_1,
                     value: 500
                 },
                 SendMessage::Handle {
-                    custom_destination_id: msg_receiver_2,
+                    destination: msg_receiver_2,
                     value: 500
                 },
                 SendMessage::Init {
@@ -2972,15 +2972,18 @@ fn test_create_program_with_value_lt_ed() {
             // The last message value (which is the value of init message) will end execution with trap
             vec![
                 SendMessage::Handle {
-                    custom_destination_id: msg_receiver_1,
+                    destination: msg_receiver_1,
                     value: 500
                 },
                 SendMessage::Handle {
-                    custom_destination_id: msg_receiver_2,
+                    destination: msg_receiver_2,
                     value: 500
                 },
                 SendMessage::Init {
-                    expected_error: Some(ExpectedError::InsufficientValue),
+                    expected_error: Some(MessageError::InsufficientValue {
+                        message_value: 499,
+                        existential_deposit: 500,
+                    }),
                     value: ed - 1
                 },
             ]
@@ -2993,7 +2996,7 @@ fn test_create_program_with_value_lt_ed() {
 
         // User's message execution will not result in trap, because program handles
         // error of sending init message with value in invalid range itself. As a result,
-        // dispatch is not dequeued (user's  message) and message is not sent to mailbox.
+        // error reply message is not sent to mailbox.
         let mailbox_msg_id = get_last_message_id();
         assert!(!MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.
@@ -3014,7 +3017,7 @@ fn test_create_program_with_value_lt_ed() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
-    use demo_init_with_value::{ExpectedError, SendMessage, WASM_BINARY};
+    use demo_init_with_value::{SendMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3033,16 +3036,19 @@ fn test_create_program_with_exceeding_value() {
             b"test1".to_vec(),
             vec![
                 SendMessage::Handle {
-                    custom_destination_id: random_receiver,
+                    destination: random_receiver,
                     value: sending_to_program / 3
                 },
                 SendMessage::Handle {
-                    custom_destination_id: random_receiver,
+                    destination: random_receiver,
                     value: sending_to_program / 3
                 },
                 SendMessage::Init {
                     value: sending_to_program + 1,
-                    expected_error: Some(ExpectedError::NotEnoughValue)
+                    expected_error: Some(MessageError::NotEnoughValue {
+                        message_value: 1001,
+                        value_left: 1000,
+                    })
                 },
             ]
             .encode(),
@@ -3069,7 +3075,7 @@ fn test_create_program_with_exceeding_value() {
 
         // User's message execution will not result in trap, because program handles
         // error of sending init message with value more than program has itself. As a result,
-        // dispatch is not dequeued (user's  message) and message is not sent to mailbox.
+        // error reply message is not sent to mailbox.
         let mailbox_msg_id = get_last_message_id();
         assert!(!MailboxOf::<Test>::contains(&USER_1, &mailbox_msg_id));
         // This check means, that program's invalid init message didn't reach the queue.

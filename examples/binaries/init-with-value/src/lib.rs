@@ -37,41 +37,19 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub enum ExpectedError {
-    NotEnoughValue,
-    InsufficientValue,
-}
-
-impl ExpectedError {
-    pub fn into_message_error(self) -> MessageError {
-        match self {
-            ExpectedError::NotEnoughValue => MessageError::NotEnoughValue {
-                message_value: 1001,
-                value_left: 1000,
-            },
-            ExpectedError::InsufficientValue => MessageError::InsufficientValue {
-                message_value: 499,
-                existential_deposit: 500,
-            },
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
     Init {
-        expected_error: Option<ExpectedError>,
+        expected_error: Option<MessageError>,
         value: u128,
     },
     Handle {
-        custom_destination_id: u64,
+        destination: u64,
         value: u128,
     },
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use crate::ExpectedError;
     use gstd::{
         errors::{ContractError, ExtError},
         msg, prog,
@@ -112,19 +90,14 @@ mod wasm {
                             if let Some(expected_error) = expected_error {
                                 assert_eq!(
                                     err,
-                                    ContractError::Ext(ExtError::Message(
-                                        expected_error.into_message_error()
-                                    ))
+                                    ContractError::Ext(ExtError::Message(expected_error))
                                 )
                             }
                         }
                     }
                 }
-                SendMessage::Handle {
-                    custom_destination_id,
-                    value,
-                } => {
-                    let _ = msg::send(custom_destination_id.into(), b"", value);
+                SendMessage::Handle { destination, value } => {
+                    let _ = msg::send(destination.into(), b"", value);
                 }
             }
         }
