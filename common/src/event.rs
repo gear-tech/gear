@@ -191,7 +191,7 @@ pub enum ProgramChangeKind<BlockNumber> {
     /// Program is no longer available for interaction, but can be
     /// resumed by paying rent and giving whole data related to it.
     Paused {
-        /// Code hash them program relates to.
+        /// Code hash the program relates to.
         code_hash: H256,
         /// Hash of memory pages of the program.
         memory_hash: H256,
