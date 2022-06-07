@@ -19,7 +19,6 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
-use core::convert::TryInto;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -104,24 +103,6 @@ fn debug_mode_works() {
 
         let static_pages = WasmPageNumber(16);
 
-        let pages = |prog_id: ProgramId| {
-            if cfg!(feature = "lazy-pages") {
-                Default::default()
-            } else {
-                let prog_id = prog_id.into_origin();
-                let active_prog: common::ActiveProgram = common::get_program(prog_id)
-                    .expect("Can't find program")
-                    .try_into()
-                    .expect("Program isn't active");
-
-                common::get_program_data_for_pages(prog_id, active_prog.pages_with_data.iter())
-                    .expect("Can't get data for pages")
-                    .into_iter()
-                    .map(|(k, v)| (k, v.to_vec()))
-                    .collect()
-            }
-        };
-
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -129,7 +110,7 @@ fn debug_mode_works() {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
-                        persistent_pages: pages(program_id_1),
+                        persistent_pages: Default::default(),
                         code_hash: generate_code_hash(&code_1),
                     }),
                 }],
@@ -159,7 +140,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: pages(program_id_2),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -167,7 +148,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: pages(program_id_1),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -235,7 +216,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: pages(program_id_2),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -243,7 +224,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: pages(program_id_1),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -264,7 +245,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: pages(program_id_2),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -272,7 +253,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: pages(program_id_1),
+                            persistent_pages: Default::default(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },

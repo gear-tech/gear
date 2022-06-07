@@ -70,3 +70,4 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 ]
+lazy-pages = ["pallet-gear/lazy-pages"]

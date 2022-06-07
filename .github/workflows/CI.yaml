@@ -164,6 +164,9 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
+      - name: "Test: Gear pallet tests"
+        run: ./scripts/gear.sh test pallet --release
+
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
         env:
@@ -191,6 +194,8 @@ jobs:
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
+
+      # TODO: make also rtest run for node without lazy-pages feature
 
       - name: "Test (performance): node runtime testsuite"
         if: ${{ github.ref != 'refs/heads/master' }}

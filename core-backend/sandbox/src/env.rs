@@ -143,7 +143,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
+        pages_data: &mut BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let mut builder = EnvBuilder::<E> {
@@ -233,7 +233,7 @@ where
         };
 
         // Set module memory.
-        if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
+        if let Err(e) = set_pages(&mut runtime.memory, pages_data) {
             return Err(BackendError {
                 reason: SandboxEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
@@ -243,7 +243,7 @@ where
 
         if let Err(e) = runtime
             .ext
-            .with(|ext| ext.save_static_pages_initial_data(&runtime.memory))
+            .with(|ext| ext.save_static_pages_initial_data(&runtime.memory, pages_data))
             .expect("We just set ext")
         {
             return Err(BackendError {

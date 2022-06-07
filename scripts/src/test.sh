@@ -77,6 +77,16 @@ rtest() {
 
 pallet_test() {
   cargo test -p pallet-gear "$@"
+  cargo test -p pallet-gear --features=lazy-pages "$@"
+  cargo test -p pallet-gear-debug "$@"
+  cargo test -p pallet-gear-debug --features=lazy-pages "$@"
+  cargo test -p pallet-gear-payment "$@"
+  cargo test -p pallet-gear-payment --features=lazy-pages "$@"
+  cargo test -p pallet-usage "$@"
+  cargo test -p pallet-usage --features=lazy-pages "$@"
+  cargo test -p pallet-gear-messenger "$@"
+  cargo test -p pallet-gear-program "$@"
+  cargo test -p pallet-gas "$@"
 }
 
 # $1 - ROOT DIR

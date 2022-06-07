@@ -20,7 +20,6 @@ use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
-    vec,
     vec::Vec,
 };
 use core::fmt;

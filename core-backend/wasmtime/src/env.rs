@@ -107,7 +107,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
+        pages_data: &mut BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let forbidden_funcs = ext.forbidden_funcs().clone();
@@ -249,7 +249,7 @@ where
         };
 
         // Set module memory data
-        if let Err(e) = set_pages(&mut store, &mut memory, memory_pages) {
+        if let Err(e) = set_pages(&mut store, &mut memory, pages_data) {
             return Err(BackendError {
                 reason: WasmtimeEnvironmentError::SetModuleMemoryData,
                 description: Some(format!("{:?}", e).into()),
@@ -260,7 +260,7 @@ where
         let memory_wrap = MemoryWrapExternal { mem: memory, store };
 
         if let Err(e) = ext_carrier
-            .with(|ext| ext.save_static_pages_initial_data(&memory_wrap))
+            .with(|ext| ext.save_static_pages_initial_data(&memory_wrap, pages_data))
             .expect("We just set ext")
         {
             return Err(BackendError {

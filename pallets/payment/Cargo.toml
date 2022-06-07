@@ -66,3 +66,4 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
 ]
+lazy-pages = ["pallet-gear/lazy-pages"]

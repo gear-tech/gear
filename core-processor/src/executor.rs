@@ -29,7 +29,7 @@ use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationRe
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{AllocationsContext, WasmPageNumber},
+    memory::{AllocationsContext, PageBuf, WasmPageNumber},
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
@@ -197,7 +197,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.forbidden_funcs,
     );
 
-    let mut env = E::new(ext, program.raw_code(), &pages_data, mem_size).map_err(|err| {
+    let mut env = E::new(ext, program.raw_code(), &mut pages_data, mem_size).map_err(|err| {
         log::error!("Setup instance err = {}", err);
         ExecutionError {
             program_id,
@@ -298,20 +298,29 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             }
         }
 
-        if let Some(initial_data) = pages_data.get(&page) {
-            if new_data != *initial_data {
-                page_update.insert(page, new_data);
-                log::trace!(
-                    "Page {} is new or changed - will be updated in storage",
-                    page.0
-                );
-            } else if A::is_lazy_pages_enabled() {
-                log::trace!("Page {} is accessed but has not been changed", page.0);
+        if A::is_lazy_pages_enabled() {
+            if let Some(initial_data) = pages_data.remove(&page) {
+                if new_data != initial_data {
+                    page_update.insert(page, new_data);
+                    log::trace!(
+                        "Page {} has been changed - will be updated in storage",
+                        page.0
+                    );
+                } else {
+                    log::trace!("Page {} is accessed but has not been changed", page.0);
+                }
             }
         } else {
-            page_update.insert(page, new_data);
-            log::trace!("Page {} is a new page - will be upload to storage", page.0);
-        };
+            let intial_data = if let Some(initial_data) = pages_data.remove(&page) {
+                initial_data
+            } else {
+                PageBuf::new_zeroed()
+            };
+
+            if new_data != intial_data {
+                page_update.insert(page, new_data);
+            }
+        }
     }
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)

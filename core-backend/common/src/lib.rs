@@ -127,7 +127,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
+        pages_data: &mut BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 
