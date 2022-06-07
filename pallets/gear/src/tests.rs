@@ -3109,6 +3109,35 @@ fn test_create_program_with_exceeding_value() {
 }
 
 #[test]
+fn test_create_program_without_gas_works() {
+    use demo_init_with_value::{SendMessage, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+        ));
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"test1".to_vec(),
+            vec![SendMessage::InitWithoutGas(0)].encode(),
+            10_000_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        check_dequeued(2);
+        check_init_success(2);
+    })
+}
+
+#[test]
 fn test_reply_to_terminated_program() {
     init_logger();
     new_test_ext().execute_with(|| {
