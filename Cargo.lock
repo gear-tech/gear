@@ -9349,9 +9349,9 @@ checksum = "d554b7f530dee5964d9a9468d95c1f8b8acae4f282807e7d27d4b03099a46744"
 
 [[package]]
 name = "wasm-encoder"
-version = "0.10.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa9d9bf45fc46f71c407837c9b30b1e874197f2dc357588430b21e5017d290ab"
+checksum = "2b47b995b096a689358ca9de6c727b94351b95b390dbbf6b7021c22797d36caa"
 dependencies = [
  "leb128",
 ]
@@ -9378,16 +9378,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88f7ccba3995e0533a62e5fa5786236e7a61e7b421a460ca68bc4c5382c7ed82"
+checksum = "afc948447bea01d54509cb4a6ccbeb7e572c42c4c84f778d286b7633a1c49e86"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
  "wasm-encoder",
- "wasmparser 0.83.0",
+ "wasmparser 0.85.0",
 ]
 
 [[package]]
