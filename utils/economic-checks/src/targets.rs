@@ -591,6 +591,7 @@ mod tests {
 
     #[test]
     fn enough_contracts_created() {
+        #[cfg(feature = "debug-wasm-mutate")]
         use std::{fmt::Write, fs::File, io::Write as _};
 
         let _ = env_logger::try_init();
@@ -640,12 +641,15 @@ mod tests {
                     }
                 };
 
-                let text = wasmprinter::print_bytes(&mutated)
-                    .expect("Failed to print wasm bytes into String");
-                let mut path = String::new();
-                write!(path, "contract_{}.wat", count).expect("Failed to write to String");
-                let mut output = File::create(path).expect("Failed to create file");
-                write!(output, "{}", text).expect("Failed to write to file");
+                #[cfg(feature = "debug-wasm-mutate")]
+                {
+                    let text = wasmprinter::print_bytes(&mutated)
+                        .expect("Failed to print wasm bytes into String");
+                    let mut path = String::new();
+                    write!(path, "contract_{}.wat", count).expect("Failed to write to String");
+                    let mut output = File::create(path).expect("Failed to create file");
+                    write!(output, "{}", text).expect("Failed to write to file");
+                }
 
                 let salt = &count.to_le_bytes()[..];
                 let contract_id = generate_program_id(&mutated[..], salt);
@@ -657,10 +661,13 @@ mod tests {
             }
         }
 
-        let text = wasmprinter::print_bytes(original_code)
-            .expect("Failed to print wasm bytes into String");
-        let mut output = File::create("contract_0.wat").expect("Failed to create file");
-        write!(output, "{}", text).expect("Failed to write to file");
+        #[cfg(feature = "debug-wasm-mutate")]
+        {
+            let text = wasmprinter::print_bytes(original_code)
+                .expect("Failed to print wasm bytes into String");
+            let mut output = File::create("contract_0.wat").expect("Failed to create file");
+            write!(output, "{}", text).expect("Failed to write to file");
+        }
 
         // In case we have fewer contracts than desired, fill the empty slots with the original
         for i in count..num_contracts {
