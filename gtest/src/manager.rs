@@ -19,20 +19,24 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::WasmProgram,
+    wasm_executor::WasmExecutor,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
-use gear_core::message::GasLimit;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
-    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
+    message::{
+        Dispatch, DispatchKind, IncomingMessage, ReplyMessage, ReplyPacket, StoredDispatch,
+        StoredMessage,
+    },
     program::Program as CoreProgram,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     time::{SystemTime, UNIX_EPOCH},
+    convert::TryFrom,
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
 
@@ -442,45 +446,57 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    pub(crate) fn process_custom_function(
+    pub(crate) fn execute_custom_function(
         &mut self,
-        dispatch: StoredDispatch,
-        func_name: &str,
-        gas_limit: GasLimit,
-    ) -> RunResult {
-        let destination = dispatch.destination();
-        let (actor, balance) = self
-            .actors
-            .get_mut(&destination)
-            .expect("No actor with such program id");
-
-        let executable_actor = actor
-            .get_executable_actor(*balance)
-            .expect("Actor shouldn't be dormant or mock");
-        let message_id = dispatch.message().id();
-        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
-            Some(executable_actor),
-            dispatch.into_incoming(gas_limit),
-            self.block_info,
-            Default::default(),
-            crate::EXISTENTIAL_DEPOSIT,
-            self.origin,
-            destination,
-            u64::MAX,
-            OUTGOING_LIMIT,
-            Default::default(),
-            Some(func_name),
-        );
-
+        source: ProgramId,
+        program_id: &ProgramId,
+        message_option: Option<IncomingMessage>,
+        function_name: &str,
+    ) -> Vec<u8> {
+        let mut executor = self.get_executor(source, program_id, message_option);
+        let (result, journal) = executor.call_function(function_name);
         core_processor::handle_journal(journal, self);
+        result
+    }
 
-        RunResult {
-            main_failed: self.main_failed,
-            others_failed: self.others_failed,
-            log: vec![],
-            message_id,
-            total_processed: 1,
+    pub(crate) fn execute_custom_void_function(
+        &mut self,
+        source: ProgramId,
+        program_id: &ProgramId,
+        message_option: Option<IncomingMessage>,
+        function_name: &str,
+    ) {
+        let mut executor = self.get_executor(source, program_id, message_option);
+        let journal = executor.call_void_function(function_name);
+        core_processor::handle_journal(journal, self);
+    }
+
+    fn get_executor(
+        &mut self,
+        source: ProgramId,
+        program_id: &ProgramId,
+        message_option: Option<IncomingMessage>,
+    ) -> WasmExecutor {
+        let (actor, balance) = self.actors.get_mut(program_id).unwrap();
+        if actor.is_uninitialized() {
+            actor.set_initialized();
         }
+        if let Some(message) = message_option.clone() {
+            if message.source() != source {
+                panic!("Source id in message: {:?} is not equal to source id in function arguments: {:?}", message.source(), source);
+            }
+        }
+
+        let actor = actor
+            .get_executable_actor(*balance)
+            .expect("Wrong actor type");
+        let pages_initial_data = actor
+            .pages_data
+            .into_iter()
+            .map(|(page, data)| (page, Box::new(PageBuf::try_from(data).unwrap())))
+            .collect();
+
+        WasmExecutor::new(source, actor.program, &pages_initial_data, message_option)
     }
 }
 

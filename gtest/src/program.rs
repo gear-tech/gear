@@ -258,7 +258,6 @@ pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
 mod tests {
     use super::Program;
     use crate::{Log, System};
-    use gear_core::message::{DispatchKind, StoredDispatch, StoredMessage};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -282,36 +281,5 @@ mod tests {
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));
-    }
-
-    #[test]
-    fn test_meta_state_function() {
-        let executing_functions_name = "meta_state";
-        let system = System::default();
-        let program = Program::from_file(
-            &system,
-            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
-        );
-        let dispatch = StoredDispatch::new(
-            DispatchKind::Init,
-            StoredMessage::new(
-                Default::default(),
-                Default::default(),
-                program.id(),
-                vec![],
-                0,
-                None,
-            ),
-            None,
-        );
-
-        let result = system.0.borrow_mut().process_custom_function(
-            dispatch,
-            executing_functions_name,
-            u64::MAX,
-        );
-
-        assert!(!result.main_failed);
-        assert!(!result.others_failed);
     }
 }
