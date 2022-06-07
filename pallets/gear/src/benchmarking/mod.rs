@@ -34,7 +34,7 @@ use self::{
 use crate::{
     manager::{ExtManager, HandleKind},
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    Pallet as Gear, *,
+    MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
 use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
@@ -46,7 +46,6 @@ use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
 use gear_core::ids::{MessageId, ProgramId};
-use pallet_gear_messenger::Pallet as MessengerPallet;
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, UniqueSaturatedInto},
@@ -150,12 +149,12 @@ where
 {
     assert!(
         cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages(),
-        "Suppose to run benchs only with lazy pages"
+        "Suppose to run benches only with lazy pages"
     );
 
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = 1;
-    let root_message_id = MessageId::from(bn).into_origin();
+    let root_message_id = MessageId::from(bn);
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
@@ -178,7 +177,7 @@ where
             Dispatch::new(
                 DispatchKind::Init,
                 Message::new(
-                    MessageId::from_origin(root_message_id),
+                    root_message_id,
                     ProgramId::from_origin(source),
                     program_id,
                     payload,
@@ -191,7 +190,7 @@ where
         HandleKind::Handle(dest) => Dispatch::new(
             DispatchKind::Handle,
             Message::new(
-                MessageId::from_origin(root_message_id),
+                root_message_id,
                 ProgramId::from_origin(source),
                 ProgramId::from_origin(dest),
                 payload,
@@ -201,12 +200,15 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let msg = Gear::<T>::remove_from_mailbox(source, msg_id)
-                .ok_or("Internal error: unable to find message in mailbox")?;
+            let msg = MailboxOf::<T>::remove(
+                <T::AccountId as Origin>::from_origin(source),
+                MessageId::from_origin(msg_id),
+            )
+            .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
-                    MessageId::from_origin(root_message_id),
+                    root_message_id,
                     ProgramId::from_origin(source),
                     msg.source(),
                     payload,
@@ -219,15 +221,17 @@ where
     };
 
     let initial_gas = T::BlockGasLimit::get();
-    T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
-        .map_err(|_| "Internal error: unable to create gas handler")?;
+    T::GasHandler::create(
+        source.into_origin(),
+        root_message_id.into_origin(),
+        initial_gas,
+    )
+    .map_err(|_| "Internal error: unable to create gas handler")?;
 
     let dispatch = dispatch.into_stored();
 
-    <MessengerPallet<T> as Messenger>::Queue::clear()
-        .map_err(|_| "Unable to clear message queue")?;
-    <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-        .map_err(|_| "Unable to push message")?;
+    QueueOf::<T>::remove_all();
+    QueueOf::<T>::queue(dispatch).map_err(|_| "Unable to push message")?;
 
     let block_info = BlockInfo {
         height: 1,
@@ -236,14 +240,13 @@ where
 
     let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-    let maybe_dispatch = <MessengerPallet<T> as Messenger>::Queue::pop_front()
-        .map_err(|_| "Unable to pop message")?;
+    let maybe_dispatch = QueueOf::<T>::dequeue().map_err(|_| "Unable to pop message")?;
 
     if let Some(queued_dispatch) = maybe_dispatch {
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
-            .get_executable_actor(actor_id.into_origin(), false)
+            .get_executable_actor(actor_id, false)
             .ok_or("Program not found in the storage")?;
         Ok(Exec {
             ext_manager,
@@ -306,20 +309,20 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
     }: _(origin, code, salt, vec![], 100_000_000_u64, value)
     verify {
-        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
 
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
+        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program(program_id, code, 1.into());
+        benchmarking::set_program(program_id.into_origin(), code, 1.into());
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
 
     send_reply {
@@ -330,21 +333,18 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program(program_id, code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).into_origin();
-        Gear::<T>::insert_to_mailbox(
-            caller.clone().into_origin(),
-            gear_core::message::StoredMessage::new(
-                MessageId::from_origin(original_message_id),
-                ProgramId::from_origin(program_id),
-                ProgramId::from_origin(caller.clone().into_origin()),
-                Default::default(),
-                0,
-                None,
-            )
-        );
+        MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
+            MessageId::from_origin(original_message_id),
+            ProgramId::from_origin(program_id),
+            ProgramId::from_origin(caller.clone().into_origin()),
+            Default::default(),
+            0,
+            None,
+        )).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
-    }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
+    }: _(RawOrigin::Signed(caller), MessageId::from_origin(original_message_id), payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(Some(_))));
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
 
     initial_allocation {
@@ -358,7 +358,7 @@ benchmarks! {
         Gear::<T>::process_queue();
     }
     verify {
-        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(None)));
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
     }
 
     alloc_in_handle {
@@ -372,7 +372,7 @@ benchmarks! {
         Gear::<T>::process_queue();
     }
     verify {
-        assert!(matches!(<MessengerPallet<T> as Messenger>::Queue::pop_front(), Ok(None)));
+        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the
@@ -1607,7 +1607,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             maybe_actor,
@@ -1719,7 +1719,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        Gear::<T>::insert_to_mailbox(instance.caller.clone().into_origin(), msg);
+        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             maybe_actor,
@@ -1959,12 +1959,7 @@ benchmarks! {
         for message_id in message_ids {
             let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
             let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
-            common::insert_waiting_message(
-                dispatch.destination().into_origin(),
-                dispatch.id().into_origin(),
-                dispatch.clone(),
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-            );
+            WaitlistOf::<T>::insert(dispatch.clone()).expect("Duplicate wl message");
         }
         let Exec {
             mut ext_manager,
@@ -2095,7 +2090,7 @@ benchmarks! {
     // the same amount of time. We follow that `t.load` and `drop` both have the weight
     // of this benchmark / 2. We need to make this assumption because there is no way
     // to measure them on their own using a valid wasm module. We need their individual
-    // values to derive the weight of individual instructions (by substraction) from
+    // values to derive the weight of individual instructions (by subtraction) from
     // benchmarks that include those for parameter pushing and return type dropping.
     // We call the weight of `t.load` and `drop`: `w_param`.
     // The weight that would result from the respective benchmark we call: `w_bench`.
@@ -2321,7 +2316,7 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_call_indrect = w_bench - 3 * w_param
+    // w_call_indirect = w_bench - 3 * w_param
     instr_call_indirect {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let num_elements = T::Schedule::get().limits.table_size;
@@ -2815,9 +2810,9 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // This is no benchmark. It merely exist to have an easy way to pretty print the curently
+    // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
-    // It can be outputed using the following command:
+    // It can be outputted using the following command:
     // cargo run --release --features runtime-benchmarks \
     //     -- benchmark --extra --dev --execution=native \
     //     -p pallet_gear -e print_schedule --no-median-slopes --no-min-squares

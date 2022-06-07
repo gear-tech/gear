@@ -28,7 +28,6 @@ gear-backend-common = { path = "../../core-backend/common", default-features = f
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 pallet-gas = { path = "../gas", default-features = false }
-pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 
 # Substrate deps
@@ -56,13 +55,17 @@ wabt = "0.10"
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
+demo-init-wait-reply-exit = { path = "../../examples/binaries/init-wait-reply-exit" }
 demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
-demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
+demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
+demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
 demo-compose = { path = "../../examples/binaries/compose" }
+demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 page_size = "0.4.2"
+pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 
 [features]
 default = ['std']
@@ -83,6 +86,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",
+	"pallet-gear-messenger/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",

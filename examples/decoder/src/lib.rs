@@ -1,7 +1,6 @@
 #![no_std]
 
-use gstd::msg;
-use gstd::prelude::*;
+use gstd::{msg, prelude::*};
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {

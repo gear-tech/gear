@@ -18,22 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::CodeMetadata;
-use gear_core::{code::InstrumentedCode, ids::CodeId};
 pub use pallet::*;
-use primitive_types::H256;
-use sp_std::collections::btree_map::BTreeMap;
-use sp_std::convert::TryInto;
-use sp_std::prelude::*;
-
-use frame_support::{
-    dispatch::DispatchResultWithPostInfo, traits::StorageVersion, weights::Weight,
-};
+pub use pause::PauseError;
 
 mod code;
 mod pause;
-pub use pause::PauseError;
-
 mod program;
 
 #[cfg(test)]
@@ -48,24 +37,37 @@ pub mod weights;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-/// The current storage version.
-const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-
 #[frame_support::pallet]
 pub mod pallet {
+    pub use frame_support::weights::Weight;
+
+    pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
+
     use super::*;
+    use common::{storage::*, CodeMetadata, Origin as _};
     use frame_support::{
+        dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
         traits::{
-            Currency, ExistenceRequirement, LockIdentifier, LockableCurrency, WithdrawReasons,
+            Currency, ExistenceRequirement, LockIdentifier, LockableCurrency, StorageVersion,
+            WithdrawReasons,
         },
     };
     use frame_system::pallet_prelude::*;
-    use gear_core::memory::PageNumber;
-    use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+    use gear_core::{
+        code::InstrumentedCode,
+        ids::{CodeId, MessageId, ProgramId},
+        memory::{vec_page_data_map_to_page_buf_map, PageNumber},
+        message::StoredDispatch,
+    };
+    use sp_runtime::{traits::Zero, DispatchError};
+    use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
     use weights::WeightInfo;
 
     const LOCK_ID: LockIdentifier = *b"resume_p";
+
+    /// The current storage version.
+    const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -76,6 +78,13 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
 
         type Currency: LockableCurrency<Self::AccountId>;
+
+        type Messenger: Messenger<
+            OutputError = DispatchError,
+            WaitlistFirstKey = ProgramId,
+            WaitlistSecondKey = MessageId,
+            WaitlistedMessage = StoredDispatch,
+        >;
     }
 
     type BalanceOf<T> =
@@ -90,9 +99,9 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Program has been successfully resumed
-        ProgramResumed(H256),
+        ProgramResumed(ProgramId),
         /// Program has been paused
-        ProgramPaused(H256),
+        ProgramPaused(ProgramId),
     }
 
     #[pallet::error]
@@ -102,6 +111,7 @@ pub mod pallet {
         NotAllocatedPageWithData,
         ResumeProgramNotEnoughValue,
         WrongWaitList,
+        InvalidPageData,
     }
 
     #[pallet::storage]
@@ -118,7 +128,8 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type PausedPrograms<T: Config> = StorageMap<_, Identity, H256, pause::PausedProgram>;
+    pub(crate) type PausedPrograms<T: Config> =
+        StorageMap<_, Identity, ProgramId, pause::PausedProgram>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -128,6 +139,8 @@ pub mod pallet {
     where
         T::AccountId: common::Origin,
     {
+        // TODO: unfortunately we cannot pass pages data in [PageBuf],
+        // because polkadot-js api can not support this type.
         /// Resumes a previously paused program
         ///
         /// The origin must be Signed and the sender must have sufficient funds to
@@ -139,27 +152,32 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been resumed.
         ///
         /// - `ProgramResumed(H256)` in the case of success.
+        ///
         #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(
             origin: OriginFor<T>,
-            program_id: H256,
+            program_id: ProgramId,
             memory_pages: BTreeMap<PageNumber, Vec<u8>>,
-            wait_list: BTreeMap<H256, gear_core::message::StoredDispatch>,
+            wait_list: BTreeMap<MessageId, gear_core::message::StoredDispatch>,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
+            let memory_pages = match vec_page_data_map_to_page_buf_map(memory_pages) {
+                Ok(data) => data,
+                Err(err) => {
+                    log::debug!("resume program received wrong pages data: {}", err);
+                    return Err(Error::<T>::InvalidPageData.into());
+                }
+            };
+
             let account = ensure_signed(origin)?;
 
             ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
 
-            Self::resume_program_impl(
-                program_id,
-                memory_pages,
-                wait_list,
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-            )?;
+            Self::resume_program_impl(program_id, memory_pages, wait_list)?;
 
-            let program_account = &<T::AccountId as common::Origin>::from_origin(program_id);
+            let program_account =
+                &<T::AccountId as common::Origin>::from_origin(program_id.into_origin());
             T::Currency::transfer(
                 &account,
                 program_account,

@@ -19,8 +19,7 @@
 //! Configurations.
 
 use codec::{Decode, Encode};
-use gear_core::costs::HostFnWeights;
-use gear_core::memory::WasmPageNumber;
+use gear_core::{costs::HostFnWeights, memory::WasmPageNumber};
 
 const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;

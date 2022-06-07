@@ -41,9 +41,7 @@ pub mod prelude;
 pub mod prog;
 
 pub use async_runtime::{message_loop, record_reply};
-pub use common::errors;
-pub use common::handlers::*;
-pub use common::primitives::*;
+pub use common::{errors, handlers::*, primitives::*};
 pub use gstd_codegen::{async_init, async_main};
 pub use macros::util;
 

@@ -35,9 +35,10 @@
 //! let bytes = id.as_ref();
 //! ```
 
-use crate::errors::{ContractError, Result};
-use crate::prelude::convert::TryFrom;
-use crate::prelude::String;
+use crate::{
+    errors::{ContractError, Result},
+    prelude::{convert::TryFrom, String},
+};
 use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -63,7 +64,7 @@ impl ActorId {
     pub fn from_bs58(address: String) -> Result<Self> {
         bs58::decode(address)
             .into_vec()
-            .map(|v| Self::from_slice(&v[1..v.len() - 2].to_vec()))
+            .map(|v| Self::from_slice(&v[1..v.len() - 2]))
             .map_err(|_| ContractError::Convert("Unable to decode bs58 address"))?
     }
 

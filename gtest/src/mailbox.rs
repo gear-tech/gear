@@ -101,8 +101,7 @@ impl<'a> MessageReplier<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::program::ProgramIdWrapper;
-    use crate::{Log, Program, System};
+    use crate::{program::ProgramIdWrapper, Log, Program, System};
     use codec::Encode;
     use gear_core::{
         ids::MessageId,

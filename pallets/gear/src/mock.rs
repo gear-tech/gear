@@ -17,17 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use crate::{ext::LazyPagesExt, manager::ExtManager};
-use common::lazy_pages;
-use common::Origin as _;
-use core_processor::configs::AllocationsConfig;
+use crate::{
+    ext::LazyPagesExt,
+    manager::{ExtManager, HandleKind},
+    *,
+};
+use alloc::format;
+use common::{self, lazy_pages, Origin as _, ValueTree};
 use core_processor::{
-    common::{DispatchOutcome, JournalNote},
-    configs::BlockInfo,
+    common::{DispatchOutcome, DispatchOutcome as CoreDispatchOutcome, JournalNote},
+    configs::{AllocationsConfig, BlockInfo},
     Ext,
 };
-use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+    construct_runtime,
+    pallet_prelude::*,
+    parameter_types,
+    traits::{Currency, FindAuthor, Get},
+};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
@@ -60,7 +67,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -84,7 +91,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: u64 = 500;
 }
 
 impl system::Config for Test {
@@ -123,6 +130,7 @@ impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {
@@ -143,6 +151,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Test {
@@ -150,7 +159,7 @@ impl pallet_gas::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 pub struct FixedBlockAuthor;
@@ -193,8 +202,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_1, 500_000_000_000_u128),
             (USER_2, 200_000_000_000_u128),
             (USER_3, 500_000_000_000_u128),
-            (LOW_BALANCE_USER, 2_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (LOW_BALANCE_USER, 1000_u128),
+            (BLOCK_AUTHOR, 500_u128),
         ],
     }
     .assimilate_storage(&mut t)
@@ -227,7 +236,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     }
 }
 
-pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
+pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
     let initial_gas = <Test as pallet_gas::Config>::BlockGasLimit::get();
@@ -235,7 +244,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     let message = Message::new(
         Default::default(),
         ProgramId::from_origin(source),
-        ProgramId::from_origin(dest),
+        dest,
         payload,
         Some(initial_gas),
         0,
@@ -274,7 +283,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
+            dest,
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
@@ -288,7 +297,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
             allocations_config,
             existential_deposit,
             ProgramId::from_origin(source),
-            ProgramId::from_origin(dest),
+            dest,
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
@@ -315,4 +324,187 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
     }
 
     (gas_burned, gas_to_send)
+}
+
+pub fn get_gas_burned<T>(
+    source: H256,
+    kind: HandleKind,
+    payload: Vec<u8>,
+    gas_limit: Option<u64>,
+    value: u128,
+) -> Result<u64, Vec<u8>>
+where
+    T: crate::Config,
+    T::AccountId: common::Origin,
+{
+    let schedule = T::Schedule::get();
+    let mut ext_manager = ExtManager::<T>::default();
+
+    let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+    let root_message_id = MessageId::from(bn);
+
+    let dispatch = match kind {
+        HandleKind::Init(ref code) => {
+            let program_id = ProgramId::generate(CodeId::generate(code), b"gas_spent_salt");
+
+            let schedule = T::Schedule::get();
+            let code = Code::try_new(
+                code.clone(),
+                schedule.instruction_weights.version,
+                |module| schedule.rules(module),
+            )
+            .map_err(|_| b"Code failed to load: {}".to_vec())?;
+
+            let code_and_id = CodeAndId::new(code);
+            let code_id = code_and_id.code_id();
+
+            let _ = crate::Pallet::<T>::set_code_with_metadata(code_and_id, source);
+
+            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+
+            Dispatch::new(
+                DispatchKind::Init,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    program_id,
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    None,
+                ),
+            )
+        }
+        HandleKind::Handle(dest) => Dispatch::new(
+            DispatchKind::Handle,
+            Message::new(
+                root_message_id,
+                ProgramId::from_origin(source),
+                ProgramId::from_origin(dest),
+                payload,
+                Some(u64::MAX),
+                value,
+                None,
+            ),
+        ),
+        HandleKind::Reply(msg_id, exit_code) => {
+            let msg = MailboxOf::<T>::remove(
+                <T::AccountId as common::Origin>::from_origin(source),
+                MessageId::from_origin(msg_id),
+            )
+            .map_err(|_| b"Internal error: unable to find message in mailbox".to_vec())?;
+            Dispatch::new(
+                DispatchKind::Reply,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    msg.source(),
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    Some((msg.id(), exit_code)),
+                ),
+            )
+        }
+    };
+
+    let initial_gas = gas_limit.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get);
+    T::GasHandler::create(
+        source.into_origin(),
+        root_message_id.into_origin(),
+        initial_gas,
+    )
+    .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
+
+    let dispatch = dispatch.into_stored();
+
+    QueueOf::<T>::remove_all();
+
+    QueueOf::<T>::queue(dispatch).map_err(|_| b"Messages storage corrupted".to_vec())?;
+
+    let block_info = BlockInfo {
+        height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+        timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+    };
+
+    let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+    let mut burned = 0;
+
+    while let Some(queued_dispatch) =
+        QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
+    {
+        let actor_id = queued_dispatch.destination();
+
+        let lazy_pages_enabled =
+            cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
+
+        let actor = ext_manager
+            .get_executable_actor(actor_id, !lazy_pages_enabled)
+            .ok_or_else(|| b"Program not found in the storage".to_vec())?;
+
+        let allocations_config = AllocationsConfig {
+            max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+            init_cost: schedule.memory_weights.initial_cost,
+            alloc_cost: schedule.memory_weights.allocation_cost,
+            mem_grow_cost: schedule.memory_weights.grow_cost,
+            load_page_cost: schedule.memory_weights.load_cost,
+        };
+
+        let gas_limit = T::GasHandler::get_limit(queued_dispatch.id().into_origin())
+            .ok()
+            .flatten()
+            .ok_or_else(|| b"Internal error: unable to get gas limit after execution".to_vec())?;
+
+        let journal = if lazy_pages_enabled {
+            core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                Some(actor),
+                queued_dispatch.into_incoming(gas_limit),
+                block_info,
+                allocations_config,
+                existential_deposit,
+                ProgramId::from_origin(source),
+                actor_id,
+                u64::MAX,
+                T::OutgoingLimit::get(),
+                schedule.host_fn_weights.clone().into_core(),
+            )
+        } else {
+            core_processor::process::<Ext, SandboxEnvironment<_>>(
+                Some(actor),
+                queued_dispatch.into_incoming(gas_limit),
+                block_info,
+                allocations_config,
+                existential_deposit,
+                ProgramId::from_origin(source),
+                actor_id,
+                u64::MAX,
+                T::OutgoingLimit::get(),
+                schedule.host_fn_weights.clone().into_core(),
+            )
+        };
+
+        // TODO: Check whether we charge gas fee for submitting code after #646
+        for note in &journal {
+            match note {
+                JournalNote::GasBurned { amount, .. } => {
+                    burned += amount;
+                }
+                JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                    trap, ..
+                }) => {
+                    return Err(format!(
+                        "Program terminated with a trap: {}",
+                        trap.clone().unwrap_or_else(|| "No reason".to_string())
+                    )
+                    .into_bytes());
+                }
+                _ => {}
+            }
+        }
+
+        core_processor::handle_journal(journal, &mut ext_manager);
+    }
+
+    Ok(burned)
 }

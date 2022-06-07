@@ -112,6 +112,10 @@ case "$COMMAND" in
         header "Building gear workspace"
         gear_build "$@"; ;;
 
+      gear-test)
+        header "Building gear test"
+        gear_build "$@"; ;;
+
       examples)
         check_extensions
         header "Building gear examples"
@@ -304,7 +308,7 @@ case "$COMMAND" in
 
       rtest)
         header "Running node runtime testsuite"
-        rtest "$ROOT_DIR"; ;;
+        rtest "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
       pallet)
         header "Running pallet-gear tests"
@@ -314,12 +318,16 @@ case "$COMMAND" in
         header "Running js test for runtime upgrade"
         runtime_upgrade_test "$ROOT_DIR"; ;;
 
+      fuzz)
+        header "Running fuzzer for system consistency check"
+        run_fuzzer "$ROOT_DIR" "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
         exit 1; ;;
     esac;;
-  
+
   coverage)
     case "$SUBCOMMAND" in
       -h | --help | help)

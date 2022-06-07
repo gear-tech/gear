@@ -17,27 +17,26 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{mock::*, offchain::PayeeInfo};
+use crate::{mock::*, offchain::PayeeInfo, QueueOf, WaitlistOf};
 use codec::Decode;
-use common::{
-    self,
-    storage::{Messenger, StorageDeque},
-    Origin as _, ValueTree,
-};
+use common::{self, storage::*, Origin as _, ValueTree};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency, unsigned::TransactionSource};
+use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
-use pallet_gear_messenger::Pallet as MessengerPallet;
+use pallet_gear_program::Pallet as ProgramPallet;
 use sp_runtime::{
     offchain::{
         storage_lock::{StorageLock, Time},
         Duration,
     },
-    traits::ValidateUnsigned,
+    traits::{UniqueSaturatedInto, ValidateUnsigned},
 };
+
+pub(crate) type BlockNumberOf<T> = <<T as Config>::Messenger as Messenger>::BlockNumber;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -46,19 +45,40 @@ pub(crate) fn init_logger() {
         .try_init();
 }
 
-fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
+// Emulates specified block numbers of insertion.
+fn insert_waiting_message<T>(dispatch: StoredDispatch, block_number: u64)
+where
+    T: crate::Config,
+    T::AccountId: common::Origin,
+{
+    let current_bn = SystemPallet::<T>::block_number();
+    let block_number: u32 = block_number.try_into().unwrap();
+
+    SystemPallet::<T>::set_block_number(T::BlockNumber::from(block_number));
+
+    WaitlistOf::<T>::insert(dispatch).expect("Failed to insert message in wl");
+
+    SystemPallet::<T>::set_block_number(current_bn);
+}
+
+fn populate_wait_list<T>(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>)
+where
+    T: crate::Config,
+    T::AccountId: common::Origin,
+{
     for i in 0_u64..n {
         let prog_id = (i + 1).into();
         let msg_id = (100_u64 * n + i + 1).into();
         let blk_num = i % (bn as u64) + 1;
         let user_id = (i % num_users + 1).into();
         let gas_limit = gas_limits[i as usize];
-        let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
-        common::insert_waiting_message(
-            prog_id.into_origin(),
-            msg_id.into_origin(),
-            StoredDispatch::new(DispatchKind::Handle, message, None),
-            blk_num.try_into().unwrap(),
+        insert_waiting_message::<T>(
+            StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None),
+                None,
+            ),
+            blk_num,
         );
         let _ = <Test as pallet_gear::Config>::GasHandler::create(
             user_id.into_origin(),
@@ -68,12 +88,12 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
     }
 }
 
-fn populate_wait_list_with_split(
-    n: u64,
-    bn: u32,
-    user_id: impl Into<ProgramId> + Copy,
-    gas_limit: u64,
-) {
+fn populate_wait_list_with_split<T, I>(n: u64, bn: u32, user_id: I, gas_limit: u64)
+where
+    T: crate::Config,
+    T::AccountId: common::Origin,
+    I: Into<ProgramId> + Copy,
+{
     let mut last_msg_id: Option<MessageId> = None;
     let user_id = user_id.into();
     for i in 0_u64..n {
@@ -81,11 +101,9 @@ fn populate_wait_list_with_split(
         let msg_id = (100_u64 * n + i + 1).into();
         let blk_num = i % (bn as u64) + 1;
         let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
-        common::insert_waiting_message(
-            prog_id.into_origin(),
-            msg_id.into_origin(),
+        insert_waiting_message::<T>(
             StoredDispatch::new(DispatchKind::Handle, message, None),
-            blk_num.try_into().unwrap(),
+            blk_num,
         );
         if let Some(last_msg_id) = last_msg_id {
             let _ = <Test as pallet_gear::Config>::GasHandler::split(
@@ -103,16 +121,15 @@ fn populate_wait_list_with_split(
     }
 }
 
-fn wait_list_contents() -> Vec<(StoredDispatch, u32)> {
-    frame_support::storage::PrefixIterator::<(StoredDispatch, u32)>::new(
-        common::STORAGE_WAITLIST_PREFIX.to_vec(),
-        common::STORAGE_WAITLIST_PREFIX.to_vec(),
-        |_, mut value| {
-            let decoded = <(StoredDispatch, u32)>::decode(&mut value)?;
-            Ok(decoded)
-        },
-    )
-    .collect()
+fn wait_list_contents<T>() -> Vec<(StoredDispatch, u32)>
+where
+    T: crate::Config,
+    T::AccountId: common::Origin,
+    BlockNumberOf<T>: TryInto<u32>,
+{
+    WaitlistOf::<T>::iter()
+        .map(|(d, bn)| (d, bn.unique_saturated_into()))
+        .collect()
 }
 
 fn decode_validate_usage_call(encoded: &[u8]) -> crate::Call<Test> {
@@ -145,12 +162,12 @@ fn ocw_interval_maintained() {
         // Expected number of batches needed to scan the entire wait list
         let num_batches = 3_u32;
 
-        // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
+        // Populate wait list with `Test::MaxBatchSize` x `num_batches` messages
         let num_entries = <Test as Config>::MaxBatchSize::get()
             .saturating_mul(num_batches)
             .saturating_sub(1) as u64;
         assert_eq!(num_entries, 29);
-        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
+        populate_wait_list::<Test>(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
         // Assert the tx pool has exactly 2 extrinsics (one in each 5 blocks)
         assert_eq!(pool.read().transactions.len(), 2);
@@ -177,10 +194,7 @@ fn ocw_interval_maintained() {
         // Last seen key in the wait list should be that of the 10th message
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::wait_key(
-                10_u64.into_origin(),
-                2910_u64.into_origin()
-            ))
+            Some(Some(MessageId::from(2910)))
         );
 
         run_to_block_with_ocw(16);
@@ -189,10 +203,7 @@ fn ocw_interval_maintained() {
         // Last seen key in the wait list should be that of the 20th message
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::wait_key(
-                20_u64.into_origin(),
-                2920_u64.into_origin()
-            ))
+            Some(Some(MessageId::from(2920)))
         );
 
         run_to_block_with_ocw(17);
@@ -201,7 +212,7 @@ fn ocw_interval_maintained() {
         // the last key points at the wait list storage prefix
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::STORAGE_WAITLIST_PREFIX.to_vec())
+            Some(Option::<MessageId>::None)
         );
 
         // Expect to idle for 2 blocks
@@ -245,12 +256,12 @@ fn ocw_double_charge() {
         // Expected number of batches needed to scan the entire wait list
         let num_batches = 1u32;
 
-        // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
+        // Populate wait list with `Test::MaxBatchSize` x `num_batches` messages
         let num_entries = <Test as Config>::MaxBatchSize::get()
             .saturating_mul(num_batches)
             .saturating_sub(1) as u64;
         assert_eq!(num_entries, 9);
-        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
+        populate_wait_list::<Test>(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
         run_to_block_with_ocw(14);
 
@@ -331,11 +342,11 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // Expected number of batches needed to scan the entire wait list
         let num_batches = 7_u32;
 
-        // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
+        // Populate wait list with `Test::MaxBatchSize` x `num_batches` messages
         let batch_size = <Test as Config>::MaxBatchSize::get() as u64;
         let num_entries = batch_size.saturating_mul(num_batches as u64);
         assert_eq!(num_entries, 70);
-        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
+        populate_wait_list::<Test>(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
         // Assert the tx pool has exactly 2 extrinsics (after each 5 blocks)
         assert_eq!(pool.read().transactions.len(), 2);
@@ -396,10 +407,7 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // Last seen key in the wait list should be that of the 10th message
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::wait_key(
-                10_u64.into_origin(),
-                7010_u64.into_origin()
-            ))
+            Some(Some(MessageId::from(7010)))
         );
 
         run_to_block_with_ocw(16);
@@ -441,10 +449,7 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // Last seen key in the wait list should be that of the 20th message
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::wait_key(
-                20_u64.into_origin(),
-                7020_u64.into_origin()
-            ))
+            Some(Some(MessageId::from(7020)))
         );
 
         run_to_block_with_ocw(17);
@@ -462,10 +467,7 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // however, the last key should still be that of the last message (#70)
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::wait_key(
-                70_u64.into_origin(),
-                7070_u64.into_origin()
-            ))
+            Some(Some(MessageId::from(7070)))
         );
 
         run_to_block_with_ocw(22);
@@ -480,7 +482,7 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // The last key should now point at the wait list storage prefix
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),
-            Some(common::STORAGE_WAITLIST_PREFIX.to_vec())
+            Some(Option::<MessageId>::None)
         );
 
         // The whole cycle is starting anew (without any idling between the rounds)
@@ -508,9 +510,9 @@ fn rent_charge_works() {
 
         // Populate wait list
         // We have 10 messages in the wait list submitted one at a time by different users
-        populate_wait_list(10, 10, 10, vec![10_000; 10]);
+        populate_wait_list::<Test>(10, 10, 10, vec![10_000; 10]);
 
-        let wl = wait_list_contents()
+        let wl = wait_list_contents::<Test>()
             .into_iter()
             .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
@@ -559,7 +561,7 @@ fn rent_charge_works() {
         assert_eq!(Balances::reserved_balance(&5), 9_000);
 
         // The insertion block number has been reset for the first 5 messages
-        let wl = wait_list_contents()
+        let wl = wait_list_contents::<Test>()
             .into_iter()
             .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
@@ -588,9 +590,9 @@ fn trap_reply_message_is_sent() {
         run_to_block(10);
 
         // Populate wait list with 2 messages
-        populate_wait_list(2, 10, 2, vec![1_100, 500]);
+        populate_wait_list::<Test>(2, 10, 2, vec![1_100, 500]);
 
-        let wl = wait_list_contents();
+        let wl = wait_list_contents::<Test>();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
@@ -621,7 +623,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let message = <MessengerPallet<Test> as Messenger>::Queue::pop_front()
+        let message = QueueOf::<Test>::dequeue()
             .expect("Storage corrupted")
             .expect("No messages in queue");
 
@@ -640,9 +642,10 @@ fn trap_reply_message_is_sent() {
         );
 
         // Second trap reply message
-        let message = <MessengerPallet<Test> as Messenger>::Queue::pop_front()
+        let message = QueueOf::<Test>::dequeue()
             .expect("Storage corrupted")
             .expect("No messages in queue");
+
         assert_eq!(message.source(), 2.into());
         assert_eq!(message.destination(), 2.into());
         assert_eq!(
@@ -671,7 +674,7 @@ fn external_submitter_gets_rewarded() {
         run_to_block(10);
 
         // Populate wait list
-        populate_wait_list(5, 10, 5, vec![10_000; 10]);
+        populate_wait_list::<Test>(5, 10, 5, vec![10_000; 10]);
 
         run_to_block(15);
 
@@ -719,9 +722,9 @@ fn dust_discarded_with_noop() {
         run_to_block(10);
 
         // Populate wait list with 2 messages
-        populate_wait_list(1, 10, 1, vec![1_100]);
+        populate_wait_list::<Test>(1, 10, 1, vec![1_100]);
 
-        let wl = wait_list_contents();
+        let wl = wait_list_contents::<Test>();
         assert_eq!(wl.len(), 1);
 
         run_to_block(15);
@@ -753,9 +756,9 @@ fn gas_properly_handled_for_trap_replies() {
         run_to_block(10);
 
         // Populate wait list with 2 messages
-        populate_wait_list_with_split(2, 10, 3, 1_100);
+        populate_wait_list_with_split::<Test, u64>(2, 10, 3, 1_100);
 
-        let wl = wait_list_contents();
+        let wl = wait_list_contents::<Test>();
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
@@ -780,14 +783,10 @@ fn gas_properly_handled_for_trap_replies() {
         ));
 
         // Both messages should have been removed from wait list
-        assert_eq!(wait_list_contents().len(), 0);
+        assert_eq!(wait_list_contents::<Test>().len(), 0);
 
-        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
-            ProgramId::from(3).into_origin()
-        ));
-        assert!(!pallet_gear_program::Pallet::<Test>::program_exists(
-            ProgramId::from(4).into_origin()
-        ));
+        assert!(!ProgramPallet::<Test>::program_exists(3.into()));
+        assert!(!ProgramPallet::<Test>::program_exists(4.into()));
 
         // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
         assert_eq!(
@@ -797,7 +796,7 @@ fn gas_properly_handled_for_trap_replies() {
 
         // Ensure the message sender has the funds unreserved
         assert_eq!(Balances::reserved_balance(&3), 0);
-        assert_eq!(Balances::free_balance(&3), 999_900); // Initital 1_000_000 less 100 paid for rent
+        assert_eq!(Balances::free_balance(&3), 999_900); // Initial 1_000_000 less 100 paid for rent
         assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 201); // Initial 101 + 100 charged for rent
     });
 }

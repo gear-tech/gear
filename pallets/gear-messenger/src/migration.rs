@@ -16,8 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet};
-use frame_support::weights::Weight;
+//! Database migration module.
+
+use crate::{Config, Pallet, Weight};
 
 /// Wrapper for all migrations of this pallet, based on `StorageVersion`.
 pub fn migrate<T: Config>() -> Weight {

@@ -16,348 +16,648 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Gear Messenger Pallet
+//!
+//! The Gear Messenger Pallet provides functionality for handling messages.
+//!
+//! - [`Config`]
+//! - [`Pallet`]
+//!
+//! ## Overview
+//!
+//! The Gear Messenger Pallet's main aim is to separate message storages out
+//! of Gear's execution logic and provide soft functionality to manage them.
+//!
+//! The Gear Messenger Pallet provides functions for:
+//! - Counting amount of messages sent from outside (from extrinsics)
+//! within the current block.
+//! - Counting amount of messages removed from queue to be processed
+//! or skipped withing the current block.
+//! - Managing continuation of queue processing withing the current block.
+//! - Storing and managing message queue, it's pushing and popping algorithms.
+//! - Storing and managing mailbox, it's insertion and removal algorithms,
+//! including the value claiming with Balances Pallet as `Currency`
+//! `Config`'s associated type.
+//!
+//! ## Interface
+//!
+//! The Gear Messenger Pallet implements `gear_common::storage::Messenger` trait
+//! and shouldn't contain any other functionality, except this trait declares.
+//!
+//! ## Usage
+//!
+//! How to use the messaging functionality from the Gear Messenger Pallet:
+//!
+//! 1. Implement it's `Config` for your runtime with specified `Currency` type.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl pallet_gear_messenger::Config for Runtime {
+//!     type Currency = .. ;
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 2. Provide associated type for your pallet's `Config`, which implements
+//! `gear_common::storage::Messenger` trait,
+//! specifying associated types if needed.
+//!
+//! ```ignore
+//! // `some_pallet/src/lib.rs`
+//! // ... //
+//!
+//! use gear_common::storage::Messenger;
+//!
+//! #[pallet::config]
+//! pub trait Config: frame_system::Config {
+//!     // .. //
+//!
+//!     type Messenger: Messenger<Capacity = u32>;
+//!
+//!     // .. //
+//! }
+//! ```
+//!
+//! 3. Declare Gear Messenger Pallet in your `construct_runtime!` macro.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! construct_runtime!(
+//!     pub enum Runtime
+//!         where // ... //
+//!     {
+//!         // ... //
+//!
+//!         GearMessenger: pallet_gear_messenger,
+//!
+//!         // ... //
+//!     }
+//! );
+//!
+//! // ... //
+//! ```
+//! `GearMessenger: pallet_gear_messenger`
+//!
+//! 4. Set `GearMessenger` as your pallet `Config`'s `Messenger type.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl some_pallet::Config for Runtime {
+//!     // ... //
+//!
+//!     type Messenger = GearMessenger;
+//!
+//!     // ... //
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 5. Work with Gear Messenger Pallet in your pallet with provided
+//! associated type interface.
+//!
+//! ## Genesis config
+//!
+//! The Gear Messenger Pallet doesn't depend on the `GenesisConfig`.
+//!
+//! ## Assumptions
+//!
+//! * You should manually control storage load from queue and mailbox
+//! length overflow (see Gear Payment Pallet).
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
+// Database migration module.
 pub mod migration;
 
+// Runtime mock for running tests.
 #[cfg(test)]
 mod mock;
 
+// Unit tests module.
 #[cfg(test)]
 mod tests;
 
+// Public exports from pallet.
 pub use pallet::*;
 
+// Gear Messenger Pallet module.
 #[frame_support::pallet]
 pub mod pallet {
-    use super::*;
-    use common::storage::{
-        Callback as GearCallback, DequeError as GearDequeError, Messenger as GearMessenger,
-        NextKey, Node, StorageCounter as GearStorageCounter, StorageDeque as GearStorageDeque,
-        StorageFlag as GearStorageFlag, StorageMap as GearStorageMap,
-        StorageValue as GearStorageValue,
-    };
+    pub use frame_support::weights::Weight;
+
+    use common::{storage::*, Origin};
     use frame_support::{
+        dispatch::DispatchError,
         pallet_prelude::*,
-        traits::{ConstBool, StorageVersion},
+        sp_runtime::traits::UniqueSaturatedInto,
+        storage::PrefixIterator,
+        traits::{BalanceStatus, ReservableCurrency, StorageVersion},
     };
-    use frame_system::pallet_prelude::*;
-    use gear_core::message::StoredDispatch;
-    use scale_info::TypeInfo;
-    use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
+    use frame_system::{pallet_prelude::*, Pallet as SystemPallet};
+    use gear_core::{
+        ids::{MessageId, ProgramId},
+        message::{StoredDispatch, StoredMessage},
+    };
+    use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
     const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
+    // Gear Messenger Pallet's `Config`.
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>>
-            + IsType<<Self as frame_system::Config>::Event>
-            + TryInto<Event<Self>>;
+        type Currency: ReservableCurrency<Self::AccountId>;
     }
 
+    // Gear Messenger Pallet itself.
+    //
+    // Uses without storage info to avoid direct access to pallet's
+    // storage from outside.
+    //
+    // Uses `MESSENGER_STORAGE_VERSION` as current storage version.
     #[pallet::pallet]
     #[pallet::without_storage_info]
     #[pallet::storage_version(MESSENGER_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
-    #[pallet::event]
-    pub enum Event<T> {}
-
+    // Gear Messenger Pallet error type.
+    //
+    // Used as inner error type for `Messenger` implementation.
     #[pallet::error]
     pub enum Error<T> {
-        MessageDequeFlagsCorrupted,
-        MessageDequeElementsCorrupted,
+        /// Occurs when given key already exists in queue.
+        QueueDuplicateKey,
+        /// Occurs when queue's element wasn't found in storage.
+        QueueElementNotFound,
+        /// Occurs when queue's head should contain value,
+        /// but it's empty for some reason.
+        QueueHeadShouldBeSet,
+        /// Occurs when queue's head should be empty,
+        /// but it contains value for some reason.
+        QueueHeadShouldNotBeSet,
+        /// Occurs when queue's tail element contains link
+        /// to the next element.
+        QueueTailHasNextKey,
+        /// Occurs when while searching queue's pre-tail,
+        /// element wasn't found.
+        QueueTailParentNotFound,
+        /// Occurs when queue's tail should contain value,
+        /// but it's empty for some reason.
+        QueueTailShouldBeSet,
+        /// Occurs when queue's tail should be empty,
+        /// but it contains value for some reason.
+        QueueTailShouldNotBeSet,
+        /// Occurs when given value already exists in mailbox.
+        MailboxDuplicateKey,
+        /// Occurs when mailbox's element wasn't found in storage.
+        MailboxElementNotFound,
+        /// Occurs when given value already exists in waitlist.
+        WaitlistDuplicateKey,
+        /// Occurs when waitlist's element wasn't found in storage.
+        WaitlistElementNotFound,
     }
 
-    impl<T> From<GearDequeError> for Error<T> {
-        fn from(err: GearDequeError) -> Self {
-            use GearDequeError::*;
-
-            match err {
-                ElementNotFound | DuplicateElementKey | HeadNotFoundInElements => {
-                    Self::MessageDequeElementsCorrupted
-                }
-                _ => Self::MessageDequeFlagsCorrupted,
-            }
-        }
-    }
-
-    /// Numeric type defining the maximum amount of messages in queue.
-    pub type LengthType = u128;
-
-    /// Key for having access for messages in storage.
-    ///
-    /// Used instead of `MessageId` for space saving.
-    #[derive(TypeInfo, Encode, Decode, Debug, Clone)]
-    pub struct MessageKey(LengthType);
-
-    impl<V> NextKey<V> for MessageKey {
-        fn first(_target: &V) -> Self {
-            Self(Default::default())
+    // Implementation of `DequeueError` for `Error<T>`
+    // usage as `Queue::Error`.
+    impl<T: crate::Config> DequeueError for Error<T> {
+        fn duplicate_key() -> Self {
+            Self::QueueDuplicateKey
         }
 
-        fn next(&self, _target: &V) -> Self {
-            if self.0 == LengthType::MAX {
-                Self(0)
-            } else {
-                Self(self.0 + 1)
-            }
-        }
-    }
-
-    #[pallet::storage]
-    type Head<T> = StorageValue<_, MessageKey>;
-
-    /// Accessor type for head of the deque.
-    pub struct HeadImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageValue for HeadImpl<T> {
-        type Value = MessageKey;
-
-        fn get() -> Option<Self::Value> {
-            Head::<T>::get()
+        fn element_not_found() -> Self {
+            Self::QueueElementNotFound
         }
 
-        fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
-            Head::<T>::mutate(f)
+        fn head_should_be_set() -> Self {
+            Self::QueueHeadShouldBeSet
         }
 
-        fn remove() -> Option<Self::Value> {
-            Head::<T>::take()
+        fn head_should_not_be_set() -> Self {
+            Self::QueueHeadShouldNotBeSet
         }
 
-        fn set(value: Self::Value) -> Option<Self::Value> {
-            Head::<T>::mutate(|v| v.replace(value))
-        }
-    }
-
-    #[pallet::storage]
-    type Tail<T> = StorageValue<_, MessageKey>;
-
-    /// Accessor type for tail of the deque.
-    pub struct TailImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageValue for TailImpl<T> {
-        type Value = MessageKey;
-
-        fn get() -> Option<Self::Value> {
-            Tail::<T>::get()
+        fn tail_has_next_key() -> Self {
+            Self::QueueTailHasNextKey
         }
 
-        fn mutate<R>(f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
-            Tail::<T>::mutate(f)
+        fn tail_parent_not_found() -> Self {
+            Self::QueueTailParentNotFound
         }
 
-        fn remove() -> Option<Self::Value> {
-            Tail::<T>::take()
+        fn tail_should_be_set() -> Self {
+            Self::QueueTailShouldBeSet
         }
 
-        fn set(value: Self::Value) -> Option<Self::Value> {
-            Tail::<T>::mutate(|v| v.replace(value))
+        fn tail_should_not_be_set() -> Self {
+            Self::QueueTailShouldNotBeSet
         }
     }
 
-    #[pallet::storage]
-    type Length<T> = StorageValue<_, LengthType, ValueQuery>;
-
-    /// Accessor type for length of the deque.
-    pub struct LengthImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageCounter for LengthImpl<T> {
-        type Value = LengthType;
-
-        fn get() -> Self::Value {
-            Length::<T>::get()
+    // Implementation of `MailboxError` for `Error<T>`
+    // usage as `Mailbox::Error`.
+    impl<T: crate::Config> MailboxError for Error<T> {
+        fn duplicate_key() -> Self {
+            Self::MailboxDuplicateKey
         }
 
-        fn increase() {
-            Length::<T>::mutate(|v| *v = v.saturating_add(1))
-        }
-
-        fn decrease() {
-            Length::<T>::mutate(|v| *v = v.saturating_sub(1))
-        }
-
-        fn clear() {
-            let _prev = Length::<T>::take();
+        fn element_not_found() -> Self {
+            Self::MailboxElementNotFound
         }
     }
 
-    #[pallet::storage]
-    type Dispatches<T> = StorageMap<_, Identity, MessageKey, Node<MessageKey, StoredDispatch>>;
-
-    /// Accessor type for elements of the deque.
-    pub struct DispatchImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageMap for DispatchImpl<T> {
-        type Key = MessageKey;
-        type Value = Node<MessageKey, StoredDispatch>;
-
-        fn contains(key: &Self::Key) -> bool {
-            Dispatches::<T>::contains_key(key)
+    // Implementation of `WaitlistError` for `Error<T>`
+    // usage as `Waitlist::Error`.
+    impl<T: crate::Config> WaitlistError for Error<T> {
+        fn duplicate_key() -> Self {
+            Self::WaitlistDuplicateKey
         }
 
-        fn get(key: &Self::Key) -> Option<Self::Value> {
-            Dispatches::<T>::get(key)
+        fn element_not_found() -> Self {
+            Self::WaitlistElementNotFound
         }
-
-        fn mutate<R>(key: Self::Key, f: impl FnOnce(&mut Option<Self::Value>) -> R) -> R {
-            Dispatches::<T>::mutate(key, f)
-        }
-
-        fn remove(key: Self::Key) -> Option<Self::Value> {
-            Dispatches::<T>::take(key)
-        }
-
-        fn set(key: Self::Key, value: Self::Value) -> Option<Self::Value> {
-            Dispatches::<T>::mutate(key, |v| v.replace(value))
-        }
-    }
-
-    /// Callback function accessor for `pop_front` action.
-    pub struct OnPopFrontCallback<T>(PhantomData<T>);
-
-    impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPopFrontCallback<T> {
-        fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
-            <Pallet<T> as GearMessenger>::Dequeued::increase();
-        }
-    }
-
-    /// Callback function accessor for `push_front` action.
-    pub struct OnPushFrontCallback<T>(PhantomData<T>);
-
-    impl<T: Config> GearCallback<<DequeImpl<T> as GearStorageDeque>::Value> for OnPushFrontCallback<T> {
-        fn call(_arg: &<DequeImpl<T> as GearStorageDeque>::Value) {
-            <Pallet<T> as GearMessenger>::Dequeued::decrease();
-            <Pallet<T> as GearMessenger>::QueueProcessing::deny();
-        }
-    }
-
-    /// Deque type itself. Contains all methods by aggregating all accessors.
-    ///
-    /// Never call `push_front` for priority queueing.
-    /// This method should be used only for requeueing of the element which already was in the queue before.
-    /// It triggers callback of decrementing `Dequeued` and denying `QueueProcessing`.
-    pub struct DequeImpl<T>(PhantomData<T>);
-
-    impl<T: Config> GearStorageDeque for DequeImpl<T> {
-        type Key = MessageKey;
-        type Value = StoredDispatch;
-
-        type Error = Error<T>;
-
-        type HeadKey = HeadImpl<T>;
-        type TailKey = TailImpl<T>;
-        type Elements = DispatchImpl<T>;
-        type Length = LengthImpl<T>;
-
-        type OnPopFront = OnPopFrontCallback<T>;
-        type OnPushFront = OnPushFrontCallback<T>;
-        type OnPushBack = ();
     }
 
     /// Numeric type defining the maximum amount of messages can be sent
-    /// from outside (extrinsics) or processed in single block.
-    pub type MessengerCapacity = u32;
+    /// from outside (from extrinsics) or processed in single block.
+    pub type Capacity = u32;
 
+    // Below goes storages and their gear's wrapper implementations.
+    //
+    // Note, that we declare storages private to avoid outside
+    // interaction with them, but wrappers - public to be able
+    // use them as generic parameters in public `Messenger`
+    // implementation.
+
+    // ----
+
+    // Private storage for amount of messages dequeued.
     #[pallet::storage]
-    type Sent<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    type Dequeued<T> = StorageValue<_, Capacity>;
 
-    /// Accessor type for amount for messages sent from outside during the block.
-    pub struct SentImpl<T>(PhantomData<T>);
+    // Public wrap of the amount of messages dequeued.
+    common::wrap_storage_value!(storage: Dequeued, name: DequeuedWrap, value: Capacity);
 
-    impl<T: Config> GearStorageCounter for SentImpl<T> {
-        type Value = MessengerCapacity;
+    // ----
 
-        fn get() -> Self::Value {
-            Sent::<T>::get()
-        }
-
-        fn increase() {
-            Sent::<T>::mutate(|v| *v = v.saturating_add(1))
-        }
-
-        fn decrease() {
-            Sent::<T>::mutate(|v| *v = v.saturating_sub(1))
-        }
-
-        fn clear() {
-            let _prev = Sent::<T>::take();
-        }
-    }
-
+    // Private storage for queue's elements.
     #[pallet::storage]
-    type Dequeued<T> = StorageValue<_, MessengerCapacity, ValueQuery>;
+    type Dispatches<T> =
+        CountedStorageMap<_, Identity, MessageId, LinkedNode<MessageId, StoredDispatch>>;
 
-    /// Accessor type for amount for messages dequeued and appropriately
-    /// processed (executed, skipped, etc.) during the block.
-    pub struct DequeuedImpl<T>(PhantomData<T>);
+    // Public wrap of the queue's elements.
+    common::wrap_counted_storage_map!(
+        storage: Dispatches,
+        name: DispatchesWrap,
+        key: MessageId,
+        value: LinkedNode<MessageId, StoredDispatch>,
+        length: Capacity
+    );
 
-    impl<T: Config> GearStorageCounter for DequeuedImpl<T> {
-        type Value = MessengerCapacity;
+    // ----
 
-        fn get() -> Self::Value {
-            Dequeued::<T>::get()
-        }
-
-        fn increase() {
-            Dequeued::<T>::mutate(|v| *v = v.saturating_add(1))
-        }
-
-        fn decrease() {
-            Dequeued::<T>::mutate(|v| *v = v.saturating_sub(1))
-        }
-
-        fn clear() {
-            let _prev = Dequeued::<T>::take();
-        }
-    }
-
+    // Private storage for queue's head key.
     #[pallet::storage]
-    type QueueProcessing<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+    type Head<T> = StorageValue<_, MessageId>;
 
-    /// Accessor type for flag showing may the queue processing be continued during the block.
-    pub struct QueueProcessingImpl<T>(PhantomData<T>);
+    // Public wrap of the queue's head key.
+    common::wrap_storage_value!(storage: Head, name: HeadWrap, value: MessageId);
 
-    impl<T: Config> GearStorageFlag for QueueProcessingImpl<T> {
-        fn allow() {
-            QueueProcessing::<T>::put(true);
-        }
+    // ----
 
-        fn deny() {
-            QueueProcessing::<T>::put(false);
-        }
+    // Private storage for mailbox elements.
+    #[pallet::storage]
+    type Mailbox<T: Config> =
+        StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
 
-        fn allowed() -> bool {
-            QueueProcessing::<T>::get()
+    // Public wrap of the mailbox elements.
+    common::wrap_extended_storage_double_map!(
+        storage: Mailbox,
+        name: MailboxWrap,
+        key1: T::AccountId,
+        key2: MessageId,
+        value: StoredMessage,
+        length: usize
+    );
+
+    // ----
+
+    // Private storage for queue processing flag.
+    #[pallet::storage]
+    type QueueProcessing<T> = StorageValue<_, bool>;
+
+    // Public wrap of the queue processing flag.
+    common::wrap_storage_value!(
+        storage: QueueProcessing,
+        name: QueueProcessingWrap,
+        value: bool
+    );
+
+    // ----
+
+    // Private storage for amount of messages sent.
+    #[pallet::storage]
+    type Sent<T> = StorageValue<_, Capacity>;
+
+    // Public wrap of the amount of messages sent.
+    common::wrap_storage_value!(storage: Sent, name: SentWrap, value: Capacity);
+
+    // ----
+
+    // Private storage for queue's tail key.
+    #[pallet::storage]
+    type Tail<T> = StorageValue<_, MessageId>;
+
+    // Public wrap of the queue's tail key.
+    common::wrap_storage_value!(storage: Tail, name: TailWrap, value: MessageId);
+
+    // ----
+
+    // Private storage for waitlist elements.
+    #[pallet::storage]
+    type Waitlist<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        ProgramId,
+        Identity,
+        MessageId,
+        (StoredDispatch, T::BlockNumber),
+    >;
+
+    // Public wrap of the waitlist elements.
+    common::wrap_extended_storage_double_map!(
+        storage: Waitlist,
+        name: WaitlistWrap,
+        key1: ProgramId,
+        key2: MessageId,
+        value: (StoredDispatch, T::BlockNumber),
+        length: usize
+    );
+
+    // ----
+
+    // Below goes callbacks, used for queue algorithm.
+    //
+    // Note, that they are public like storage wrappers
+    // only to be able use as public trait's generics.
+
+    // ----
+
+    /// Callback function for success `pop_front` action.
+    pub struct OnPopFront<V, T: Messenger>(PhantomData<(V, T)>);
+
+    // Callback trait implementation.
+    //
+    // Pop front increases amount of messages dequeued.
+    impl<V, T: Messenger> Callback<V> for OnPopFront<V, T> {
+        fn call(_arg: &V) {
+            T::Dequeued::increase();
         }
     }
 
-    impl<T: Config> GearMessenger for Pallet<T> {
-        type Sent = SentImpl<T>;
-        type Dequeued = DequeuedImpl<T>;
-        type QueueProcessing = QueueProcessingImpl<T>;
-        type Queue = DequeImpl<T>;
+    // ---
+
+    /// Callback function for success `push_front` action.
+    pub struct OnPushFront<V, T: Messenger>(PhantomData<(V, T)>);
+
+    // Callback trait implementation.
+    //
+    // Push front means requeue in Gear Messenger Context,
+    // so the dequeued amount should be decreased and
+    // queue processing stopped.
+    impl<V, T: Messenger> Callback<V> for OnPushFront<V, T> {
+        fn call(_arg: &V) {
+            T::Dequeued::decrease();
+            T::QueueProcessing::deny();
+        }
     }
 
+    // ----
+
+    /// Store of queue action's callbacks.
+    pub struct QueueCallbacks<T: Messenger>(PhantomData<T>);
+
+    // Callbacks store for queue trait implementation, over
+    // specified (associated) type of queue value.
+    impl<T: Messenger> DequeueCallbacks for QueueCallbacks<T> {
+        type Value = T::QueuedDispatch;
+
+        type OnPopBack = ();
+        type OnPopFront = OnPopFront<Self::Value, T>;
+        type OnPushBack = ();
+        type OnPushFront = OnPushFront<Self::Value, T>;
+        type OnRemoveAll = ();
+    }
+
+    // ----
+
+    // Below goes callbacks, used for mailbox algorithm.
+    //
+    // Note, that they are public like storage wrappers
+    // only to be able use as public trait's generics.
+
+    /// Callback function for success `remove` action.
+    pub struct OnRemove<T, M>(PhantomData<(T, M)>)
+    where
+        T: Config,
+        T::AccountId: Origin,
+        M: Messenger;
+
+    // Callback trait implementation.
+    //
+    // Remove from mailbox means auto-claim in Gear Messenger Context,
+    // so if value present, it will be added to user's balance.
+    impl<T: Config, M: Messenger> FallibleCallback<StoredMessage> for OnRemove<T, M>
+    where
+        T::AccountId: Origin,
+    {
+        type Error = DispatchError;
+
+        fn call(message: &StoredMessage) -> Result<(), Self::Error> {
+            if message.value() > 0 {
+                // Assuming the programs has enough balance
+                <T as Config>::Currency::repatriate_reserved(
+                    &<T::AccountId as Origin>::from_origin(message.source().into_origin()),
+                    &<T::AccountId as Origin>::from_origin(message.destination().into_origin()),
+                    message.value().unique_saturated_into(),
+                    BalanceStatus::Free,
+                )?;
+            }
+
+            Ok(())
+        }
+    }
+
+    // ----
+
+    /// Store of mailbox action's callbacks.
+    pub struct MailBoxCallbacks<T, M>(PhantomData<(T, M)>)
+    where
+        T: Config,
+        T::AccountId: Origin,
+        M: Messenger<MailboxedMessage = StoredMessage, OutputError = DispatchError>;
+
+    // Callbacks store for mailbox trait implementation, over
+    // specified (associated) types of mailbox and error values.
+    impl<T, M> MailboxCallbacks<M::OutputError> for MailBoxCallbacks<T, M>
+    where
+        T: Config,
+        T::AccountId: Origin,
+        M: Messenger<MailboxedMessage = StoredMessage, OutputError = DispatchError>,
+    {
+        type Value = M::MailboxedMessage;
+
+        type OnInsert = ();
+        type OnRemove = OnRemove<T, M>;
+    }
+
+    // ----
+
+    // Below goes callbacks, used for waitlist algorithm.
+    //
+    // Note, that they are public like storage wrappers
+    // only to be able use as public trait's generics.
+
+    // ----
+
+    /// Callback function for getting actual block number.
+    pub struct GetBlockNumber<T: Config>(PhantomData<T>);
+
+    // Callback trait implementation.
+    impl<T: Config> GetCallback<T::BlockNumber> for GetBlockNumber<T> {
+        fn call() -> T::BlockNumber {
+            SystemPallet::<T>::block_number()
+        }
+    }
+
+    // ----
+
+    /// Store of waitlist action's callbacks.
+    pub struct WaitListCallbacks<T, M>(PhantomData<(T, M)>)
+    where
+        T: Config,
+        M: Messenger<BlockNumber = T::BlockNumber>;
+
+    // Callbacks store for waitlist trait implementation, over
+    // specified (associated) types of waitlist and error values.
+    impl<T, M> WaitlistCallbacks for WaitListCallbacks<T, M>
+    where
+        T: Config,
+        M: Messenger<BlockNumber = T::BlockNumber>,
+    {
+        type Value = M::WaitlistedMessage;
+        type BlockNumber = M::BlockNumber;
+
+        type GetBlockNumber = GetBlockNumber<T>;
+        type OnInsert = ();
+        type OnRemove = ();
+    }
+
+    // ----
+
+    // Below goes final `Messenger` implementation for
+    // Gear Messenger Pallet based on above generated
+    // types and parameters.
+
+    /// Message processing centralized behavior for
+    /// Gear Messenger Pallet.
+    ///
+    /// See `gear_common::storage::Messenger` for
+    /// complete documentation.
+    impl<T: crate::Config> Messenger for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type BlockNumber = T::BlockNumber;
+        type Capacity = Capacity;
+        type Error = Error<T>;
+        type OutputError = DispatchError;
+
+        type MailboxFirstKey = T::AccountId;
+        type MailboxSecondKey = MessageId;
+        type MailboxedMessage = StoredMessage;
+        type QueuedDispatch = StoredDispatch;
+        type WaitlistFirstKey = ProgramId;
+        type WaitlistSecondKey = MessageId;
+        type WaitlistedMessage = StoredDispatch;
+
+        type Sent = CounterImpl<Self::Capacity, SentWrap<T>>;
+
+        type Dequeued = CounterImpl<Self::Capacity, DequeuedWrap<T>>;
+
+        type QueueProcessing = TogglerImpl<QueueProcessingWrap<T>>;
+
+        type Queue = QueueImpl<
+            DequeueImpl<
+                MessageId,
+                Self::QueuedDispatch,
+                Self::Error,
+                HeadWrap<T>,
+                TailWrap<T>,
+                DispatchesWrap<T>,
+                QueueCallbacks<Self>,
+            >,
+            DispatchError,
+            QueueKeyGen,
+        >;
+
+        type Mailbox = MailboxImpl<
+            MailboxWrap<T>,
+            Self::Error,
+            DispatchError,
+            MailBoxCallbacks<T, Self>,
+            MailboxKeyGen<T::AccountId>,
+        >;
+
+        type Waitlist = WaitlistImpl<
+            WaitlistWrap<T>,
+            Self::WaitlistedMessage,
+            Self::BlockNumber,
+            Self::Error,
+            DispatchError,
+            WaitListCallbacks<T, Self>,
+            WaitlistKeyGen,
+        >;
+    }
+
+    // Gear Messenger Pallet hooks.
+    //
+    // The logic of the pallet provides block-dependent logic
+    // (amount of messages sent within the block, etc.), so we
+    // have to reset the state per each block initialization.
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        /// Initialization
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        /// Block initialization.
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
+            // Amount of weight used for initialization.
             let mut weight = 0;
 
+            // Clear amount of messages sent.
+            //
             // Removes value from storage. Single DB write.
-            <Self as GearMessenger>::Sent::clear();
+            <Self as Messenger>::Sent::reset();
             weight += T::DbWeight::get().writes(1);
 
+            // Clear amount of messages dequeued.
+            //
             // Removes value from storage. Single DB write.
-            <Self as GearMessenger>::Dequeued::clear();
+            <Self as Messenger>::Dequeued::reset();
             weight += T::DbWeight::get().writes(1);
 
+            // Allow queue processing in this block.
+            //
             // Puts value in storage. Single DB write.
-            <Self as GearMessenger>::QueueProcessing::allow();
+            <Self as Messenger>::QueueProcessing::allow();
             weight += T::DbWeight::get().writes(1);
 
             weight

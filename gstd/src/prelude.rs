@@ -24,30 +24,10 @@ extern crate alloc;
 pub use core::prelude::v1::*;
 
 // Public module re-exports
-pub use alloc::borrow;
-pub use alloc::boxed;
-pub use alloc::collections;
-pub use alloc::fmt;
-pub use alloc::format;
-pub use alloc::rc;
-pub use alloc::slice;
-pub use alloc::string;
-pub use alloc::vec;
-pub use core::any;
-pub use core::cell;
-pub use core::clone;
-pub use core::cmp;
-pub use core::convert;
-pub use core::default;
-pub use core::future;
-pub use core::hash;
-pub use core::hint;
-pub use core::iter;
-pub use core::marker;
-pub use core::mem;
-pub use core::ops;
-pub use core::pin;
-pub use core::ptr;
+pub use alloc::{borrow, boxed, collections, fmt, format, rc, slice, string, vec};
+pub use core::{
+    any, cell, clone, cmp, convert, default, future, hash, hint, iter, marker, mem, ops, pin, ptr,
+};
 
 // Re-exported types and traits
 pub use alloc::str::FromStr;

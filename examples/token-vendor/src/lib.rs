@@ -29,9 +29,7 @@ fn hex_to_id(hex: String) -> Result<ActorId, u8> {
 fn address_to_id(address: String) -> Result<ActorId, u8> {
     bs58::decode(address)
         .into_vec()
-        .map(|v| {
-            ActorId::from_slice(&v[1..v.len() - 2].to_vec()).expect("Unable to create ActorId")
-        })
+        .map(|v| ActorId::from_slice(&v[1..v.len() - 2]).expect("Unable to create ActorId"))
         .map_err(|_| 1)
 }
 

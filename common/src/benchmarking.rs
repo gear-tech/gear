@@ -135,10 +135,10 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: WasmPageNumber) {
     let code_id = CodeId::generate(&code).into_origin();
     let allocations = (0..static_pages.0).map(WasmPageNumber);
-    let persistent_pages_data: BTreeMap<PageNumber, Vec<u8>> = allocations
+    let persistent_pages_data: BTreeMap<PageNumber, PageBuf> = allocations
         .clone()
         .flat_map(|p| p.to_gear_pages_iter())
-        .map(|p| (p, vec![0u8; PageNumber::size()]))
+        .map(|p| (p, PageBuf::new_zeroed()))
         .collect();
     super::set_program_and_pages_data(
         program_id,

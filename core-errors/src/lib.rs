@@ -16,142 +16,146 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
+//! Gear core errors.
 
+#![no_std]
+#![warn(missing_docs)]
+
+extern crate alloc;
+
+#[cfg(feature = "codec")]
 use codec::{Decode, Encode};
 use core::fmt;
+#[cfg(feature = "codec")]
 use scale_info::TypeInfo;
 
-pub trait CoreError: fmt::Display + fmt::Debug {
-    fn from_termination_reason(reason: TerminationReason) -> Self;
-
-    fn as_termination_reason(&self) -> Option<TerminationReason>;
-}
+/// Core error.
+pub trait CoreError: fmt::Display + fmt::Debug {}
 
 /// Error using messages.
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Decode,
-    Encode,
-    TypeInfo,
-    derive_more::Display,
-)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MessageError {
-    /// Message limit exceeded.
+    /// The error "Message limit exceeded" occurs when a program attempts to
+    /// send more than the maximum amount of messages allowed within a single
+    /// execution (current setting - 1024).
     #[display(fmt = "Message limit exceeded")]
     LimitExceeded,
-    /// Duplicate reply message.
+
+    /// The error occurs in case of attempt to send more than one replies.
     #[display(fmt = "Duplicate reply message")]
     DuplicateReply,
-    /// Duplicate waiting message.
-    #[display(fmt = "Duplicate waiting message")]
-    DuplicateWaiting,
-    /// Duplicate waking message.
+
+    /// The error occurs in attempt to get the same message from the waitlist
+    /// again (which is waked already).
     #[display(fmt = "Duplicate waking message")]
     DuplicateWaking,
-    /// An attempt to commit or to push a payload into an already formed message.
-    #[display(fmt = "An attempt to commit or to push a payload into an already formed message")]
+
+    /// An attempt to commit or push a payload into an already formed message.
+    #[display(fmt = "An attempt to commit or push a payload into an already formed message")]
     LateAccess,
-    /// No message found with given handle, or handle exceeds the maximum messages amount.
-    #[display(
-        fmt = "No message found with given handle, or handle exceeds the maximum messages amount"
-    )]
+
+    /// The error occurs in case of not valid identifier specified.
+    #[display(fmt = "Message with given handle is not found")]
     OutOfBounds,
-    /// An attempt to push a payload into reply that was not set
-    #[display(fmt = "An attempt to push a payload into reply that was not set")]
-    NoReplyFound,
-    /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
-    #[display(
-        fmt = "An attempt to interrupt execution with `wait(..)` while some messages weren't completed"
-    )]
-    UncommittedPayloads,
-    /// Duplicate init message
-    #[display(fmt = "Duplicate init message")]
+
+    /// The error occurs in attempt to initialize the same program twice within
+    /// a single execution.
+    #[display(fmt = "Duplicated program initialization message")]
     DuplicateInit,
+
+    /// An error occurs in attempt to send a message with more gas than available after previous message.
+    #[display(fmt = "Not enough gas to send in message")]
+    NotEnoughGas,
+
+    /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
+    /// Value between 0 and existential deposit cannot be sent in message.
+    #[display(
+        fmt = "In case of non-zero message value {}, it must be greater than existential deposit {}",
+        message_value,
+        existential_deposit
+    )]
+    InsufficientValue {
+        /// Message's value.
+        message_value: u128,
+        /// Minimal amount of funds on a balance that can be considered and added in DB.
+        existential_deposit: u128,
+    },
+
+    /// The error occurs when program's balance is less than value in message it tries to send.
+    #[display(
+        fmt = "Existing value {} is not enough to send a message with value {}",
+        value_left,
+        message_value
+    )]
+    NotEnoughValue {
+        /// Message's value.
+        message_value: u128,
+        /// Amount of available value.
+        value_left: u128,
+    },
 }
 
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
-    /// Memory is over.
-    ///
-    /// All pages were previously allocated and there is nothing can be done.
-    #[display(fmt = "Memory is over")]
+    /// The error occurs when a program tries to allocate more memory  than
+    /// allowed.
+    #[display(fmt = "Maximum possible memory has been allocated")]
     OutOfMemory,
 
-    /// Allocation is in use.
-    ///
-    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
-    #[display(fmt = "Allocation is in use")]
-    AllocationsInUse,
-
-    /// Specified page cannot be freed by the current program.
-    ///
-    /// It was allocated by another program.
+    /// The error occurs in attempt to free-up a memory page from static area or
+    /// outside additionally allocated for this program.
     #[display(fmt = "Page {} cannot be freed by the current program", _0)]
     InvalidFree(u32),
 
-    /// Out of bounds memory access
-    #[display(fmt = "Out of bounds memory access")]
+    /// The error occurs in attempt to access memory page outside pages area
+    /// allocated for this program.
+    #[display(fmt = "Access to the page not allocated to this program")]
     MemoryAccessError,
 
-    /// There is wasm page, which has not all gear pages in the begin
-    #[display(fmt = "There is wasm page, which has not all gear pages in the begin")]
-    NotAllPagesInBegin,
+    /// WASM page does not contain all necessary Gear pages.
+    #[display(fmt = "Page data has wrong size: {:#x}", _0)]
+    InvalidPageDataSize(u64),
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum TerminationReason {
-    Exit,
-    Leave,
-    Wait,
-    GasAllowanceExceeded,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
-pub enum ExtError {
-    #[display(fmt = "Allocation error: {}", _0)]
-    Alloc(MemoryError),
-    #[display(fmt = "Free error: {}", _0)]
-    Free(MemoryError),
-    #[display(fmt = "Cannot call `exit' twice")]
-    ExitTwice,
-    #[display(fmt = "Gas limit exceeded")]
+/// Execution error.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+pub enum ExecutionError {
+    /// An error occurs in attempt to charge more gas than available during execution.
+    #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    #[display(fmt = "Too many gas added")]
+    /// An error occurs in attempt to refund more gas than burned one.
+    #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
-    #[display(fmt = "Terminated: {:?}", _0)]
-    TerminationReason(TerminationReason),
-    #[display(fmt = "Failed to wake the message: {}", _0)]
-    Wake(MessageError),
-    #[display(fmt = "{}", _0)]
-    InitMessageNotDuplicated(MessageError),
-    #[display(fmt = "Panic occurred")]
-    PanicOccurred,
-    #[display(fmt = "Value of the message is less than existance deposit, but greater than 0")]
-    InsufficientMessageValue,
-    #[display(fmt = "No value left")]
-    NotEnoughValue,
-    #[display(fmt = "{}", _0)]
+}
+
+/// An error occurred in API.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+pub enum ExtError {
+    /// We got some error but don't know which exactly because of disabled gcore's `codec` feature
+    #[display(fmt = "Some error")]
+    Some,
+    /// Memory error.
+    #[display(fmt = "Memory error: {}", _0)]
+    Memory(MemoryError),
+    /// Message error.
+    #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
+    /// Execution error.
+    #[display(fmt = "Execution error: {}", _0)]
+    Execution(ExecutionError),
 }
 
-impl CoreError for ExtError {
-    fn from_termination_reason(reason: TerminationReason) -> Self {
-        Self::TerminationReason(reason)
-    }
-
-    fn as_termination_reason(&self) -> Option<TerminationReason> {
-        match self {
-            ExtError::TerminationReason(reason) => Some(*reason),
-            _ => None,
-        }
+impl ExtError {
+    /// Size of error encoded in SCALE codec
+    #[cfg(feature = "codec")]
+    pub fn encoded_size(&self) -> usize {
+        Encode::encoded_size(self)
     }
 }
+
+impl CoreError for ExtError {}

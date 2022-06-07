@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,
 };
@@ -125,7 +125,9 @@ impl JournalHandler for InMemoryExtManager {
                 }
                 true
             }
-            DispatchOutcome::Success(_) | DispatchOutcome::NoExecution(_) => false,
+            DispatchOutcome::Success(_)
+            | DispatchOutcome::Exit { .. }
+            | DispatchOutcome::NoExecution(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 if let Some(Some(actor)) = self.actors.get_mut(&program_id) {
                     actor.program.set_initialized();
@@ -135,6 +137,7 @@ impl JournalHandler for InMemoryExtManager {
             }
         };
     }
+
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
@@ -198,7 +201,7 @@ impl JournalHandler for InMemoryExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        mut pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         if let Some(actor) = self
             .actors

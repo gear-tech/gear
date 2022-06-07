@@ -18,22 +18,24 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::funcs::FuncError;
-use crate::memory::MemoryWrap;
+use crate::{funcs::FuncError, memory::MemoryWrap};
 use alloc::{
-    boxed::Box, collections::BTreeMap, format, string::String, string::ToString, vec::Vec,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec::Vec,
 };
 use core::fmt;
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, HostPointer, IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    IntoExtInfo, TerminationReason, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_core_errors::TerminationReason as CoreTerminationReason;
-use gear_core_errors::{CoreError, MemoryError};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
@@ -66,6 +68,7 @@ pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
+    pub termination_reason: Option<TerminationReasonKind>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -80,24 +83,35 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
 }
 
 fn set_pages(
-    memory: &mut dyn Memory,
-    pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+    memory: &mut impl Memory,
+    pages: &BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), String> {
-    for (num, buf) in pages {
+    let memory_size = memory.size();
+    for (page, buf) in pages {
+        if page.to_wasm_page() >= memory_size {
+            return Err(format!(
+                "{:?} is out of memory size: {:?}",
+                page, memory_size
+            ));
+        }
         memory
-            .write(num.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", num, e))?;
+            .write(page.offset(), &buf[..])
+            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", page, e))?;
     }
     Ok(())
 }
 
-impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
+impl<E> Environment<E> for SandboxEnvironment<E>
+where
+    E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason + IntoExtError,
+{
     type Error = SandboxEnvironmentError;
 
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let ext_carrier = ExtCarrier::new(ext);
@@ -149,12 +163,14 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_leave", funcs::leave);
         env_builder.add_host_func("env", "gr_wait", funcs::wait);
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
+        env_builder.add_host_func("env", "gr_error", funcs::error);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
         let mut runtime = Runtime {
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
+            termination_reason: None,
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
@@ -209,8 +225,8 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> HostPointer {
-        self.runtime.memory.get_wasm_memory_begin_addr()
+    fn get_mem(&self) -> &dyn Memory {
+        &self.runtime.memory
     }
 
     fn execute<F, T>(
@@ -219,7 +235,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), T>,
+        F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
@@ -228,15 +244,18 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(ReturnValue::Unit)
         };
 
-        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-
-        let Runtime { ext, memory, trap } = self.runtime;
+        let Runtime {
+            ext,
+            memory,
+            trap,
+            termination_reason,
+        } = self.runtime;
 
         log::debug!("execution res = {:?}", res);
 
         let info = ext
             .into_inner()
-            .into_ext_info(|ptr, buff| memory.read(ptr, buff))
+            .into_ext_info(&memory)
             .map_err(|(reason, gas_amount)| BackendError {
                 reason: SandboxEnvironmentError::Memory(reason),
                 description: None,
@@ -244,31 +263,27 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             })?;
 
         let termination = if res.is_err() {
-            let reason = if let Some(FuncError::Core(err)) = &trap {
-                match err.as_termination_reason() {
-                    Some(CoreTerminationReason::Exit) => {
-                        info.exit_argument.map(TerminationReason::Exit)
-                    }
-                    Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
-                    Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
-                    Some(CoreTerminationReason::GasAllowanceExceeded) => {
-                        Some(TerminationReason::GasAllowanceExceeded)
-                    }
-                    None => None,
+            let reason = match termination_reason {
+                Some(TerminationReasonKind::Exit) => {
+                    info.exit_argument.map(TerminationReason::Exit)
                 }
-            } else {
-                None
+                Some(TerminationReasonKind::Wait) => Some(TerminationReason::Wait),
+                Some(TerminationReasonKind::Leave) => Some(TerminationReason::Leave),
+                Some(TerminationReasonKind::GasAllowanceExceeded) => {
+                    Some(TerminationReason::GasAllowanceExceeded)
+                }
+                None => None,
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: trap.map(|e| e.to_string()).map(Into::into),
             })
         } else {
             TerminationReason::Success
         };
 
-        match post_execution_handler(wasm_memory_addr) {
+        match post_execution_handler(&memory) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),

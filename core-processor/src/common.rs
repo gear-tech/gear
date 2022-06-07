@@ -18,21 +18,22 @@
 
 //! Common structures for processing.
 
-use alloc::string::String;
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::{self, Debug, Formatter},
+    string::String,
     vec::Vec,
 };
 use codec::{Decode, Encode};
+use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
 };
-use gear_core_errors::{ExtError, MemoryError};
+use gear_core_errors::MemoryError;
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -40,7 +41,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<ExtError>),
+    Trap(Option<TrapExplanation>),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.
@@ -68,7 +69,7 @@ pub struct DispatchResult {
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, Vec<u8>>,
+    pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
 }
@@ -98,6 +99,15 @@ impl DispatchResult {
 /// Dispatch outcome of the specific message.
 #[derive(Clone, Debug)]
 pub enum DispatchOutcome {
+    /// Message was a exit.
+    Exit {
+        /// Message id.
+        message_id: MessageId,
+        /// Original actor.
+        origin: ProgramId,
+        /// Id of the program that was successfully exited.
+        program_id: ProgramId,
+    },
     /// Message was an initialization success.
     InitSuccess {
         /// Message id.
@@ -182,7 +192,7 @@ pub enum JournalNote {
         /// Number of the page.
         page_number: PageNumber,
         /// New data of the page.
-        data: Vec<u8>,
+        data: PageBuf,
     },
     /// Update allocations set note.
     /// And also removes data for pages which is not in allocations set now.
@@ -244,7 +254,7 @@ pub trait JournalHandler {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
     );
     /// Process [JournalNote::UpdateAllocations].
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>);
@@ -268,9 +278,7 @@ pub struct ExecutionError {
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
-    pub reason: Option<ExecutionErrorReason>,
-    /// Triggered by gas allowance exceed.
-    pub allowance_exceed: bool,
+    pub reason: ExecutionErrorReason,
 }
 
 /// Reason of execution error
@@ -318,6 +326,9 @@ pub enum ExecutionErrorReason {
     /// Ext works with lazy pages, but lazy pages env is not enabled
     #[display(fmt = "Ext works with lazy pages, but lazy pages env is not enabled")]
     LazyPagesInconsistentState,
+    /// Page with data is not allocated for program
+    #[display(fmt = "{:?} is not allocated for program", _0)]
+    PageIsNotAllocated(PageNumber),
 }
 
 /// Executable actor.
@@ -328,7 +339,7 @@ pub struct ExecutableActor {
     /// Program value balance.
     pub balance: u128,
     /// Data which some program allocated pages may have.
-    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
+    pub pages_data: BTreeMap<PageNumber, PageBuf>,
 }
 
 /// Execution context.

@@ -16,32 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::js::{MetaData, MetaType};
-use crate::proc;
-use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
+use crate::{
+    js::{MetaData, MetaType},
+    proc,
+    sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test},
+};
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
-use core_processor::common::ExecutableActor;
 use core_processor::{
-    common::{CollectState, JournalHandler},
+    common::{CollectState, ExecutableActor, JournalHandler},
     Ext,
 };
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
-use gear_core::code::Code;
-use gear_core::ids::CodeId;
-use gear_core::memory::PageNumber;
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    code::Code,
+    ids::{CodeId, MessageId, ProgramId},
+    memory::PageNumber,
     message::*,
     program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
-use std::collections::{BTreeMap, BTreeSet};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt, fs,
     sync::{
         atomic::{AtomicUsize, Ordering},

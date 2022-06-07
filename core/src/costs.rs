@@ -231,7 +231,7 @@ impl RuntimeCosts {
             Leave => s.gr_leave,
             Wait => s.gr_wait,
             Wake => s.gr_wake,
-            CreateProgram => s.gr_create_program_wgas,
+            CreateProgram => s.gr_create_program_wgas, // todo #924 charge for payload length
         };
         RuntimeToken { weight }
     }

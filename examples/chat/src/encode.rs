@@ -1,5 +1,4 @@
-use std::env;
-use std::fmt::Write;
+use std::{env, fmt::Write};
 
 mod shared;
 

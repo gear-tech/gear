@@ -27,10 +27,7 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{
-        Dispatch, DispatchKind, IncomingMessage, ReplyMessage, ReplyPacket, StoredDispatch,
-        StoredMessage,
-    },
+    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
 use std::{
@@ -39,6 +36,7 @@ use std::{
     convert::TryFrom,
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
+use gear_core::message::IncomingMessage;
 
 const OUTGOING_LIMIT: u32 = 1024;
 
@@ -84,7 +82,7 @@ impl Actor {
         matches!(self, Actor::Uninitialized(..))
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, Vec<u8>>> {
+    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
         match self {
             Actor::Initialized(Program::Genuine(_, pages_data)) => Some(pages_data),
             _ => None,
@@ -121,13 +119,13 @@ impl Actor {
 
 #[derive(Debug)]
 pub(crate) enum Program {
-    Genuine(CoreProgram, BTreeMap<PageNumber, Vec<u8>>),
+    Genuine(CoreProgram, BTreeMap<PageNumber, PageBuf>),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
 
 impl Program {
-    pub(crate) fn new(prog: CoreProgram, pages_data: BTreeMap<PageNumber, Vec<u8>>) -> Self {
+    pub(crate) fn new(prog: CoreProgram, pages_data: BTreeMap<PageNumber, PageBuf>) -> Self {
         Program::Genuine(prog, pages_data)
     }
 
@@ -440,7 +438,6 @@ impl ExtManager {
             u64::MAX,
             OUTGOING_LIMIT,
             Default::default(),
-            None,
         );
 
         core_processor::handle_journal(journal, self);
@@ -504,7 +501,9 @@ impl JournalHandler for ExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
             DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(message_id),
-            DispatchOutcome::Success(_) | DispatchOutcome::NoExecution(_) => {}
+            DispatchOutcome::Success(_)
+            | DispatchOutcome::Exit { .. }
+            | DispatchOutcome::NoExecution(_) => {}
             DispatchOutcome::InitFailure {
                 message_id,
                 program_id,
@@ -567,7 +566,7 @@ impl JournalHandler for ExtManager {
     fn update_pages_data(
         &mut self,
         program_id: ProgramId,
-        mut pages_data: BTreeMap<PageNumber, Vec<u8>>,
+        mut pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         let (actor, _) = self
             .actors

@@ -26,8 +26,7 @@ use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_rpc::number::NumberOrHex;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-use std::convert::TryInto;
-use std::sync::Arc;
+use std::{convert::TryInto, sync::Arc};
 
 #[rpc]
 pub trait GearApi<BlockHash> {

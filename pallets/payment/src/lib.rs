@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use common::storage::StorageCounter;
+use common::storage::*;
 use frame_support::{
     pallet_prelude::*,
     traits::Contains,
@@ -30,10 +30,7 @@ use pallet_transaction_payment::{
 };
 use sp_runtime::{
     generic::{CheckedExtrinsic, UncheckedExtrinsic},
-    traits::{
-        AtLeast32BitUnsigned, Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf,
-        SignedExtension,
-    },
+    traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
@@ -44,8 +41,7 @@ pub use pallet::*;
 type BalanceOf<T> =
     <<T as pallet_transaction_payment::Config>::OnChargeTransaction as OnChargeTransaction<T>>::Balance;
 type CallOf<T> = <T as frame_system::Config>::Call;
-type LengthOf<T> = <<T as Config>::MessageQueueLength as StorageCounter>::Value;
-
+pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub type TransactionPayment<T> = pallet_transaction_payment::Pallet<T>;
 
 #[cfg(test)]
@@ -187,12 +183,11 @@ impl<T, S> Convert<Multiplier, Multiplier> for GearFeeMultiplier<T, S>
 where
     T: Config,
     S: Get<u128>,
-    LengthOf<T>: AtLeast32BitUnsigned,
 {
     fn convert(_previous: Multiplier) -> Multiplier {
         let len_step = S::get().max(1); // Avoiding division by 0.
 
-        let queue_len: u128 = <T as Config>::MessageQueueLength::get().saturated_into();
+        let queue_len: u128 = QueueOf::<T>::len().saturated_into();
         let pow = queue_len.saturating_div(len_step);
         Multiplier::saturating_from_integer(1 << pow)
     }
@@ -202,7 +197,6 @@ impl<T, S> MultiplierUpdate for GearFeeMultiplier<T, S>
 where
     T: Config,
     S: Get<u128>,
-    LengthOf<T>: AtLeast32BitUnsigned,
 {
     fn min() -> Multiplier {
         Default::default()
@@ -353,7 +347,7 @@ pub mod pallet {
         type ExtraFeeCallFilter: Contains<CallOf<Self>>;
 
         /// Type representing message queue
-        type MessageQueueLength: StorageCounter;
+        type Messenger: Messenger<Capacity = u32>;
     }
 
     #[pallet::pallet]

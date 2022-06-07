@@ -37,8 +37,10 @@ use sp_runtime::{
     transaction_validity::{TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
 };
-use sp_std::convert::{TryFrom, TryInto};
-use sp_std::prelude::*;
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    prelude::*,
+};
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -64,9 +66,12 @@ pub use pallet_timestamp::Call as TimestampCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
+pub use pallet_gas;
+pub use pallet_gear;
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
-pub use {pallet_gas, pallet_gear, pallet_gear_payment, pallet_usage};
+pub use pallet_gear_payment;
+pub use pallet_usage;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -125,7 +130,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 800,
+    spec_version: 990,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -334,6 +339,7 @@ impl pallet_gear_program::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_program::weights::GearProgramWeight<Runtime>;
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {
@@ -357,6 +363,7 @@ impl pallet_gear::Config for Runtime {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -364,6 +371,7 @@ impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_usage::Config for Runtime {
@@ -375,6 +383,7 @@ impl pallet_usage::Config for Runtime {
     type MaxBatchSize = ConstU32<100>;
     type TrapReplyExistentialGasLimit = ConstU64<6000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Runtime {
@@ -382,7 +391,7 @@ impl pallet_gas::Config for Runtime {
 }
 
 impl pallet_gear_messenger::Config for Runtime {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 pub struct ExtraFeeFilter;
@@ -416,12 +425,9 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
     }
 }
 
-type QueueLength =
-    <<GearMessenger as gear_common::storage::Messenger>::Queue as gear_common::storage::StorageDeque>::Length;
-
 impl pallet_gear_payment::Config for Runtime {
     type ExtraFeeCallFilter = ExtraFeeFilter;
-    type MessageQueueLength = QueueLength;
+    type Messenger = GearMessenger;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

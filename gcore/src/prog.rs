@@ -53,8 +53,7 @@ mod sys {
 ///
 /// Basically we can use "automatic" salt generation ("nonce"):
 /// ```
-/// use gcore::prog;
-/// use gcore::CodeHash;
+/// use gcore::{prog, CodeHash};
 ///
 /// static mut NONCE: i32 = 0;
 ///

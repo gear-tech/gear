@@ -24,8 +24,7 @@ use std::{
 };
 use toml::value::Table;
 
-use crate::crate_info::CrateInfo;
-use crate::{builder_error::BuilderError, insert_stack_end_export};
+use crate::{builder_error::BuilderError, crate_info::CrateInfo, insert_stack_end_export};
 
 /// Temporary project generated to build a WASM output.
 ///

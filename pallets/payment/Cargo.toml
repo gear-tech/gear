@@ -58,6 +58,7 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-authorship/std",
 	"primitive-types/std",
+	"pallet-gear-messenger/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

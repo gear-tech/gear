@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ids::{MessageId, ProgramId};
-use crate::message::{
-    Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
-    ReplyMessage, ReplyPacket,
+use crate::{
+    ids::{MessageId, ProgramId},
+    message::{
+        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
+        ReplyMessage, ReplyPacket,
+    },
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},

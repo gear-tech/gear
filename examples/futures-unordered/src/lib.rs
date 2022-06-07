@@ -1,8 +1,9 @@
 #![no_std]
 
-use futures::stream::FuturesUnordered;
-use futures::stream::StreamExt;
-use futures::{join, select_biased};
+use futures::{
+    join, select_biased,
+    stream::{FuturesUnordered, StreamExt},
+};
 use gstd::{debug, msg, prelude::*, ActorId};
 
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);

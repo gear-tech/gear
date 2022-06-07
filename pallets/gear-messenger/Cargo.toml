@@ -2,7 +2,7 @@
 name = "pallet-gear-messenger"
 version = "1.0.0"
 authors = ['Gear Technologies']
-edition = '2018'
+edition = '2021'
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -27,9 +27,9 @@ frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/sub
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 [dev-dependencies]
-sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -44,6 +44,7 @@ std = [
 	"log/std",
 	"frame-support/std",
 	"frame-system/std",
+	"frame-benchmarking/std",
 	"scale-info/std",
 	"sp-std/std",
 	"primitive-types/std",

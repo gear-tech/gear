@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  schedule:
+   - cron: "0 3 * * *"
   push:
     branches: [master]
   pull_request:
@@ -91,6 +93,8 @@ jobs:
   build:
     needs: spec_version
     runs-on: [self-hosted, cachepot]
+    env:
+      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -108,6 +112,7 @@ jobs:
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+          components: llvm-tools-preview
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -127,6 +132,18 @@ jobs:
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
+      - name: "Install: grcov"
+        run: |
+          curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
+          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
+          xargs curl -L | 
+          tar xj
+          
+      - name: "Install: rust-covfix"
+        run: |
+          curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
+          mv rust-covfix-linux-x86_64/rust-covfix ./
+
       - name: "Cache: Unpack"
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
@@ -137,7 +154,9 @@ jobs:
           tar -xf /tmp/build_target.tar
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked
+        run: ./scripts/gear.sh build gear --locked --release
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -147,15 +166,124 @@ jobs:
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+
+      - name: "Test (performance): pallets"
+        if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-performance-pallets
+        run: |
+          cp /root/cache/pallet-tests.json /tmp/
+          ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
+          body="$(cat ./target/pallet-tests-diff.md)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
+        env:
+          RUSTFLAGS: -Cinstrument-coverage
+
+      - name: "Test: Process gear-test"
+        run: ./scripts/gear.sh test gtest
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
+      - name: "Test (performance): node runtime testsuite"
+        if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-performance-runtime
+        run: |
+          cp /root/cache/runtime-tests.json /tmp/
+          ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
+          body="$(cat ./target/runtime-tests-diff.md)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
+
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: Find comment (performance)
+        uses: peter-evans/find-comment@v2
+        if: ${{ github.ref != 'refs/heads/master' }}
+        id: find_comment_id
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          direction: last
+
+      - name: "Create comment (performance)"
+        uses: peter-evans/create-or-update-comment@v2
+        if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
+            <details><summary>Pallet tests (values are in nanosegconds)</summary>
+            
+            ${{ steps.test-performance-pallets.outputs.body }}
+            </details>
+            
+            <details><summary>Runtime tests (values are in nanoseconds)</summary>
+            
+            ${{ steps.test-performance-runtime.outputs.body }}
+            </details>
+            </details>
+
+      - name: "Update comment (performance)"
+        uses: peter-evans/create-or-update-comment@v2
+        if: steps.find_comment_id.outputs.comment-id != ''
+        continue-on-error: true
+        with:
+          comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
+          body: |
+            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
+            <details><summary>Pallet tests (values are in nanoseconds)</summary>
+            
+            ${{ steps.test-performance-pallets.outputs.body }}
+            </details>
+            
+            <details><summary>Runtime tests (values are in nanoseconds)</summary>
+            
+            ${{ steps.test-performance-runtime.outputs.body }}
+            </details>
+            </details>
+
+      - name: "Coverage: Aggregate"
+        run: >-
+          ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
+          --ignore "/*"
+          --ignore "examples/*"
+          --ignore "utils/*"
+          --ignore "target/*"
+          --ignore "gear-test/*"
+          --ignore "node/*"
+          --ignore "pallets/gear/src/migration.rs"
+          --ignore "pallets/gear/src/weights.rs"
+          --ignore "pallets/gear-debug/src/weights.rs"
+          --ignore "pallets/gear-messenger/src/migration.rs"
+          --ignore "pallets/gear-program/src/migration.rs"
+          --ignore "pallets/gear-program/src/weights/*"
+          --ignore "pallets/usage/src/weights.rs"
+          --ignore "pallets/usage/src/migration.rs"
+          --ignore "runtime/*"
+          --ignore "gcore/*"
+          --ignore "gstd/*"
+          --ignore "galloc/*"
+          -o ./lcov.info
+        
+      - name: "Coverage: Fix report"
+        run: ./rust-covfix -o lcov.info lcov.info
+        
+      - name: "Coverage: Publish"
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./lcov.info
 
       - name: "Cache: Pack"
         if: ${{ github.ref == 'refs/heads/master' }}
@@ -222,178 +350,3 @@ jobs:
           draft: false
           fail_on_unmatched_files: true
           files: artifact/*
-
-  gtest:
-    needs: spec_version
-    runs-on: [self-hosted, cachepot]
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v2
-        with:
-          node-version: "16"
-
-      - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          cp binaryen-version_105/bin/wasm-opt /usr/bin/
-
-      - name: "Cache: Unpack"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          cp /root/cache/gear-test* /tmp/
-          tar -xf /tmp/gear-test_cache.tar -C /
-          tar -xf /tmp/gear-test_cargo_registry.tar -C /
-          tar -xf /tmp/gear-test_target.tar
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build wasm-proc
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest
-
-      - name: "Cache: Pack"
-        if: ${{ github.ref == 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          tar -cf /tmp/gear-test_target.tar ./target
-          tar -cf /tmp/gear-test_cache.tar /tmp/cachepot
-          tar -cf /tmp/gear-test_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
-          
-  coverage:
-    needs: spec_version
-    runs-on: [self-hosted, cachepot]
-    env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
-    steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
-
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
-        
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-          components: llvm-tools-preview
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v2
-        with:
-          node-version: "16"
-
-      - name: "Install: Node.js packages"
-        run: ./scripts/gear.sh init js
-
-      - name: "Install: Build deps"
-        run: |
-          sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          cp binaryen-version_105/bin/wasm-opt /usr/bin/
-
-      - name: "Install: grcov"
-        run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
-          xargs curl -L | 
-          tar xj
-          
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
-
-      - name: "Cache: Unpack"
-        if: ${{ github.ref != 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          cp /root/cache/gear-test* /tmp/
-          tar -xf /tmp/gear-test_cache.tar -C /
-          tar -xf /tmp/gear-test_cargo_registry.tar -C /
-          tar -xf /tmp/gear-test_target.tar
-          cp /root/cache/build* /tmp/
-          tar -xf /tmp/build_cache.tar -C /
-          tar -xf /tmp/build_cargo_registry.tar -C /
-          tar -xf /tmp/build_target.tar
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build wasm-proc
-
-      - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples --locked
-
-      - name: "Build: Split examples by .opt and .meta"
-        run: ./scripts/gear.sh build examples-proc
-
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
-        
-      - name: "Test: Process node runtime testsuite"
-        run: ./scripts/gear.sh coverage rtest
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
-          
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh coverage gtest
-        env:
-          RUSTFLAGS: -Cinstrument-coverage
-            
-      - name: "Coverage: Aggregate"
-        run: >-
-          ./grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing
-          --ignore "/*"
-          --ignore "examples/*"
-          --ignore "utils/*"
-          --ignore "target/*"
-          --ignore "gear-test/*"
-          --ignore "node/*"
-          --ignore "runtime/*"
-          --ignore "gcore/*"
-          --ignore "gstd/*"
-          --ignore "galloc/*"
-          -o ./lcov.info
-        
-      - name: "Coverage: Fix report"
-        run: ./rust-covfix -o lcov.info lcov.info
-        
-      - name: "Coverage: Publish"
-        uses: codecov/codecov-action@v1
-        with:
-          file: ./lcov.info

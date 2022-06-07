@@ -16,19 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::ExecutionErrorReason;
-use crate::configs::AllocationsConfig;
 use crate::{
     common::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
-        JournalNote,
+        ExecutionErrorReason, JournalNote,
     },
-    configs::{BlockInfo, ExecutionSettings},
+    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
     executor,
     ext::ProcessorExt,
 };
-use alloc::string::ToString;
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     costs::HostFnWeights,
@@ -59,7 +56,6 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     gas_allowance: u64,
     outgoing_limit: u32,
     host_fn_weights: HostFnWeights,
-    entry_point: Option<&str>,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -73,7 +69,6 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             gas_allowance,
             outgoing_limit,
             host_fn_weights,
-            entry_point,
         ),
     }
 }
@@ -111,7 +106,14 @@ fn process_error(
         amount: gas_burned,
     });
 
-    if value != 0 {
+    // We check if value is greater than zero to don't provide
+    // no-op journal note.
+    //
+    // We also check if dispatch had context of previous executions:
+    // it's existence shows that we have processed message after
+    // being waken, so the value were already transferred in
+    // execution, where `gr_wait` was called.
+    if dispatch.context().is_none() && value != 0 {
         // Send back value
         journal.push(JournalNote::SendValue {
             from: origin,
@@ -182,7 +184,14 @@ fn process_success(
         amount: gas_amount.burned(),
     });
 
-    if value != 0 {
+    // We check if value is greater than zero to don't provide
+    // no-op journal note.
+    //
+    // We also check if dispatch had context of previous executions:
+    // it's existence shows that we have processed message after
+    // being waken, so the value were already transferred in
+    // execution, where `gr_wait` was called.
+    if dispatch.context().is_none() && value != 0 {
         // Send value further
         journal.push(JournalNote::SendValue {
             from: origin,
@@ -229,33 +238,38 @@ fn process_success(
         });
     }
 
-    match kind {
+    let outcome = match kind {
+        Wait => {
+            journal.push(JournalNote::WaitDispatch(
+                dispatch.into_stored(program_id, context_store),
+            ));
+
+            return journal;
+        }
+        Success => match dispatch.kind() {
+            DispatchKind::Init => DispatchOutcome::InitSuccess {
+                message_id,
+                origin,
+                program_id,
+            },
+            _ => DispatchOutcome::Success(message_id),
+        },
         Exit(value_destination) => {
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
                 value_destination,
             });
-        }
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
-        }
-        Success => {
-            let outcome = match dispatch.kind() {
-                DispatchKind::Init => DispatchOutcome::InitSuccess {
-                    message_id,
-                    origin,
-                    program_id,
-                },
-                _ => DispatchOutcome::Success(message_id),
-            };
 
-            journal.push(JournalNote::MessageDispatched(outcome));
-            journal.push(JournalNote::MessageConsumed(message_id));
+            DispatchOutcome::Exit {
+                message_id,
+                origin,
+                program_id,
+            }
         }
     };
 
+    journal.push(JournalNote::MessageDispatched(outcome));
+    journal.push(JournalNote::MessageConsumed(message_id));
     journal
 }
 
@@ -270,7 +284,6 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     gas_allowance: u64,
     outgoing_limit: u32,
     host_fn_weights: HostFnWeights,
-    entry_point: Option<&str>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
@@ -294,8 +307,11 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         execution_context,
         execution_settings,
         msg_ctx_settings,
-        entry_point,
-    );
+    )
+    .map_err(|err| {
+        log::debug!("Wasm execution err: {}", err.reason);
+        err
+    });
 
     match exec_result {
         Ok(res) => match res.kind {
@@ -314,13 +330,14 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         },
-        Err(e) => {
-            if e.allowance_exceed {
+        Err(e) => match e.reason {
+            ExecutionErrorReason::InitialMemoryBlockGasExceeded
+            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
+            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            } else {
-                process_error(dispatch, program_id, e.gas_amount.burned(), e.reason)
             }
-        }
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+        },
     }
 }
 

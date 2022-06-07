@@ -19,8 +19,10 @@
 //! Module for signal-magement and waking concrete message based on reply
 //! recieved.
 
-use crate::prelude::{BTreeMap, Vec};
-use crate::MessageId;
+use crate::{
+    prelude::{BTreeMap, Vec},
+    MessageId,
+};
 use core::task::{Context, Waker};
 
 pub type Payload = Vec<u8>;

@@ -1,9 +1,8 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::message::{Payload, StoredMessage};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::ExitCode,
+    message::{ExitCode, Payload, StoredMessage},
 };
 use std::fmt::Debug;
 

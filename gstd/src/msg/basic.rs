@@ -18,9 +18,11 @@
 
 //! Module with basic messaging functions wrapped from `gcore` to `gstd`.
 
-use crate::errors::{ContractError, Result};
-use crate::prelude::{convert::AsRef, vec, Vec};
-use crate::{ActorId, MessageId};
+use crate::{
+    errors::{ContractError, Result},
+    prelude::{convert::AsRef, vec, Vec},
+    ActorId, MessageId,
+};
 use codec::Output;
 
 trait IntoContractResult<T> {

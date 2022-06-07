@@ -16,19 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: deal with runner usage here
-
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
+use core::convert::TryInto;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::WasmPageNumber,
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
-use pallet_gear::DebugInfo;
-use pallet_gear::Pallet as PalletGear;
+use pallet_gear::{DebugInfo, Pallet as PalletGear};
 use sp_core::H256;
 
 pub(crate) fn init_logger() {
@@ -47,8 +45,8 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .to_vec()
 }
 
-fn generate_program_id(code: &[u8]) -> H256 {
-    ProgramId::generate(CodeId::generate(code), b"salt").into_origin()
+fn generate_program_id(code: &[u8]) -> ProgramId {
+    ProgramId::generate(CodeId::generate(code), b"salt")
 }
 
 fn generate_code_hash(code: &[u8]) -> H256 {
@@ -105,6 +103,25 @@ fn debug_mode_works() {
         Pallet::<Test>::do_snapshot();
 
         let static_pages = WasmPageNumber(16);
+
+        let pages = |prog_id: ProgramId| {
+            if cfg!(feature = "lazy-pages") {
+                Default::default()
+            } else {
+                let prog_id = prog_id.into_origin();
+                let active_prog: common::ActiveProgram = common::get_program(prog_id)
+                    .expect("Can't find program")
+                    .try_into()
+                    .expect("Program isn't active");
+
+                common::get_program_data_for_pages(prog_id, active_prog.pages_with_data.iter())
+                    .expect("Can't get data for pages")
+                    .into_iter()
+                    .map(|(k, v)| (k, v.to_vec()))
+                    .collect()
+            }
+        };
+
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -112,7 +129,7 @@ fn debug_mode_works() {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
-                        persistent_pages: Default::default(),
+                        persistent_pages: pages(program_id_1),
                         code_hash: generate_code_hash(&code_1),
                     }),
                 }],
@@ -142,7 +159,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_2),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -150,7 +167,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_1),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -191,9 +208,9 @@ fn debug_mode_works() {
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            MessageId::from_origin(message_id_1),
+                            message_id_1,
                             1.into(),
-                            ProgramId::from_origin(program_id_1),
+                            program_id_1,
                             Default::default(),
                             0,
                             None,
@@ -203,9 +220,9 @@ fn debug_mode_works() {
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            MessageId::from_origin(message_id_2),
+                            message_id_2,
                             1.into(),
-                            ProgramId::from_origin(program_id_2),
+                            program_id_2,
                             Default::default(),
                             0,
                             None,
@@ -218,7 +235,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_2),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -226,7 +243,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_1),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -247,7 +264,7 @@ fn debug_mode_works() {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_2),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -255,7 +272,7 @@ fn debug_mode_works() {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
-                            persistent_pages: Default::default(),
+                            persistent_pages: pages(program_id_1),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -266,7 +283,7 @@ fn debug_mode_works() {
     })
 }
 
-fn get_last_message_id() -> H256 {
+fn get_last_message_id() -> MessageId {
     use pallet_gear::{Event, MessageInfo};
 
     let event = match SystemPallet::<Test>::events()
@@ -279,7 +296,7 @@ fn get_last_message_id() -> H256 {
 
     match event {
         Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-        Event::Log(msg) => msg.id().into_origin(),
+        Event::Log(msg) => msg.id(),
         Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
         _ => unreachable!("expect sending"),
     }

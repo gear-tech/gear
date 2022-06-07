@@ -31,17 +31,17 @@ mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub struct Operation {
     to_status: u32,
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub struct Initialization {
     status: u32,
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     IsReady,
     Begin(Operation),
@@ -49,7 +49,7 @@ pub enum Request {
     Add(u64),
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Reply {
     Yes,
     No,

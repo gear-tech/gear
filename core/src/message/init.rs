@@ -16,9 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ids::{CodeId, MessageId, ProgramId};
-use crate::message::{
-    Dispatch, DispatchKind, GasLimit, Message, Payload, Salt, StoredDispatch, StoredMessage, Value,
+use crate::{
+    ids::{CodeId, MessageId, ProgramId},
+    message::{
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
+        StoredMessage, Value,
+    },
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -168,19 +171,18 @@ impl InitPacket {
     pub fn salt(&self) -> &[u8] {
         self.salt.as_ref()
     }
+}
 
-    /// Packet payload reference.
-    pub fn payload(&self) -> &[u8] {
+impl Packet for InitPacket {
+    fn payload(&self) -> &[u8] {
         self.payload.as_ref()
     }
 
-    /// Packet optional gas limit.
-    pub fn gas_limit(&self) -> Option<GasLimit> {
+    fn gas_limit(&self) -> Option<GasLimit> {
         self.gas_limit
     }
 
-    /// Packet value.
-    pub fn value(&self) -> Value {
+    fn value(&self) -> Value {
         self.value
     }
 }

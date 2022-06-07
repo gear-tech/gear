@@ -48,6 +48,7 @@ fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 /// Program being tested and it's initialization data.
 ///
 /// In test nested structure *program* is one the highest fields. The other one is *fixture*.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Program {
     /// Path to program's wasm blob.
@@ -70,26 +71,27 @@ pub struct Program {
 }
 
 /// Code saved in the persistent layer before fixtures are run
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Code {
     /// Path to program's wasm blob.
     pub path: String,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct ChainProgram {
     #[serde(flatten)]
     pub address: ChainAddress,
     pub terminated: Option<bool>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Programs {
     pub only: Option<bool>,
     pub ids: Vec<ChainProgram>,
 }
 
 /// Expected data after running messages, defined in the fixture.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
     /// Step number.
@@ -119,6 +121,7 @@ pub struct Expectation {
 /// 1) the set of messages sent to programs defined in the test;
 /// 2) expected results of message processing.
 /// Tests can have multiple `Fixtures`, which means we can define specialized "messages & expectation" block sets, each with its own `title`.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Fixture {
     /// Fixture title
@@ -130,6 +133,7 @@ pub struct Fixture {
 }
 
 /// Payload data types being used in messages.
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value")]
 pub enum PayloadVariant {
@@ -178,7 +182,7 @@ impl PayloadVariant {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct BytesAt {
     /// Program's id.
     #[serde(deserialize_with = "address::deserialize")]
@@ -190,7 +194,7 @@ pub struct BytesAt {
     pub bytes: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Allocations {
     /// Program's id.
     #[serde(deserialize_with = "address::deserialize")]
@@ -200,7 +204,7 @@ pub struct Allocations {
     pub kind: AllocationExpectationKind,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AllocationExpectationKind {
     PageCount(u64),
@@ -208,13 +212,14 @@ pub enum AllocationExpectationKind {
     ContainsPages(Vec<u32>),
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AllocationFilter {
     Static,
     Dynamic,
 }
 
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Message {
     pub source: Option<ChainAddress>,
@@ -229,8 +234,11 @@ pub struct Message {
 }
 
 /// Main model describing test structure
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    /// Short name of the test describing its logic
+    pub title: String,
     /// Code that are needed to be submitted for tests
     pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests
@@ -275,6 +283,7 @@ fn check_sample() {
     let test: Test = serde_yaml::from_str(yaml).unwrap();
     let path = test.programs.get(0).expect("Must have one").path.clone();
 
+    assert_eq!(test.title, "basic");
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(

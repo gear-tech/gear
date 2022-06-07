@@ -32,14 +32,14 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     Receive(u64),
     Join(u64),
     Report,
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Reply {
     Success,
     Failure,

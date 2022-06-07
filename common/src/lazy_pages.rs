@@ -19,54 +19,51 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
-use core::convert::TryFrom;
-use gear_core::ids::ProgramId;
-use gear_core::memory::{PageBuf, PageNumber};
-use gear_runtime_interface::{gear_ri, GetReleasedPageError, MprotectError};
+use gear_core::{
+    ids::ProgramId,
+    memory::{HostPointer, Memory, PageBuf, PageNumber},
+};
+use gear_runtime_interface::{gear_ri, RIError};
 use sp_std::{
-    boxed::Box,
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
-    #[display(fmt = "{}", _0)]
-    Mprotect(MprotectError),
-    #[display(fmt = "{}", _0)]
-    GetReleasedPage(GetReleasedPageError),
-    #[display(fmt = "Cannot convert vec to page data")]
-    VecToPageData,
-    #[display(fmt = "Cannot find page data in storage")]
-    NoPageDataInStorage,
-    #[display(
-        fmt = "RUNTIME ERROR: released page {:?} already has data in provided page map to core processor",
-        _0
-    )]
-    ReleasedPageHasData(PageNumber),
+    #[display(fmt = "RUNTIME INTERFACE ERROR: {}", _0)]
+    RIError(RIError),
+    #[display(fmt = "RUNTIME INTERFACE ERROR: {:?} has no released data", _0)]
+    ReleasedPageHasNoData(PageNumber),
+    #[display(fmt = "RUNTIME ERROR: released page {:?} has initial data", _0)]
+    ReleasedPageHasInitialData(PageNumber),
+    #[display(fmt = "RUNTIME ERROR: wasm memory buffer is undefined")]
+    WasmMemBufferIsUndefined,
 }
 
-impl From<MprotectError> for Error {
-    fn from(err: MprotectError) -> Self {
-        Self::Mprotect(err)
+impl From<RIError> for Error {
+    fn from(err: RIError) -> Self {
+        Self::RIError(err)
     }
 }
 
-impl From<GetReleasedPageError> for Error {
-    fn from(err: GetReleasedPageError) -> Self {
-        Self::GetReleasedPage(err)
-    }
-}
-
-fn mprotect_lazy_pages(addr: u64, protect: bool) -> Result<(), Error> {
-    gear_ri::mprotect_lazy_pages(addr, protect).map_err(Into::into)
+fn mprotect_lazy_pages(mem: &dyn Memory, protect: bool) -> Result<(), Error> {
+    let wasm_mem_addr = match mem.get_buffer_host_addr() {
+        None => return Ok(()),
+        Some(addr) => addr,
+    };
+    gear_ri::mprotect_lazy_pages(wasm_mem_addr, protect)
+        .map_err(Into::into)
+        .map_err(|e| {
+            log::error!("{} (it's better to stop node now)", e);
+            e
+        })
 }
 
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages() -> bool {
     if !gear_ri::init_lazy_pages() {
-        // TODO: lazy-pages must be disabled in validators in relay-chain,
-        // but it can be fixed in future only.
+        // TODO: lazy-pages must be disabled in validators in relay-chain.
         log::debug!("lazy-pages: disabled or unsupported");
         false
     } else {
@@ -82,64 +79,80 @@ pub fn is_lazy_pages_enabled() -> bool {
 
 /// Protect and save storage keys for pages which has no data
 pub fn protect_pages_and_init_info(
+    mem: &dyn Memory,
     lazy_pages: &BTreeSet<PageNumber>,
     prog_id: ProgramId,
-    wasm_mem_begin_addr: u64,
 ) -> Result<(), Error> {
     let prog_id_hash = prog_id.into_origin();
 
     gear_ri::reset_lazy_pages_info();
 
-    gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr);
+    let addr = match mem.get_buffer_host_addr() {
+        None => {
+            return if !lazy_pages.is_empty() {
+                // In this case wasm buffer cannot be undefined
+                Err(Error::WasmMemBufferIsUndefined)
+            } else {
+                Ok(())
+            };
+        }
+        Some(addr) => addr,
+    };
+    gear_ri::set_wasm_mem_begin_addr(addr).map_err(|e| {
+        log::error!("{} (it's better to stop node now)", e);
+        e
+    })?;
 
     lazy_pages.iter().for_each(|p| {
         crate::save_page_lazy_info(prog_id_hash, *p);
     });
 
-    mprotect_lazy_pages(wasm_mem_begin_addr, true)
+    mprotect_lazy_pages(mem, true)
 }
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
-    memory_pages: &mut BTreeMap<PageNumber, Box<PageBuf>>,
-    wasm_mem_begin_addr: u64,
+    mem: &dyn Memory,
+    pages_data: &mut BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), Error> {
     // Loads data for released lazy pages. Data which was before execution.
     let released_pages = gear_ri::get_released_pages();
     for page in released_pages {
-        let data = gear_ri::get_released_page_old_data(page)?;
-        let page_data = PageBuf::try_from(data).map_err(|_| Error::VecToPageData)?;
-        if memory_pages
-            .insert(page.into(), Box::new(page_data))
-            .is_some()
-        {
-            return Err(Error::ReleasedPageHasData(page.into()));
-        };
+        let data = gear_ri::get_released_page_old_data(page)
+            .ok_or_else(|| Error::ReleasedPageHasNoData(page.into()))?;
+        if pages_data.insert(page.into(), data).is_some() {
+            return Err(Error::ReleasedPageHasInitialData(page.into()));
+        }
     }
 
     // Removes protections from lazy pages
-    mprotect_lazy_pages(wasm_mem_begin_addr, false)
+    mprotect_lazy_pages(mem, false)
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), Error> {
-    mprotect_lazy_pages(mem_addr, false)
+pub fn remove_lazy_pages_prot(mem: &dyn Memory) -> Result<(), Error> {
+    mprotect_lazy_pages(mem, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
 pub fn protect_lazy_pages_and_update_wasm_mem_addr(
-    old_mem_addr: u64,
-    new_mem_addr: u64,
+    mem: &dyn Memory,
+    old_mem_addr: Option<HostPointer>,
 ) -> Result<(), Error> {
+    let new_mem_addr = mem.get_buffer_host_addr();
     if new_mem_addr != old_mem_addr {
         log::debug!(
-            "backend executor has changed wasm mem buff: from {:#x} to {:#x}",
+            "backend executor has changed wasm mem buff: from {:#x?} to {:#x?}",
             old_mem_addr,
             new_mem_addr
         );
-        gear_ri::set_wasm_mem_begin_addr(new_mem_addr);
+        gear_ri::set_wasm_mem_begin_addr(new_mem_addr.ok_or(Error::WasmMemBufferIsUndefined)?)
+            .map_err(|e| {
+                log::error!("{} (it's better to stop node now)", e);
+                e
+            })?;
     }
-    mprotect_lazy_pages(new_mem_addr, true)
+    mprotect_lazy_pages(mem, true)
 }
 
 /// Returns list of current lazy pages numbers

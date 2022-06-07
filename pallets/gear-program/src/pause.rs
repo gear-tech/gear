@@ -18,58 +18,62 @@
 
 use super::*;
 use codec::{Decode, Encode};
-use common::Origin as _;
-use frame_support::{dispatch::DispatchResult, storage::PrefixIterator};
-use gear_core::{memory::PageNumber, message::StoredDispatch};
+use common::{storage::*, Origin as _};
+use frame_support::dispatch::DispatchResult;
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    memory::{PageBuf, PageNumber},
+    message::StoredDispatch,
+};
+use primitive_types::H256;
 use scale_info::TypeInfo;
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, vec::Vec};
 
-#[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub(super) struct PausedProgram {
-    program_id: H256,
+    program_id: ProgramId,
     program: common::ActiveProgram,
     pages_hash: H256,
     wait_list_hash: H256,
-    waiting_init: Vec<H256>,
+    waiting_init: Vec<MessageId>,
 }
 
-fn decode_dispatch_tuple(_key: &[u8], value: &[u8]) -> Result<(StoredDispatch, u32), codec::Error> {
-    <(StoredDispatch, u32)>::decode(&mut &*value)
-}
-
-fn memory_pages_hash(pages: &BTreeMap<PageNumber, Vec<u8>>) -> H256 {
+fn memory_pages_hash(pages: &BTreeMap<PageNumber, PageBuf>) -> H256 {
     pages.using_encoded(sp_io::hashing::blake2_256).into()
 }
 
-fn wait_list_hash(wait_list: &BTreeMap<H256, StoredDispatch>) -> H256 {
+fn wait_list_hash(wait_list: &BTreeMap<MessageId, StoredDispatch>) -> H256 {
     wait_list.using_encoded(sp_io::hashing::blake2_256).into()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PauseError {
     ProgramNotFound,
     ProgramTerminated,
+    InvalidPageDataSize,
 }
 
 impl<T: Config> pallet::Pallet<T> {
-    pub fn pause_program(program_id: H256) -> Result<(), PauseError> {
-        let program = common::get_program(program_id).ok_or(PauseError::ProgramNotFound)?;
+    pub fn pause_program(program_id: ProgramId) -> Result<(), PauseError> {
+        let program =
+            common::get_program(program_id.into_origin()).ok_or(PauseError::ProgramNotFound)?;
         let program: common::ActiveProgram = program
             .try_into()
             .map_err(|_| PauseError::ProgramTerminated)?;
 
-        let prefix = common::wait_prefix(program_id);
-        let previous_key = prefix.clone();
-
-        let pages_data = common::get_program_pages_data(program_id, &program);
+        let pages_data = common::get_program_pages_data(program_id.into_origin(), &program)
+            .map_err(|e| {
+                log::error!("{}", e);
+                PauseError::InvalidPageDataSize
+            })?;
 
         let paused_program = PausedProgram {
             program_id,
             pages_hash: memory_pages_hash(&pages_data),
             program,
             wait_list_hash: wait_list_hash(
-                &PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
-                    .drain()
-                    .map(|(d, _)| (d.id().into_origin(), d))
+                &WaitlistOf::<T>::drain_key(program_id)
+                    .map(|(d, _)| (d.id(), d))
                     .collect(),
             ),
             waiting_init: common::waiting_init_take_messages(program_id),
@@ -77,8 +81,8 @@ impl<T: Config> pallet::Pallet<T> {
 
         // code shouldn't be removed
         // remove_program(program_id);
-        sp_io::storage::clear_prefix(&common::pages_prefix(program_id), None);
-        sp_io::storage::clear_prefix(&common::program_key(program_id), None);
+        sp_io::storage::clear_prefix(&common::pages_prefix(program_id.into_origin()), None);
+        sp_io::storage::clear_prefix(&common::program_key(program_id.into_origin()), None);
 
         PausedPrograms::<T>::insert(program_id, paused_program);
 
@@ -87,15 +91,14 @@ impl<T: Config> pallet::Pallet<T> {
         Ok(())
     }
 
-    pub fn program_paused(id: H256) -> bool {
+    pub fn program_paused(id: ProgramId) -> bool {
         PausedPrograms::<T>::contains_key(id)
     }
 
     pub(super) fn resume_program_impl(
-        program_id: H256,
-        memory_pages: BTreeMap<PageNumber, Vec<u8>>,
-        wait_list: BTreeMap<H256, StoredDispatch>,
-        block_number: u32,
+        program_id: ProgramId,
+        memory_pages: BTreeMap<PageNumber, PageBuf>,
+        wait_list: BTreeMap<MessageId, StoredDispatch>,
     ) -> DispatchResult {
         let paused_program =
             PausedPrograms::<T>::get(program_id).ok_or(Error::<T>::PausedProgramNotFound)?;
@@ -110,15 +113,17 @@ impl<T: Config> pallet::Pallet<T> {
 
         PausedPrograms::<T>::remove(program_id);
 
-        if let Err(err) =
-            common::set_program_and_pages_data(program_id, paused_program.program, memory_pages)
-        {
+        if let Err(err) = common::set_program_and_pages_data(
+            program_id.into_origin(),
+            paused_program.program,
+            memory_pages,
+        ) {
             log::error!("{}", err);
             return Err(Error::<T>::NotAllocatedPageWithData.into());
         }
 
-        wait_list.into_iter().for_each(|(msg_id, d)| {
-            common::insert_waiting_message(program_id, msg_id, d, block_number)
+        wait_list.into_iter().for_each(|(_, d)| {
+            WaitlistOf::<T>::insert(d).expect("Duplicate message is wl");
         });
         sp_io::storage::set(
             &common::waiting_init_prefix(program_id),
