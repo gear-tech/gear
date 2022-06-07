@@ -318,6 +318,10 @@ case "$COMMAND" in
         header "Running js test for runtime upgrade"
         runtime_upgrade_test "$ROOT_DIR"; ;;
 
+      fuzz)
+        header "Running fuzzer for system consistency check"
+        run_fuzzer "$ROOT_DIR" "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage

@@ -72,6 +72,9 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData, prelude::*};
 
+// Tolerance towards rounding error when converting gas to balance etc.
+pub(crate) const TOL: u128 = 10;
+
 pub struct ExtManager<T: Config> {
     // Messages with these destinations will be forcibly pushed to the queue.
     marked_destinations: BTreeSet<ProgramId>,
@@ -187,7 +190,6 @@ where
                 let reason = trap
                     .map(|v| {
                         log::info!(
-                            target: "runtime::gear",
                             "🪤 Program {} terminated with a trap: {}",
                             program_id.into_origin(),
                             v
@@ -195,8 +197,6 @@ where
                         v.as_bytes().to_vec()
                     })
                     .unwrap_or_default();
-
-                log::trace!("Dispatch outcome trap: {:?}", message_id);
 
                 Event::MessageDispatched(DispatchOutcome {
                     message_id,
@@ -299,12 +299,35 @@ where
                         if let Some(origin) = maybe_origin {
                             let charge = T::GasPrice::gas_price(amount);
                             if let Some(author) = Authorship::<T>::author() {
-                                let _ = <T as Config>::Currency::repatriate_reserved(
+                                match <T as Config>::Currency::repatriate_reserved(
                                     &<T::AccountId as Origin>::from_origin(origin),
                                     &author,
                                     charge,
                                     BalanceStatus::Free,
-                                );
+                                ) {
+                                    Ok(leftover) => {
+                                        if leftover > TOL.unique_saturated_into() {
+                                            log::debug!(
+                                                target: "essential",
+                                                "Reserved funds not fully repatriated from {} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                                origin,
+                                                author,
+                                                charge,
+                                                leftover,
+                                            );
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::debug!(
+                                            target: "essential",
+                                            "Failure to repatriate reserves of {:?} from {} to 0x{:?}: {:?}",
+                                            charge,
+                                            origin,
+                                            author,
+                                            e,
+                                        )
+                                    }
+                                }
                             }
                         } else {
                             log::debug!(
@@ -461,17 +484,40 @@ where
                             if let Some(origin) = maybe_origin {
                                 let charge = T::GasPrice::gas_price(chargeable_amount);
                                 if let Some(author) = Authorship::<T>::author() {
-                                    let _ = <T as Config>::Currency::repatriate_reserved(
+                                    match <T as Config>::Currency::repatriate_reserved(
                                         &<T::AccountId as Origin>::from_origin(origin),
                                         &author,
                                         charge,
                                         BalanceStatus::Free,
-                                    );
+                                    ) {
+                                        Ok(leftover) => {
+                                            if leftover > TOL.unique_saturated_into() {
+                                                log::debug!(
+                                                    target: "essential",
+                                                    "Reserved funds not fully repatriated from {} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                                    origin,
+                                                    author,
+                                                    charge,
+                                                    leftover,
+                                                );
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::debug!(
+                                                target: "essential",
+                                                "Failure to repatriate reserves of {:?} from {} to 0x{:?}: {:?}",
+                                                charge,
+                                                origin,
+                                                author,
+                                                e,
+                                            );
+                                        }
+                                    }
                                 }
                             } else {
                                 log::debug!(
                                     target: "essential",
-                                    "Failed to get limit of {:?}",
+                                    "Failed to get origin of {:?}",
                                     message_id,
                                 );
                             }
@@ -486,13 +532,13 @@ where
                 Err(err) => {
                     log::debug!(
                         target: "essential",
-                        "Error charging {:?} gas rent of getting out of waitlist for message_id {:?}: {:?}",
+                        "Error charging {:?} of gas rent for awakening message {:?}: {:?}",
                         chargeable_amount,
                         message_id,
                         err,
-                    )
+                    );
                 }
-            };
+            }
 
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
@@ -561,13 +607,37 @@ where
                 <T as Config>::Currency::minimum_balance(),
             ) {
                 // `to` account exists, so we can repatriate reserved value for it.
-                <T as Config>::Currency::repatriate_reserved(
+                match <T as Config>::Currency::repatriate_reserved(
                     &from_account,
                     &to_account,
                     value,
                     BalanceStatus::Free,
-                )
-                .map(|_| ())
+                ) {
+                    Ok(leftover) => {
+                        if leftover > TOL.unique_saturated_into() {
+                            log::debug!(
+                                target: "essential",
+                                "Reserved funds not fully repatriated from 0x{:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                from_account,
+                                to_account,
+                                value,
+                                leftover,
+                            );
+                        }
+                        Ok(())
+                    }
+                    Err(e) => {
+                        log::debug!(
+                            target: "essential",
+                            "Failure to repatriate reserves of {:?} from 0x{:?} to 0x{:?}: {:?}",
+                            value,
+                            from_account,
+                            to_account,
+                            e,
+                        );
+                        Ok(())
+                    }
+                }
             } else {
                 let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
                 if not_freed != 0u128.unique_saturated_into() {
