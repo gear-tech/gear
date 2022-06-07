@@ -237,10 +237,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Execute program in backend env.
     let BackendReport { termination, info } = match env.execute(kind.into_entry(), |mem| {
-        // accessed lazy pages old data will be added to `initial_pages`
-        // TODO: if post execution actions err is connected, with removing pages protections,
-        // then we should panic here, because protected pages may cause UB later, during signal handling,
-        // if somebody will try to access this pages.
+        // released pages initial data will be added to `pages_data`
         if A::is_lazy_pages_enabled() {
             A::lazy_pages_post_execution_actions(mem, &mut pages_data)
         } else {

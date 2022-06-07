@@ -468,6 +468,7 @@ where
             Error::<T>::InsufficientBalance
         );
         *node.inner_value_mut().expect("Querying node with value") -= amount;
+        log::debug!("Spent {} of gas", amount);
 
         // Save node that delivers limit
         GasTree::<T>::mutate(node.id, |value| {
@@ -739,7 +740,8 @@ mod imbalances {
         fn drop(&mut self) {
             <super::TotalIssuance<T>>::mutate(|v| {
                 if self.0 > *v {
-                    log::warn!(
+                    log::debug!(
+                        target: "essential",
                         "Unaccounted gas detected: burnt {:?}, known total supply was {:?}.",
                         self.0,
                         *v
