@@ -427,39 +427,26 @@ pub mod pallet {
         }
 
         #[cfg(not(test))]
-        pub fn get_gas_spent_rpc(
+        pub fn get_gas_spent(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
-            Self::get_gas_spent(source, kind, payload, value)
+            Self::get_gas_spent_impl(source, kind, payload, value)
         }
 
         #[cfg(test)]
-        pub fn get_gas_spent_tests(
+        pub fn get_gas_spent(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
-            sp_externalities::with_externalities(|ext| {
-                ext.storage_start_transaction();
-            })
-            .expect("externalities should be set");
-
-            let result = Self::get_gas_spent(source, kind, payload, value);
-
-            sp_externalities::with_externalities(|ext| {
-                ext.storage_rollback_transaction()
-                    .expect("transaction was started");
-            })
-            .expect("externalities should be set");
-
-            result
+            mock::run_with_ext_copy(|| Self::get_gas_spent_impl(source, kind, payload, value))
         }
 
-        fn get_gas_spent(
+        fn get_gas_spent_impl(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,

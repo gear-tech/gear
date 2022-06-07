@@ -324,6 +324,23 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
     (gas_burned, gas_to_send)
 }
 
+pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
+    sp_externalities::with_externalities(|ext| {
+        ext.storage_start_transaction();
+    })
+    .expect("externalities should be set");
+
+    let result = f();
+
+    sp_externalities::with_externalities(|ext| {
+        ext.storage_rollback_transaction()
+            .expect("transaction was started");
+    })
+    .expect("externalities should be set");
+
+    result
+}
+
 pub fn get_gas_burned<T>(
     source: H256,
     kind: HandleKind,
@@ -335,20 +352,7 @@ where
     T: crate::Config,
     T::AccountId: common::Origin,
 {
-    sp_externalities::with_externalities(|ext| {
-        ext.storage_start_transaction();
-    })
-    .expect("externalities should be set");
-
-    let result = get_gas_burned_internal::<T>(source, kind, payload, gas_limit, value);
-
-    sp_externalities::with_externalities(|ext| {
-        ext.storage_rollback_transaction()
-            .expect("transaction was started");
-    })
-    .expect("externalities should be set");
-
-    result
+    run_with_ext_copy(|| get_gas_burned_internal::<T>(source, kind, payload, gas_limit, value))
 }
 
 fn get_gas_burned_internal<T>(

@@ -2854,7 +2854,7 @@ fn gas_spent_vs_balance() {
 
         let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let init_gas_spent = Gear::get_gas_spent_tests(
+        let init_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
@@ -2869,7 +2869,7 @@ fn gas_spent_vs_balance() {
 
         run_to_block(4, None);
 
-        let handle_gas_spent = Gear::get_gas_spent_tests(
+        let handle_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             request,
@@ -2912,7 +2912,7 @@ fn gas_spent_precalculated() {
 
         run_to_block(2, None);
 
-        let gas_spent_1 = Gear::get_gas_spent_tests(
+        let gas_spent_1 = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -3316,7 +3316,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let user_balance_before_calculating = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_reserved = Gear::get_gas_spent_tests(
+        let gas_reserved = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(wrapper_id.into_origin()),
             payload.clone(),
