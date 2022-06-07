@@ -238,33 +238,38 @@ fn process_success(
         });
     }
 
-    match kind {
+    let outcome = match kind {
+        Wait => {
+            journal.push(JournalNote::WaitDispatch(
+                dispatch.into_stored(program_id, context_store),
+            ));
+
+            return journal;
+        }
+        Success => match dispatch.kind() {
+            DispatchKind::Init => DispatchOutcome::InitSuccess {
+                message_id,
+                origin,
+                program_id,
+            },
+            _ => DispatchOutcome::Success(message_id),
+        },
         Exit(value_destination) => {
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
                 value_destination,
             });
-        }
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
-        }
-        Success => {
-            let outcome = match dispatch.kind() {
-                DispatchKind::Init => DispatchOutcome::InitSuccess {
-                    message_id,
-                    origin,
-                    program_id,
-                },
-                _ => DispatchOutcome::Success(message_id),
-            };
 
-            journal.push(JournalNote::MessageDispatched(outcome));
-            journal.push(JournalNote::MessageConsumed(message_id));
+            DispatchOutcome::Exit {
+                message_id,
+                origin,
+                program_id,
+            }
         }
     };
 
+    journal.push(JournalNote::MessageDispatched(outcome));
+    journal.push(JournalNote::MessageConsumed(message_id));
     journal
 }
 

@@ -24,7 +24,7 @@ use crate::{
         USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GearProgramPallet, MailboxOf,
-    MessageInfo, Pallet as GearPallet, Reason,
+    MessageInfo, Pallet as GearPallet, Reason, WaitlistOf,
 };
 use codec::Encode;
 use common::{storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
@@ -33,7 +33,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -2425,6 +2425,132 @@ fn exit_handle() {
 }
 
 #[test]
+fn no_redundant_gas_value_after_exiting() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use demo_exit_handle::WASM_BINARY;
+
+        let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        let (gas_spent, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            prog_id,
+            EMPTY_PAYLOAD.to_vec(),
+            gas_spent,
+            0,
+        ));
+
+        let msg_id = get_last_message_id().into_origin();
+        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        assert_eq!(maybe_limit, Some(gas_spent));
+
+        // before execution
+        let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
+        let reserved_after_send = BalancesPallet::<Test>::reserved_balance(USER_1);
+        assert_eq!(reserved_after_send, gas_spent as u128);
+
+        run_to_block(3, None);
+
+        // gas_limit has been recovered
+        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        assert_eq!(maybe_limit, None);
+
+        // the (reserved_after_send - gas_spent) has been unreserved
+        let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
+        assert_eq!(
+            free_after_execution,
+            free_after_send + (reserved_after_send - gas_spent as u128)
+        );
+
+        // reserved balance after execution is zero
+        let reserved_after_execution = BalancesPallet::<Test>::reserved_balance(USER_1);
+        assert!(reserved_after_execution.is_zero());
+    })
+}
+
+#[test]
+fn init_wait_reply_exit_cleaned_storage() {
+    use demo_init_wait_reply_exit::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            Vec::new(),
+            2_000_000_000u64,
+            0u128
+        ));
+        let pid = get_last_program_id();
+
+        // block 2
+        //
+        // - send messages to the program
+        run_to_block(2, None);
+        let count = 5;
+        for _ in 0..count {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(USER_1),
+                pid,
+                vec![],
+                10_000u64,
+                0u128
+            ));
+        }
+
+        // block 3
+        //
+        // - count waiting init messages
+        // - reply and wake program
+        // - check program status
+        run_to_block(3, None);
+        assert_eq!(waiting_init_messages(pid).len(), count);
+        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), count + 1);
+
+        let msg_id = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .expect("Element should be")
+            .id();
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1),
+            msg_id,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000u64,
+            0,
+        ));
+
+        assert!(!Gear::is_initialized(pid));
+        assert!(!Gear::is_terminated(pid));
+
+        // block 4
+        //
+        // - check if program has terminated
+        // - check waiting_init storage is empty
+        // - check wait list is empty
+        run_to_block(4, None);
+        assert!(!Gear::is_initialized(pid));
+        assert!(Gear::is_terminated(pid));
+        assert_eq!(waiting_init_messages(pid).len(), 0);
+        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 0);
+    })
+}
+
+#[test]
 fn paused_program_keeps_id() {
     use demo_init_wait::WASM_BINARY;
 
@@ -3265,6 +3391,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 mod utils {
     use frame_support::{
+        codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::currency::Currency,
     };
@@ -3602,5 +3729,12 @@ mod utils {
         for (pos, line) in v.iter().enumerate() {
             println!("{}). {:?}", pos, line);
         }
+    }
+
+    pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
+        let key = common::waiting_init_prefix(pid);
+        sp_io::storage::get(&key)
+            .and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok())
+            .unwrap_or_default()
     }
 }

@@ -99,6 +99,15 @@ impl DispatchResult {
 /// Dispatch outcome of the specific message.
 #[derive(Clone, Debug)]
 pub enum DispatchOutcome {
+    /// Message was a exit.
+    Exit {
+        /// Message id.
+        message_id: MessageId,
+        /// Original actor.
+        origin: ProgramId,
+        /// Id of the program that was successfully exited.
+        program_id: ProgramId,
+    },
     /// Message was an initialization success.
     InitSuccess {
         /// Message id.
