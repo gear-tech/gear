@@ -1,3 +1,4 @@
+utils/economic-checks/*.wat
 node_modules/
 target/
 .binpath
