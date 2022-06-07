@@ -261,6 +261,8 @@ pub trait Memory {
         if self.size() == 0.into() {
             None
         } else {
+            // We call this method only in case memory size is not zero,
+            // so memory buffer exists and has addr in host memory.
             unsafe { Some(self.get_buffer_host_addr_unsafe()) }
         }
     }
