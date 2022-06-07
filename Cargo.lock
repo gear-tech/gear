@@ -2407,6 +2407,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "gear-common-codegen",
  "gear-core",
  "gear-runtime-interface",
  "hex-literal",
@@ -2421,6 +2422,14 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wasm-instrument",
+]
+
+[[package]]
+name = "gear-common-codegen"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
