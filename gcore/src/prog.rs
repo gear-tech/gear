@@ -81,8 +81,7 @@ mod sys {
 ///     let submitted_code: CodeHash =
 ///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
 ///             .into();
-///     let new_program_id =
-///         prog::create_program(submitted_code, &get().to_le_bytes(), b"", 0);
+///     let new_program_id = prog::create_program(submitted_code, &get().to_le_bytes(), b"", 0);
 /// }
 /// ```
 /// Another case for salt is to receive it as an input:
