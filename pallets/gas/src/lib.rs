@@ -108,28 +108,14 @@ impl ValueNode {
         }
     }
 
-    /// Returns the AccountId (as Origin) of the value tree creator.
-    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
+    /// Returns root node of the value tree where caller node exists.
+    pub fn root<T: Config>(&self) -> Result<Self, DispatchError> {
         match self.inner {
-            ValueType::External { id, .. } => Ok(id),
+            ValueType::External { .. } => Ok(self.clone()),
             ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
                 <Pallet<T>>::get_node(parent)
                     .ok_or(<Error<T>>::GasTreeInvalidated)?
-                    .root_origin::<T>()
-            }
-        }
-    }
-
-    /// Returns the MessageId (as Origin) of the external node of current value tree.
-    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root_key<T: Config>(&self) -> Result<H256, DispatchError> {
-        match self.inner {
-            ValueType::External { .. } => Ok(self.id),
-            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
-                <Pallet<T>>::get_node(parent)
-                    .ok_or(<Error<T>>::GasTreeInvalidated)?
-                    .root_key::<T>()
+                    .root::<T>()
             }
         }
     }
@@ -323,7 +309,15 @@ where
     fn get_origin(key: H256) -> Result<Option<H256>, DispatchError> {
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
-            Some(node.root_origin::<T>()?)
+            if let ValueNode {
+                inner: ValueType::External { id, .. },
+                ..
+            } = node.root::<T>()?
+            {
+                Some(id)
+            } else {
+                unreachable!("Guaranteed by ValueNode::root method");
+            }
         } else {
             // key unknown - legitimate result
             None
@@ -333,7 +327,7 @@ where
     fn get_origin_key(key: H256) -> Result<Option<H256>, DispatchError> {
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
-            Some(node.root_key::<T>()?)
+            node.root::<T>().map(|n| Some(n.id))?
         } else {
             // key unknown - legitimate result
             None
