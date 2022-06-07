@@ -136,8 +136,8 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    /// Check if id is program.
-    pub fn is_program(&mut self, id: &ProgramId) -> bool {
+    /// Check if id is program and save result.
+    pub fn check_program_id(&mut self, id: &ProgramId) -> bool {
         // TODO: research how much need to charge for `program_exists` query.
         if self.programs.contains(id) {
             true
@@ -152,9 +152,9 @@ where
         }
     }
 
-    /// Check if id is not program.
-    pub fn is_user(&mut self, id: &ProgramId) -> bool {
-        !self.is_program(id)
+    /// Check if id is user and save result.
+    pub fn check_user_id(&mut self, id: &ProgramId) -> bool {
+        !self.check_program_id(id)
     }
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
@@ -316,7 +316,7 @@ where
             }
         };
 
-        if self.is_user(&source) {
+        if self.check_user_id(&source) {
             self.dispatch_statuses.insert(message_id, status);
         }
     }
@@ -466,7 +466,7 @@ where
             gas_limit,
         );
 
-        if self.is_program(&dispatch.destination()) {
+        if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
                 let _ = T::GasHandler::split_with_value(
                     message_id,
