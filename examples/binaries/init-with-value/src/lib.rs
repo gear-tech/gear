@@ -25,7 +25,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use gstd::errors::MessageError;
 #[cfg(not(feature = "std"))]
 use gstd::prelude::*;
 
@@ -39,7 +38,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
     Init {
-        expected_error: Option<MessageError>,
+        destination: Option<u64>,
         value: u128,
     },
     Handle {
@@ -50,10 +49,7 @@ pub enum SendMessage {
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{
-        errors::{ContractError, ExtError},
-        msg, prog,
-    };
+    use gstd::{errors::ContractError, msg, prog, ToString};
 
     use super::SendMessage;
 
@@ -68,10 +64,7 @@ mod wasm {
         let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
         for msg_data in data {
             match msg_data {
-                SendMessage::Init {
-                    value,
-                    expected_error,
-                } => {
+                SendMessage::Init { destination, value } => {
                     let submitted_code = CHILD_CODE_HASH.into();
                     let res = prog::create_program_with_gas(
                         submitted_code,
@@ -85,15 +78,8 @@ mod wasm {
                         Ok(_) => {
                             COUNTER += 1;
                         }
-                        Err(err) => {
-                            gstd::debug!("Error occurred during program creation: {}", err);
-                            if let Some(expected_error) = expected_error {
-                                assert_eq!(
-                                    err,
-                                    ContractError::Ext(ExtError::Message(expected_error))
-                                )
-                            }
-                        }
+                        Err(ContractError::Ext(err)) => panic!("{}", err),
+                        Err(err) => panic!("{}", err),
                     }
                 }
                 SendMessage::Handle { destination, value } => {
