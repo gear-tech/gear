@@ -2344,6 +2344,7 @@ dependencies = [
  "parity-wasm 0.42.2",
  "pwasm-utils",
  "scale-info",
+ "static_assertions",
  "wabt",
  "wasm-instrument",
 ]
@@ -2494,6 +2495,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-runtime-interface",
  "sp-std",
+ "static_assertions",
 ]
 
 [[package]]

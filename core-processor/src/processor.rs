@@ -307,7 +307,11 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         execution_context,
         execution_settings,
         msg_ctx_settings,
-    );
+    )
+    .map_err(|err| {
+        log::debug!("Wasm execution err: {}", err.reason);
+        err
+    });
 
     match exec_result {
         Ok(res) => match res.kind {
