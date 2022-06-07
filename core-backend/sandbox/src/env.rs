@@ -52,6 +52,8 @@ pub enum SandboxEnvironmentError {
     GetWasmExports,
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
+    #[display(fmt = "Unable to save static pages initial data")]
+    SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
     #[display(fmt = "{}", _0)]
@@ -234,6 +236,18 @@ where
         if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
             return Err(BackendError {
                 reason: SandboxEnvironmentError::SetModuleMemoryData,
+                description: Some(format!("{:?}", e).into()),
+                gas_amount: runtime.ext.into_inner().into_gas_amount(),
+            });
+        }
+
+        if let Err(e) = runtime
+            .ext
+            .with(|ext| ext.save_static_pages_initial_data(&runtime.memory))
+            .expect("We just set ext")
+        {
+            return Err(BackendError {
+                reason: SandboxEnvironmentError::SaveStaticPagesInitialData,
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: runtime.ext.into_inner().into_gas_amount(),
             });
