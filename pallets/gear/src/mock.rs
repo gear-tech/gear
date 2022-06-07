@@ -337,13 +337,16 @@ where
 {
     sp_externalities::with_externalities(|ext| {
         ext.storage_start_transaction();
-    }).expect("externalities should be set");
+    })
+    .expect("externalities should be set");
 
     let result = get_gas_burned_internal::<T>(source, kind, payload, gas_limit, value);
 
     sp_externalities::with_externalities(|ext| {
-        ext.storage_rollback_transaction().expect("transaction was started");
-    }).expect("externalities should be set");
+        ext.storage_rollback_transaction()
+            .expect("transaction was started");
+    })
+    .expect("externalities should be set");
 
     result
 }

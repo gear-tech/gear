@@ -443,13 +443,16 @@ pub mod pallet {
         ) -> Result<u64, Vec<u8>> {
             sp_externalities::with_externalities(|ext| {
                 ext.storage_start_transaction();
-            }).expect("externalities should be set");
+            })
+            .expect("externalities should be set");
 
             let result = Self::get_gas_spent(source, kind, payload, value);
 
             sp_externalities::with_externalities(|ext| {
-                ext.storage_rollback_transaction().expect("transaction was started");
-            }).expect("externalities should be set");
+                ext.storage_rollback_transaction()
+                    .expect("transaction was started");
+            })
+            .expect("externalities should be set");
 
             result
         }
