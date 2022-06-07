@@ -173,7 +173,6 @@ impl GasTreePropTester {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
     fn test_parents((max_tree_node_balance, actions) in any::<u64>().prop_flat_map(|max_balance| {
         (Just(max_balance), gas_action_strategy(max_balance))
@@ -189,6 +188,25 @@ proptest! {
                 if let Some(parent) = node.parent() {
                     assert!(existing_nodes.contains(&parent));
                 }
+            }
+        })
+    }
+
+    #[test]
+    fn test_ancestor_with_value((max_tree_node_balance, actions) in any::<u64>().prop_flat_map(|max_balance| {
+        (Just(max_balance), gas_action_strategy(max_balance))
+    })) {
+        new_test_ext().execute_with(|| {
+            // Test whether all non external nodes have parents
+            let mut t = GasTreePropTester::new(max_tree_node_balance);
+            t.build_tree(actions);
+            let existing_nodes = t.nodes();
+
+            let gas_tree = super::GasTree::<Test>::iter_values().collect::<Vec<_>>();
+            for node in gas_tree {
+                // node is a self ancestor as well
+                let ancestor_with_value = node.node_with_value::<Test>().expect("can't fail");
+                assert!(ancestor_with_value.inner_value().is_some())
             }
         })
     }
