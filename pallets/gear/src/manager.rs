@@ -221,13 +221,13 @@ where
             common::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
+                    // TODO: update gas limit in `ValueTree` here (issue #1022).
                     if let Ok((m, _)) = WaitlistOf::<T>::remove(p_id, m_id) {
                         Pallet::<T>::deposit_event(Event::<T>::MessageWoken {
                             id: m_id,
                             reason: MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
                         });
 
-                        // TODO: update gas limit in ValueTree here.
                         QueueOf::<T>::queue(m)
                             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                     } else {
@@ -367,6 +367,7 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        // TODO: update gas limit in `ValueTree` here (issue #1022).
         for (message, _) in WaitlistOf::<T>::drain_key(id_exited) {
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
