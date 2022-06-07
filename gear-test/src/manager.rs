@@ -130,7 +130,9 @@ impl JournalHandler for InMemoryExtManager {
                 }
                 true
             }
-            DispatchOutcome::Success | DispatchOutcome::NoExecution => false,
+            DispatchOutcome::Success
+            | DispatchOutcome::NoExecution
+            | DispatchOutcome::Exit { .. } => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 if let Some(Some(actor)) = self.actors.get_mut(&program_id) {
                     actor.program.set_initialized();
@@ -140,6 +142,7 @@ impl JournalHandler for InMemoryExtManager {
             }
         };
     }
+
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {

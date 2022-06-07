@@ -135,7 +135,6 @@ fn process_error(
 
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
-            origin,
             program_id,
             reason: err.map(|e| e.to_string()),
         },
@@ -240,33 +239,34 @@ fn process_success(
         });
     }
 
-    match kind {
+    let outcome = match kind {
+        Wait => {
+            journal.push(JournalNote::WaitDispatch(
+                dispatch.into_stored(program_id, context_store),
+            ));
+
+            return journal;
+        }
+        Success => match dispatch.kind() {
+            DispatchKind::Init => DispatchOutcome::InitSuccess { program_id },
+            _ => DispatchOutcome::Success,
+        },
         Exit(value_destination) => {
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
                 value_destination,
             });
-        }
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
-        }
-        Success => {
-            let outcome = match dispatch.kind() {
-                DispatchKind::Init => DispatchOutcome::InitSuccess { origin, program_id },
-                _ => DispatchOutcome::Success,
-            };
 
-            journal.push(JournalNote::MessageDispatched {
-                message_id,
-                source: origin,
-                outcome,
-            });
-            journal.push(JournalNote::MessageConsumed(message_id));
+            DispatchOutcome::Exit { program_id }
         }
     };
 
+    journal.push(JournalNote::MessageDispatched {
+        message_id,
+        source: origin,
+        outcome,
+    });
+    journal.push(JournalNote::MessageConsumed(message_id));
     journal
 }
 

@@ -237,6 +237,16 @@ where
         };
 
         let status = match outcome {
+            Exit { program_id } => {
+                log::trace!("Dispatch outcome exit: {:?}", message_id);
+
+                Pallet::<T>::deposit_event(Event::ProgramChanged {
+                    id: program_id,
+                    change: ProgramChangeKind::Inactive,
+                });
+
+                DispatchStatus::Success
+            }
             Success => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
 
@@ -312,7 +322,7 @@ where
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         let message_id = message_id.into_origin();
 
-        log::debug!("burned: {:?} from: {:?}", amount, message_id);
+        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
         GasPallet::<T>::decrease_gas_allowance(amount);
 
@@ -362,6 +372,7 @@ where
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
 
+        let _ = common::waiting_init_take_messages(id_exited);
         let res = common::set_program_terminated_status(id_exited.into_origin());
         assert!(res.is_ok(), "`exit` can be called only from active program");
 

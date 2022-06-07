@@ -353,10 +353,7 @@ impl ExtManager {
                     self.message_dispatched(
                         message_id,
                         source,
-                        DispatchOutcome::InitSuccess {
-                            program_id,
-                            origin: dispatch.source(),
-                        },
+                        DispatchOutcome::InitSuccess { program_id },
                     );
                 }
 
@@ -380,7 +377,6 @@ impl ExtManager {
                         source,
                         DispatchOutcome::InitFailure {
                             program_id,
-                            origin: dispatch.source(),
                             reason: Some(expl.to_string()),
                         },
                     );
@@ -460,7 +456,9 @@ impl JournalHandler for ExtManager {
     ) {
         match outcome {
             DispatchOutcome::MessageTrap { .. } => self.mark_failed(message_id),
-            DispatchOutcome::Success | DispatchOutcome::NoExecution => {}
+            DispatchOutcome::Success
+            | DispatchOutcome::NoExecution
+            | DispatchOutcome::Exit { .. } => {}
             DispatchOutcome::InitFailure { program_id, .. } => {
                 self.init_failure(message_id, program_id)
             }
