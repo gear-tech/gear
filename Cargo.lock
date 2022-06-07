@@ -9672,12 +9672,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.33"
+version = "0.2.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f973822fb3ca7e03ab421910274514b405df19a3d53acb131ae4df3a2fc4eb58"
+checksum = "ea454634a2a7888d053f7723a26a76024e4f705cf86f7b4d38d5f15b79369c31"
 dependencies = [
  "anyhow",
- "wasmparser 0.83.0",
+ "wasmparser 0.85.0",
 ]
 
 [[package]]
