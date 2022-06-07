@@ -198,7 +198,4 @@ pub enum ProgramChangeKind<BlockNumber> {
         /// Waitlist hash addressed to the program.
         waitlist_hash: H256,
     },
-
-    /// Informational change, showing that programs state changed.
-    StateChanged,
 }

@@ -60,7 +60,11 @@ use gear_core::{
 use pallet_gas::Pallet as GasPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    convert::TryInto,
+    prelude::*,
+};
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
@@ -238,6 +242,8 @@ pub mod pallet {
             /// Execution statuses of the messages, which were already known
             /// by `Event::MessageEnqueued` (sent from user to program).
             statuses: BTreeMap<MessageId, DispatchStatus>,
+            /// Ids of programs, which state changed during queue processing.
+            state_changes: BTreeSet<ProgramId>,
         },
 
         /// Temporary `Event` variant, showing that all storages was cleared.
@@ -963,21 +969,13 @@ pub mod pallet {
             }
 
             let post_data: QueuePostProcessingData = ext_manager.into();
-
-            // TODO: consider about merging this data into separate event or `Event::MessagesDispatched`
-            for id in post_data.state_changes {
-                Self::deposit_event(Event::ProgramChanged {
-                    id,
-                    change: ProgramChangeKind::StateChanged,
-                })
-            }
-
             let total_handled = DequeuedOf::<T>::get();
 
             if total_handled > 0 {
                 Self::deposit_event(Event::MessagesDispatched {
                     total: total_handled,
                     statuses: post_data.dispatch_statuses,
+                    state_changes: post_data.state_changes,
                 });
             }
 
