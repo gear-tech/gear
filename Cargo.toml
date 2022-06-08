@@ -17,6 +17,7 @@ default-members = ["node"]
 
 members = [
     "common",
+    "common/codegen",
     "core",
     "core-backend/common",
     "core-backend/wasmtime",

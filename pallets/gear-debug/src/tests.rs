@@ -284,7 +284,7 @@ fn debug_mode_works() {
 }
 
 fn get_last_message_id() -> MessageId {
-    use pallet_gear::{Event, MessageInfo};
+    use pallet_gear::Event;
 
     let event = match SystemPallet::<Test>::events()
         .last()
@@ -295,9 +295,8 @@ fn get_last_message_id() -> MessageId {
     };
 
     match event {
-        Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
-        Event::Log(msg) => msg.id(),
-        Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+        Event::MessageEnqueued { id, .. } => id,
+        Event::UserMessageSent { message, .. } => message.id(),
         _ => unreachable!("expect sending"),
     }
 }
