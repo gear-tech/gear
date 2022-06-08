@@ -3260,7 +3260,7 @@ fn test_create_program_without_gas_works() {
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
-            vec![SendMessage::InitWithoutGas(0)].encode(),
+            vec![SendMessage::InitWithoutGas { value: 0 }].encode(),
             10_000_000_000,
             0,
         ));

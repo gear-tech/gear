@@ -45,7 +45,7 @@ pub enum SendMessage {
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{errors::ContractError, msg, prog, ToString};
+    use gstd::{errors::ContractError, msg, prog};
 
     use super::SendMessage;
 
