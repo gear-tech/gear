@@ -40,7 +40,7 @@ use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
 
-use crate::memory::MemoryWrapExternal;
+use crate::{funcs::FuncsHandler as Funcs, memory::MemoryWrapExternal};
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
@@ -108,6 +108,7 @@ where
         memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
+        let forbidden_funcs = ext.forbidden_funcs().clone();
         let ext_carrier = ExtCarrier::new(ext);
 
         let engine = Engine::default();
@@ -129,59 +130,61 @@ where
             }
         };
 
-        /// Make import funcs
-        use crate::funcs::FuncsHandler as funcs;
         let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert("alloc", funcs::alloc(&mut store, memory));
-        funcs.insert("free", funcs::free(&mut store));
-        funcs.insert("gas", funcs::gas(&mut store));
-        funcs.insert("gr_block_height", funcs::block_height(&mut store));
-        funcs.insert("gr_block_timestamp", funcs::block_timestamp(&mut store));
+        funcs.insert("alloc", Funcs::alloc(&mut store, memory));
+        funcs.insert("free", Funcs::free(&mut store));
+        funcs.insert("gas", Funcs::gas(&mut store));
+        funcs.insert("gr_block_height", Funcs::block_height(&mut store));
+        funcs.insert("gr_block_timestamp", Funcs::block_timestamp(&mut store));
         funcs.insert(
             "gr_create_program",
-            funcs::create_program(&mut store, memory),
+            Funcs::create_program(&mut store, memory),
         );
         funcs.insert(
             "gr_create_program_wgas",
-            funcs::create_program_wgas(&mut store, memory),
+            Funcs::create_program_wgas(&mut store, memory),
         );
-        funcs.insert("gr_exit_code", funcs::exit_code(&mut store));
-        funcs.insert("gr_gas_available", funcs::gas_available(&mut store));
-        funcs.insert("gr_debug", funcs::debug(&mut store, memory));
-        funcs.insert("gr_exit", funcs::exit(&mut store, memory));
-        funcs.insert("gr_origin", funcs::origin(&mut store, memory));
-        funcs.insert("gr_msg_id", funcs::msg_id(&mut store, memory));
-        funcs.insert("gr_program_id", funcs::program_id(&mut store, memory));
-        funcs.insert("gr_read", funcs::read(&mut store, memory));
-        funcs.insert("gr_reply", funcs::reply(&mut store, memory));
-        funcs.insert("gr_reply_wgas", funcs::reply_wgas(&mut store, memory));
-        funcs.insert("gr_reply_commit", funcs::reply_commit(&mut store, memory));
+        funcs.insert("gr_exit_code", Funcs::exit_code(&mut store));
+        funcs.insert("gr_gas_available", Funcs::gas_available(&mut store));
+        funcs.insert("gr_debug", Funcs::debug(&mut store, memory));
+        funcs.insert("gr_exit", Funcs::exit(&mut store, memory));
+        funcs.insert("gr_origin", Funcs::origin(&mut store, memory));
+        funcs.insert("gr_msg_id", Funcs::msg_id(&mut store, memory));
+        funcs.insert("gr_program_id", Funcs::program_id(&mut store, memory));
+        funcs.insert("gr_read", Funcs::read(&mut store, memory));
+        funcs.insert("gr_reply", Funcs::reply(&mut store, memory));
+        funcs.insert("gr_reply_wgas", Funcs::reply_wgas(&mut store, memory));
+        funcs.insert("gr_reply_commit", Funcs::reply_commit(&mut store, memory));
         funcs.insert(
             "gr_reply_commit_wgas",
-            funcs::reply_commit_wgas(&mut store, memory),
+            Funcs::reply_commit_wgas(&mut store, memory),
         );
-        funcs.insert("gr_reply_push", funcs::reply_push(&mut store, memory));
-        funcs.insert("gr_reply_to", funcs::reply_to(&mut store, memory));
-        funcs.insert("gr_send_wgas", funcs::send_wgas(&mut store, memory));
-        funcs.insert("gr_send", funcs::send(&mut store, memory));
+        funcs.insert("gr_reply_push", Funcs::reply_push(&mut store, memory));
+        funcs.insert("gr_reply_to", Funcs::reply_to(&mut store, memory));
+        funcs.insert("gr_send_wgas", Funcs::send_wgas(&mut store, memory));
+        funcs.insert("gr_send", Funcs::send(&mut store, memory));
         funcs.insert(
             "gr_send_commit_wgas",
-            funcs::send_commit_wgas(&mut store, memory),
+            Funcs::send_commit_wgas(&mut store, memory),
         );
-        funcs.insert("gr_send_commit", funcs::send_commit(&mut store, memory));
-        funcs.insert("gr_send_init", funcs::send_init(&mut store, memory));
-        funcs.insert("gr_send_push", funcs::send_push(&mut store, memory));
-        funcs.insert("gr_size", funcs::size(&mut store));
-        funcs.insert("gr_source", funcs::source(&mut store, memory));
-        funcs.insert("gr_value", funcs::value(&mut store, memory));
+        funcs.insert("gr_send_commit", Funcs::send_commit(&mut store, memory));
+        funcs.insert("gr_send_init", Funcs::send_init(&mut store, memory));
+        funcs.insert("gr_send_push", Funcs::send_push(&mut store, memory));
+        funcs.insert("gr_size", Funcs::size(&mut store));
+        funcs.insert("gr_source", Funcs::source(&mut store, memory));
+        funcs.insert("gr_value", Funcs::value(&mut store, memory));
         funcs.insert(
             "gr_value_available",
-            funcs::value_available(&mut store, memory),
+            Funcs::value_available(&mut store, memory),
         );
-        funcs.insert("gr_leave", funcs::leave(&mut store));
-        funcs.insert("gr_wait", funcs::wait(&mut store));
-        funcs.insert("gr_wake", funcs::wake(&mut store, memory));
-        funcs.insert("gr_error", funcs::error(&mut store, memory));
+        funcs.insert("gr_leave", Funcs::leave(&mut store));
+        funcs.insert("gr_wait", Funcs::wait(&mut store));
+        funcs.insert("gr_wake", Funcs::wake(&mut store, memory));
+        funcs.insert("gr_error", Funcs::error(&mut store, memory));
+
+        for name in forbidden_funcs {
+            funcs.insert(name, Funcs::forbidden(&mut store));
+        }
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,

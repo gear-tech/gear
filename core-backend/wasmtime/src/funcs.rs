@@ -27,7 +27,7 @@ use codec::Encode;
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     funcs::*,
-    AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind,
+    AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -64,6 +64,8 @@ enum FuncError<E> {
     Wait,
     #[display(fmt = "`gr_error` expects error occurred earlier")]
     SyscallErrorExpected,
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 impl<E> FuncError<E> {
@@ -813,6 +815,19 @@ where
                 Ok(())
             })
             .map_err(Trap::new)
+        };
+        Func::wrap(store, func)
+    }
+
+    pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
+        let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
+            caller.data_mut().termination_reason = Some(TerminationReason::Trap {
+                explanation: Some(TrapExplanation::Other(
+                    "Unable to call a forbidden function".into(),
+                )),
+                description: None,
+            });
+            Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
         };
         Func::wrap(store, func)
     }

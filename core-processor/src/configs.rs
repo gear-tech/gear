@@ -18,6 +18,7 @@
 
 //! Configurations.
 
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core::{costs::HostFnWeights, memory::WasmPageNumber};
 
@@ -73,6 +74,8 @@ pub struct ExecutionSettings {
     pub existential_deposit: u128,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
+    /// Functions forbidden to be called.
+    pub forbidden_funcs: BTreeSet<&'static str>,
 }
 
 impl ExecutionSettings {
@@ -82,12 +85,14 @@ impl ExecutionSettings {
         existential_deposit: u128,
         allocations_config: AllocationsConfig,
         host_fn_weights: HostFnWeights,
+        forbidden_funcs: BTreeSet<&'static str>,
     ) -> Self {
         Self {
             block_info,
             existential_deposit,
             allocations_config,
             host_fn_weights,
+            forbidden_funcs,
         }
     }
 

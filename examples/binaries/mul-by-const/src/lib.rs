@@ -72,11 +72,6 @@ mod wasm {
     pub unsafe extern "C" fn handle() {
         let x: u64 = msg::load().expect("Expecting a u64 number");
 
-        debug!(
-            "[0x{} mul_by_const::handle] Before sending reply message, gas_available = {}",
-            DEBUG.me,
-            exec::gas_available()
-        );
         msg::reply(STATE.unchecked_mul(x), 0).unwrap();
     }
 
