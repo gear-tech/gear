@@ -493,7 +493,27 @@ pub mod pallet {
             Ok(().into())
         }
 
+        #[cfg(not(test))]
         pub fn get_gas_spent(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            Self::get_gas_spent_impl(source, kind, payload, value)
+        }
+
+        #[cfg(test)]
+        pub fn get_gas_spent(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            mock::run_with_ext_copy(|| Self::get_gas_spent_impl(source, kind, payload, value))
+        }
+
+        fn get_gas_spent_impl(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
