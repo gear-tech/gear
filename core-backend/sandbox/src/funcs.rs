@@ -98,6 +98,8 @@ pub enum FuncError<E> {
     Leave,
     #[display(fmt = "`gr_wait` has been called")]
     Wait,
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 impl<E> FuncError<E> {
@@ -884,5 +886,11 @@ where
             ctx.trap = Some(err);
             HostError
         })
+    }
+
+    pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        ctx.termination_reason = Some(TerminationReasonKind::ForbiddenFunction);
+        ctx.trap = Some(FuncError::ForbiddenFunction);
+        Err(HostError)
     }
 }

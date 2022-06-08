@@ -108,6 +108,7 @@ where
         memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
+        let forbidden_funcs = ext.forbidden_funcs().clone();
         let ext_carrier = ExtCarrier::new(ext);
 
         let engine = Engine::default();
@@ -182,6 +183,10 @@ where
         funcs.insert("gr_wait", funcs::wait(&mut store));
         funcs.insert("gr_wake", funcs::wake(&mut store, memory));
         funcs.insert("gr_error", funcs::error(&mut store, memory));
+
+        for name in forbidden_funcs {
+            funcs.insert(name, funcs::forbidden(&mut store));
+        }
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,

@@ -3415,6 +3415,41 @@ fn cascading_messages_with_value_do_not_overcharge() {
     });
 }
 
+#[test]
+fn call_forbidden_function() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_gas_available" (func $gr_gas_available (result i64)))
+        (export "handle" (func $handle))
+        (func $handle
+            call $gr_gas_available
+            drop
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let prog_id = submit_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("submit result was asserted");
+
+        run_to_block(2, None);
+
+        let res = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(prog_id.into_origin()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+        )
+        .map_err(|e| String::from_utf8(e).unwrap());
+
+        assert_eq!(
+            res,
+            Err("Program terminated with a trap: Unable to call a forbidden function".to_string())
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
