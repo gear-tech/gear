@@ -82,7 +82,6 @@ use frame_support::{traits::Get, RuntimeDebug};
 use frame_system::{offchain::SubmitTransaction, pallet_prelude::*};
 use gear_core::ids::MessageId;
 use primitive_types::H256;
-use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::offchain::storage::StorageValueRef;
 
 // Off-chain worker constants
@@ -117,9 +116,8 @@ impl core::fmt::Debug for PayeeInfo {
     fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
         write!(
             f,
-            "PayeeInfo {{ program_id: 0x{}…, message_id: 0x{}… }}",
-            HexDisplay::from(&self.program_id[..4].to_vec()),
-            HexDisplay::from(&self.message_id[..4].to_vec())
+            "PayeeInfo {{ program_id: {}, message_id: {} }}",
+            self.program_id, self.message_id
         )
     }
 }

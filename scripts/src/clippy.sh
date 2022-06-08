@@ -20,13 +20,13 @@ EOF
 }
 
 gear_clippy() {
-  cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
+  SKIP_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 # $1 - ROOT DIR
 examples_clippy() {
   cd "$1"/examples
-  cargo +nightly hack clippy --workspace --release -- --no-deps \
+  SKIP_WASM_BUILD=1 cargo +nightly hack clippy --workspace --release -- --no-deps \
     -A clippy::missing_safety_doc \
 	  -A clippy::stable_sort_primitive \
     -D warnings

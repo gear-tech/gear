@@ -98,6 +98,8 @@ pub enum FuncError<E> {
     Leave,
     #[display(fmt = "`gr_wait` has been called")]
     Wait,
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 impl<E> FuncError<E> {
@@ -799,10 +801,37 @@ where
         })
     }
 
-    pub fn create_program_wgas(
-        ctx: &mut Runtime<E>,
-        args: &[Value],
-    ) -> Result<ReturnValue, HostError> {
+    pub fn create_program(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let code_hash_ptr = pop_i32(&mut args)?;
+        let salt_ptr = pop_i32(&mut args)?;
+        let salt_len = pop_i32(&mut args)?;
+        let payload_ptr = pop_i32(&mut args)?;
+        let payload_len = pop_i32(&mut args)?;
+        let value_ptr = pop_i32(&mut args)?;
+        let program_id_ptr = pop_i32(&mut args)?;
+
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with_fallible(|ext: &mut E| {
+            let code_hash = funcs::get_bytes32(memory, code_hash_ptr)?;
+            let salt = funcs::get_vec(memory, salt_ptr, salt_len)?;
+            let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
+            let value = funcs::get_u128(memory, value_ptr)?;
+            let new_actor_id = ext
+                .create_program(InitPacket::new(code_hash.into(), salt, payload, value))
+                .map_err(FuncError::Core)?;
+            wto(memory, program_id_ptr, new_actor_id.as_ref())
+        })
+        .map(|()| ReturnValue::Unit)
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
+    }
+
+    pub fn create_program_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
         let code_hash_ptr = pop_i32(&mut args)?;
@@ -857,5 +886,11 @@ where
             ctx.trap = Some(err);
             HostError
         })
+    }
+
+    pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+        ctx.termination_reason = Some(TerminationReasonKind::ForbiddenFunction);
+        ctx.trap = Some(FuncError::ForbiddenFunction);
+        Err(HostError)
     }
 }

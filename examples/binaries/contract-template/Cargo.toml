@@ -1,0 +1,21 @@
+[package]
+name = "demo-contract-template"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+workspace = "../../../"
+
+[dependencies]
+gstd = { path = "../../../gstd", features = ["debug"] }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+rand = { version = "0.8.5", default-features = false, features = ["std_rng"] }
+
+[build-dependencies]
+gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+
+[lib]
+
+[features]
+std = []
+default = ["std"]

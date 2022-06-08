@@ -39,6 +39,8 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
     Init(u128),
+    // Create program without gas
+    InitWithoutGas(u128),
     // First value is custom destination id
     Handle(u64, u128),
 }
@@ -58,20 +60,28 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
+        let init = |wgas: bool, value: u128| {
+            let submitted_code = CHILD_CODE_HASH.into();
+
+            let _ = if wgas {
+                prog::create_program_with_gas(
+                    submitted_code,
+                    COUNTER.to_le_bytes(),
+                    [],
+                    1_000_001,
+                    value,
+                )
+            } else {
+                prog::create_program(submitted_code, COUNTER.to_le_bytes(), [], value)
+            };
+
+            COUNTER += 1;
+        };
+
         for msg_data in data {
             match msg_data {
-                SendMessage::Init(value) => {
-                    let submitted_code = CHILD_CODE_HASH.into();
-                    let _ = prog::create_program_with_gas(
-                        submitted_code,
-                        COUNTER.to_le_bytes(),
-                        [],
-                        1_000_001,
-                        value,
-                    );
-
-                    COUNTER += 1;
-                }
+                SendMessage::Init(value) => init(true, value),
+                SendMessage::InitWithoutGas(value) => init(false, value),
                 SendMessage::Handle(receiver, value) => {
                     let _ = msg::send(receiver.into(), b"", value);
                 }

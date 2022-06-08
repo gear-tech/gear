@@ -17,6 +17,7 @@ default-members = ["node"]
 
 members = [
     "common",
+    "common/codegen",
     "core",
     "core-backend/common",
     "core-backend/wasmtime",
@@ -37,4 +38,6 @@ members = [
     "utils/junit-common",
     "utils/wasm-proc",
     "utils/wasm-builder",
+    "utils/economic-checks",
+    "utils/economic-checks/fuzz",
 ]

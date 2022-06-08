@@ -49,11 +49,16 @@ const CHILD_CODE_HASH: [u8; 32] =
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{debug, msg, prog, CodeHash};
-
     use super::{CreateProgram, CHILD_CODE_HASH};
+    use gstd::{debug, msg, prog, ActorId, CodeHash};
 
     static mut COUNTER: i32 = 0;
+    static mut ORIGIN: Option<ActorId> = None;
+
+    #[no_mangle]
+    pub unsafe extern "C" fn init() {
+        ORIGIN = Some(msg::source());
+    }
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
@@ -64,10 +69,10 @@ mod wasm {
                     submitted_code,
                     COUNTER.to_le_bytes(),
                     [],
-                    1_000_000,
+                    1_000_000_000,
                     0,
                 );
-                msg::send_with_gas(new_program_id, b"", 1_000_001, 0).unwrap();
+                msg::send_bytes(new_program_id, [], 0).unwrap();
 
                 COUNTER += 1;
             }
@@ -76,20 +81,26 @@ mod wasm {
                     let submitted_code = code_hash.into();
                     let new_program_id =
                         prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0);
-                    let msg_id = msg::send_with_gas(new_program_id, b"", 1_000_001, 0).unwrap();
+                    let msg_id = msg::send_bytes(new_program_id, [], 0).unwrap();
                 }
             }
         };
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn handle_reply() {
+        if msg::exit_code() != 0 {
+            let origin = ORIGIN.clone().unwrap();
+            msg::send_bytes(origin, [], 0).unwrap();
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
-    use gtest::{calculate_program_id, Program, System};
-
     use super::*;
+    use gtest::{calculate_program_id, Program, System};
+    use std::io::Write;
 
     // Creates a new factory and initializes it.
     fn prepare_factory(sys: &System) -> Program {

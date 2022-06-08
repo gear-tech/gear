@@ -47,7 +47,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
 
         let mem = (*info).si_addr();
         let native_page = (mem as usize / native_ps) * native_ps;
-        let wasm_mem_begin = WASM_MEM_BEGIN.with(|x| *x.borrow());
+        let wasm_mem_begin = WASM_MEM_BEGIN.with(|x| *x.borrow()) as usize;
 
         assert!(wasm_mem_begin != 0, "Wasm memory begin addr is not set");
         assert!(
