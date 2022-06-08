@@ -45,8 +45,11 @@ pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMes
                 snapshots.push(snapshot.clone());
             }
 
-            if let gear_runtime::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
-                mailbox.push(msg.clone());
+            if let gear_runtime::Event::Gear(pallet_gear::Event::UserMessageSent {
+                message, ..
+            }) = &event.event
+            {
+                mailbox.push(message.clone());
             }
         }
         System::reset_events();

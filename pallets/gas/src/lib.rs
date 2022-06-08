@@ -108,15 +108,14 @@ impl ValueNode {
         }
     }
 
-    /// Returns the AccountId (as Origin) of the value tree creator.
-    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
+    /// Returns root node of the value tree where caller node exists.
+    pub fn root<T: Config>(&self) -> Result<Self, DispatchError> {
         match self.inner {
-            ValueType::External { id, .. } => Ok(id),
+            ValueType::External { .. } => Ok(self.clone()),
             ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
                 <Pallet<T>>::get_node(parent)
                     .ok_or(<Error<T>>::GasTreeInvalidated)?
-                    .root_origin::<T>()
+                    .root::<T>()
             }
         }
     }
@@ -196,7 +195,7 @@ pub mod pallet {
 
         /// Check if a node is consumed and does not have any child nodes so it can be deleted.
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
-        /// Otherwise this function is called for the parent node to propagate the process furter.
+        /// Otherwise this function is called for the parent node to propagate the process further.
         pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
             let mut delete_current_node = false;
             let maybe_node = Self::get_node(key);
@@ -310,7 +309,25 @@ where
     fn get_origin(key: H256) -> Result<Option<H256>, DispatchError> {
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
-            Some(node.root_origin::<T>()?)
+            if let ValueNode {
+                inner: ValueType::External { id, .. },
+                ..
+            } = node.root::<T>()?
+            {
+                Some(id)
+            } else {
+                unreachable!("Guaranteed by ValueNode::root method");
+            }
+        } else {
+            // key unknown - legitimate result
+            None
+        })
+    }
+
+    fn get_origin_key(key: H256) -> Result<Option<H256>, DispatchError> {
+        Ok(if let Some(node) = Self::get_node(key) {
+            // key known, must return the origin, unless corrupted
+            node.root::<T>().map(|n| Some(n.id))?
         } else {
             // key unknown - legitimate result
             None
@@ -453,7 +470,7 @@ where
         *node.inner_value_mut().expect("Querying node with value") -= amount;
         log::debug!("Spent {} of gas", amount);
 
-        // Save node that deliveres limit
+        // Save node that delivers limit
         GasTree::<T>::mutate(node.id, |value| {
             *value = Some(node);
         });

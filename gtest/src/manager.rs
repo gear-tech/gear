@@ -337,6 +337,7 @@ impl ExtManager {
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
         let message_id = dispatch.id();
+        let source = dispatch.source();
         let program_id = dispatch.destination();
         let payload = dispatch.payload().to_vec();
 
@@ -349,11 +350,11 @@ impl ExtManager {
         match response {
             Ok(reply) => {
                 if let DispatchKind::Init = dispatch.kind() {
-                    self.message_dispatched(DispatchOutcome::InitSuccess {
+                    self.message_dispatched(
                         message_id,
-                        program_id,
-                        origin: dispatch.source(),
-                    });
+                        source,
+                        DispatchOutcome::InitSuccess { program_id },
+                    );
                 }
 
                 if let Some(payload) = reply {
@@ -371,18 +372,23 @@ impl ExtManager {
                 mock.debug(expl);
 
                 if let DispatchKind::Init = dispatch.kind() {
-                    self.message_dispatched(DispatchOutcome::InitFailure {
+                    self.message_dispatched(
                         message_id,
-                        program_id,
-                        origin: dispatch.source(),
-                        reason: Some(expl.to_string()),
-                    });
+                        source,
+                        DispatchOutcome::InitFailure {
+                            program_id,
+                            reason: Some(expl.to_string()),
+                        },
+                    );
                 } else {
-                    self.message_dispatched(DispatchOutcome::MessageTrap {
+                    self.message_dispatched(
                         message_id,
-                        program_id,
-                        trap: Some(expl.to_string()),
-                    })
+                        source,
+                        DispatchOutcome::MessageTrap {
+                            program_id,
+                            trap: Some(expl.to_string()),
+                        },
+                    )
                 }
 
                 let id = MessageId::generate_reply(message_id, 1);
@@ -442,22 +448,23 @@ impl ExtManager {
 }
 
 impl JournalHandler for ExtManager {
-    fn message_dispatched(&mut self, outcome: DispatchOutcome) {
+    fn message_dispatched(
+        &mut self,
+        message_id: MessageId,
+        _source: ProgramId,
+        outcome: DispatchOutcome,
+    ) {
         match outcome {
-            DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(message_id),
-            DispatchOutcome::Success(_)
-            | DispatchOutcome::Exit { .. }
-            | DispatchOutcome::NoExecution(_) => {}
-            DispatchOutcome::InitFailure {
-                message_id,
-                program_id,
-                ..
-            } => self.init_failure(message_id, program_id),
-            DispatchOutcome::InitSuccess {
-                message_id,
-                program_id,
-                ..
-            } => self.init_success(message_id, program_id),
+            DispatchOutcome::MessageTrap { .. } => self.mark_failed(message_id),
+            DispatchOutcome::Success
+            | DispatchOutcome::NoExecution
+            | DispatchOutcome::Exit { .. } => {}
+            DispatchOutcome::InitFailure { program_id, .. } => {
+                self.init_failure(message_id, program_id)
+            }
+            DispatchOutcome::InitSuccess { program_id, .. } => {
+                self.init_success(message_id, program_id)
+            }
         }
     }
 

@@ -1,13 +1,13 @@
 [package]
-name = "gstd-codegen"
+name = "gear-common-codegen"
 version = "0.1.0"
 authors = ["Gear Technologies"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.96", features = ["full"] }
 quote = "1.0.18"
+syn = "1.0.96"
