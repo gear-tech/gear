@@ -22,11 +22,12 @@ use common::{self, Origin as _};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::WasmPageNumber,
+    memory::{WasmPageNumber, PageBuf, PageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
 use sp_core::H256;
+use sp_std::collections::btree_map::BTreeMap;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -280,4 +281,236 @@ fn get_last_message_id() -> MessageId {
         Event::UserMessageSent { message, .. } => message.id(),
         _ => unreachable!("expect sending"),
     }
+}
+
+#[test]
+fn check_changed_pages_in_storage() {
+    // This test checks that only pages with changed data will be stored in storage.
+    // Also it checks that data in storage is correct.
+    // This test must works correct both with lazy pages and without it.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 8))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                ;; alloc 4 pages, so mem pages are: 0..=11
+                (block
+                    i32.const 4
+                    call $alloc
+                    i32.const 8
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 1 (static)
+                i32.const 0x10009  ;; is symbol "9" address
+                i32.const 0x30     ;; is "0"
+                i32.store
+
+                ;; access page 7 (static) but do not change it
+                (block
+                    i32.const 0x70001
+                    i32.load
+                    i32.const 0x52414547 ;; is "GEAR"
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 8 (dynamic)
+                i32.const 0x87654
+                i32.const 0x42
+                i32.store
+
+                ;; then free page 8
+                i32.const 8
+                call $free
+
+                ;; then alloc page 8 again
+                (block
+                    i32.const 1
+                    call $alloc
+                    i32.const 8
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 9 (dynamic)
+                i32.const 0x98765
+                i32.const 0x42
+                i32.store
+
+                ;; access page 10 (dynamic) but do not change it
+                (block
+                    i32.const 0xa9876
+                    i32.load
+                    i32.eqz             ;; must be zero by default
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 11 (dynamic)
+                i32.const 0xb8765
+                i32.const 0x42
+                i32.store
+
+                ;; then free page 11
+                i32.const 11
+                call $free
+            )
+
+            (func $handle
+                (block
+                    ;; check page 1 data
+                    i32.const 0x10002
+                    i64.load
+                    i64.const 0x3038373635343332  ;; is "23456780", "0" because we change it in init
+                    i64.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 7 data
+                    i32.const 0x70001
+                    i32.load
+                    i32.const 0x52414547 ;; is "GEAR"
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 8 data
+                    ;; currently free + allocation must save page data,
+                    ;; but this behavior may change in future.
+                    i32.const 0x87654
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 9 data
+                    i32.const 0x98765
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                ;; change page 3 and 4
+                ;; because we store 0x00_00_00_42 then bits will be changed
+                ;; in 3th page only, so the 3th page only must be in storage.
+                i32.const 0x3fffd
+                i32.const 0x42
+                i32.store
+            )
+
+            (data $.rodata (i32.const 0x10000) "0123456789")
+            (data $.rodata (i32.const 0x70001) "GEAR TECH")
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = generate_program_id(&code);
+        let origin = Origin::signed(1);
+
+        PalletGear::<Test>::submit_program(
+            origin.clone(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            100_000_000_u64,
+            0_u128,
+        )
+        .expect("Failed to submit program");
+
+        // Enable debug-mode
+        DebugMode::<Test>::put(true);
+
+        run_to_block(2, None);
+
+        Pallet::<Test>::do_snapshot();
+
+        let static_pages = WasmPageNumber(8);
+
+        let page1_addr = 0x10000;
+        let gear_page1 = PageNumber::new_from_addr(page1_addr);
+        let mut page1_data = PageBuf::new_zeroed();
+        page1_data[..10].copy_from_slice(b"0123456780".as_slice());
+
+        let page8_addr = 0x87654;
+        let gear_page8 = PageNumber::new_from_addr(page8_addr);
+        let mut page8_data = PageBuf::new_zeroed();
+        page8_data[page8_addr % PageNumber::size()] = 0x42;
+
+        let page9_addr = 0x98765;
+        let gear_page9 = PageNumber::new_from_addr(page9_addr);
+        let mut page9_data = PageBuf::new_zeroed();
+        page9_data[page9_addr % PageNumber::size()] = 0x42;
+
+        let mut persistent_pages = BTreeMap::new();
+        persistent_pages.insert(gear_page1, page1_data.to_vec());
+        persistent_pages.insert(gear_page8, page8_data.to_vec());
+        persistent_pages.insert(gear_page9, page9_data.to_vec());
+
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                dispatch_queue: vec![],
+                programs: vec![crate::ProgramDetails {
+                    id: program_id,
+                    state: crate::ProgramState::Active(crate::ProgramInfo {
+                        static_pages,
+                        persistent_pages: persistent_pages.clone(),
+                        code_hash: generate_code_hash(&code),
+                    }),
+                }],
+            })
+            .into(),
+        );
+
+        PalletGear::<Test>::send_message(
+            origin,
+            program_id,
+            vec![],
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Failed to send message");
+
+        run_to_block(3, None); // no message will get processed
+
+        Pallet::<Test>::do_snapshot();
+
+        let page3_addr = 0x3fffd;
+        let gear_page3 = PageNumber::new_from_addr(page3_addr);
+        let mut page3_data = PageBuf::new_zeroed();
+        page3_data[page3_addr % PageNumber::size()] = 0x42;
+
+        persistent_pages.insert(gear_page3, page3_data.to_vec());
+
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                dispatch_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: program_id,
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
+                            static_pages,
+                            persistent_pages: persistent_pages,
+                            code_hash: generate_code_hash(&code),
+                        }),
+                    },
+                ],
+            })
+            .into(),
+        );
+    })
 }

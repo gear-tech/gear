@@ -98,7 +98,16 @@ pub mod pallet {
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
-                    &self.persistent_pages.keys().cloned().collect::<Vec<_>>(),
+                    &self.persistent_pages.iter().map(|(page, data)| {
+                        // Prints only bytes which is not null
+                        let mut no_zero_bytes = BTreeMap::new();
+                        for byte_idx in 0..data.len() {
+                            if data[byte_idx] != 0 {
+                                no_zero_bytes.insert(byte_idx, data[byte_idx]);
+                            }
+                        }
+                        (*page, no_zero_bytes)
+                    }).collect::<BTreeMap<PageNumber, BTreeMap<usize, u8>>>(),
                 )
                 .field("code_hash", &self.code_hash)
                 .finish()
