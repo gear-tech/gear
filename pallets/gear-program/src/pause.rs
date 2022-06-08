@@ -67,6 +67,7 @@ impl<T: Config> pallet::Pallet<T> {
                 PauseError::InvalidPageDataSize
             })?;
 
+        // TODO: update gas limit in `ValueTree` here (issue #1022).
         let paused_program = PausedProgram {
             program_id,
             pages_hash: memory_pages_hash(&pages_data),

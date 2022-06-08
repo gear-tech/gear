@@ -114,7 +114,12 @@ impl CollectState for InMemoryExtManager {
 }
 
 impl JournalHandler for InMemoryExtManager {
-    fn message_dispatched(&mut self, outcome: DispatchOutcome) {
+    fn message_dispatched(
+        &mut self,
+        _message_id: MessageId,
+        _source: ProgramId,
+        outcome: DispatchOutcome,
+    ) {
         self.current_failed = match outcome {
             DispatchOutcome::MessageTrap { .. } => true,
             DispatchOutcome::InitFailure { program_id, .. } => {
@@ -125,9 +130,9 @@ impl JournalHandler for InMemoryExtManager {
                 }
                 true
             }
-            DispatchOutcome::Success(_)
-            | DispatchOutcome::Exit { .. }
-            | DispatchOutcome::NoExecution(_) => false,
+            DispatchOutcome::Success
+            | DispatchOutcome::NoExecution
+            | DispatchOutcome::Exit { .. } => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 if let Some(Some(actor)) = self.actors.get_mut(&program_id) {
                     actor.program.set_initialized();

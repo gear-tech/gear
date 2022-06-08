@@ -314,7 +314,10 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
             JournalNote::SendDispatch { dispatch, .. } => {
                 gas_to_send = gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
             }
-            JournalNote::MessageDispatched(DispatchOutcome::MessageTrap { .. }) => {
+            JournalNote::MessageDispatched {
+                outcome: DispatchOutcome::MessageTrap { .. },
+                ..
+            } => {
                 panic!("Program terminated with a trap");
             }
             _ => (),
@@ -519,9 +522,10 @@ where
                 JournalNote::GasBurned { amount, .. } => {
                     burned += amount;
                 }
-                JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                    trap, ..
-                }) => {
+                JournalNote::MessageDispatched {
+                    outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                    ..
+                } => {
                     return Err(format!(
                         "Program terminated with a trap: {}",
                         trap.clone().unwrap_or_else(|| "No reason".to_string())
