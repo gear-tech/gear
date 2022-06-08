@@ -118,7 +118,7 @@ unsafe fn sys_mprotect_interval(
     _prot_exec: bool,
 ) -> Result<(), RIError> {
     log::error!("unsupported OS for pages protectection");
-    Err(RIError::OsError)
+    Err(RIError::UnsupportedOS)
 }
 
 #[cfg(feature = "std")]
@@ -235,7 +235,8 @@ pub trait GearRI {
     fn set_wasm_mem_begin_addr(addr: HostPointer) -> Result<(), RIError> {
         #[cfg(not(unix))]
         {
-            return Err(RIError::UnsupportedOS);
+            let _addr = addr;
+            Err(RIError::UnsupportedOS)
         }
 
         #[cfg(unix)]
@@ -246,10 +247,11 @@ pub trait GearRI {
                     page_size::get() as u64,
                 ));
             }
-        }
 
-        gear_lazy_pages::set_wasm_mem_begin_addr(addr);
-        Ok(())
+            gear_lazy_pages::set_wasm_mem_begin_addr(addr);
+
+            Ok(())
+        }
     }
 
     fn get_released_pages() -> Vec<u32> {
