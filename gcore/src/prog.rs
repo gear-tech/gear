@@ -45,7 +45,7 @@ mod sys {
     }
 }
 
-/// Same as [`create_program_with_gas`], but without gas limit
+/// Same as [`create_program_with_gas`], but without explicit gas limit.
 pub fn create_program(code_hash: CodeHash, salt: &[u8], payload: &[u8], value: u128) -> ActorId {
     unsafe {
         let mut program_id = ActorId::default();

@@ -3249,8 +3249,8 @@ fn test_create_program_without_gas_works() {
 
         run_to_block(2, None);
 
-        check_dequeued(2);
-        check_init_success(2);
+        assert_total_dequeued(2);
+        assert_init_success(2);
     })
 }
 
