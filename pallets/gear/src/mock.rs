@@ -287,7 +287,6 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
-            None,
         )
     } else {
         core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -301,7 +300,6 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
-            None,
         )
     };
 

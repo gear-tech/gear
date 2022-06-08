@@ -24,7 +24,7 @@ impl fmt::Display for AllocError {
 
 impl CoreError for AllocError {}
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ExtImplementedStruct {
     message_context: MessageContext,
 }
@@ -56,6 +56,7 @@ impl IntoExtInfo for ExtImplementedStruct {
 }
 
 impl ExtImplementedStruct {
+    #[allow(dead_code)]
     pub fn new(
         source: ProgramId,
         destination: ProgramId,

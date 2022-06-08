@@ -14,6 +14,7 @@ use wasmtime::{
     Val,
 };
 
+#[allow(dead_code)]
 pub struct WasmExecutor {
     instance: Instance,
     store: Store<StoreData<ExtImplementedStruct>>,
@@ -109,6 +110,7 @@ impl WasmExecutor {
         funcs.insert("gr_leave", FuncsHandler::leave(&mut store));
         funcs.insert("gr_wait", FuncsHandler::wait(&mut store));
         funcs.insert("gr_wake", FuncsHandler::wake(&mut store, memory));
+        funcs.insert("gr_error", FuncsHandler::error(&mut store, memory));
 
         let mut externs = Vec::with_capacity(module.imports().len());
         for import in module.imports() {
@@ -120,6 +122,8 @@ impl WasmExecutor {
                 Some(key) => {
                     if funcs.contains_key(key) {
                         externs.push(funcs[key].into())
+                    } else {
+                        panic!("Wasm is asking for unknown function: {:?}. Consider to add in from FuncsHandler", key)
                     }
                 }
                 _ => continue,
@@ -139,6 +143,7 @@ impl WasmExecutor {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn call_function(&mut self, function_name: &str) -> (Vec<u8>, Vec<JournalNote>) {
         let function = self.get_function(function_name);
         let mut prt_to_result_array = [Val::I32(0)];
@@ -148,7 +153,7 @@ impl WasmExecutor {
             .expect("Failed call");
 
         let execution_result = match prt_to_result_array[0] {
-            Val::I32(ptr_to_result) => self.read_result(ptr_to_result.clone()),
+            Val::I32(ptr_to_result) => self.read_result(ptr_to_result),
             _ => {
                 panic!("{}", "Got wrong type")
             }
@@ -156,6 +161,7 @@ impl WasmExecutor {
         (execution_result, self.get_memory_updates())
     }
 
+    #[allow(dead_code)]
     pub(crate) fn call_void_function(&mut self, function_name: &str) -> Vec<JournalNote> {
         let function = self.get_function(function_name);
         function
@@ -256,7 +262,7 @@ mod tests {
     use codec::{Decode, Encode};
     use gear_core::{ids::ProgramId, message::IncomingMessage};
 
-    #[derive(Clone, Debug, Decode, Encode, PartialEq)]
+    #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
     pub struct Id {
         pub decimal: u64,
         pub hex: Vec<u8>,

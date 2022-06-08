@@ -35,7 +35,6 @@ use gear_core::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
-    convert::TryFrom,
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
@@ -445,6 +444,7 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn execute_custom_function(
         &mut self,
         source: ProgramId,
@@ -458,6 +458,7 @@ impl ExtManager {
         result
     }
 
+    #[allow(dead_code)]
     pub(crate) fn execute_custom_void_function(
         &mut self,
         source: ProgramId,
@@ -492,7 +493,7 @@ impl ExtManager {
         let pages_initial_data = actor
             .pages_data
             .into_iter()
-            .map(|(page, data)| (page, Box::new(PageBuf::try_from(data).unwrap())))
+            .map(|(page, data)| (page, Box::new(data)))
             .collect();
 
         WasmExecutor::new(source, actor.program, &pages_initial_data, message_option)

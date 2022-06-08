@@ -1,3 +1,5 @@
+extern crate core;
+
 mod empty_ext;
 mod log;
 mod mailbox;
