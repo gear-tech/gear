@@ -5020,6 +5020,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core",
+ "sp-externalities",
  "sp-io",
  "sp-runtime",
  "sp-sandbox",
