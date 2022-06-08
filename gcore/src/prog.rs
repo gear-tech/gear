@@ -18,7 +18,7 @@
 
 //! Program creation API for Gear programs.
 
-use crate::{error::ExtError, ActorId, CodeHash};
+use crate::{error::Result, ActorId, CodeHash};
 
 mod sys {
     use crate::error::SyscallError;
@@ -110,7 +110,7 @@ pub fn create_program_with_gas(
     payload: &[u8],
     gas_limit: u64,
     value: u128,
-) -> Result<ActorId, ExtError> {
+) -> Result<ActorId> {
     unsafe {
         let mut program_id = ActorId::default();
         sys::gr_create_program_wgas(
