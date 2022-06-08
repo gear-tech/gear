@@ -23,7 +23,7 @@ use crate::{
     memory::MemoryWrap,
 };
 use alloc::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     format,
     string::{String, ToString},
     vec::Vec,
