@@ -68,7 +68,7 @@ jobs:
             [bootnode]
             ${{secrets.GEAR_NODE}} 
             [nodes]
-            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes log_driver=loki loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes log_driver=loki loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes log_driver=loki loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_5}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes log_driver=loki loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes
+            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes
+            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes 
+            ${{secrets.GEAR_NODE_5}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes 
