@@ -68,7 +68,7 @@ examples_build() {
     cd "$ROOT_DIR"
     cargo +nightly build --release -p "demo-*"
     cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
+    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
     cd "$ROOT_DIR"
   else
     # If there is specified yaml list, then parses yaml files and build
