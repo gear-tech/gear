@@ -135,19 +135,20 @@ fn process_error(
 
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
-            message_id,
-            origin,
             program_id,
             reason: err.map(|e| e.to_string()),
         },
         _ => DispatchOutcome::MessageTrap {
-            message_id,
             program_id,
             trap: err.map(|e| e.to_string()),
         },
     };
 
-    journal.push(JournalNote::MessageDispatched(outcome));
+    journal.push(JournalNote::MessageDispatched {
+        message_id,
+        source: origin,
+        outcome,
+    });
     journal.push(JournalNote::MessageConsumed(message_id));
 
     journal
@@ -238,33 +239,34 @@ fn process_success(
         });
     }
 
-    match kind {
+    let outcome = match kind {
+        Wait => {
+            journal.push(JournalNote::WaitDispatch(
+                dispatch.into_stored(program_id, context_store),
+            ));
+
+            return journal;
+        }
+        Success => match dispatch.kind() {
+            DispatchKind::Init => DispatchOutcome::InitSuccess { program_id },
+            _ => DispatchOutcome::Success,
+        },
         Exit(value_destination) => {
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
                 value_destination,
             });
-        }
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
-        }
-        Success => {
-            let outcome = match dispatch.kind() {
-                DispatchKind::Init => DispatchOutcome::InitSuccess {
-                    message_id,
-                    origin,
-                    program_id,
-                },
-                _ => DispatchOutcome::Success(message_id),
-            };
 
-            journal.push(JournalNote::MessageDispatched(outcome));
-            journal.push(JournalNote::MessageConsumed(message_id));
+            DispatchOutcome::Exit { program_id }
         }
     };
 
+    journal.push(JournalNote::MessageDispatched {
+        message_id,
+        source: origin,
+        outcome,
+    });
+    journal.push(JournalNote::MessageConsumed(message_id));
     journal
 }
 
@@ -302,7 +304,11 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         execution_context,
         execution_settings,
         msg_ctx_settings,
-    );
+    )
+    .map_err(|err| {
+        log::debug!("Wasm execution err: {}", err.reason);
+        err
+    });
 
     match exec_result {
         Ok(res) => match res.kind {
@@ -361,6 +367,7 @@ fn process_non_executable(
     let mut journal = Vec::with_capacity(4);
 
     let message_id = dispatch.id();
+    let source = dispatch.source();
     let value = dispatch.value();
 
     if value != 0 {
@@ -384,9 +391,11 @@ fn process_non_executable(
         });
     }
 
-    journal.push(JournalNote::MessageDispatched(
-        DispatchOutcome::NoExecution(message_id),
-    ));
+    journal.push(JournalNote::MessageDispatched {
+        message_id,
+        source,
+        outcome: DispatchOutcome::NoExecution,
+    });
 
     journal.push(JournalNote::MessageConsumed(message_id));
 

@@ -23,13 +23,15 @@ use alloc::{
     string::{FromUtf8Error, String},
     vec,
 };
+use codec::Encode;
 use core::{
     convert::{TryFrom, TryInto},
     marker::PhantomData,
     slice::Iter,
 };
 use gear_backend_common::{
-    funcs, AsTerminationReason, IntoErrorCode, OnSuccessCode, TerminationReasonKind,
+    error_processor::{IntoExtError, ProcessError},
+    funcs, AsTerminationReason, IntoExtInfo, TerminationReasonKind,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -88,6 +90,8 @@ pub enum FuncError<E> {
     NoReplyContext,
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
+    #[display(fmt = "`gr_error` expects error occurred earlier")]
+    SyscallErrorExpected,
     #[display(fmt = "`gr_exit` has been called")]
     Exit,
     #[display(fmt = "`gr_leave` has been called")]
@@ -123,8 +127,8 @@ pub(crate) struct FuncsHandler<E: Ext + 'static> {
 
 impl<E> FuncsHandler<E>
 where
-    E: Ext + 'static,
-    E::Error: AsTerminationReason,
+    E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
@@ -141,11 +145,16 @@ where
             let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.send(HandlePacket::new(dest, payload, value))
-                .map_err(FuncError::Core)
-                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+            let error_len = ext
+                .send(HandlePacket::new(dest, payload, value))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -168,11 +177,17 @@ where
             let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
-                .map_err(FuncError::Core)
-                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+
+            let error_len = ext
+                .send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -192,14 +207,20 @@ where
         ext.with_fallible(|ext| {
             let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.send_commit(
-                handle_ptr,
-                HandlePacket::new(dest, Default::default(), value),
-            )
-            .map_err(FuncError::Core)
-            .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+
+            let error_len = ext
+                .send_commit(
+                    handle_ptr,
+                    HandlePacket::new(dest, Default::default(), value),
+                )
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -220,14 +241,20 @@ where
         ext.with_fallible(|ext| {
             let dest: ProgramId = funcs::get_bytes32(memory, program_id_ptr)?.into();
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.send_commit(
-                handle_ptr,
-                HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
-            )
-            .map_err(FuncError::Core)
-            .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+
+            let error_len = ext
+                .send_commit(
+                    handle_ptr,
+                    HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
+                )
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -242,10 +269,14 @@ where
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
-            ext.send_init()
-                .on_success_code(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))
+            let error_len = ext
+                .send_init()
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -263,12 +294,14 @@ where
 
         ext.with_fallible(|ext| {
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
-            Ok(ext
+            let error_len = ext
                 .send_push(handle_ptr, &payload)
-                .map_err(FuncError::Core)
-                .into_error_code())
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len();
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -308,7 +341,7 @@ where
         let Runtime { ext, memory, .. } = ctx;
 
         ctx.trap = ext
-            .with_fallible(|ext: &mut E| {
+            .with_fallible(|ext| {
                 let value_dest: ProgramId = funcs::get_bytes32(memory, value_dest_ptr)?.into();
                 ext.exit(value_dest).map_err(FuncError::Core)
             })
@@ -450,10 +483,16 @@ where
         ext.with_fallible(|ext| {
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.reply(ReplyPacket::new(payload, value))
-                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+            let error_len = ext
+                .reply(ReplyPacket::new(payload, value))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -474,10 +513,16 @@ where
         ext.with_fallible(|ext| {
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
-                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+            let error_len = ext
+                .reply(ReplyPacket::new_with_gas(payload, gas_limit, value))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -494,10 +539,16 @@ where
 
         ext.with_fallible(|ext| {
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.reply_commit(ReplyPacket::new(Default::default(), value))
-                .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+            let error_len = ext
+                .reply_commit(ReplyPacket::new(Default::default(), value))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -515,14 +566,20 @@ where
 
         ext.with_fallible(|ext| {
             let value = funcs::get_u128(memory, value_ptr)?;
-            ext.reply_commit(ReplyPacket::new_with_gas(
-                Default::default(),
-                gas_limit,
-                value,
-            ))
-            .on_success_code(|message_id| wto(memory, message_id_ptr, message_id.as_ref()))
+            let error_len = ext
+                .reply_commit(ReplyPacket::new_with_gas(
+                    Default::default(),
+                    gas_limit,
+                    value,
+                ))
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len_on_success(|message_id| {
+                    wto(memory, message_id_ptr, message_id.as_ref())
+                })?;
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -565,12 +622,14 @@ where
 
         ext.with_fallible(|ext| {
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
-            Ok(ext
+            let error_len = ext
                 .reply_push(&payload)
-                .map_err(FuncError::Core)
-                .into_error_code())
+                .process_error()
+                .map_err(FuncError::Core)?
+                .error_len();
+            Ok(error_len)
         })
-        .map(|code| Value::I32(code).into())
+        .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
             ctx.trap = Some(err);
             HostError
@@ -757,7 +816,7 @@ where
 
         let Runtime { ext, memory, .. } = ctx;
 
-        ext.with_fallible(|ext: &mut E| {
+        ext.with_fallible(|ext| {
             let code_hash = funcs::get_bytes32(memory, code_hash_ptr)?;
             let salt = funcs::get_vec(memory, salt_ptr, salt_len)?;
             let payload = funcs::get_vec(memory, payload_ptr, payload_len)?;
@@ -772,6 +831,26 @@ where
                 ))
                 .map_err(FuncError::Core)?;
             wto(memory, program_id_ptr, new_actor_id.as_ref())
+        })
+        .map(|()| ReturnValue::Unit)
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
+    }
+
+    pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+        let mut args = args.iter();
+
+        let data_ptr = pop_i32(&mut args)?;
+
+        let Runtime { ext, memory, .. } = ctx;
+
+        ext.with_fallible(|ext| {
+            let err = ext.last_error().ok_or(FuncError::SyscallErrorExpected)?;
+            let err = err.encode();
+            wto(memory, data_ptr, &err)?;
+            Ok(())
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {

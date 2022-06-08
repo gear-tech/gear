@@ -20,6 +20,9 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
+extern crate alloc;
+
+pub mod error;
 pub mod exec;
 pub mod msg;
 pub mod prog;

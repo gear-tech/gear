@@ -80,7 +80,7 @@ impl PageBuf {
     /// except vector's buffer capacity, which is removed.
     pub fn new_from_vec(v: Vec<u8>) -> Result<Self, Error> {
         Box::<[u8; GEAR_PAGE_SIZE]>::try_from(v.into_boxed_slice())
-            .map_err(|data| Error::InvalidPageDataSize(data.len()))
+            .map_err(|data| Error::InvalidPageDataSize(data.len() as u64))
             .map(Self)
     }
 
@@ -235,6 +235,10 @@ impl core::ops::Sub for WasmPageNumber {
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
 
+static_assertions::const_assert!(
+    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
+);
+
 /// Backend wasm memory interface.
 pub trait Memory {
     /// Grow memory by number of pages.
@@ -253,7 +257,20 @@ pub trait Memory {
     fn data_size(&self) -> usize;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_buffer_host_addr(&self) -> HostPointer;
+    fn get_buffer_host_addr(&self) -> Option<HostPointer> {
+        if self.size() == 0.into() {
+            None
+        } else {
+            // We call this method only in case memory size is not zero,
+            // so memory buffer exists and has addr in host memory.
+            unsafe { Some(self.get_buffer_host_addr_unsafe()) }
+        }
+    }
+
+    /// Get buffer addr unsafe.
+    /// # Safety
+    /// if memory size is 0 then buffer addr can be garbage
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer;
 }
 
 /// Pages allocations context for the running program.
