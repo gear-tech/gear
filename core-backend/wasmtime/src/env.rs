@@ -138,6 +138,10 @@ where
         funcs.insert("gr_block_height", funcs::block_height(&mut store));
         funcs.insert("gr_block_timestamp", funcs::block_timestamp(&mut store));
         funcs.insert(
+            "gr_create_program",
+            funcs::create_program(&mut store, memory),
+        );
+        funcs.insert(
             "gr_create_program_wgas",
             funcs::create_program_wgas(&mut store, memory),
         );
