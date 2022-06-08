@@ -49,10 +49,12 @@ macro_rules! bail {
         $res.expect($msg);
     };
     ($res:expr, $expl:literal, $fmtd:literal) => {
+        let _ = $expl;
         $res.expect($fmtd);
     };
-    ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
-        $res.expect(&$crate::prelude::format!($fmt, $($args)+));
+    ($res:expr, $expl:literal, $fmt:literal $(, $args:tt)+) => {
+        let _ = $expl;
+        $res.expect(&$crate::prelude::format!($fmt $(, $args)+));
     };
 }
 
@@ -66,12 +68,15 @@ macro_rules! bail {
         }
     };
     ($res:expr, $expl:literal, $fmtd:literal) => {
+        let _ = $fmtd;
         match $res {
             Ok(v) => v,
             Err(_) => $crate::prelude::panic!($expl),
         }
     };
-    ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
+    ($res:expr, $expl:literal, $fmt:literal $(, $args:tt)+) => {
+        let _ = $fmt;
+        $(let _ = $args;) +
         match $res {
             Ok(v) => v,
             Err(_) => $crate::prelude::panic!($expl),

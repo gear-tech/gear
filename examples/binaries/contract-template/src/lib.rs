@@ -119,7 +119,7 @@ mod wasm {
                 "[0x{} contract-template::Program::call] Received reply from remote contract 0x{}: 0x{}",
                 hex::encode(unsafe { STATE.me }),
                 hex::encode(self.handle),
-                hex::encode(&reply_bytes),
+                hex::encode(&reply_bytes)
             );
 
             Ok(reply_bytes)
@@ -157,7 +157,7 @@ mod wasm {
         debug!(
             "[0x{} contract_template::handle] taking up to {} action(s)",
             hex::encode(unsafe { STATE.me }),
-            num_iter,
+            num_iter
         );
         entropy = &entropy[1..];
 
@@ -200,7 +200,7 @@ mod wasm {
             debug!(
                 "[0x{} contract_template::handle] Running action {:?}",
                 hex::encode(unsafe { STATE.me }),
-                action,
+                action
             );
 
             match action {

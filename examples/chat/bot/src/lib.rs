@@ -43,7 +43,7 @@ fn bot(message: MemberMessage) {
                     "BOT '{}': received private message from #{}: '{}'",
                     STATE.name(),
                     u64::from_le_bytes(msg::source().as_ref()[0..8].try_into().unwrap()),
-                    String::from_utf8(text).expect("invalid utf-8"),
+                    String::from_utf8(text).expect("invalid utf-8")
                 );
             }
             Room(text) => {
@@ -51,7 +51,7 @@ fn bot(message: MemberMessage) {
                     "BOT '{}': received room message from #{}: '{}'",
                     STATE.name(),
                     u64::from_le_bytes(msg::source().as_ref()[0..8].try_into().unwrap()),
-                    String::from_utf8(text).expect("invalid utf-8"),
+                    String::from_utf8(text).expect("invalid utf-8")
                 );
             }
         }
