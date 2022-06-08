@@ -24,14 +24,183 @@ use crate::{
     configs::ExecutionSettings,
     ext::ProcessorExt,
 };
-use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    string::ToString,
+    vec::Vec,
+};
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{AllocationsContext, PageBuf, WasmPageNumber},
+    ids::ProgramId,
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
+
+fn make_checks_and_charge_gas_for_pages<'a>(
+    settings: &ExecutionSettings,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+    allocations: &BTreeSet<WasmPageNumber>,
+    pages_with_data: impl Iterator<Item = &'a PageNumber>,
+    static_pages: WasmPageNumber,
+) -> Result<WasmPageNumber, ExecutionErrorReason> {
+    // Checks that all pages with data is in allocations set.
+    for page in pages_with_data {
+        if !allocations.contains(&page.to_wasm_page()) {
+            return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
+        }
+    }
+
+    let mem_size = if let Some(max_wasm_page) = allocations.iter().next_back() {
+        // Charging gas for loaded pages
+        let amount = settings.load_page_cost() * allocations.len() as u64;
+
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
+        }
+
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+        }
+
+        // Charging gas for mem size
+        let amount =
+            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
+
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
+        }
+
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::GrowMemoryGasExceeded);
+        }
+
+        // +1 because pages numeration begins from 0
+        *max_wasm_page + 1.into()
+    } else {
+        // Charging gas for initial pages
+        let amount = settings.init_cost() * static_pages.0 as u64;
+
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
+        }
+
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::InitialMemoryGasExceeded);
+        }
+
+        static_pages
+    };
+
+    if mem_size < static_pages {
+        log::error!(
+            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
+            mem_size,
+            static_pages
+        );
+        return Err(ExecutionErrorReason::InsufficientMemorySize);
+    }
+
+    Ok(mem_size)
+}
+
+fn prepare_memory<A: ProcessorExt>(
+    program_id: ProgramId,
+    pages_data: &mut BTreeMap<PageNumber, PageBuf>,
+    allocations: &BTreeSet<WasmPageNumber>,
+    static_pages: WasmPageNumber,
+    mem: &mut dyn Memory,
+) -> Result<(), ExecutionErrorReason> {
+    // Set intial data for pages
+    for (page, data) in pages_data.iter_mut() {
+        mem.write(page.offset(), data.as_slice())
+            .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
+    }
+
+    if A::is_lazy_pages_enabled() {
+        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
+        let lazy_pages = allocations
+            .iter()
+            .flat_map(|page| page.to_gear_pages_iter())
+            .filter(|page| !pages_data.contains_key(page))
+            .collect();
+        A::lazy_pages_protect_and_init_info(mem, &lazy_pages, program_id)
+            .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
+        log::trace!(
+            "lazy pages = {:?}",
+            lazy_pages.iter().map(|p| p.0).collect::<Vec<_>>()
+        );
+    } else {
+        // If we executes without lazy pages, then we have to save all initial data for static pages,
+        // in order to be able to identify pages, which has been changed during execution.
+        for page in (0..static_pages.0)
+            .map(WasmPageNumber)
+            .flat_map(|p| p.to_gear_pages_iter())
+        {
+            if pages_data.contains_key(&page) {
+                // This page already has initial data
+                continue;
+            }
+            let mut data = PageBuf::new_zeroed();
+            mem.read(page.offset(), data.as_mut_slice())
+                .map_err(|err| ExecutionErrorReason::InitialMemoryReadFailed(page, err))?;
+            pages_data.insert(page, data);
+        }
+    }
+    Ok(())
+}
+
+fn get_pages_to_be_updated<A: ProcessorExt>(
+    mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
+    new_pages_data: BTreeMap<PageNumber, PageBuf>,
+    stack_end_page: Option<WasmPageNumber>,
+) -> BTreeMap<PageNumber, PageBuf> {
+    let mut page_update = BTreeMap::new();
+    for (page, new_data) in new_pages_data {
+        // If there are stack memory pages, then
+        // we ignore stack pages update, because they are unused after execution,
+        // and for next program execution old data in stack it's just garbage.
+        if let Some(stack_end_page) = stack_end_page {
+            if page.0 < stack_end_page.to_gear_page().0 {
+                continue;
+            }
+        }
+
+        if A::is_lazy_pages_enabled() {
+            if let Some(initial_data) = old_pages_data.remove(&page) {
+                if new_data != initial_data {
+                    page_update.insert(page, new_data);
+                    log::trace!(
+                        "Page {} has been changed - will be updated in storage",
+                        page.0
+                    );
+                } else {
+                    log::trace!("Page {} is accessed but has not been changed", page.0);
+                }
+            }
+        } else {
+            let intial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
+                initial_data
+            } else {
+                // If page has no data in `pages_intial_data` then data is zeros.
+                // Because it's default data for wasm pages which is not static,
+                // and for all static pages we save data in `pages_intial_data` in E::new.
+                PageBuf::new_zeroed()
+            };
+
+            if new_data != intial_data {
+                page_update.insert(page, new_data);
+                log::trace!(
+                    "Page {} has been changed - will be updated in storage",
+                    page.0
+                );
+            }
+        }
+    }
+    page_update
+}
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
@@ -41,6 +210,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
+    // Checks that lazy pages are enabled in case extension A uses them.
+    if !A::check_lazy_pages_consistent_state() {
+        // This is a gross violation of the terms of use ext with lazy pages,
+        // so we will panic here. This cannot happens unless sombody tries to
+        // use lazy-pages ext in executor without lazy-pages env enabled.
+        panic!("Cannot use ext with lazy pages without lazy pages env enabled");
+    }
+
     let ExecutableActor {
         program,
         balance,
@@ -53,112 +230,29 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    // Creating gas counter.
+    // Creating gas counters.
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(context.gas_allowance);
 
-    // Checks that lazy pages are enabled in case extension A uses them.
-    if !A::check_lazy_pages_consistent_state() {
-        return Err(ExecutionError {
-            program_id,
-            gas_amount: gas_counter.into(),
-            reason: ExecutionErrorReason::LazyPagesInconsistentState,
-        });
-    }
-
-    // Checks that all pages with data is in allocations set.
-    for page in pages_initial_data.keys() {
-        if !program.get_allocations().contains(&page.to_wasm_page()) {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::PageIsNotAllocated(*page),
-            });
-        }
-    }
-
-    // Creating value counter.
-    let value_counter = ValueCounter::new(balance + dispatch.value());
-
     let static_pages = program.static_pages();
 
-    let mem_size = if let Some(max_wasm_page) = program.get_allocations().iter().next_back() {
-        // Charging gas for loaded pages
-        let amount = settings.load_page_cost() * program.get_allocations().len() as u64;
-
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+    let mem_size = match make_checks_and_charge_gas_for_pages(
+        &settings,
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        program.get_allocations(),
+        pages_initial_data.keys(),
+        static_pages,
+    ) {
+        Ok(mem_size) => mem_size,
+        Err(reason) => {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::LoadMemoryBlockGasExceeded,
-            });
-        };
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::LoadMemoryGasExceeded,
-            });
-        };
-
-        // Charging gas for mem size
-        let amount =
-            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
-
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::GrowMemoryBlockGasExceeded,
-            });
+                reason,
+            })
         }
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::GrowMemoryGasExceeded,
-            });
-        }
-
-        // +1 because pages numeration begins from 0
-        *max_wasm_page + 1.into()
-    } else {
-        // Charging gas for initial pages
-        let amount = settings.init_cost() * static_pages.0 as u64;
-
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::GrowMemoryBlockGasExceeded,
-            });
-        };
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: ExecutionErrorReason::InitialMemoryGasExceeded,
-            });
-        };
-
-        static_pages
     };
-
-    if mem_size < static_pages {
-        log::error!(
-            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
-            mem_size,
-            static_pages
-        );
-        return Err(ExecutionError {
-            program_id,
-            gas_amount: gas_counter.into(),
-            reason: ExecutionErrorReason::InsufficientMemorySize,
-        });
-    }
 
     // Getting wasm pages allocations.
     let (allocations, is_initial) = if program.get_allocations().is_empty() {
@@ -179,6 +273,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         msg_ctx_settings,
     );
 
+    // Creating value counter.
+    let value_counter = ValueCounter::new(balance + dispatch.value());
+
     // Creating externalities.
     let ext = A::new(
         gas_counter,
@@ -197,64 +294,27 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.forbidden_funcs,
     );
 
-    let mut env =
-        E::new(ext, program.raw_code(), &mut pages_initial_data, mem_size).map_err(|err| {
-            log::debug!("Setup instance err = {}", err);
-            ExecutionError {
-                program_id,
-                gas_amount: err.gas_amount.clone(),
-                reason: ExecutionErrorReason::Backend(err.to_string()),
-            }
-        })?;
-
-    log::trace!(
-        "initial pages with data = {:?}",
-        pages_initial_data
-            .iter()
-            .map(|(p, _)| p.0)
-            .collect::<Vec<_>>()
-    );
-
-    if A::is_lazy_pages_enabled() {
-        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
-        let lazy_pages = allocations
-            .iter()
-            .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_initial_data.contains_key(page))
-            .collect();
-        if let Err(e) = A::lazy_pages_protect_and_init_info(env.get_mem(), &lazy_pages, program_id)
-        {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: env.into_gas_amount(),
-                reason: ExecutionErrorReason::LazyPagesInitFailed(e.to_string()),
-            });
+    let mut env = E::new(ext, program.raw_code(), mem_size).map_err(|err| {
+        log::debug!("Setup instance err = {}", err);
+        ExecutionError {
+            program_id,
+            gas_amount: err.gas_amount.clone(),
+            reason: ExecutionErrorReason::Backend(err.to_string()),
         }
-        log::trace!(
-            "lazy pages = {:?}",
-            lazy_pages.iter().map(|p| p.0).collect::<Vec<_>>()
-        );
-    } else {
-        // If we executes without lazy pages, then we have to save all initial data for static pages,
-        // in order to be able to identify pages, which has been changed during execution.
-        for page in (0..static_pages.0)
-            .map(WasmPageNumber)
-            .flat_map(|p| p.to_gear_pages_iter())
-        {
-            if pages_initial_data.contains_key(&page) {
-                // This page already has intial data
-                continue;
-            }
-            let mut data = PageBuf::new_zeroed();
-            if let Err(e) = env.get_mem().read(page.offset(), data.as_mut_slice()) {
-                return Err(ExecutionError {
-                    program_id,
-                    gas_amount: env.into_gas_amount(),
-                    reason: ExecutionErrorReason::InitialMemoryReadFailed(page, e),
-                });
-            }
-            pages_initial_data.insert(page, data);
-        }
+    })?;
+
+    if let Err(reason) = prepare_memory::<A>(
+        program_id,
+        &mut pages_initial_data,
+        &allocations,
+        static_pages,
+        env.get_mem_mut(),
+    ) {
+        return Err(ExecutionError {
+            program_id,
+            gas_amount: env.into_gas_amount(),
+            reason,
+        });
     }
 
     // Page which is right after stack last page
@@ -306,57 +366,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
-    // changed and new pages will be updated in storage
-    let mut page_update = BTreeMap::new();
-    for (page, new_data) in info.pages_data {
-        // If there are stack memory pages, then
-        // we ignore stack pages update, because they are unused after execution,
-        // and for next program execution old data in stack it's just garbage.
-        if let Some(stack_end_page) = stack_end_page {
-            if page.0 < stack_end_page.to_gear_page().0 {
-                continue;
-            }
-        }
-
-        if A::is_lazy_pages_enabled() {
-            if let Some(initial_data) = pages_initial_data.remove(&page) {
-                if new_data != initial_data {
-                    page_update.insert(page, new_data);
-                    log::trace!(
-                        "Page {} has been changed - will be updated in storage",
-                        page.0
-                    );
-                } else {
-                    log::trace!("Page {} is accessed but has not been changed", page.0);
-                }
-            }
-        } else {
-            let intial_data = if let Some(initial_data) = pages_initial_data.remove(&page) {
-                initial_data
-            } else {
-                // If page has no data in `pages_intial_data` then data is zeros.
-                // Because it's default data for wasm pages which is not static,
-                // and for all static pages we save data in `pages_intial_data` in E::new.
-                PageBuf::new_zeroed()
-            };
-
-            if new_data != intial_data {
-                page_update.insert(page, new_data);
-                log::trace!(
-                    "Page {} has been changed - will be updated in storage",
-                    page.0
-                );
-            }
-        }
-    }
+    let page_update =
+        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, stack_end_page);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
-
-    log::trace!(
-        "after exec allocations = {:?}",
-        info.allocations.iter().map(|p| p.0).collect::<Vec<_>>()
-    );
 
     // Output
     Ok(DispatchResult {

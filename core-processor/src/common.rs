@@ -330,6 +330,9 @@ pub enum ExecutionErrorReason {
     /// Cannot read initial memory data from wasm memory.
     #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
     InitialMemoryReadFailed(PageNumber, MemoryError),
+    /// Cannot write initial data to wasm memory.
+    #[display(fmt = "Cannot write intial data for {:?}: {}", _0, _1)]
+    InitialDataWriteFailed(PageNumber, MemoryError),
 }
 
 /// Executable actor.

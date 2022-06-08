@@ -22,7 +22,7 @@ use common::{self, Origin as _};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{WasmPageNumber, PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -476,14 +476,8 @@ fn check_changed_pages_in_storage() {
             .into(),
         );
 
-        PalletGear::<Test>::send_message(
-            origin,
-            program_id,
-            vec![],
-            10_000_000_u64,
-            0_u128,
-        )
-        .expect("Failed to send message");
+        PalletGear::<Test>::send_message(origin, program_id, vec![], 10_000_000_u64, 0_u128)
+            .expect("Failed to send message");
 
         run_to_block(3, None); // no message will get processed
 
@@ -499,16 +493,14 @@ fn check_changed_pages_in_storage() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
-                programs: vec![
-                    crate::ProgramDetails {
-                        id: program_id,
-                        state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages,
-                            persistent_pages: persistent_pages,
-                            code_hash: generate_code_hash(&code),
-                        }),
-                    },
-                ],
+                programs: vec![crate::ProgramDetails {
+                    id: program_id,
+                    state: crate::ProgramState::Active(crate::ProgramInfo {
+                        static_pages,
+                        persistent_pages,
+                        code_hash: generate_code_hash(&code),
+                    }),
+                }],
             })
             .into(),
         );

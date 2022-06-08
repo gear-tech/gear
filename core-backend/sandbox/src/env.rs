@@ -36,7 +36,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, WasmPageNumber},
 };
 use gear_core_errors::MemoryError;
 use sp_sandbox::{
@@ -114,25 +114,6 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
         .collect())
 }
 
-fn set_pages(
-    memory: &mut impl Memory,
-    pages: &BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), String> {
-    let memory_size = memory.size();
-    for (page, buf) in pages {
-        if page.to_wasm_page() >= memory_size {
-            return Err(format!(
-                "{:?} is out of memory size: {:?}",
-                page, memory_size
-            ));
-        }
-        memory
-            .write(page.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", page, e))?;
-    }
-    Ok(())
-}
-
 impl<E> Environment<E> for SandboxEnvironment<E>
 where
     E: Ext + IntoExtInfo + 'static,
@@ -143,7 +124,6 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        pages_data: &mut BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let mut builder = EnvBuilder::<E> {
@@ -232,15 +212,6 @@ where
             }
         };
 
-        // Set module memory.
-        if let Err(e) = set_pages(&mut runtime.memory, pages_data) {
-            return Err(BackendError {
-                reason: SandboxEnvironmentError::SetModuleMemoryData,
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: runtime.ext.into_inner().into_gas_amount(),
-            });
-        }
-
         Ok(SandboxEnvironment {
             runtime,
             instance,
@@ -264,6 +235,10 @@ where
 
     fn get_mem(&self) -> &dyn Memory {
         &self.runtime.memory
+    }
+
+    fn get_mem_mut(&mut self) -> &mut dyn Memory {
+        &mut self.runtime.memory
     }
 
     fn execute<F, T>(
