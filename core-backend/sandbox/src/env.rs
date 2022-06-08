@@ -18,7 +18,10 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::{funcs::FuncError, memory::MemoryWrap};
+use crate::{
+    funcs::{FuncError, FuncsHandler as Funcs},
+    memory::MemoryWrap,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     format,
@@ -85,7 +88,7 @@ impl<'a, E: Ext + IntoExtInfo + 'static> EnvBuilder<'a, E> {
     {
         if self.forbidden_funcs.contains(name) {
             self.env_def_builder
-                .add_host_func("env", name, crate::funcs::FuncsHandler::forbidden);
+                .add_host_func("env", name, Funcs::forbidden);
         } else {
             self.env_def_builder.add_host_func("env", name, f);
         }
@@ -146,39 +149,38 @@ where
             forbidden_funcs: ext.forbidden_funcs(),
         };
 
-        use crate::funcs::FuncsHandler as funcs;
-        builder.add_func("gr_block_height", funcs::block_height);
-        builder.add_func("gr_block_timestamp", funcs::block_timestamp);
-        builder.add_func("gr_create_program", funcs::create_program);
-        builder.add_func("gr_create_program_wgas", funcs::create_program_wgas);
-        builder.add_func("gr_debug", funcs::debug);
-        builder.add_func("gr_error", funcs::error);
-        builder.add_func("gr_exit", funcs::exit);
-        builder.add_func("gr_exit_code", funcs::exit_code);
-        builder.add_func("gr_gas_available", funcs::gas_available);
-        builder.add_func("gr_leave", funcs::leave);
-        builder.add_func("gr_msg_id", funcs::msg_id);
-        builder.add_func("gr_origin", funcs::origin);
-        builder.add_func("gr_program_id", funcs::program_id);
-        builder.add_func("gr_read", funcs::read);
-        builder.add_func("gr_reply", funcs::reply);
-        builder.add_func("gr_reply_commit", funcs::reply_commit);
-        builder.add_func("gr_reply_commit_wgas", funcs::reply_commit_wgas);
-        builder.add_func("gr_reply_push", funcs::reply_push);
-        builder.add_func("gr_reply_to", funcs::reply_to);
-        builder.add_func("gr_reply_wgas", funcs::reply_wgas);
-        builder.add_func("gr_send", funcs::send);
-        builder.add_func("gr_send_commit", funcs::send_commit);
-        builder.add_func("gr_send_commit_wgas", funcs::send_commit_wgas);
-        builder.add_func("gr_send_init", funcs::send_init);
-        builder.add_func("gr_send_push", funcs::send_push);
-        builder.add_func("gr_send_wgas", funcs::send_wgas);
-        builder.add_func("gr_size", funcs::size);
-        builder.add_func("gr_source", funcs::source);
-        builder.add_func("gr_value", funcs::value);
-        builder.add_func("gr_value_available", funcs::value_available);
-        builder.add_func("gr_wait", funcs::wait);
-        builder.add_func("gr_wake", funcs::wake);
+        builder.add_func("gr_block_height", Funcs::block_height);
+        builder.add_func("gr_block_timestamp", Funcs::block_timestamp);
+        builder.add_func("gr_create_program", Funcs::create_program);
+        builder.add_func("gr_create_program_wgas", Funcs::create_program_wgas);
+        builder.add_func("gr_debug", Funcs::debug);
+        builder.add_func("gr_error", Funcs::error);
+        builder.add_func("gr_exit", Funcs::exit);
+        builder.add_func("gr_exit_code", Funcs::exit_code);
+        builder.add_func("gr_gas_available", Funcs::gas_available);
+        builder.add_func("gr_leave", Funcs::leave);
+        builder.add_func("gr_msg_id", Funcs::msg_id);
+        builder.add_func("gr_origin", Funcs::origin);
+        builder.add_func("gr_program_id", Funcs::program_id);
+        builder.add_func("gr_read", Funcs::read);
+        builder.add_func("gr_reply", Funcs::reply);
+        builder.add_func("gr_reply_commit", Funcs::reply_commit);
+        builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reply_push", Funcs::reply_push);
+        builder.add_func("gr_reply_to", Funcs::reply_to);
+        builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
+        builder.add_func("gr_send", Funcs::send);
+        builder.add_func("gr_send_commit", Funcs::send_commit);
+        builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_send_init", Funcs::send_init);
+        builder.add_func("gr_send_push", Funcs::send_push);
+        builder.add_func("gr_send_wgas", Funcs::send_wgas);
+        builder.add_func("gr_size", Funcs::size);
+        builder.add_func("gr_source", Funcs::source);
+        builder.add_func("gr_value", Funcs::value);
+        builder.add_func("gr_value_available", Funcs::value_available);
+        builder.add_func("gr_wait", Funcs::wait);
+        builder.add_func("gr_wake", Funcs::wake);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
         let ext_carrier = ExtCarrier::new(ext);
@@ -195,9 +197,9 @@ where
         };
 
         env_builder.add_memory("env", "memory", mem.clone());
-        env_builder.add_host_func("env", "alloc", funcs::alloc);
-        env_builder.add_host_func("env", "free", funcs::free);
-        env_builder.add_host_func("env", "gas", funcs::gas);
+        env_builder.add_host_func("env", "alloc", Funcs::alloc);
+        env_builder.add_host_func("env", "free", Funcs::free);
+        env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut runtime = Runtime {
             ext: ext_carrier,

@@ -259,13 +259,13 @@ mod tests {
     // Test function of format `Fn(&mut E: Ext) -> R`
     // to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
     // For example, returns the field of ext's inner value.
-    fn converter(e: &mut ExtImplementedStruct) -> u8 {
-        e.0
+    fn converter(_e: &mut ExtImplementedStruct) -> u8 {
+        0
     }
 
     /// Struct with internal value to interact with ExtCarrier
-    #[derive(Debug, PartialEq, Eq, Clone, Default)] //, Copy)]
-    struct ExtImplementedStruct(u8, BTreeSet<&'static str>);
+    #[derive(Debug, PartialEq, Eq, Clone, Default)]
+    struct ExtImplementedStruct(BTreeSet<&'static str>);
 
     /// Empty Ext implementation for test struct
     impl Ext for ExtImplementedStruct {
@@ -364,7 +364,7 @@ mod tests {
             Ok(Default::default())
         }
         fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
-            &self.1
+            &self.0
         }
     }
 
