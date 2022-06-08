@@ -21,7 +21,7 @@
 use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId},
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::{collections::BTreeSet, rc::Rc};

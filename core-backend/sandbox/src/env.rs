@@ -241,18 +241,6 @@ where
             });
         }
 
-        if let Err(e) = runtime
-            .ext
-            .with(|ext| ext.save_static_pages_initial_data(&runtime.memory, pages_data))
-            .expect("We just set ext")
-        {
-            return Err(BackendError {
-                reason: SandboxEnvironmentError::SaveStaticPagesInitialData,
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: runtime.ext.into_inner().into_gas_amount(),
-            });
-        }
-
         Ok(SandboxEnvironment {
             runtime,
             instance,

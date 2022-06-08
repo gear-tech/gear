@@ -227,13 +227,34 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: env.into_gas_amount(),
-                reason: ExecutionErrorReason::Processor(e.to_string()),
+                reason: ExecutionErrorReason::LazyPagesInitFailed(e.to_string()),
             });
         }
         log::trace!(
             "lazy pages = {:?}",
             lazy_pages.iter().map(|p| p.0).collect::<Vec<_>>()
         );
+    } else {
+        // If we executes without lazy pages, then we have to save all initial data for static pages,
+        // in order to be able to identify pages, which has been changed during execution.
+        for page in (0..static_pages.0)
+            .map(WasmPageNumber)
+            .flat_map(|p| p.to_gear_pages_iter())
+        {
+            if pages_initial_data.contains_key(&page) {
+                // This page already has intial data
+                continue;
+            }
+            let mut data = PageBuf::new_zeroed();
+            if let Err(e) = env.get_mem().read(page.offset(), data.as_mut_slice()) {
+                return Err(ExecutionError {
+                    program_id,
+                    gas_amount: env.into_gas_amount(),
+                    reason: ExecutionErrorReason::InitialMemoryReadFailed(page, e),
+                });
+            }
+            pages_initial_data.insert(page, data);
+        }
     }
 
     // Page which is right after stack last page

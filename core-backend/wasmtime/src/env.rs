@@ -259,17 +259,6 @@ where
 
         let memory_wrap = MemoryWrapExternal { mem: memory, store };
 
-        if let Err(e) = ext_carrier
-            .with(|ext| ext.save_static_pages_initial_data(&memory_wrap, pages_data))
-            .expect("We just set ext")
-        {
-            return Err(BackendError {
-                reason: WasmtimeEnvironmentError::SaveStaticPagesInitialData,
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: ext_carrier.into_inner().into_gas_amount(),
-            });
-        }
-
         Ok(WasmtimeEnvironment {
             ext: ext_carrier,
             memory_wrap,
