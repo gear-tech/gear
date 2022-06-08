@@ -1,18 +1,17 @@
+use crate::empty_ext::ExtImplementedStruct;
 use core_processor::common::JournalNote;
-use gear_backend_wasmtime::{env::StoreData};
+use gear_backend_wasmtime::{env::StoreData, funcs::FuncsHandler};
 use gear_core::{
     env::{Ext, ExtCarrier},
-    ext::ExtImplementedStruct,
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::IncomingMessage,
     program::Program,
 };
 use std::{collections::BTreeMap, convert::TryInto};
-use gear_backend_wasmtime::funcs::FuncsHandler;
 use wasmtime::{
     Config, Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
-    Val
+    Val,
 };
 
 pub struct WasmExecutor {
@@ -29,7 +28,7 @@ impl WasmExecutor {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         message: Option<IncomingMessage>,
     ) -> Self {
-        let ext = ExtImplementedStruct::new_(source, program.id(), message);
+        let ext = ExtImplementedStruct::new(source, program.id(), message);
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
@@ -185,7 +184,7 @@ impl WasmExecutor {
             .map(|(page_number, data)| JournalNote::UpdatePage {
                 program_id: self.program_id,
                 page_number,
-                data,
+                data: PageBuf::new_from_vec(data).expect("Failed to convert data to page buffer"),
             })
             .collect()
     }

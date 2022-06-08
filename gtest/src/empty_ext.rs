@@ -1,14 +1,18 @@
-//! Module with empty ext implemented struct for tests.
-use crate::costs::RuntimeCosts;
-use crate::env::Ext;
-use crate::ids::{MessageId, ProgramId};
-use crate::memory::{Memory, WasmPageNumber};
-use crate::message::{HandlePacket, IncomingMessage, InitPacket, MessageContext, ReplyPacket};
 use codec::Encode;
 use core::fmt;
-use gear_core_errors::{CoreError, TerminationReason};
+use gear_backend_common::{
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind,
+};
+use gear_core::{
+    costs::RuntimeCosts,
+    env::Ext,
+    gas::GasAmount,
+    ids::{MessageId, ProgramId},
+    memory::{Memory, WasmPageNumber},
+    message::{HandlePacket, IncomingMessage, InitPacket, MessageContext, ReplyPacket},
+};
+use gear_core_errors::{CoreError, ExtError, MemoryError};
 
-///Empty struct for alloc error handling
 #[derive(Debug)]
 pub struct AllocError;
 
@@ -18,34 +22,41 @@ impl fmt::Display for AllocError {
     }
 }
 
-impl CoreError for AllocError {
-    fn from_termination_reason(_reason: TerminationReason) -> Self {
-        unreachable!()
-    }
+impl CoreError for AllocError {}
 
-    fn as_termination_reason(&self) -> Option<TerminationReason> {
-        unreachable!()
-    }
-}
-
-// Test function of format `Fn(&mut E: Ext) -> R`
-// to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
-// For example, returns the field of ext's inner value.
-#[allow(dead_code)]
-pub(crate) fn converter(e: &mut ExtImplementedStruct) -> ProgramId {
-    e.message_context.program_id()
-}
-
-/// Struct with internal value to interact with ExtCarrier
 #[derive(Debug, PartialEq, Clone)]
 pub struct ExtImplementedStruct {
     message_context: MessageContext,
 }
 
-/// Empty Ext implementation for test struct
+impl AsTerminationReason for AllocError {
+    fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
+        unreachable!();
+    }
+}
+
+impl IntoExtError for AllocError {
+    fn into_ext_error(self) -> Result<ExtError, Self> {
+        unreachable!();
+    }
+}
+
+impl IntoExtInfo for ExtImplementedStruct {
+    fn into_ext_info(self, _: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+        unreachable!();
+    }
+
+    fn into_gas_amount(self) -> GasAmount {
+        unreachable!();
+    }
+
+    fn last_error(&self) -> Option<&ExtError> {
+        unreachable!()
+    }
+}
+
 impl ExtImplementedStruct {
-    ///Create instance with message context
-    pub fn new_(
+    pub fn new(
         source: ProgramId,
         destination: ProgramId,
         message: Option<IncomingMessage>,
@@ -67,28 +78,8 @@ impl ExtImplementedStruct {
             ),
         }
     }
-
-    ///Create empty instance
-    #[allow(dead_code)]
-    pub(crate) fn new() -> Self {
-        Self {
-            message_context: MessageContext::new(
-                IncomingMessage::new(
-                    Default::default(),
-                    Default::default(),
-                    Option::<bool>::encode(&None),
-                    0,
-                    0,
-                    None,
-                ),
-                Default::default(),
-                None,
-            ),
-        }
-    }
 }
 
-/// Empty Ext implementation for test struct
 impl Ext for ExtImplementedStruct {
     type Error = AllocError;
 

@@ -27,16 +27,18 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
+    message::{
+        Dispatch, DispatchKind, IncomingMessage, ReplyMessage, ReplyPacket, StoredDispatch,
+        StoredMessage,
+    },
     program::Program as CoreProgram,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
-    time::{SystemTime, UNIX_EPOCH},
     convert::TryFrom,
+    time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
-use gear_core::message::IncomingMessage;
 
 const OUTGOING_LIMIT: u32 = 1024;
 

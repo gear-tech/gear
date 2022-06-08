@@ -44,7 +44,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let ExecutableActor {
         program,
         balance,
-        pages_data,
+        mut pages_data,
     } = actor;
 
     let program_id = program.id();

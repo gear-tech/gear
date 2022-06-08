@@ -2795,15 +2795,17 @@ version = "0.1.0"
 dependencies = [
  "colored",
  "env_logger",
+ "gear-backend-common",
  "gear-backend-wasmtime",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "hex",
  "log",
  "parity-scale-codec",
  "path-clean",
  "wasm-instrument",
- "wasmtime 0.35.1",
+ "wasmtime 0.35.3",
 ]
 
 [[package]]
