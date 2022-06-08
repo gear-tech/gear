@@ -3361,7 +3361,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
         )
         .expect("Failed to get gas burned");
 
-        assert!(gas_reserved > gas_to_spend);
+        assert!(gas_reserved >= gas_to_spend);
 
         run_to_block(4, None);
 

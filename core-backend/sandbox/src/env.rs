@@ -71,6 +71,8 @@ pub(crate) struct Runtime<E: Ext> {
     pub termination_reason: Option<TerminationReasonKind>,
 }
 
+// A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
+// It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<'a, E: Ext> {
     env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
     forbidden_funcs: &'a BTreeSet<&'static str>,
