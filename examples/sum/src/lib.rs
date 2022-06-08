@@ -47,8 +47,9 @@ pub unsafe extern "C" fn handle() {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    let send_to =
-        ActorId::from_slice(&decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"))
-            .expect("Unable to create ActorId");
+    let send_to = ActorId::from_slice(
+        &decode_hex(&input).expect("INITIALIZATION FAILED: INVALID PROGRAM ID"),
+    )
+    .expect("Unable to create ActorId");
     STATE.set_send_to(send_to);
 }
