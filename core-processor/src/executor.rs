@@ -44,7 +44,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let ExecutableActor {
         program,
         balance,
-        mut pages_data,
+        pages_data: mut pages_initial_data,
     } = actor;
 
     let program_id = program.id();
@@ -67,7 +67,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     }
 
     // Checks that all pages with data is in allocations set.
-    for page in pages_data.keys() {
+    for page in pages_initial_data.keys() {
         if !program.get_allocations().contains(&page.to_wasm_page()) {
             return Err(ExecutionError {
                 program_id,
@@ -197,18 +197,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.forbidden_funcs,
     );
 
-    let mut env = E::new(ext, program.raw_code(), &mut pages_data, mem_size).map_err(|err| {
-        log::error!("Setup instance err = {}", err);
-        ExecutionError {
-            program_id,
-            gas_amount: err.gas_amount.clone(),
-            reason: ExecutionErrorReason::Backend(err.to_string()),
-        }
-    })?;
+    let mut env =
+        E::new(ext, program.raw_code(), &mut pages_initial_data, mem_size).map_err(|err| {
+            log::debug!("Setup instance err = {}", err);
+            ExecutionError {
+                program_id,
+                gas_amount: err.gas_amount.clone(),
+                reason: ExecutionErrorReason::Backend(err.to_string()),
+            }
+        })?;
 
     log::trace!(
         "initial pages with data = {:?}",
-        pages_data.iter().map(|(p, _)| p.0).collect::<Vec<_>>()
+        pages_initial_data
+            .iter()
+            .map(|(p, _)| p.0)
+            .collect::<Vec<_>>()
     );
 
     if A::is_lazy_pages_enabled() {
@@ -216,7 +220,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         let lazy_pages = allocations
             .iter()
             .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_data.contains_key(page))
+            .filter(|page| !pages_initial_data.contains_key(page))
             .collect();
         if let Err(e) = A::lazy_pages_protect_and_init_info(env.get_mem(), &lazy_pages, program_id)
         {
@@ -238,9 +242,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Execute program in backend env.
     let BackendReport { termination, info } = match env.execute(kind.into_entry(), |mem| {
-        // released pages initial data will be added to `pages_data`
+        // released pages initial data will be added to `pages_intial_data`
         if A::is_lazy_pages_enabled() {
-            A::lazy_pages_post_execution_actions(mem, &mut pages_data)
+            A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
         } else {
             Ok(())
         }
@@ -255,7 +259,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    log::trace!("term reason = {:?}", termination);
+    log::debug!("term reason = {:?}", termination);
 
     // Parsing outcome.
     let kind = match termination {
@@ -281,11 +285,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
-    log::trace!(
-        "accessed pages: {:?}",
-        info.pages_data.iter().map(|(p, _)| p).collect::<Vec<_>>()
-    );
-
     // changed and new pages will be updated in storage
     let mut page_update = BTreeMap::new();
     for (page, new_data) in info.pages_data {
@@ -299,7 +298,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if A::is_lazy_pages_enabled() {
-            if let Some(initial_data) = pages_data.remove(&page) {
+            if let Some(initial_data) = pages_initial_data.remove(&page) {
                 if new_data != initial_data {
                     page_update.insert(page, new_data);
                     log::trace!(
@@ -311,14 +310,21 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 }
             }
         } else {
-            let intial_data = if let Some(initial_data) = pages_data.remove(&page) {
+            let intial_data = if let Some(initial_data) = pages_initial_data.remove(&page) {
                 initial_data
             } else {
+                // If page has no data in `pages_intial_data` then data is zeros.
+                // Because it's default data for wasm pages which is not static,
+                // and for all static pages we save data in `pages_intial_data` in E::new.
                 PageBuf::new_zeroed()
             };
 
             if new_data != intial_data {
                 page_update.insert(page, new_data);
+                log::trace!(
+                    "Page {} has been changed - will be updated in storage",
+                    page.0
+                );
             }
         }
     }
