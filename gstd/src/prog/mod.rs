@@ -18,7 +18,7 @@
 
 //! Program creation module
 
-pub mod program_creator;
+pub mod program_generator;
 
 use crate::{prelude::convert::AsRef, ActorId, CodeHash};
 

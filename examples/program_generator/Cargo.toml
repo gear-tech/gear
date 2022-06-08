@@ -1,0 +1,16 @@
+[package]
+name = "demo_program_generator"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+galloc = { path = "../../galloc", default-features = false }
+gcore = { path = "../../gcore", default-features = false }
+gstd = { path = "../../gstd", features = ["debug"] }
+hex-literal = "*"
+
