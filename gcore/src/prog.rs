@@ -24,6 +24,16 @@ mod sys {
     use crate::error::SyscallError;
 
     extern "C" {
+        pub fn gr_create_program(
+            code_hash: *const u8,
+            salt_ptr: *const u8,
+            salt_len: u32,
+            data_ptr: *const u8,
+            data_len: u32,
+            value_ptr: *const u8,
+            program_id_ptr: *mut u8,
+        );
+
         pub fn gr_create_program_wgas(
             code_hash: *const u8,
             salt_ptr: *const u8,
@@ -37,7 +47,24 @@ mod sys {
     }
 }
 
-/// Creates a new program and returns its address.
+/// Same as [`create_program_with_gas`], but without explicit gas limit.
+pub fn create_program(code_hash: CodeHash, salt: &[u8], payload: &[u8], value: u128) -> ActorId {
+    unsafe {
+        let mut program_id = ActorId::default();
+        sys::gr_create_program(
+            code_hash.as_slice().as_ptr(),
+            salt.as_ptr(),
+            salt.len() as _,
+            payload.as_ptr(),
+            payload.len() as _,
+            value.to_le_bytes().as_ptr(),
+            program_id.as_mut_slice().as_mut_ptr(),
+        );
+        program_id
+    }
+}
+
+/// Creates a new program and returns its address, with gas limit.
 ///
 /// The function creates a program initialization message and, as
 /// any message send function in the crate, this one requires common additional

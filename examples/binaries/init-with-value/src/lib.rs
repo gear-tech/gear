@@ -32,19 +32,15 @@ use gstd::prelude::*;
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
+
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
-    Init {
-        destination: Option<u64>,
-        value: u128,
-    },
-    Handle {
-        destination: u64,
-        value: u128,
-    },
+    Init { value: u128 },
+    InitWithoutGas { value: u128 },
+    Handle { destination: u64, value: u128 },
 }
 
 #[cfg(not(feature = "std"))]
@@ -62,26 +58,34 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
+        let init = |wgas: bool, value: u128| {
+            let submitted_code = CHILD_CODE_HASH.into();
+
+            let res = if wgas {
+                prog::create_program_with_gas(
+                    submitted_code,
+                    COUNTER.to_le_bytes(),
+                    [],
+                    1_000_001,
+                    value,
+                )
+            } else {
+                prog::create_program(submitted_code, COUNTER.to_le_bytes(), [], value)
+            };
+
+            match res {
+                Ok(_) => {
+                    COUNTER += 1;
+                }
+                Err(ContractError::Ext(err)) => panic!("{}", err),
+                Err(err) => panic!("{}", err),
+            }
+        };
+
         for msg_data in data {
             match msg_data {
-                SendMessage::Init { destination, value } => {
-                    let submitted_code = CHILD_CODE_HASH.into();
-                    let res = prog::create_program_with_gas(
-                        submitted_code,
-                        COUNTER.to_le_bytes(),
-                        [],
-                        1_000_001,
-                        value,
-                    );
-
-                    match res {
-                        Ok(_) => {
-                            COUNTER += 1;
-                        }
-                        Err(ContractError::Ext(err)) => panic!("{}", err),
-                        Err(err) => panic!("{}", err),
-                    }
-                }
+                SendMessage::Init { value } => init(true, value),
+                SendMessage::InitWithoutGas { value } => init(false, value),
                 SendMessage::Handle { destination, value } => {
                     let _ = msg::send(destination.into(), b"", value);
                 }

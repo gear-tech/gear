@@ -287,6 +287,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
+            ["gr_gas_available"].into(),
         )
     } else {
         core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -300,6 +301,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
             u64::MAX,
             <Test as pallet_gear::Config>::OutgoingLimit::get(),
             schedule.host_fn_weights.into_core(),
+            ["gr_gas_available"].into(),
         )
     };
 
@@ -314,7 +316,10 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
             JournalNote::SendDispatch { dispatch, .. } => {
                 gas_to_send = gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
             }
-            JournalNote::MessageDispatched(DispatchOutcome::MessageTrap { .. }) => {
+            JournalNote::MessageDispatched {
+                outcome: DispatchOutcome::MessageTrap { .. },
+                ..
+            } => {
                 panic!("Program terminated with a trap");
             }
             _ => (),
@@ -324,7 +329,38 @@ pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) ->
     (gas_burned, gas_to_send)
 }
 
+pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
+    sp_externalities::with_externalities(|ext| {
+        ext.storage_start_transaction();
+    })
+    .expect("externalities should be set");
+
+    let result = f();
+
+    sp_externalities::with_externalities(|ext| {
+        ext.storage_rollback_transaction()
+            .expect("transaction was started");
+    })
+    .expect("externalities should be set");
+
+    result
+}
+
 pub fn get_gas_burned<T>(
+    source: H256,
+    kind: HandleKind,
+    payload: Vec<u8>,
+    gas_limit: Option<u64>,
+    value: u128,
+) -> Result<u64, Vec<u8>>
+where
+    T: crate::Config,
+    T::AccountId: common::Origin,
+{
+    run_with_ext_copy(|| get_gas_burned_internal::<T>(source, kind, payload, gas_limit, value))
+}
+
+fn get_gas_burned_internal<T>(
     source: H256,
     kind: HandleKind,
     payload: Vec<u8>,
@@ -466,6 +502,7 @@ where
                 u64::MAX,
                 T::OutgoingLimit::get(),
                 schedule.host_fn_weights.clone().into_core(),
+                ["gr_gas_available"].into(),
             )
         } else {
             core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -479,6 +516,7 @@ where
                 u64::MAX,
                 T::OutgoingLimit::get(),
                 schedule.host_fn_weights.clone().into_core(),
+                ["gr_gas_available"].into(),
             )
         };
 
@@ -488,9 +526,10 @@ where
                 JournalNote::GasBurned { amount, .. } => {
                     burned += amount;
                 }
-                JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                    trap, ..
-                }) => {
+                JournalNote::MessageDispatched {
+                    outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                    ..
+                } => {
                     return Err(format!(
                         "Program terminated with a trap: {}",
                         trap.clone().unwrap_or_else(|| "No reason".to_string())

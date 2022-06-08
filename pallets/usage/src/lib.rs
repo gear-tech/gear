@@ -407,6 +407,11 @@ pub mod pallet {
                                 QueueOf::<T>::queue(dispatch)
                                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                             } else if MailboxOf::<T>::insert(dispatch.into_parts().1).is_err() {
+                                    // TODO: update logic of insertion into mailbox following new
+                                    // flow and deposit appropriate event (issue #1010).
+
+                                    // TODO: deposit appropriate (Gear) event,
+                                    // instead of silent insertion.
                                     log::debug!("Duplicate mailbox message");
                                 }
 

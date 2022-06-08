@@ -16,29 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `debug!` macro.
-//! Enables output of the logs from Wasm if the `debug` feature is enabled.
+#![no_std]
 
-#[cfg(feature = "debug")]
-#[macro_export]
-macro_rules! debug {
-    ($arg:literal) => {
-        $crate::ext::debug(&$crate::prelude::format!("{}", $arg))
-    };
-    ($arg:expr) => {
-        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg))
-    };
-    ($fmt:literal $(, $args:expr)+) => {
-        $crate::ext::debug(&$crate::prelude::format!($fmt $(, $args)+))
-    };
+#[macro_use]
+extern crate quote;
+extern crate proc_macro;
+extern crate syn;
+
+use proc_macro::TokenStream;
+use syn::DeriveInput;
+
+/// Derive macro for default implementation of RuntimeReason.
+#[proc_macro_derive(RuntimeReason)]
+pub fn derive_runtime_reason(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(input).unwrap();
+    let name = &ast.ident;
+
+    quote! { impl RuntimeReason for #name {} }.into()
 }
 
-#[cfg(not(feature = "debug"))]
-#[macro_export]
-macro_rules! debug {
-    ($arg:expr) => { let _ = $arg; };
-    ($fmt:literal $(, $args:expr)+) => {
-        let _ = $fmt;
-        $(let _ = $args;) +
-    };
+/// Derive macro for default implementation of SystemReason.
+#[proc_macro_derive(SystemReason)]
+pub fn derive_system_reason(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(input).unwrap();
+    let name = &ast.ident;
+
+    quote! { impl SystemReason for #name {} }.into()
 }

@@ -27,7 +27,7 @@ use codec::Encode;
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     funcs::*,
-    AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind,
+    AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -64,6 +64,8 @@ enum FuncError<E> {
     Wait,
     #[display(fmt = "`gr_error` expects error occurred earlier")]
     SyscallErrorExpected,
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
 }
 
 impl<E> FuncError<E> {
@@ -629,6 +631,37 @@ where
         Func::wrap(store, func)
     }
 
+    pub fn create_program(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
+        let func = move |mut caller: Caller<'_, StoreData<E>>,
+                         code_hash_ptr: i32,
+                         salt_ptr: i32,
+                         salt_len: i32,
+                         payload_ptr: i32,
+                         payload_len: i32,
+                         value_ptr: i32,
+                         program_id_ptr: i32| {
+            let ext = caller.data().ext.clone();
+            ext.with_fallible(|ext: &mut E| -> Result<(), FuncError<E::Error>> {
+                let mem_wrap = get_caller_memory(&mut caller, &mem);
+                let code_hash = get_bytes32(&mem_wrap, code_hash_ptr as usize)?;
+                let salt = get_vec(&mem_wrap, salt_ptr as usize, salt_len as usize)?;
+                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
+                let new_actor_id = ext
+                    .create_program(InitPacket::new(code_hash.into(), salt, payload, value))
+                    .map_err(FuncError::Core)?;
+                write_to_caller_memory(
+                    &mut caller,
+                    &mem,
+                    program_id_ptr as isize as _,
+                    new_actor_id.as_ref(),
+                )
+            })
+            .map_err(Trap::new)
+        };
+        Func::wrap(store, func)
+    }
+
     pub fn create_program_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>,
                          code_hash_ptr: i32,
@@ -786,6 +819,19 @@ where
                 Ok(())
             })
             .map_err(Trap::new)
+        };
+        Func::wrap(store, func)
+    }
+
+    pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
+        let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
+            caller.data_mut().termination_reason = Some(TerminationReason::Trap {
+                explanation: Some(TrapExplanation::Other(
+                    "Unable to call a forbidden function".into(),
+                )),
+                description: None,
+            });
+            Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
         };
         Func::wrap(store, func)
     }

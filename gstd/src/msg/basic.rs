@@ -43,7 +43,7 @@ where
 ///
 /// Gear allows users and programs to interact with other users and programs via
 /// messages. Message creation consists of the following parts - message
-/// initialisation, filling the message with payload (can be gradual), message
+/// initialization, filling the message with payload (can be gradual), message
 /// sending.
 ///
 /// Here are the functions that make up the parts of building and sending
@@ -363,7 +363,7 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 ///
 /// pub unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let orginal_message_id = msg::reply_to();
+///     let original_message_id = msg::reply_to();
 /// }
 /// ```
 ///
