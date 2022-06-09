@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-	chain_spec,
-	cli::{Cli, Subcommand},
-	command_helper::{inherent_benchmark_data, BenchmarkExtrinsicBuilder},
-	service,
+    chain_spec,
+    cli::{Cli, Subcommand},
+    command_helper::{inherent_benchmark_data, BenchmarkExtrinsicBuilder},
+    service,
 };
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use gear_runtime::Block;

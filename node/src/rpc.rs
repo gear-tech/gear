@@ -22,8 +22,8 @@
 
 use std::sync::Arc;
 
-use jsonrpsee::RpcModule;
 use gear_runtime::{opaque::Block, AccountId, Balance, Index};
+use jsonrpsee::RpcModule;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
@@ -33,12 +33,12 @@ pub use sc_rpc_api::DenyUnsafe;
 
 /// Full client dependencies.
 pub struct FullDeps<C, P> {
-	/// The client instance to use.
-	pub client: Arc<C>,
-	/// Transaction pool instance.
-	pub pool: Arc<P>,
-	/// Whether to deny unsafe calls
-	pub deny_unsafe: DenyUnsafe,
+    /// The client instance to use.
+    pub client: Arc<C>,
+    /// Transaction pool instance.
+    pub pool: Arc<P>,
+    /// Whether to deny unsafe calls
+    pub deny_unsafe: DenyUnsafe,
 }
 
 /// Instantiate all full RPC extensions.

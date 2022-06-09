@@ -31,10 +31,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_rpc::number::NumberOrHex;
-use sp_runtime::{
-    generic::BlockId,
-    traits::{Block as BlockT},
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 

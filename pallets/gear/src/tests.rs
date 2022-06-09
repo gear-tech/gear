@@ -32,7 +32,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero, assert_err};
+use frame_support::{assert_err, assert_noop, assert_ok, sp_runtime::traits::Zero};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
