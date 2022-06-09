@@ -13,5 +13,5 @@ galloc = { path = "../../galloc", default-features = false }
 gcore = { path = "../../gcore", default-features = false }
 gstd = { path = "../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-hex-literal = "*"
+hex-literal = "0.3.4"
 
