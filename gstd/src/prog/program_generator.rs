@@ -21,7 +21,7 @@
 use crate::{ActorId, CodeHash};
 use codec::alloc::vec::Vec;
 
-use super::create_program_with_gas;
+use super::{create_program_with_gas, create_program};
 
 pub struct ProgramGenerator(u64);
 
@@ -29,7 +29,7 @@ pub struct ProgramGenerator(u64);
 static mut PROGRAM_GENERATOR: ProgramGenerator = ProgramGenerator(0);
 
 impl ProgramGenerator {
-    pub fn get_salt(&mut self) -> Vec<u8> {
+    fn get_salt(&mut self) -> Vec<u8> {
         // Prefix for not crossing with the user salt.
         let unique_key = b"unique_key: c5755111a6dc6b7498a5";
         // Provide salt uniqueness across all programs from other messages.
@@ -43,17 +43,42 @@ impl ProgramGenerator {
     pub fn create_program_with_gas<T: AsRef<[u8]>>(
         code_hash: CodeHash,
         payload: T,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> ActorId {
-        unsafe {
+        let salt = unsafe { PROGRAM_GENERATOR.get_salt() };
+
+        if let Some(gas_limit) = gas_limit {
             create_program_with_gas(
                 code_hash,
-                PROGRAM_GENERATOR.get_salt(),
+                salt,
                 payload,
                 gas_limit,
                 value,
             )
+        } else {
+            create_program(code_hash, salt, payload, value)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use codec::alloc::vec::Vec;
+
+    use crate::prog::program_generator::{PROGRAM_GENERATOR};
+
+
+    #[test]
+    fn salt_uniqueness_test() {
+
+        let n = 10;
+        let salts: Vec<Vec<u8>> = (0..n).map(|_| unsafe { PROGRAM_GENERATOR.get_salt() }).collect();
+        
+        for first_salt in salts.iter() {
+            for second_salt in salts.iter() {
+                assert_eq!(first_salt, second_salt);
+            }
         }
     }
 }
