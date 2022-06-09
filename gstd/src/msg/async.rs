@@ -133,6 +133,24 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     })
 }
 
+/// Send a message with gas and wait for reply.
+///
+/// This function works similarly to `send_and_wait_for_reply`, with gas limit.
+pub fn send_with_gas_and_wait_for_reply<D: Decode, E: Encode>(
+    program: ActorId,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> Result<CodecMessageFuture<D>> {
+    let waiting_reply_to = crate::msg::send_with_gas(program, payload, gas_limit, value)?;
+    signals().register_signal(waiting_reply_to);
+
+    Ok(CodecMessageFuture::<D> {
+        waiting_reply_to,
+        phantom: PhantomData,
+    })
+}
+
 /// Send a message and wait for reply.
 ///
 /// This function works similarly to `send_and_wait_for_reply`,
@@ -145,6 +163,21 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     value: u128,
 ) -> Result<MessageFuture> {
     let waiting_reply_to = crate::msg::send_bytes(program, payload, value)?;
+    signals().register_signal(waiting_reply_to);
+
+    Ok(MessageFuture { waiting_reply_to })
+}
+
+/// Send a message and wait for reply.
+///
+/// This function works similarly to `send_bytes_and_wait_for_reply`, with gas limit.
+pub fn send_bytes_with_gas_and_wait_for_reply<T: AsRef<[u8]>>(
+    program: ActorId,
+    payload: T,
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageFuture> {
+    let waiting_reply_to = crate::msg::send_bytes_with_gas(program, payload, gas_limit, value)?;
     signals().register_signal(waiting_reply_to);
 
     Ok(MessageFuture { waiting_reply_to })
