@@ -128,7 +128,7 @@ macro_rules! wrap_storage_double_map {
             }
 
             fn clear() {
-                $storage::<T>::clear(u32::MAX, None);
+                let _ = $storage::<T>::clear(u32::MAX, None);
             }
 
             fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {

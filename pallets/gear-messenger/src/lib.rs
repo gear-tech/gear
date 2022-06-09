@@ -453,7 +453,7 @@ pub mod pallet {
         type OnPopFront = OnPopFront<Self::Value, T>;
         type OnPushBack = ();
         type OnPushFront = OnPushFront<Self::Value, T>;
-        type OnRemoveAll = ();
+        type OnClear = ();
     }
 
     // ----

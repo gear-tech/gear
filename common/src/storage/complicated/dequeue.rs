@@ -78,7 +78,7 @@ pub trait DequeueCallbacks {
     /// Callback on success `push_front`.
     type OnPushFront: Callback<Self::Value>;
     /// Callback on success `clear`.
-    type OnRemoveAll: EmptyCallback;
+    type OnClear: EmptyCallback;
 }
 
 /// Represents dequeue error type.
@@ -312,7 +312,7 @@ where
         HVS::kill();
         TVS::kill();
         MS::clear();
-        Callbacks::OnRemoveAll::call();
+        Callbacks::OnClear::call();
     }
 }
 

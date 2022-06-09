@@ -26,6 +26,6 @@ impl<T: Config> pallet::Pallet<T> {
     }
 
     pub fn reset_storage() {
-        PausedPrograms::<T>::clear(u32::MAX, None);
+        let _ = PausedPrograms::<T>::clear(u32::MAX, None);
     }
 }
