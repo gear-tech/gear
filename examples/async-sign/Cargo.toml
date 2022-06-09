@@ -11,4 +11,4 @@ crate-type = ["cdylib"]
 gstd = { path = "../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, features = ["full_crypto"] }
+sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", default-features = false, features = ["full_crypto"] }
