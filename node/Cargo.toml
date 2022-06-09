@@ -18,7 +18,7 @@ name = "gear-node"
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 hex-literal = "0.3.4"
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 

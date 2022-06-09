@@ -6,7 +6,7 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"], optional = true }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"], optional = true }
 derive_more = "0.99.17"
 
 [dependencies.codec]

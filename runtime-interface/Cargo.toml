@@ -11,7 +11,7 @@ rust-version = "1.56"
 
 [dependencies]
 gear-core = { path = "../core" }
-log = { version = "0.4.8", optional = true }
+log = { version = "0.4.17", optional = true }
 libc = { version = "0.2.101", default-features = false }
 sp-runtime-interface = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", default-features = false }
 sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", default-features = false }
