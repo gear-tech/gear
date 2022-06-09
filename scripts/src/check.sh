@@ -20,12 +20,12 @@ EOF
 }
 
 gear_check() {
-  cargo check --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
+  SKIP_WASM_BUILD=1 cargo check --workspace --exclude economic-checks --exclude economic-checks-fuzz "$@"
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
 examples_check() {
   cd "$1"/examples
-  CARGO_TARGET_DIR="$2" cargo +nightly hack check --release --workspace --exclude economic-checks --exclude economic-checks-fuzz
+  SKIP_WASM_BUILD=1 CARGO_TARGET_DIR="$2" cargo +nightly hack check --release --workspace --exclude economic-checks --exclude economic-checks-fuzz
   cd "$1"
 }

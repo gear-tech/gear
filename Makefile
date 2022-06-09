@@ -69,10 +69,10 @@ node-release:
 
 # Check section
 .PHONY: check
-check: check-gear check-examples check-benchmark
+check: check-gear check-examples
 
 .PHONY: check-release
-check-release: check-gear-release check-examples check-benchmark-release
+check-release: check-gear-release check-examples
 
 .PHONY: check-gear
 check-gear:
@@ -85,14 +85,6 @@ check-gear-release:
 .PHONY: check-examples
 check-examples:
 	@ ./scripts/gear.sh check examples
-
-.PHONY: check-benchmark
-check-benchmark:
-	@ ./scripts/gear.sh check benchmark
-
-.PHONY: check-benchmark-release
-check-benchmark-release:
-	@ ./scripts/gear.sh check benchmark --release
 
 # Clippy section
 .PHONY: clippy

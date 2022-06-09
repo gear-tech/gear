@@ -18,7 +18,7 @@
 
 // This contract recursively composes itself with another contract (the other contract
 // being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract incremets the internal `ITER` counter.
+// Every call to the auto_composer contract increments the internal `ITER` counter.
 // As soon as the counter reaches the `MAX_ITER`, the recursion stops.
 // Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
 // where the output of the previous call is fed to the input of the next call.
@@ -72,13 +72,13 @@ mod wasm {
             debug!(
                 "[0x{} compose::compose] Calling contract #1 at 0x{}",
                 hex::encode(exec::program_id()),
-                hex::encode(self.contract_a.handle),
+                hex::encode(self.contract_a.handle)
             );
             let output_a = self.contract_a.call(input).await?;
             debug!(
                 "[0x{} compose::compose] Calling contract #2 at 0x{}",
                 hex::encode(exec::program_id()),
-                hex::encode(self.contract_b.handle),
+                hex::encode(self.contract_b.handle)
             );
             let output = self.contract_b.call(output_a).await?;
             debug!(
@@ -111,7 +111,7 @@ mod wasm {
             debug!(
                 "[0x{} compose::Program::call] Received reply from remote contract: {}",
                 hex::encode(exec::program_id()),
-                hex::encode(&reply_bytes),
+                hex::encode(&reply_bytes)
             );
 
             Ok(reply_bytes)

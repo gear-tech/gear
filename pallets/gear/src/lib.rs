@@ -493,7 +493,27 @@ pub mod pallet {
             Ok(().into())
         }
 
+        #[cfg(not(test))]
         pub fn get_gas_spent(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            Self::get_gas_spent_impl(source, kind, payload, value)
+        }
+
+        #[cfg(test)]
+        pub fn get_gas_spent(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            mock::run_with_ext_copy(|| Self::get_gas_spent_impl(source, kind, payload, value))
+        }
+
+        fn get_gas_spent_impl(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
@@ -633,6 +653,7 @@ pub mod pallet {
                         u64::MAX,
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
+                        ["gr_gas_available"].into(),
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -646,6 +667,7 @@ pub mod pallet {
                         u64::MAX,
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
+                        ["gr_gas_available"].into(),
                     )
                 };
 
@@ -938,6 +960,7 @@ pub mod pallet {
                             GasPallet::<T>::gas_allowance(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
+                            Default::default(),
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -951,6 +974,7 @@ pub mod pallet {
                             GasPallet::<T>::gas_allowance(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
+                            Default::default(),
                         )
                     };
 

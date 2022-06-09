@@ -47,6 +47,7 @@ pub enum TerminationReasonKind {
     Leave,
     Wait,
     GasAllowanceExceeded,
+    ForbiddenFunction,
 }
 
 #[derive(Debug, Clone)]
