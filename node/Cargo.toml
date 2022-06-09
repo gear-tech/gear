@@ -37,6 +37,7 @@ sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/subst
 sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 sc-keystore = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
+sp-keyring = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
@@ -59,7 +60,9 @@ sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/sub
 sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 pallet-gear-rpc = { path = "../pallets/gear/rpc" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
 
 # These dependencies are used for runtime benchmarking
