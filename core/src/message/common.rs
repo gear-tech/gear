@@ -25,7 +25,7 @@ use core::ops::Deref;
 use scale_info::TypeInfo;
 
 /// An entity that is used for interaction between actors.
-/// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply. 
+/// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct Message {
     /// Message id.

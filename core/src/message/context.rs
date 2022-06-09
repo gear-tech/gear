@@ -340,20 +340,11 @@ mod tests {
 
         assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
 
-        let settings = ContextSettings::new(0, 2);
-
-        let mut message_context = MessageContext::new_with_settings(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            settings,
-        );
-
         let max_n = 5;
 
         for n in 1..=max_n {
             let settings = ContextSettings::new(0, n);
-            
+
             let mut message_context = MessageContext::new_with_settings(
                 Default::default(),
                 Default::default(),
@@ -361,10 +352,12 @@ mod tests {
                 settings,
             );
 
-            for i in 0..n {
+            for _ in 0..n {
                 let handle = message_context.send_init().expect("todo");
                 message_context.send_push(handle, b"payload").expect("todo");
-                message_context.send_commit(handle, HandlePacket::default()).expect("todo");
+                message_context
+                    .send_commit(handle, HandlePacket::default())
+                    .expect("todo");
             }
 
             let limit_exceeded = message_context.init_program(Default::default());

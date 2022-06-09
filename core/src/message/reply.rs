@@ -29,7 +29,7 @@ use scale_info::TypeInfo;
 /// Message for Reply entry point.
 /// Used to create a conversation between actors.
 /// [`ReplyMessage`]'s linked to the origin with [`MessageId`].
-/// That allows making more abilities in business logic. 
+/// That allows making more abilities in business logic.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyMessage {
     /// Message id.
