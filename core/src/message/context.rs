@@ -344,7 +344,9 @@ mod tests {
             // send n messages
             for _ in 0..n {
                 let handle = message_context.send_init().expect("unreachable");
-                message_context.send_push(handle, b"payload").expect("unreachable");
+                message_context
+                    .send_push(handle, b"payload")
+                    .expect("unreachable");
                 message_context
                     .send_commit(handle, HandlePacket::default())
                     .expect("unreachable");
