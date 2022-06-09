@@ -20,7 +20,7 @@
 
 pub mod program_generator;
 
-use crate::{prelude::convert::AsRef, ActorId, CodeHash};
+use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
 
 pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
     code_hash: CodeHash,

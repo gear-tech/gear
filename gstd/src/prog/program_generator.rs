@@ -18,10 +18,10 @@
 
 //! Program generation module
 
-use crate::{ActorId, CodeHash};
+use crate::{common::errors::Result, ActorId, CodeHash};
 use codec::alloc::vec::Vec;
 
-use super::{create_program_with_gas, create_program};
+use super::{create_program, create_program_with_gas};
 
 pub struct ProgramGenerator(u64);
 
@@ -45,17 +45,11 @@ impl ProgramGenerator {
         payload: T,
         gas_limit: Option<u64>,
         value: u128,
-    ) -> ActorId {
+    ) -> Result<ActorId> {
         let salt = unsafe { PROGRAM_GENERATOR.get_salt() };
 
         if let Some(gas_limit) = gas_limit {
-            create_program_with_gas(
-                code_hash,
-                salt,
-                payload,
-                gas_limit,
-                value,
-            )
+            create_program_with_gas(code_hash, salt, payload, gas_limit, value)
         } else {
             create_program(code_hash, salt, payload, value)
         }
@@ -66,15 +60,15 @@ impl ProgramGenerator {
 mod tests {
     use codec::alloc::vec::Vec;
 
-    use crate::prog::program_generator::{PROGRAM_GENERATOR};
-
+    use crate::prog::program_generator::PROGRAM_GENERATOR;
 
     #[test]
     fn salt_uniqueness_test() {
-
         let n = 10;
-        let salts: Vec<Vec<u8>> = (0..n).map(|_| unsafe { PROGRAM_GENERATOR.get_salt() }).collect();
-        
+        let salts: Vec<Vec<u8>> = (0..n)
+            .map(|_| unsafe { PROGRAM_GENERATOR.get_salt() })
+            .collect();
+
         for first_salt in salts.iter() {
             for second_salt in salts.iter() {
                 assert_eq!(first_salt, second_salt);
