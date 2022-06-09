@@ -16,7 +16,7 @@ serde = "1.0.136"
 env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.3"
+wasm-mutate = "0.2.4"
 wasmparser = "0.86.0"
 
 # Internal deps
