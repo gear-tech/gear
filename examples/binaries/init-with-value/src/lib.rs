@@ -38,16 +38,14 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum SendMessage {
-    Init(u128),
-    // Create program without gas
-    InitWithoutGas(u128),
-    // First value is custom destination id
-    Handle(u64, u128),
+    Init { value: u128 },
+    InitWithoutGas { value: u128 },
+    Handle { destination: u64, value: u128 },
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{msg, prog, Vec};
+    use gstd::{errors::ContractError, msg, prog};
 
     use super::SendMessage;
 
@@ -63,7 +61,7 @@ mod wasm {
         let init = |wgas: bool, value: u128| {
             let submitted_code = CHILD_CODE_HASH.into();
 
-            let _ = if wgas {
+            let res = if wgas {
                 prog::create_program_with_gas(
                     submitted_code,
                     COUNTER.to_le_bytes(),
@@ -75,15 +73,21 @@ mod wasm {
                 prog::create_program(submitted_code, COUNTER.to_le_bytes(), [], value)
             };
 
-            COUNTER += 1;
+            match res {
+                Ok(_) => {
+                    COUNTER += 1;
+                }
+                Err(ContractError::Ext(err)) => panic!("{}", err),
+                Err(err) => panic!("{}", err),
+            }
         };
 
         for msg_data in data {
             match msg_data {
-                SendMessage::Init(value) => init(true, value),
-                SendMessage::InitWithoutGas(value) => init(false, value),
-                SendMessage::Handle(receiver, value) => {
-                    let _ = msg::send(receiver.into(), b"", value);
+                SendMessage::Init { value } => init(true, value),
+                SendMessage::InitWithoutGas { value } => init(false, value),
+                SendMessage::Handle { destination, value } => {
+                    let _ = msg::send(destination.into(), b"", value);
                 }
             }
         }

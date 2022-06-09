@@ -18,6 +18,8 @@
 
 pub use gear_core_errors::{ExtError, MemoryError, MessageError};
 
+pub type Result<T, E = ExtError> = core::result::Result<T, E>;
+
 #[cfg(feature = "codec")]
 mod sys {
     extern "C" {
@@ -33,7 +35,7 @@ pub struct SyscallError {
 }
 
 impl SyscallError {
-    pub fn into_result(self) -> Result<(), ExtError> {
+    pub fn into_result(self) -> Result<()> {
         if self.len == 0 {
             Ok(())
         } else {
