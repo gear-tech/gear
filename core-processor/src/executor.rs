@@ -38,6 +38,9 @@ use gear_core::{
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
+/// Make checks that everything allright with memory pages.
+/// Charge gas for pages init/load/grow and checks that there is enought gas for that.
+/// Returns size of wasm memory buffer which must be created in execution environment.
 fn make_checks_and_charge_gas_for_pages<'a>(
     settings: &ExecutionSettings,
     gas_counter: &mut GasCounter,
@@ -46,7 +49,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     pages_with_data: impl Iterator<Item = &'a PageNumber>,
     static_pages: WasmPageNumber,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
-    // Checks that all pages with data is in allocations set.
+    // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
         if !allocations.contains(&page.to_wasm_page()) {
             return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
@@ -106,6 +109,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     Ok(mem_size)
 }
 
+/// Writes initial pages data to memory and prepare memory for execution.
 fn prepare_memory<A: ProcessorExt>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
@@ -152,6 +156,7 @@ fn prepare_memory<A: ProcessorExt>(
     Ok(())
 }
 
+/// Returns pages and their new data, which must be updated or uploaded to storage.
 fn get_pages_to_be_updated<A: ProcessorExt>(
     mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
     new_pages_data: BTreeMap<PageNumber, PageBuf>,
@@ -323,7 +328,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Execute program in backend env.
     let BackendReport { termination, info } = match env.execute(kind.into_entry(), |mem| {
-        // released pages initial data will be added to `pages_intial_data`
+        // released pages initial data will be added to `pages_intial_data` after execution.
         if A::is_lazy_pages_enabled() {
             A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
         } else {
