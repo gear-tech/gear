@@ -24,8 +24,8 @@ use codec::{Decode, Encode};
 use core::ops::Deref;
 use scale_info::TypeInfo;
 
-/// A transaction that one actor sends to another.
-/// Can transfer value and call one of the entry points in destination if it is a program.
+/// An entity that is used for interaction between actors.
+/// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply. 
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct Message {
     /// Message id.

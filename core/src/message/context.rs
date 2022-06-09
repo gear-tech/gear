@@ -36,9 +36,9 @@ pub const OUTGOING_LIMIT: u32 = 1024;
 /// Context settings.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextSettings {
-    /// Amount of gas needed for send a message.
+    /// Fee for sending message.
     sending_fee: u64,
-    /// Limit of outgoung messages that we can send before LimitExceeded.
+    /// Limit of outgoing messages that program can send during execution of current message.
     outgoing_limit: u32,
 }
 
@@ -304,11 +304,17 @@ mod tests {
     use alloc::vec;
 
     #[test]
-    fn duplicated_init() {
+    fn default_message_context() {
         let mut message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
         assert_eq!(message_context.settings.outgoing_limit, OUTGOING_LIMIT);
+    }
+
+    #[test]
+    fn duplicated_init() {
+        let mut message_context =
+            MessageContext::new(Default::default(), Default::default(), Default::default());
 
         let result = message_context.init_program(Default::default());
 
@@ -333,6 +339,38 @@ mod tests {
         let limit_exceeded = message_context.init_program(Default::default());
 
         assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
+
+        let settings = ContextSettings::new(0, 2);
+
+        let mut message_context = MessageContext::new_with_settings(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            settings,
+        );
+
+        let max_n = 5;
+
+        for n in 1..=max_n {
+            let settings = ContextSettings::new(0, n);
+            
+            let mut message_context = MessageContext::new_with_settings(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                settings,
+            );
+
+            for i in 0..n {
+                let handle = message_context.send_init().expect("todo");
+                message_context.send_push(handle, b"payload").expect("todo");
+                message_context.send_commit(handle, HandlePacket::default()).expect("todo");
+            }
+
+            let limit_exceeded = message_context.init_program(Default::default());
+
+            assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
+        }
     }
 
     #[test]
