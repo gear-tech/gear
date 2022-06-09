@@ -18,7 +18,9 @@
 
 //! Program creation module
 
-pub mod program_generator;
+mod generator;
+
+pub use generator::ProgramGenerator;
 
 use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
 

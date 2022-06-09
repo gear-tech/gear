@@ -496,6 +496,7 @@ dependencies = [
  "gcore",
  "gstd",
  "hex-literal",
+ "parity-scale-codec 3.1.2",
 ]
 
 [[package]]

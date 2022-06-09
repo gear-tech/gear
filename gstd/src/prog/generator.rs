@@ -18,61 +18,46 @@
 
 //! Program generation module
 
-use crate::{common::errors::Result, ActorId, CodeHash};
+use crate::{common::errors::Result, prog, ActorId, CodeHash};
 use codec::alloc::vec::Vec;
 
-use super::{create_program, create_program_with_gas};
-
+/// [`ProgramGenerator`] allows you to create programs without having to set the
+/// salt manually
 pub struct ProgramGenerator(u64);
 
 // The only existing instance since there is no public ways to construct it.
 static mut PROGRAM_GENERATOR: ProgramGenerator = ProgramGenerator(0);
 
 impl ProgramGenerator {
-    fn get_salt(&mut self) -> Vec<u8> {
+    pub fn get_salt() -> Vec<u8> {
         // Prefix for not crossing with the user salt.
         let unique_key = b"unique_key: c5755111a6dc6b7498a5";
         // Provide salt uniqueness across all programs from other messages.
         let message_id = crate::msg::id();
-        let creator_nonce = &self.0.to_be_bytes();
-        self.0 = self.0.saturating_add(1);
 
-        [unique_key, message_id.as_ref(), creator_nonce].concat()
+        let creator_nonce;
+        unsafe {
+            creator_nonce = PROGRAM_GENERATOR.0.to_be_bytes();
+            PROGRAM_GENERATOR.0 = PROGRAM_GENERATOR.0.saturating_add(1);
+        }
+
+        [unique_key, message_id.as_ref(), &creator_nonce].concat()
     }
 
     pub fn create_program_with_gas<T: AsRef<[u8]>>(
         code_hash: CodeHash,
         payload: T,
-        gas_limit: Option<u64>,
+        gas_limit: u64,
         value: u128,
     ) -> Result<ActorId> {
-        let salt = unsafe { PROGRAM_GENERATOR.get_salt() };
-
-        if let Some(gas_limit) = gas_limit {
-            create_program_with_gas(code_hash, salt, payload, gas_limit, value)
-        } else {
-            create_program(code_hash, salt, payload, value)
-        }
+        prog::create_program_with_gas(code_hash, Self::get_salt(), payload, gas_limit, value)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use codec::alloc::vec::Vec;
-
-    use crate::prog::program_generator::PROGRAM_GENERATOR;
-
-    #[test]
-    fn salt_uniqueness_test() {
-        let n = 10;
-        let salts: Vec<Vec<u8>> = (0..n)
-            .map(|_| unsafe { PROGRAM_GENERATOR.get_salt() })
-            .collect();
-
-        for first_salt in salts.iter() {
-            for second_salt in salts.iter() {
-                assert_eq!(first_salt, second_salt);
-            }
-        }
+    pub fn create_program<T: AsRef<[u8]>>(
+        code_hash: CodeHash,
+        payload: T,
+        value: u128,
+    ) -> Result<ActorId> {
+        prog::create_program(code_hash, Self::get_salt(), payload, value)
     }
 }
