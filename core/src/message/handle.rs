@@ -27,8 +27,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Message for Handle entry point.
-/// Represents a standard message that sent's between actors without additional logic.
-/// Used to transmit a single message or to start a chain [`ReplyMessage`].
+/// Represents a standard message that sends between actors.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct HandleMessage {
     /// Message id.
