@@ -113,10 +113,10 @@ pub fn create_benchmark_extrinsic(
     let signature = raw_payload.using_encoded(|e| sender.sign(e));
 
     runtime::UncheckedExtrinsic::new_signed(
-        call.clone(),
+        call,
         sp_runtime::AccountId32::from(sender.public()).into(),
-        runtime::Signature::Sr25519(signature.clone()),
-        extra.clone(),
+        runtime::Signature::Sr25519(signature),
+        extra,
     )
 }
 
