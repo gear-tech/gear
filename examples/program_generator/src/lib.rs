@@ -1,11 +1,13 @@
 #![no_std]
 
-use codec::alloc::vec::Vec;
+extern crate alloc;
+
+use alloc::vec::Vec;
 use gstd::{prog::ProgramGenerator, CodeHash};
 
 fn salt_uniqueness_test() {
     let n = 10;
-    let salts: Vec<Vec<u8>> = (0..n).map(|_| ProgramGenerator::get_salt()).collect();
+    let salts: Vec<_> = (0..n).map(|_| ProgramGenerator::get_salt()).collect();
 
     for i in 0..n {
         for j in (i + 1)..n {
