@@ -32,7 +32,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_err, assert_noop, assert_ok, sp_runtime::traits::Zero};
+use frame_support::{assert_noop, assert_ok, dispatch::Dispatchable, sp_runtime::traits::Zero};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -250,8 +250,14 @@ fn send_message_expected_failure() {
             res.expect("submit result was asserted")
         };
 
-        assert_err!(
-            send_default_message(LOW_BALANCE_USER, program_id),
+        let send_message_call = crate::mock::Call::Gear(crate::Call::<Test>::send_message {
+            destination: program_id,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: DEFAULT_GAS_LIMIT,
+            value: 0,
+        });
+        assert_noop!(
+            send_message_call.dispatch(Origin::signed(LOW_BALANCE_USER)),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
@@ -3282,16 +3288,18 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
-        assert_err!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1),
-                mail_id,
-                EMPTY_PAYLOAD.to_vec(),
-                10_000_000,
-                0
-            ),
+        let reply_call = crate::mock::Call::Gear(crate::Call::<Test>::send_reply {
+            reply_to_id: mail_id,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: 10_000_000,
+            value: 0,
+        });
+        assert_noop!(
+            reply_call.dispatch(Origin::signed(USER_1)),
             Error::<Test>::ProgramIsTerminated,
         );
+
+        log::debug!("mailbox: {:?}", MailboxOf::<Test>::iter_key(USER_1).next());
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
