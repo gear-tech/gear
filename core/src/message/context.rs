@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn default_message_context() {
-        let mut message_context =
+        let message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
         assert_eq!(message_context.settings.outgoing_limit, OUTGOING_LIMIT);
