@@ -298,9 +298,8 @@ impl MessageContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::ids;
-
     use super::*;
+    use crate::ids;
     use alloc::vec;
 
     #[test]

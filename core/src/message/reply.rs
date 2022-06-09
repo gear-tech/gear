@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// Message for Reply entry point.
-/// ReplyMessage is unique because of storing [`MessageId`] from message on what it reply's and can bet the only one in execution.
+/// [`ReplyMessage`] is unique because of storing [`MessageId`] from message on what it replies, and can be the only one per some message execution.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyMessage {
     /// Message id.
