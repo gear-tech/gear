@@ -12,8 +12,7 @@ async fn main() {
         return;
     }
 
-    // the message handler
-    gstd::debug!("\n\n--------> run once\n\n");
+    // start calculating
     pkg = msg::send_and_wait_for_reply::<Package, Package>(
         exec::program_id(),
         pkg.calc(),
