@@ -3049,7 +3049,6 @@ fn test_two_contracts_composition_works() {
 //
 // Note: on manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
 // But it's is not preferable to enter that `if` clause.
-// todo # 929 After create_program sys-call becomes fallible, tests must be changed
 #[test]
 fn test_create_program_with_value_lt_ed() {
     use demo_init_with_value::{SendMessage, WASM_BINARY};
@@ -3089,9 +3088,15 @@ fn test_create_program_with_value_lt_ed() {
             // Must be stated, that "handle" messages send value to some non-existing address
             // so messages will go to mailbox
             vec![
-                SendMessage::Handle(msg_receiver_1, 500),
-                SendMessage::Handle(msg_receiver_2, 500),
-                SendMessage::Init(0),
+                SendMessage::Handle {
+                    destination: msg_receiver_1,
+                    value: 500
+                },
+                SendMessage::Handle {
+                    destination: msg_receiver_2,
+                    value: 500
+                },
+                SendMessage::Init { value: 0 },
             ]
             .encode(),
             10_000_000_000,
@@ -3122,9 +3127,15 @@ fn test_create_program_with_value_lt_ed() {
             // First two messages won't fail, because provided values are in a valid range
             // The last message value (which is the value of init message) will end execution with trap
             vec![
-                SendMessage::Handle(msg_receiver_1, 0),
-                SendMessage::Handle(msg_receiver_2, 0),
-                SendMessage::Init(ed - 1),
+                SendMessage::Handle {
+                    destination: msg_receiver_1,
+                    value: 500
+                },
+                SendMessage::Handle {
+                    destination: msg_receiver_2,
+                    value: 500
+                },
+                SendMessage::Init { value: ed - 1 },
             ]
             .encode(),
             10_000_000_000,
@@ -3165,7 +3176,6 @@ fn test_create_program_with_value_lt_ed() {
 //
 // Again init message won't be added to the queue, because of the check here (https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364).
 // But it's is not preferable to enter that `if` clause.
-// todo # 929 After create_program sys-call becomes fallible, tests must be changed
 #[test]
 fn test_create_program_with_exceeding_value() {
     use demo_init_with_value::{SendMessage, WASM_BINARY};
@@ -3186,9 +3196,17 @@ fn test_create_program_with_exceeding_value() {
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
             vec![
-                SendMessage::Handle(random_receiver, sending_to_program / 3),
-                SendMessage::Handle(random_receiver, sending_to_program / 3),
-                SendMessage::Init(sending_to_program + 1),
+                SendMessage::Handle {
+                    destination: random_receiver,
+                    value: sending_to_program / 3
+                },
+                SendMessage::Handle {
+                    destination: random_receiver,
+                    value: sending_to_program / 3
+                },
+                SendMessage::Init {
+                    value: sending_to_program + 1,
+                },
             ]
             .encode(),
             10_000_000_000,
@@ -3248,7 +3266,7 @@ fn test_create_program_without_gas_works() {
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
-            vec![SendMessage::InitWithoutGas(0)].encode(),
+            vec![SendMessage::InitWithoutGas { value: 0 }].encode(),
             10_000_000_000,
             0,
         ));
