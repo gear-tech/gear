@@ -308,6 +308,7 @@ mod tests {
         let message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
+        // Check that created in new ContextSettings have valid outgoing_limit.
         assert_eq!(message_context.settings.outgoing_limit, OUTGOING_LIMIT);
     }
 
@@ -315,11 +316,11 @@ mod tests {
     fn duplicated_init() {
         let mut message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
-
+        // first init to default ProgramId.
         let result = message_context.init_program(Default::default());
 
         assert!(result.is_ok());
-
+        // second init to same default ProgramId should get error.
         let duplicated_init = message_context.init_program(Default::default());
 
         assert_eq!(duplicated_init, Err(Error::DuplicateInit));
@@ -327,22 +328,11 @@ mod tests {
 
     #[test]
     fn outgoing_limit_exceeded() {
-        let settings = ContextSettings::new(0, 0);
-
-        let mut message_context = MessageContext::new_with_settings(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            settings,
-        );
-
-        let limit_exceeded = message_context.init_program(Default::default());
-
-        assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
-
+        // Check that we can always send exactly outgoing_limit messages.
         let max_n = 5;
 
-        for n in 1..=max_n {
+        for n in 0..=max_n {
+            // for outgoing_limit n checking that LimitExceeded will be after n's message.
             let settings = ContextSettings::new(0, n);
 
             let mut message_context = MessageContext::new_with_settings(
@@ -351,46 +341,44 @@ mod tests {
                 Default::default(),
                 settings,
             );
-
+            // send n messages
             for _ in 0..n {
-                let handle = message_context.send_init().expect("todo");
-                message_context.send_push(handle, b"payload").expect("todo");
+                let handle = message_context.send_init().expect("unreachable");
+                message_context.send_push(handle, b"payload").expect("unreachable");
                 message_context
                     .send_commit(handle, HandlePacket::default())
-                    .expect("todo");
+                    .expect("unreachable");
             }
+            // n + 1 should get first error.
+            let limit_exceeded = message_context.send_init();
+            assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
 
+            // we can't send messages in this MessageContext.
             let limit_exceeded = message_context.init_program(Default::default());
-
             assert_eq!(limit_exceeded, Err(Error::LimitExceeded));
         }
     }
 
     #[test]
-    fn commit_out_of_bounds() {
+    fn invalid_out_of_bounds() {
         let mut message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
+        // Use invalid handle 0.
         let out_of_bounds = message_context.send_commit(0, Default::default());
-
         assert_eq!(out_of_bounds, Err(Error::OutOfBounds));
-    }
 
-    #[test]
-    fn successful_commit() {
-        let mut message_context =
-            MessageContext::new(Default::default(), Default::default(), Default::default());
+        // make 0 valid.
+        let valid_handle = message_context.send_init().expect("unreachable");
+        assert_eq!(valid_handle, 0);
 
-        let result = message_context.init_program(Default::default());
+        // Use valid handle 0.
+        let result = message_context.send_commit(0, Default::default());
         assert!(result.is_ok());
 
-        let result = message_context.send_init();
-        assert!(result.is_ok());
-
-        let handle = result.unwrap();
-
-        let result = message_context.send_commit(handle, Default::default());
-        assert!(result.is_ok());
+        // Use invalid handle 42.
+        let out_of_bounds = message_context.send_commit(42, Default::default());
+        assert_eq!(out_of_bounds, Err(Error::OutOfBounds));
     }
 
     #[test]
@@ -398,20 +386,11 @@ mod tests {
         let mut message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
-        let result = message_context.init_program(Default::default());
-        assert!(result.is_ok());
-
-        let result = message_context.send_init();
-        assert!(result.is_ok());
-
-        let handle = result.unwrap();
-
-        let result = message_context.send_commit(handle, Default::default());
-        assert!(result.is_ok());
-
+        // First reply.
         let result = message_context.reply_commit(Default::default());
         assert!(result.is_ok());
 
+        // Reply twice in one message is forbidden.
         let result = message_context.reply_commit(Default::default());
         assert!(matches!(result, Err(Error::DuplicateReply)));
     }
