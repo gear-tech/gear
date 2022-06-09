@@ -58,7 +58,7 @@ pub trait Dequeue {
     fn push_front(key: Self::Key, value: Self::Value) -> Result<(), Self::Error>;
 
     /// Removes all values.
-    fn remove_all();
+    fn clear();
 }
 
 /// Represents store of dequeue's action callbacks.
@@ -77,7 +77,7 @@ pub trait DequeueCallbacks {
     type OnPushBack: Callback<Self::Value>;
     /// Callback on success `push_front`.
     type OnPushFront: Callback<Self::Value>;
-    /// Callback on success `remove_all`.
+    /// Callback on success `clear`.
     type OnRemoveAll: EmptyCallback;
 }
 
@@ -308,10 +308,10 @@ where
         }
     }
 
-    fn remove_all() {
+    fn clear() {
         HVS::kill();
         TVS::kill();
-        MS::remove_all();
+        MS::clear();
         Callbacks::OnRemoveAll::call();
     }
 }

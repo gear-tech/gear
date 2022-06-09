@@ -59,7 +59,7 @@ pub trait MapStorage {
     fn remove(key: Self::Key);
 
     /// Removes all values.
-    fn remove_all();
+    fn clear();
 
     /// Gets value stored under given key, if present,
     /// and removes it from storage.
@@ -118,8 +118,8 @@ macro_rules! wrap_storage_map {
                 $storage::<T>::remove(key)
             }
 
-            fn remove_all() {
-                $storage::<T>::remove_all($($rm_arg)?);
+            fn clear() {
+                $storage::<T>::clear(u32::MAX, None);
             }
 
             fn take(key: Self::Key) -> Option<Self::Value> {

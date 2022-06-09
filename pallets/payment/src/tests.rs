@@ -65,7 +65,7 @@ where
     T: Config,
     T::Messenger: Messenger<QueuedDispatch = StoredDispatch>,
 {
-    QueueOf::<T>::remove_all();
+    QueueOf::<T>::clear();
 
     for i in 0_u64..n {
         let prog_id = (i + 1).into();

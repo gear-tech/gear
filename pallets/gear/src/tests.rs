@@ -32,7 +32,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero};
+use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero, assert_err};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -250,13 +250,13 @@ fn send_message_expected_failure() {
             res.expect("submit result was asserted")
         };
 
-        assert_noop!(
+        assert_err!(
             send_default_message(LOW_BALANCE_USER, program_id),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
         // Because destination is user, no gas will be reserved
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
@@ -1980,7 +1980,7 @@ fn test_create_program_no_code_hash() {
         assert_init_success(1); // 1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Try to create multiple programs with non existing code hash
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2010,7 +2010,7 @@ fn test_create_program_no_code_hash() {
         );
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Try to create with invalid code hash
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2175,7 +2175,7 @@ fn test_create_program_duplicate() {
         assert_init_success(2); // +2 from extrinsics (2 submit_program)
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Create a new program from program
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2271,7 +2271,7 @@ fn test_create_program_duplicate_in_one_execution() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Successful child creation
         assert_ok!(GearPallet::<Test>::send_message(
@@ -3282,7 +3282,7 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
-        assert_noop!(
+        assert_err!(
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
                 mail_id,

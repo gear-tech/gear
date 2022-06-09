@@ -69,7 +69,7 @@ pub trait DoubleMapStorage {
     fn remove(key1: Self::Key1, key2: Self::Key2);
 
     /// Removes all values.
-    fn remove_all();
+    fn clear();
 
     /// Gets value stored under given keys, if present,
     /// and removes it from storage.
@@ -127,8 +127,8 @@ macro_rules! wrap_storage_double_map {
                 $storage::<T>::remove(key1, key2)
             }
 
-            fn remove_all() {
-                $storage::<T>::remove_all(None);
+            fn clear() {
+                $storage::<T>::clear(u32::MAX, None);
             }
 
             fn take(key1: Self::Key1, key2: Self::Key2) -> Option<Self::Value> {
