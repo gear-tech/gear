@@ -3475,7 +3475,7 @@ fn execution_over_blocks() {
 
         run_to_block(5, None);
         assert_eq!(
-            get_last_mail(USER_1).map(|msg| msg.payload().to_vec())
+            get_last_mail(USER_1).map(|msg| msg.payload().to_vec()),
             Some(
                 Package {
                     base: 2,
