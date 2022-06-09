@@ -71,7 +71,8 @@ mod wasm {
                     [],
                     1_000_000_000,
                     0,
-                );
+                )
+                .unwrap();
                 msg::send_bytes(new_program_id, [], 0).unwrap();
 
                 COUNTER += 1;
@@ -80,7 +81,8 @@ mod wasm {
                 for (code_hash, salt, gas_limit) in custom_child_data {
                     let submitted_code = code_hash.into();
                     let new_program_id =
-                        prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0);
+                        prog::create_program_with_gas(submitted_code, &salt, [], gas_limit, 0)
+                            .unwrap();
                     let msg_id = msg::send_bytes(new_program_id, [], 0).unwrap();
                 }
             }

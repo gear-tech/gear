@@ -18,15 +18,16 @@
 
 //! Program creation module
 
-use crate::{prelude::convert::AsRef, ActorId, CodeHash};
+use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
 
 pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
     code_hash: CodeHash,
     salt: T1,
     payload: T2,
     value: u128,
-) -> ActorId {
-    gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value).into()
+) -> Result<ActorId> {
+    let id = gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value)?;
+    Ok(id.into())
 }
 
 pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
@@ -35,13 +36,13 @@ pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
     payload: T2,
     gas_limit: u64,
     value: u128,
-) -> ActorId {
-    gcore::prog::create_program_with_gas(
+) -> Result<ActorId> {
+    let id = gcore::prog::create_program_with_gas(
         code_hash.into(),
         salt.as_ref(),
         payload.as_ref(),
         gas_limit,
         value,
-    )
-    .into()
+    )?;
+    Ok(id.into())
 }
