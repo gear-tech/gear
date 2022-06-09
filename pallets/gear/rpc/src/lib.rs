@@ -146,7 +146,9 @@ where
 
         match runtime_api_result {
             Ok(gas) => Ok(gas.try_into().map_err(runtime_error_into_rpc_error)?),
-            Err(message) => Err(runtime_error_into_rpc_error(message)),
+            Err(message) => Err(runtime_error_into_rpc_error(String::from_utf8_lossy(
+                &message,
+            ))),
         }
     }
 
@@ -175,7 +177,9 @@ where
 
         match runtime_api_result {
             Ok(gas) => Ok(gas.try_into().map_err(runtime_error_into_rpc_error)?),
-            Err(message) => Err(runtime_error_into_rpc_error(message)),
+            Err(message) => Err(runtime_error_into_rpc_error(String::from_utf8_lossy(
+                &message,
+            ))),
         }
     }
 
@@ -205,7 +209,9 @@ where
 
         match runtime_api_result {
             Ok(gas) => Ok(gas.try_into().map_err(runtime_error_into_rpc_error)?),
-            Err(message) => Err(runtime_error_into_rpc_error(message)),
+            Err(message) => Err(runtime_error_into_rpc_error(String::from_utf8_lossy(
+                &message,
+            ))),
         }
     }
 }
