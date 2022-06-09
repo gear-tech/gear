@@ -1,6 +1,8 @@
 #![no_std]
 
-use codec::alloc::vec::Vec;
+extern crate alloc;
+
+use alloc::vec::Vec;
 use gstd::{prog::ProgramGenerator, CodeHash};
 
 fn salt_uniqueness_test() {

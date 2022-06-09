@@ -21,7 +21,7 @@
 use crate::{common::errors::Result, prog, ActorId, CodeHash};
 use codec::alloc::vec::Vec;
 
-/// [`ProgramGenerator`] allows you to create programs without having to set the
+/// ProgramGenerator allows you to create programs without having to set the
 /// salt manually
 pub struct ProgramGenerator(u64);
 
