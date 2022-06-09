@@ -3437,8 +3437,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
 fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_pow::WASM_BINARY;
-        let (base, exponent, ptr, result) = (2u8, 7, 0, 1);
+        use demo_pow::{Package, WASM_BINARY};
+        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
 
         // deploy program
         assert_ok!(Gear::submit_program(
@@ -3446,28 +3446,47 @@ fn execution_over_blocks() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.encode(),
-            100_000_000_000,
-            100_000_000_000,
+            block_gas_limit,
+            0,
         ));
         let prog_id = get_last_program_id();
-        run_to_block(2, None);
 
-        assert!(Gear::is_initialized(prog_id));
         // start calculating
+        run_to_block(2, None);
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             prog_id,
-            vec![base, exponent, ptr, result],
-            100_000_000_000,
-            100_000_000_000,
+            Package {
+                base: 2,
+                exponent: 7,
+                ptr: 0,
+                result: 1,
+            }
+            .encode(),
+            block_gas_limit,
+            block_gas_limit.into(),
         ));
-        run_to_block(3, None);
 
+        run_to_block(3, Some(500_000));
+        assert_eq!(get_last_mail(USER_1), None);
+
+        run_to_block(4, Some(500_000));
+        assert_eq!(get_last_mail(USER_1), None);
+
+        run_to_block(5, None);
         assert_eq!(
             get_last_mail(USER_1).and_then(|msg| Some(msg.payload().to_vec())),
-            Some(vec![2, 7, 7, 128])
-        )
-    })
+            Some(
+                Package {
+                    base: 2,
+                    exponent: 7,
+                    ptr: 7,
+                    result: 128
+                }
+                .encode()
+            )
+        );
+    });
 }
 
 #[test]
@@ -3501,7 +3520,6 @@ fn call_forbidden_function() {
         assert_eq!(
             res,
             Err("Program terminated with a trap: Unable to call a forbidden function".to_string())
->>>>>>> master
         );
     });
 }

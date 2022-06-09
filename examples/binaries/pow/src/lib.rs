@@ -14,3 +14,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 mod wasm {
     include! {"./code.rs"}
 }
+
+mod pow;
+
+pub use pow::Package;
