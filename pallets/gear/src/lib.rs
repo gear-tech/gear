@@ -598,6 +598,13 @@ pub mod pallet {
             )
             .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
 
+            let charge = T::GasPrice::gas_price(initial_gas);
+            <T as Config>::Currency::reserve(
+                &<T::AccountId as Origin>::from_origin(source),
+                charge + value.unique_saturated_into(),
+            )
+            .map_err(|_| b"Internal error: not enough balance for reserve".to_vec())?;
+
             let dispatch = dispatch.into_stored();
 
             QueueOf::<T>::remove_all();
