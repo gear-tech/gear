@@ -395,7 +395,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
 }
 
 /// Same as ['send_bytes'], but with explicit gas limit.
-/// 
+///
 /// # Examples
 ///
 /// ```
