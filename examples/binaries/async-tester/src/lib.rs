@@ -21,4 +21,6 @@ pub enum Kind {
     SendWithGas(u64),
     SendBytes,
     SendBytesWithGas(u64),
+    // SendCommit,
+    // SendCommitWithGas(u64),
 }

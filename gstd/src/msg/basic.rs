@@ -183,41 +183,6 @@ pub fn load_bytes() -> Vec<u8> {
     result
 }
 
-/// Send a new message as a reply to the message currently being processed.
-///
-/// Some programs can reply to other programs, i.e. check another program's
-/// state and use it as a parameter for its own business logic [`MessageId`].
-///
-/// This function allows sending such replies, which are similar to standard
-/// messages in terms of payload and different only in the way the message
-/// processing is handled by a separate program function called
-/// `handle_reply`.
-///
-/// First argument is the reply message payload in bytes.
-/// Second argument `value` is the value to be transferred from the current
-/// program account to the reply message target account.
-///
-/// Reply message transactions will be posted only after processing is finished,
-/// similar to the standard message [`send`](crate::msg::send).
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// pub unsafe extern "C" fn handle() {
-///     // ...
-///     msg::reply_bytes(b"PONG", 0).unwrap();
-/// }
-/// ```
-///
-/// # See also
-///
-/// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId> {
-    gcore::msg::reply(payload.as_ref(), value).into_contract_result()
-}
-
 /// Same as ['reply'], but with explicit gas limit.
 ///
 /// Some programs can reply to other programs, i.e. check another program's
@@ -253,6 +218,20 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
 /// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
+}
+
+/// Same as [`replay`], without encoding payload.
+pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
+    gcore::msg::reply(payload.as_ref(), value).into_contract_result()
+}
+
+/// Same as [`replay_bytes`], with gas limit.
+pub fn reply_bytes_with_gas(
+    payload: impl AsRef<[u8]>,
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageId> {
+    gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value).into_contract_result()
 }
 
 /// Finalize and send a current reply message.
