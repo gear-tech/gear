@@ -2494,10 +2494,8 @@ dependencies = [
  "gear-core",
  "log",
  "nix 0.23.1",
- "parity-scale-codec",
  "region 3.0.0",
  "sp-io",
- "sp-runtime-interface",
  "sp-std",
  "winapi 0.3.9",
 ]

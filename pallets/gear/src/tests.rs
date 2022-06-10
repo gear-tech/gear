@@ -735,12 +735,12 @@ fn lazy_pages() {
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
         let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_wasm_lazy_pages_numbers()
-            .into_iter()
-            .map(Into::into)
+            .iter()
+            .map(|p| PageNumber(*p))
             .collect();
         let released_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_released_pages()
-            .into_iter()
-            .map(Into::into)
+            .iter()
+            .map(|p| PageNumber(*p))
             .collect();
 
         // Checks that released pages + lazy pages == all pages

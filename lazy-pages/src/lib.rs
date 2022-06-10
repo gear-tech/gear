@@ -23,7 +23,6 @@
 //! See also `handle_sigsegv`.
 
 use gear_core::memory::{HostPointer, PageBuf, PageNumber, WasmPageNumber};
-use sp_runtime_interface::pass_by::PassByInner;
 use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeMap, ops::Add};
 
@@ -125,17 +124,7 @@ pub enum LazyPageError {
 }
 
 #[derive(
-    Debug,
-    Copy,
-    Clone,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    derive_more::Display,
-    derive_more::From,
-    PassByInner,
-    codec::Encode,
+    Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, derive_more::Display, derive_more::From,
 )]
 pub struct LazyPage(u32);
 
@@ -193,12 +182,6 @@ impl LazyPage {
 impl From<PageNumber> for LazyPage {
     fn from(PageNumber(page): PageNumber) -> Self {
         Self(page)
-    }
-}
-
-impl From<LazyPage> for PageNumber {
-    fn from(LazyPage(page): LazyPage) -> Self {
-        PageNumber(page)
     }
 }
 
