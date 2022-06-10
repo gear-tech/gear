@@ -160,18 +160,23 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
     let ident = function.sig.ident.clone();
 
-    // generate new function new
+    // generate functions' idents
     let (for_reply, for_reply_as) = (
         utils::with_suffix(&function.sig.ident, "_for_reply"),
         utils::with_suffix(&function.sig.ident, "_for_reply_as"),
     );
 
+    // generate docs
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+
+    // generate arguments
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
     quote! {
         #function
 
+        #[doc = #for_reply_docs]
         pub async fn #for_reply ( #inputs #variadic ) -> Result<Vec<u8>> {
             let waiting_reply_to = #ident #args ?;
             signals().register_signal(waiting_reply_to);
@@ -179,6 +184,7 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
             MessageFuture { waiting_reply_to }.await
         }
 
+        #[doc = #for_reply_as_docs]
         pub async fn #for_reply_as <D: Decode> ( #inputs #variadic ) -> Result<D> {
             D::decode(&mut #for_reply #args .await?.as_ref() ).map_err(ContractError::Decode)
         }
