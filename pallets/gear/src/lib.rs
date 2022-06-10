@@ -629,17 +629,20 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some(root_dispatch_id) = T::GasHandler::get_origin_key(dispatch_id)
+                    if let Some(remaining_gas) = T::GasHandler::get_origin_key(dispatch_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
+                        .and_then(|root_dispatch_id| {
+                            T::GasHandler::get_limit(root_dispatch_id)
+                                .map_err(|_| {
+                                    b"Internal error: unable to get gas limit after execution"
+                                        .to_vec()
+                                })
+                                .transpose()
+                        })
+                        .transpose()?
                     {
-                        if let Some(remaining_gas) = T::GasHandler::get_limit(root_dispatch_id)
-                            .map_err(|_| {
-                                b"Internal error: unable to get gas limit after execution".to_vec()
-                            })?
-                        {
-                            max_gas_spent =
-                                max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
-                        }
+                        max_gas_spent =
+                            max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
                     if let JournalNote::MessageDispatched {
