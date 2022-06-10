@@ -32,7 +32,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero};
+use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero, traits::Currency};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -2880,6 +2880,7 @@ fn gas_spent_vs_balance() {
         run_to_block(3, None);
 
         let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
+        let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
 
         let init_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
@@ -2888,6 +2889,16 @@ fn gas_spent_vs_balance() {
             0,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
+
+        // check that all changes made by get_gas_spent are rollbacked
+        assert_eq!(
+            balance_after_handle,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
+        assert_eq!(
+            total_balance_after_handle,
+            BalancesPallet::<Test>::total_balance(&USER_1)
+        );
 
         assert_eq!(
             (initial_balance - balance_after_init) as u64,
