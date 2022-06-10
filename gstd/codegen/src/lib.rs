@@ -236,16 +236,19 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
         #function
 
         #[doc = #for_reply_docs]
-        pub async fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<Vec<u8>> {
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<MessageFuture> {
             let waiting_reply_to = #ident #args ?;
             signals().register_signal(waiting_reply_to);
 
-            MessageFuture { waiting_reply_to }.await
+            Ok(MessageFuture { waiting_reply_to })
         }
 
         #[doc = #for_reply_as_docs]
-        pub async fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<D> {
-            D::decode(&mut #for_reply #args .await?.as_ref() ).map_err(ContractError::Decode)
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecMessageFuture<D>> {
+            let waiting_reply_to = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(CodecMessageFuture::<D> { waiting_reply_to, phantom: PhantomData })
         }
     }
     .into()

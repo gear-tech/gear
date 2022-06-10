@@ -68,7 +68,7 @@ async fn main() {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            msg::send_bytes_and_wait_for_reply(*s, &encoded, 0).map(|fut| fut.map(move |r| (i, r)))
+            msg::send_bytes_for_reply(*s, &encoded, 0).map(|fut| fut.map(move |r| (i, r)))
         })
         .collect::<Result<_, _>>()
         .unwrap();

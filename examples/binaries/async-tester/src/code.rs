@@ -13,35 +13,71 @@ async fn main() {
     let encoded_kind = kind.encode();
 
     match kind {
-        Kind::Reply => msg::reply_for_reply(kind, 0).await,
-        Kind::ReplyWithGas(gas) => msg::reply_with_gas_for_reply(&encoded_kind, gas, 0).await,
-        Kind::ReplyBytes => msg::reply_bytes_for_reply(&encoded_kind, 0).await,
+        Kind::Reply => {
+            msg::reply_for_reply(kind, 0)
+                .expect("send message failed")
+                .await
+        }
+        Kind::ReplyWithGas(gas) => {
+            msg::reply_with_gas_for_reply(&encoded_kind, gas, 0)
+                .expect("send message failed")
+                .await
+        }
+        Kind::ReplyBytes => {
+            msg::reply_bytes_for_reply(&encoded_kind, 0)
+                .expect("send message failed")
+                .await
+        }
         Kind::ReplyBytesWithGas(gas) => {
-            msg::reply_bytes_with_gas_for_reply(&encoded_kind, gas, 0).await
+            msg::reply_bytes_with_gas_for_reply(&encoded_kind, gas, 0)
+                .expect("send message failed")
+                .await
         }
         Kind::ReplyCommit => {
             msg::reply_push(&encoded_kind).expect("push payload failed");
-            msg::reply_commit_for_reply(0).await
+            msg::reply_commit_for_reply(0)
+                .expect("send message failed")
+                .await
         }
         Kind::ReplyCommitWithGas(gas) => {
             msg::reply_push(&encoded_kind).expect("push payload failed");
-            msg::reply_commit_with_gas_for_reply(gas, 0).await
+            msg::reply_commit_with_gas_for_reply(gas, 0)
+                .expect("send message failed")
+                .await
         }
-        Kind::Send => msg::send_for_reply(msg::source(), kind, 0).await,
-        Kind::SendWithGas(gas) => msg::send_with_gas_for_reply(msg::source(), kind, gas, 0).await,
-        Kind::SendBytes => msg::send_bytes_for_reply(msg::source(), &encoded_kind, 0).await,
+        Kind::Send => {
+            msg::send_for_reply(msg::source(), kind, 0)
+                .expect("send message failed")
+                .await
+        }
+        Kind::SendWithGas(gas) => {
+            msg::send_with_gas_for_reply(msg::source(), kind, gas, 0)
+                .expect("send message failed")
+                .await
+        }
+        Kind::SendBytes => {
+            msg::send_bytes_for_reply(msg::source(), &encoded_kind, 0)
+                .expect("send message failed")
+                .await
+        }
         Kind::SendBytesWithGas(gas) => {
-            msg::send_bytes_with_gas_for_reply(msg::source(), &encoded_kind, gas, 0).await
+            msg::send_bytes_with_gas_for_reply(msg::source(), &encoded_kind, gas, 0)
+                .expect("send message failed")
+                .await
         }
         Kind::SendCommit => {
             let handle = msg::send_init().expect("init message failed");
             msg::send_push(&handle, &encoded_kind).expect("push payload failed");
-            msg::send_commit_for_reply(handle, msg::source(), 0).await
+            msg::send_commit_for_reply(handle, msg::source(), 0)
+                .expect("send message failed")
+                .await
         }
         Kind::SendCommitWithGas(gas) => {
             let handle = msg::send_init().expect("init message failed");
             msg::send_push(&handle, &encoded_kind).expect("push payload failed");
-            msg::send_commit_with_gas_for_reply(handle, msg::source(), gas, 0).await
+            msg::send_commit_with_gas_for_reply(handle, msg::source(), gas, 0)
+                .expect("send message failed")
+                .await
         }
     }
     .expect("ran into error-reply");

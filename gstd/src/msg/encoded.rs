@@ -23,11 +23,12 @@
 use crate::{
     async_runtime::signals,
     errors::{ContractError, Result},
-    msg::r#async::MessageFuture,
-    prelude::{convert::AsRef, Vec},
+    msg::r#async::{CodecMessageFuture, MessageFuture},
+    prelude::convert::AsRef,
     ActorId, MessageId,
 };
 use codec::{Decode, Encode};
+use core::marker::PhantomData;
 use gstd_codegen::wait_for_reply;
 
 /// `load` returns Result, where Ok case contains a message payload decoded into

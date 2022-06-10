@@ -21,11 +21,12 @@
 use crate::{
     async_runtime::signals,
     errors::{ContractError, Result},
-    msg::r#async::MessageFuture,
+    msg::r#async::{CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, vec, Vec},
     ActorId, MessageId,
 };
 use codec::{Decode, Output};
+use core::marker::PhantomData;
 use gstd_codegen::wait_for_reply;
 
 trait IntoContractResult<T> {

@@ -37,8 +37,8 @@ async fn main() {
             debug!("UNORDERED: Before any sending");
 
             let requests = vec![
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap(),
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap(),
+                msg::send_bytes_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap(),
+                msg::send_bytes_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap(),
             ];
 
             let mut unordered: FuturesUnordered<_> = requests.into_iter().collect();
@@ -70,11 +70,11 @@ async fn main() {
             debug!("SELECT: Before any sending");
 
             select_biased! {
-                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap() => {
+                res = msg::send_bytes_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap() => {
                     debug!("Recieved msg from demo_async");
                     msg::send_bytes(source, res.expect("Exit code is 0"), 0).unwrap();
                 },
-                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap() => {
+                res = msg::send_bytes_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap() => {
                     debug!("Recieved msg from demo_ping");
                     msg::send_bytes(source, res.expect("Exit code is 0"), 0).unwrap();
                 },
@@ -89,8 +89,8 @@ async fn main() {
             debug!("JOIN: Before any sending");
 
             let res = join!(
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap(),
-                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap()
+                msg::send_bytes_for_reply(unsafe { DEMO_ASYNC }, "START", 0).unwrap(),
+                msg::send_bytes_for_reply(unsafe { DEMO_PING }, "PING", 0).unwrap()
             );
 
             debug!("Finish after join");
