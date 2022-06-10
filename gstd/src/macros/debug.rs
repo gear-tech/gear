@@ -28,14 +28,17 @@ macro_rules! debug {
     ($arg:expr) => {
         $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg))
     };
-    ($fmt:literal, $($args:tt)+) => {
-        $crate::ext::debug(&$crate::prelude::format!($fmt, $($args)+))
+    ($fmt:literal $(, $args:expr)+) => {
+        $crate::ext::debug(&$crate::prelude::format!($fmt $(, $args)+))
     };
 }
 
 #[cfg(not(feature = "debug"))]
 #[macro_export]
 macro_rules! debug {
-    ($arg:expr) => {};
-    ($fmt:literal, $($args:tt)+) => {};
+    ($arg:expr) => { let _ = $arg; };
+    ($fmt:literal $(, $args:expr)+) => {
+        let _ = $fmt;
+        $(let _ = $args;) +
+    };
 }

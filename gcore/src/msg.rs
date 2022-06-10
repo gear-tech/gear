@@ -25,9 +25,8 @@
 //! processing a program can send messages to other programs and users including
 //! reply to the initial message.
 
-use crate::{ActorId, MessageHandle, MessageId};
+use crate::{error::Result, ActorId, MessageHandle, MessageId};
 use core::mem::MaybeUninit;
-use gear_core_errors::ExtError;
 
 mod sys {
     use crate::error::SyscallError;
@@ -188,7 +187,7 @@ pub fn load(buffer: &mut [u8]) {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ExtError> {
+pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply(
@@ -235,7 +234,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ExtError> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId, ExtError> {
+pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_wgas(
@@ -280,7 +279,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(value: u128) -> Result<MessageId, ExtError> {
+pub fn reply_commit(value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
@@ -322,7 +321,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId, ExtError> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message with in parts.
-pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, ExtError> {
+pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit_wgas(
@@ -357,7 +356,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId, E
 ///     msg::reply_push(b"Part 2").unwrap();
 /// }
 /// ```
-pub fn reply_push(payload: &[u8]) -> Result<(), ExtError> {
+pub fn reply_push(payload: &[u8]) -> Result<()> {
     unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _).into_result() }
 }
 
@@ -420,7 +419,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId, ExtError> {
+pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send(
@@ -472,7 +471,7 @@ pub fn send_with_gas(
     payload: &[u8],
     gas_limit: u64,
     value: u128,
-) -> Result<MessageId, ExtError> {
+) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_wgas(
@@ -522,11 +521,7 @@ pub fn send_with_gas(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-pub fn send_commit(
-    handle: MessageHandle,
-    program: ActorId,
-    value: u128,
-) -> Result<MessageId, ExtError> {
+pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit(
@@ -577,7 +572,7 @@ pub fn send_commit_with_gas(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-) -> Result<MessageId, ExtError> {
+) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit_wgas(
@@ -616,7 +611,7 @@ pub fn send_commit_with_gas(
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
-pub fn send_init() -> Result<MessageHandle, ExtError> {
+pub fn send_init() -> Result<MessageHandle> {
     unsafe {
         let mut handle = MaybeUninit::uninit();
         sys::gr_send_init(handle.as_mut_ptr()).into_result()?;
@@ -649,7 +644,7 @@ pub fn send_init() -> Result<MessageHandle, ExtError> {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-pub fn send_push(handle: &MessageHandle, payload: &[u8]) -> Result<(), ExtError> {
+pub fn send_push(handle: &MessageHandle, payload: &[u8]) -> Result<()> {
     unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _).into_result() }
 }
 

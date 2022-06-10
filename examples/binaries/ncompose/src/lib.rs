@@ -18,7 +18,7 @@
 
 // This contract recursively composes itself with another contract (the other contract
 // being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract incremets the internal `ITER` counter.
+// Every call to the auto_composer contract increments the internal `ITER` counter.
 // As soon as the counter reaches the `MAX_ITER`, the recursion stops.
 // Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
 // where the output of the previous call is fed to the input of the next call.
@@ -93,13 +93,13 @@ mod wasm {
                 "[0x{} ncompose::compose_with_self] Calling contract 0x{} with available gas {}",
                 hex::encode(self.me.handle),
                 hex::encode(self.other.handle),
-                exec::gas_available(),
+                exec::gas_available()
             );
             let output_other = self.other.call(input).await?;
             debug!(
                 "[0x{} ncompose::compose_with_self] Calling self with available gas {}",
                 hex::encode(exec::program_id()),
-                exec::gas_available(),
+                exec::gas_available()
             );
             let output = self.me.call(output_other).await?;
             debug!(
@@ -132,7 +132,7 @@ mod wasm {
             debug!(
                 "[0x{} ncompose::Program::call] Received reply from remote contract: {:?}",
                 hex::encode(exec::program_id()),
-                hex::encode(&reply_bytes),
+                hex::encode(&reply_bytes)
             );
 
             Ok(reply_bytes)

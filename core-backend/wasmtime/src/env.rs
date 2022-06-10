@@ -41,7 +41,7 @@ use wasmtime::{
     Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
 
-use crate::memory::MemoryWrapExternal;
+use crate::{funcs::FuncsHandler as Funcs, memory::MemoryWrapExternal};
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
@@ -109,6 +109,7 @@ where
         memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
+        let forbidden_funcs = ext.forbidden_funcs().clone();
         let ext_carrier = ExtCarrier::new(ext);
 
         let engine = Engine::default();
