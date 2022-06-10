@@ -31,7 +31,7 @@ pub struct InputArgs {
 gstd::metadata! {
     title: "demo async sign",
     init:
-        input: InputArgs,
+    input: InputArgs,
 }
 
 #[no_mangle]
@@ -49,9 +49,9 @@ async fn main() {
     let request = SignRequest { message };
 
     let sign_response: Result<SignResponse, _> =
-        msg::send_for_reply(unsafe { SIGNATORY }, &request, 0)
+        Err(msg::send_for_reply(unsafe { SIGNATORY }, &request, 0)
             .unwrap()
-            .await;
+            .await);
 
     let verified = sign_response
         .ok()
