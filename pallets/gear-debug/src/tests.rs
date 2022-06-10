@@ -19,6 +19,7 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
+use frame_support::assert_ok;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -422,15 +423,14 @@ fn check_changed_pages_in_storage() {
         let program_id = generate_program_id(&code);
         let origin = Origin::signed(1);
 
-        PalletGear::<Test>::submit_program(
+        assert_ok!(PalletGear::<Test>::submit_program(
             origin.clone(),
             code.clone(),
             b"salt".to_vec(),
             Vec::new(),
             100_000_000_u64,
             0_u128,
-        )
-        .expect("Failed to submit program");
+        ));
 
         // Enable debug-mode
         DebugMode::<Test>::put(true);
@@ -476,8 +476,13 @@ fn check_changed_pages_in_storage() {
             .into(),
         );
 
-        PalletGear::<Test>::send_message(origin, program_id, vec![], 10_000_000_u64, 0_u128)
-            .expect("Failed to send message");
+        assert_ok!(PalletGear::<Test>::send_message(
+            origin,
+            program_id,
+            vec![],
+            10_000_000_u64,
+            0_u128
+        ));
 
         run_to_block(3, None);
 
