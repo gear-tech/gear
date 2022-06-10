@@ -98,7 +98,10 @@ pub mod pallet {
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
-                    &self.persistent_pages.iter().map(|(page, data)|
+                    &self
+                        .persistent_pages
+                        .iter()
+                        .map(|(page, data)|
                         // Prints only bytes which is not zero
                         (
                             *page,
@@ -107,7 +110,8 @@ pub mod pallet {
                                 .filter(|(_, val)| **val != 0)
                                 .map(|(idx, val)| (idx, *val))
                                 .collect::<BTreeMap<_, _>>(),
-                        )).collect::<BTreeMap<_, _>>(),
+                        ))
+                        .collect::<BTreeMap<_, _>>(),
                 )
                 .field("code_hash", &self.code_hash)
                 .finish()
