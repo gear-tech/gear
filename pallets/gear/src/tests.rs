@@ -3486,7 +3486,7 @@ fn test_async_messages() {
         ));
 
         let pid = get_last_program_id();
-        for kind in vec![
+        for kind in &[
             Kind::Reply,
             Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
             Kind::ReplyBytes,
@@ -3512,7 +3512,7 @@ fn test_async_messages() {
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            assert_eq!(Kind::decode(&mut last_mail.payload().as_ref()), Ok(kind));
+            assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
 
             // reply to the message
             let message_id = last_mail.id();
