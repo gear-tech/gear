@@ -455,11 +455,11 @@ impl ExtManager {
         &mut self,
         source: ProgramId,
         program_id: &ProgramId,
-        message_option: Option<IncomingMessage>,
+        message: Option<IncomingMessage>,
         function_name: &str,
     ) -> Vec<u8> {
-        let mut executor = self.get_executor(source, program_id, message_option);
-        let (result, journal) = executor.call_function(function_name);
+        let mut executor = self.get_executor(source, program_id, message);
+        let (result, journal) = executor.execute_with_result(function_name);
         core_processor::handle_journal(journal, self);
         result
     }
@@ -469,11 +469,11 @@ impl ExtManager {
         &mut self,
         source: ProgramId,
         program_id: &ProgramId,
-        message_option: Option<IncomingMessage>,
+        message: Option<IncomingMessage>,
         function_name: &str,
     ) {
-        let mut executor = self.get_executor(source, program_id, message_option);
-        let journal = executor.call_void_function(function_name);
+        let mut executor = self.get_executor(source, program_id, message);
+        let journal = executor.execute(function_name);
         core_processor::handle_journal(journal, self);
     }
 
@@ -481,13 +481,13 @@ impl ExtManager {
         &mut self,
         source: ProgramId,
         program_id: &ProgramId,
-        message_option: Option<IncomingMessage>,
+        message: Option<IncomingMessage>,
     ) -> WasmExecutor {
         let (actor, balance) = self.actors.get_mut(program_id).unwrap();
         if actor.is_uninitialized() {
             actor.set_initialized();
         }
-        if let Some(message) = message_option.clone() {
+        if let Some(message) = &message {
             if message.source() != source {
                 panic!("Source id in message: {:?} is not equal to source id in function arguments: {:?}", message.source(), source);
             }
@@ -502,7 +502,7 @@ impl ExtManager {
             .map(|(page, data)| (page, Box::new(data)))
             .collect();
 
-        WasmExecutor::new(source, actor.program, &pages_initial_data, message_option)
+        WasmExecutor::new(source, actor.program, &pages_initial_data, message)
     }
 }
 

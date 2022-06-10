@@ -1,6 +1,6 @@
 use crate::empty_ext::ExtImplementedStruct;
 use core_processor::common::JournalNote;
-use gear_backend_wasmtime::{env::StoreData, funcs::FuncsHandler};
+use gear_backend_wasmtime::{env::StoreData, funcs_tree_builder::get_funcs_tree};
 use gear_core::{
     env::{Ext, ExtCarrier},
     ids::ProgramId,
@@ -8,7 +8,7 @@ use gear_core::{
     message::IncomingMessage,
     program::Program,
 };
-use std::{collections::BTreeMap, convert::TryInto};
+use std::{collections::BTreeMap, mem};
 use wasmtime::{
     Config, Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
     Val,
@@ -45,73 +45,7 @@ impl WasmExecutor {
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
                 .expect("Failed to create memory");
-
-        let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert("alloc", FuncsHandler::alloc(&mut store, memory));
-        funcs.insert("free", FuncsHandler::free(&mut store));
-        funcs.insert("gas", FuncsHandler::gas(&mut store));
-        funcs.insert("gr_block_height", FuncsHandler::block_height(&mut store));
-        funcs.insert(
-            "gr_block_timestamp",
-            FuncsHandler::block_timestamp(&mut store),
-        );
-        funcs.insert(
-            "gr_create_program_wgas",
-            FuncsHandler::create_program_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_exit_code", FuncsHandler::exit_code(&mut store));
-        funcs.insert("gr_gas_available", FuncsHandler::gas_available(&mut store));
-        funcs.insert("gr_debug", FuncsHandler::debug(&mut store, memory));
-        funcs.insert("gr_exit", FuncsHandler::exit(&mut store, memory));
-        funcs.insert("gr_origin", FuncsHandler::origin(&mut store, memory));
-        funcs.insert("gr_msg_id", FuncsHandler::msg_id(&mut store, memory));
-        funcs.insert(
-            "gr_program_id",
-            FuncsHandler::program_id(&mut store, memory),
-        );
-        funcs.insert("gr_read", FuncsHandler::read(&mut store, memory));
-        funcs.insert("gr_reply", FuncsHandler::reply(&mut store, memory));
-        funcs.insert(
-            "gr_reply_wgas",
-            FuncsHandler::reply_wgas(&mut store, memory),
-        );
-        funcs.insert(
-            "gr_reply_commit",
-            FuncsHandler::reply_commit(&mut store, memory),
-        );
-        funcs.insert(
-            "gr_reply_commit_wgas",
-            FuncsHandler::reply_commit_wgas(&mut store, memory),
-        );
-        funcs.insert(
-            "gr_reply_push",
-            FuncsHandler::reply_push(&mut store, memory),
-        );
-        funcs.insert("gr_reply_to", FuncsHandler::reply_to(&mut store, memory));
-        funcs.insert("gr_send_wgas", FuncsHandler::send_wgas(&mut store, memory));
-        funcs.insert("gr_send", FuncsHandler::send(&mut store, memory));
-        funcs.insert(
-            "gr_send_commit_wgas",
-            FuncsHandler::send_commit_wgas(&mut store, memory),
-        );
-        funcs.insert(
-            "gr_send_commit",
-            FuncsHandler::send_commit(&mut store, memory),
-        );
-        funcs.insert("gr_send_init", FuncsHandler::send_init(&mut store, memory));
-        funcs.insert("gr_send_push", FuncsHandler::send_push(&mut store, memory));
-        funcs.insert("gr_size", FuncsHandler::size(&mut store));
-        funcs.insert("gr_source", FuncsHandler::source(&mut store, memory));
-        funcs.insert("gr_value", FuncsHandler::value(&mut store, memory));
-        funcs.insert(
-            "gr_value_available",
-            FuncsHandler::value_available(&mut store, memory),
-        );
-        funcs.insert("gr_leave", FuncsHandler::leave(&mut store));
-        funcs.insert("gr_wait", FuncsHandler::wait(&mut store));
-        funcs.insert("gr_wake", FuncsHandler::wake(&mut store, memory));
-        funcs.insert("gr_error", FuncsHandler::error(&mut store, memory));
-
+        let funcs = get_funcs_tree(&mut store, memory);
         let mut externs = Vec::with_capacity(module.imports().len());
         for import in module.imports() {
             if import.module() != "env" {
@@ -144,7 +78,10 @@ impl WasmExecutor {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn call_function(&mut self, function_name: &str) -> (Vec<u8>, Vec<JournalNote>) {
+    pub(crate) fn execute_with_result(
+        &mut self,
+        function_name: &str,
+    ) -> (Vec<u8>, Vec<JournalNote>) {
         let function = self.get_function(function_name);
         let mut prt_to_result_array = [Val::I32(0)];
 
@@ -162,7 +99,7 @@ impl WasmExecutor {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn call_void_function(&mut self, function_name: &str) -> Vec<JournalNote> {
+    pub(crate) fn execute(&mut self, function_name: &str) -> Vec<JournalNote> {
         let function = self.get_function(function_name);
         function
             .call(&mut self.store, &[], &mut [])
@@ -202,40 +139,31 @@ impl WasmExecutor {
     }
 
     fn read_result(&mut self, ptr_to_result_data: i32) -> Vec<u8> {
-        let mut ptr_to_result_buffer: Vec<u8> = Vec::new();
-        let buffer_size = ptr_to_result_data.to_be_bytes().len();
-        ptr_to_result_buffer.resize(buffer_size, 0);
+        let offset = ptr_to_result_data as usize;
+
+        // Reading a fat pointer from the `offset`
+        let mut ptr = [0_u8; mem::size_of::<i32>()];
+        let mut len = [0_u8; mem::size_of::<i32>()];
 
         self.memory
-            .read(
-                &self.store,
-                ptr_to_result_data as usize,
-                &mut ptr_to_result_buffer,
-            )
+            .read(&self.store, offset, &mut ptr)
             .expect("Failed to read data ptr");
 
-        let mut result_len_buffer = [0u8];
-
         self.memory
-            .read(
-                &self.store,
-                ptr_to_result_data as usize + buffer_size,
-                &mut result_len_buffer,
-            )
+            .read(&self.store, offset + ptr.len(), &mut len)
             .expect("Failed to read data length");
 
-        let decoded_ptr_to_result =
-            i32::from_ne_bytes(ptr_to_result_buffer.try_into().unwrap()) as usize;
-        let result_len = result_len_buffer[0] as usize;
+        let ptr = i32::from_ne_bytes(ptr) as usize;
+        let len = i32::from_ne_bytes(len) as usize;
 
-        let mut results = Vec::new();
-        results.resize(result_len, 0u8);
+        // Reading a vector from `ptr`
+        let mut result = vec![0; len];
 
         self.memory
-            .read(&self.store, decoded_ptr_to_result, &mut results)
+            .read(&self.store, ptr, &mut result)
             .expect("Failed to read result");
 
-        results
+        result
     }
 
     fn set_pages<T: Ext>(
@@ -246,7 +174,7 @@ impl WasmExecutor {
         let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
         for (page_number, buffer) in pages {
             if memory_size <= page_number.to_wasm_page() {
-                panic!("Memory size {:?} less then {:?}", memory_size, page_number);
+                panic!("Memory size {:?} less than {:?}", memory_size, page_number);
             }
             memory
                 .write(&mut store, page_number.offset(), &buffer[..])

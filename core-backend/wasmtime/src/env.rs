@@ -20,6 +20,7 @@
 
 use core::fmt;
 
+use crate::funcs_tree_builder::get_funcs_tree;
 use alloc::{
     collections::BTreeMap,
     format,
@@ -37,7 +38,7 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 use wasmtime::{
-    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+    Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
 
 use crate::memory::MemoryWrapExternal;
@@ -129,59 +130,7 @@ where
             }
         };
 
-        /// Make import funcs
-        use crate::funcs::FuncsHandler as funcs;
-        let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert("alloc", funcs::alloc(&mut store, memory));
-        funcs.insert("free", funcs::free(&mut store));
-        funcs.insert("gas", funcs::gas(&mut store));
-        funcs.insert("gr_block_height", funcs::block_height(&mut store));
-        funcs.insert("gr_block_timestamp", funcs::block_timestamp(&mut store));
-        funcs.insert(
-            "gr_create_program",
-            funcs::create_program(&mut store, memory),
-        );
-        funcs.insert(
-            "gr_create_program_wgas",
-            funcs::create_program_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_exit_code", funcs::exit_code(&mut store));
-        funcs.insert("gr_gas_available", funcs::gas_available(&mut store));
-        funcs.insert("gr_debug", funcs::debug(&mut store, memory));
-        funcs.insert("gr_exit", funcs::exit(&mut store, memory));
-        funcs.insert("gr_origin", funcs::origin(&mut store, memory));
-        funcs.insert("gr_msg_id", funcs::msg_id(&mut store, memory));
-        funcs.insert("gr_program_id", funcs::program_id(&mut store, memory));
-        funcs.insert("gr_read", funcs::read(&mut store, memory));
-        funcs.insert("gr_reply", funcs::reply(&mut store, memory));
-        funcs.insert("gr_reply_wgas", funcs::reply_wgas(&mut store, memory));
-        funcs.insert("gr_reply_commit", funcs::reply_commit(&mut store, memory));
-        funcs.insert(
-            "gr_reply_commit_wgas",
-            funcs::reply_commit_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_reply_push", funcs::reply_push(&mut store, memory));
-        funcs.insert("gr_reply_to", funcs::reply_to(&mut store, memory));
-        funcs.insert("gr_send_wgas", funcs::send_wgas(&mut store, memory));
-        funcs.insert("gr_send", funcs::send(&mut store, memory));
-        funcs.insert(
-            "gr_send_commit_wgas",
-            funcs::send_commit_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_send_commit", funcs::send_commit(&mut store, memory));
-        funcs.insert("gr_send_init", funcs::send_init(&mut store, memory));
-        funcs.insert("gr_send_push", funcs::send_push(&mut store, memory));
-        funcs.insert("gr_size", funcs::size(&mut store));
-        funcs.insert("gr_source", funcs::source(&mut store, memory));
-        funcs.insert("gr_value", funcs::value(&mut store, memory));
-        funcs.insert(
-            "gr_value_available",
-            funcs::value_available(&mut store, memory),
-        );
-        funcs.insert("gr_leave", funcs::leave(&mut store));
-        funcs.insert("gr_wait", funcs::wait(&mut store));
-        funcs.insert("gr_wake", funcs::wake(&mut store, memory));
-        funcs.insert("gr_error", funcs::error(&mut store, memory));
+        let funcs = get_funcs_tree(&mut store, memory);
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,
