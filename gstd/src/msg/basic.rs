@@ -391,7 +391,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-// #[wait_for_reply]
+#[wait_for_reply]
 pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }

@@ -15,12 +15,15 @@ mod wasm {
     include! {"./code.rs"}
 }
 
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Copy, Encode, Decode)]
 pub enum Kind {
-    Send,
-    SendWithGas(u64),
+    ReplyWithGas(u64),
+    ReplyBytes,
+    ReplyBytesWithGas(u64),
+    ReplyCommit,
+    ReplyCommitWithGas(u64),
     SendBytes,
     SendBytesWithGas(u64),
-    // SendCommit,
-    // SendCommitWithGas(u64),
+    SendCommit,
+    SendCommitWithGas(u64),
 }

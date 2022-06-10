@@ -3487,10 +3487,15 @@ fn test_async_messages() {
 
         let pid = get_last_program_id();
         for kind in vec![
-            Kind::Send,
-            Kind::SendWithGas(100_000),
+            Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
+            Kind::ReplyBytes,
+            Kind::ReplyBytesWithGas(DEFAULT_GAS_LIMIT),
+            Kind::ReplyCommit,
+            Kind::ReplyCommitWithGas(DEFAULT_GAS_LIMIT),
             Kind::SendBytes,
-            Kind::SendBytesWithGas(100_000),
+            Kind::SendBytesWithGas(DEFAULT_GAS_LIMIT),
+            Kind::SendCommit,
+            Kind::SendCommitWithGas(DEFAULT_GAS_LIMIT),
         ] {
             run_to_next_block(None);
             let encoded_kind = kind.encode();
@@ -3521,7 +3526,7 @@ fn test_async_messages() {
             // check the reply from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            assert_eq!(last_mail.payload(), b"PONG".encode());
+            assert_eq!(last_mail.payload(), b"PONG");
             MailboxOf::<Test>::remove(USER_1, last_mail.id()).expect("remove last mail failed");
         }
 
