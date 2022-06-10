@@ -14,6 +14,8 @@ log = "0.4.14"
 gear-core = { path = "../core" }
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime-interface = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
 cfg-if = "1.0.0"
 region = "3.0.0"
 derive_more = "0.99.17"

@@ -202,11 +202,17 @@ pub trait GearRI {
             .collect()
     }
 
+    // TODO: deprecated, remove before release
     fn get_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::available_pages()
             .into_iter()
             .map(LazyPage::as_u32)
             .collect()
+    }
+
+    #[version(2)]
+    fn get_lazy_pages_numbers() -> Vec<LazyPage> {
+        gear_lazy_pages::available_pages()
     }
 
     fn init_lazy_pages() -> bool {
@@ -264,11 +270,17 @@ pub trait GearRI {
         Ok(())
     }
 
+    // TODO: deprecated, remove before release
     fn get_released_pages() -> Vec<u32> {
         gear_lazy_pages::released_pages()
             .into_iter()
             .map(LazyPage::as_u32)
             .collect()
+    }
+
+    #[version(2)]
+    fn get_released_pages() -> Vec<LazyPage> {
+        gear_lazy_pages::released_pages()
     }
 
     // TODO: deprecated, remove before release
@@ -294,9 +306,15 @@ pub trait GearRI {
         LazyPage::from(page).take_data().ok_or(GetReleasedPageError)
     }
 
+    // TODO: deprecated, remove before release
     #[version(4)]
     fn get_released_page_old_data(page: u32) -> Option<PageBuf> {
         LazyPage::from(page).take_data()
+    }
+
+    #[version(5)]
+    fn get_released_page_old_data(page: LazyPage) -> Option<PageBuf> {
+        page.take_data()
     }
 
     fn print_hello() {
