@@ -26,12 +26,6 @@ use gear_core::memory::{HostPointer, PageBuf};
 use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeMap};
 
-#[cfg(unix)]
-#[path = "unix.rs"]
-mod sys;
-
-#[cfg(not(unix))]
-#[path = "unsupported.rs"]
 mod sys;
 
 thread_local! {
@@ -50,13 +44,19 @@ thread_local! {
 }
 
 /// Save page key in storage
-pub fn save_page_lazy_info(page: u32, key: &[u8]) {
+pub fn save_lazy_page_info(page: u32, key: &[u8]) {
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(page, key.to_vec()));
 }
 
 /// Returns vec of not-accessed wasm lazy pages
 pub fn get_lazy_pages_numbers() -> Vec<u32> {
-    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().iter().map(|x| *x.0).collect())
+    LAZY_PAGES_INFO.with(|lazy_pages_info| {
+        lazy_pages_info
+            .borrow()
+            .iter()
+            .map(|(&page, _)| page)
+            .collect()
+    })
 }
 
 /// Set current wasm memory begin addr
@@ -73,11 +73,11 @@ pub fn reset_lazy_pages_info() {
 
 /// Returns vec of lazy pages which has been accessed
 pub fn get_released_pages() -> Vec<u32> {
-    RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|x| *x.0).collect())
+    RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|(&page, _)| page).collect())
 }
 
 /// Returns whether lazy pages env is enabled
-pub fn is_lazy_pages_enabled() -> bool {
+pub fn is_enabled() -> bool {
     LAZY_PAGES_ENABLED.with(|x| *x.borrow())
 }
 
@@ -86,4 +86,4 @@ pub fn get_released_page_old_data(page: u32) -> Option<PageBuf> {
     RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().get_mut(&page)?.take())
 }
 
-pub use sys::init_lazy_pages;
+pub use sys::init;

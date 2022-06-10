@@ -142,7 +142,7 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
     let new_mem_addr = mem.get_buffer_host_addr();
     if new_mem_addr != old_mem_addr {
         log::debug!(
-            "backend executor has changed wasm mem buff: from {:#x?} to {:#x?}",
+            "backend executor has changed wasm mem buff: from {:x?} to {:x?}",
             old_mem_addr,
             new_mem_addr
         );

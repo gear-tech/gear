@@ -21,6 +21,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
+use core::ops::RangeInclusive;
 use gear_core::memory::{HostPointer, PageBuf};
 use sp_runtime_interface::runtime_interface;
 
@@ -38,28 +39,30 @@ pub use sp_std::{result::Result, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 pub enum RIError {
-    #[display(fmt = "Cannot mprotect interval: [{:#x}, {:#x}] mask = {}", _0, _1, _2)]
-    MprotectError(u64, u64, u32),
+    #[display(fmt = "Cannot mprotect interval: {:?}, mask = {}", interval, mask)]
+    MprotectError {
+        interval: RangeInclusive<u64>,
+        mask: u64,
+    },
     #[display(
         fmt = "Memory interval size {:#x} for protection is not aligned by native page size {:#x}",
-        _0,
-        _1
+        size,
+        page_size
     )]
-    MprotectSizeError(u64, u64),
+    MprotectSizeError { size: u64, page_size: u64 },
     #[display(fmt = "Unsupported OS")]
     UnsupportedOS,
     #[display(
         fmt = "Wasm memory buffer addr {:#x} is not aligned by native page size {:#x}",
-        _0,
-        _1
+        addr,
+        page_size
     )]
-    WasmMemBufferNotAligned(u64, u64),
+    WasmMemBufferNotAligned { addr: u64, page_size: u64 },
 }
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].
 /// Protection mask is set according to protection arguments.
 #[cfg(feature = "std")]
-#[cfg(unix)]
 unsafe fn sys_mprotect_interval(
     addr: HostPointer,
     size: usize,
@@ -67,40 +70,39 @@ unsafe fn sys_mprotect_interval(
     prot_write: bool,
     prot_exec: bool,
 ) -> Result<(), RIError> {
-    if size == 0 || size % page_size::get() != 0 {
-        return Err(RIError::MprotectSizeError(
-            size as u64,
-            page_size::get() as u64,
-        ));
+    if size == 0 || size % region::page::size() != 0 {
+        return Err(RIError::MprotectSizeError {
+            size: size as u64,
+            page_size: region::page::size() as u64,
+        });
     }
 
-    let mut prot_mask = libc::PROT_NONE;
+    let mut prot_mask = region::Protection::NONE;
     if prot_read {
-        prot_mask |= libc::PROT_READ;
+        prot_mask |= region::Protection::READ;
     }
     if prot_write {
-        prot_mask |= libc::PROT_WRITE;
+        prot_mask |= region::Protection::WRITE;
     }
     if prot_exec {
-        prot_mask |= libc::PROT_EXEC;
+        prot_mask |= region::Protection::EXECUTE;
     }
-    let res = libc::mprotect(addr as *mut libc::c_void, size, prot_mask);
-    if res != 0 {
+    let res = region::protect(addr as *mut (), size, prot_mask);
+    if let Err(err) = res {
         log::error!(
-            "Cannot set page protection for addr={:#x} size={:#x} mask={:#x}: {}",
+            "Cannot set page protection for addr={:#x} size={:#x} mask={}: {}",
             addr,
             size,
             prot_mask,
-            errno::errno()
+            err,
         );
-        return Err(RIError::MprotectError(
-            addr as u64,
-            addr as u64 + size as u64,
-            prot_mask as u32,
-        ));
+        return Err(RIError::MprotectError {
+            interval: addr..=addr + size as u64,
+            mask: prot_mask.bits() as u64,
+        });
     }
     log::trace!(
-        "mprotect native mem interval: {:#x}, size: {:#x}, mask {:#x}",
+        "mprotect native mem interval: {:#x}, size: {:#x}, mask: {}",
         addr,
         size,
         prot_mask
@@ -109,28 +111,11 @@ unsafe fn sys_mprotect_interval(
 }
 
 #[cfg(feature = "std")]
-#[cfg(not(unix))]
-unsafe fn sys_mprotect_interval(
-    _addr: HostPointer,
-    _size: usize,
-    _prot_read: bool,
-    _prot_write: bool,
-    _prot_exec: bool,
-) -> Result<(), RIError> {
-    log::error!("unsupported OS for pages protectection");
-    Err(RIError::UnsupportedOS)
-}
-
-#[cfg(feature = "std")]
 fn mprotect_pages_slice(
     mem_addr: HostPointer,
     pages: &[u32],
     protect: bool,
 ) -> Result<(), RIError> {
-    if pages.is_empty() {
-        return Ok(());
-    }
-
     let mprotect = |start, count, protect: bool| unsafe {
         let addr = mem_addr + (start * PageNumber::size()) as HostPointer;
         let size = count * PageNumber::size();
@@ -138,16 +123,19 @@ fn mprotect_pages_slice(
     };
 
     // Collects continuous intervals of memory from lazy pages to protect them.
-    let mut start = *pages
-        .first()
-        .expect("We checked that `pages` are not empty") as usize;
+    let mut start = if let Some(&start) = pages.first() {
+        start as usize
+    } else {
+        return Ok(());
+    };
+
     let mut count = 1;
-    for page in pages.iter().skip(1) {
-        if start + count == *page as usize {
+    for &page in pages.iter().skip(1) {
+        if start + count == page as usize {
             count = count.saturating_add(1);
         } else {
             mprotect(start, count, protect)?;
-            start = *page as _;
+            start = page as _;
             count = 1;
         }
     }
@@ -202,7 +190,7 @@ pub trait GearRI {
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
-        gear_lazy_pages::save_page_lazy_info(page, key);
+        gear_lazy_pages::save_lazy_page_info(page, key);
     }
 
     // TODO: deprecated, remove before release
@@ -215,11 +203,11 @@ pub trait GearRI {
     }
 
     fn init_lazy_pages() -> bool {
-        unsafe { gear_lazy_pages::init_lazy_pages() }
+        unsafe { gear_lazy_pages::init() }
     }
 
     fn is_lazy_pages_enabled() -> bool {
-        gear_lazy_pages::is_lazy_pages_enabled()
+        gear_lazy_pages::is_enabled()
     }
 
     fn reset_lazy_pages_info() {
@@ -231,6 +219,7 @@ pub trait GearRI {
         gear_lazy_pages::set_wasm_mem_begin_addr(addr);
     }
 
+    // TODO: deprecated, remove before release
     #[version(2)]
     fn set_wasm_mem_begin_addr(addr: HostPointer) -> Result<(), RIError> {
         #[cfg(not(unix))]
@@ -241,17 +230,31 @@ pub trait GearRI {
 
         #[cfg(unix)]
         {
-            if addr % page_size::get() as u64 != 0 {
-                return Err(RIError::WasmMemBufferNotAligned(
-                    addr as u64,
-                    page_size::get() as u64,
-                ));
+            if addr % region::page::size() as u64 != 0 {
+                return Err(RIError::WasmMemBufferNotAligned {
+                    addr: addr as u64,
+                    page_size: region::page::size() as u64,
+                });
             }
 
             gear_lazy_pages::set_wasm_mem_begin_addr(addr);
 
             Ok(())
         }
+    }
+
+    #[version(3)]
+    fn set_wasm_mem_begin_addr(addr: HostPointer) -> Result<(), RIError> {
+        if addr % region::page::size() as u64 != 0 {
+            return Err(RIError::WasmMemBufferNotAligned {
+                addr: addr as u64,
+                page_size: region::page::size() as u64,
+            });
+        }
+
+        gear_lazy_pages::set_wasm_mem_begin_addr(addr);
+
+        Ok(())
     }
 
     fn get_released_pages() -> Vec<u32> {
@@ -292,7 +295,7 @@ pub trait GearRI {
 #[cfg(feature = "std")]
 #[cfg(unix)]
 #[test]
-fn test_mprotect_pages_vec() {
+unsafe fn test_mprotect_pages_vec() {
     use gear_core::memory::WasmPageNumber;
     use libc::{c_void, siginfo_t};
     use nix::sys::signal;
@@ -303,17 +306,13 @@ fn test_mprotect_pages_vec() {
     extern "C" fn handle_sigsegv(_: i32, info: *mut siginfo_t, _: *mut c_void) {
         unsafe {
             let mem = (*info).si_addr() as usize;
-            let ps = page_size::get();
+            let ps = region::page::size();
             let addr = ((mem / ps) * ps) as *mut c_void;
-            if libc::mprotect(addr, ps, libc::PROT_WRITE) != 0 {
-                panic!("Cannot set protection: {}", errno::errno());
-            }
+            region::protect(addr, ps, region::Protection::WRITE).unwrap();
             for p in 0..ps / PageNumber::size() {
                 *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
             }
-            if libc::mprotect(addr, ps, libc::PROT_READ) != 0 {
-                panic!("Cannot set protection: {}", errno::errno());
-            }
+            region::protect(addr, ps, region::Protection::READ).unwrap();
         }
     }
 
@@ -350,15 +349,15 @@ fn test_mprotect_pages_vec() {
         signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
         signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
 
-        for p in pages_to_protect.iter() {
-            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
-            let _ = *(addr as *mut u8);
+        for &p in pages_to_protect.iter() {
+            let addr = page_begin as usize + p as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
             // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
-        for p in pages_unprotected.iter() {
-            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+
+        for &p in pages_unprotected.iter() {
+            let addr = page_begin as usize + p as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
             // value must not be changed
             assert_eq!(x, OLD_VALUE);

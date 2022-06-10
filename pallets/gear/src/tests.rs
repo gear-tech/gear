@@ -412,7 +412,6 @@ fn restrict_start_section() {
     });
 }
 
-#[cfg(unix)]
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
@@ -649,7 +648,6 @@ fn memory_access_cases() {
     });
 }
 
-#[cfg(unix)]
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {

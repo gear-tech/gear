@@ -41,3 +41,6 @@ members = [
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
 ]
+
+[patch.crates-io]
+wasmi = { git = "https://github.com/ark0f/wasmi", rev = "2ce19afb3a0e392fad744397a1e7dc722dde4052" }
