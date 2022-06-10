@@ -112,7 +112,7 @@ impl FusedFuture for MessageFuture {
 
 /// Send a message and wait for reply.
 ///
-/// This function works similarly to `send_bytes_and_wait_for_reply`,
+/// This function works similarly to [`send_bytes_and_wait_for_reply`],
 /// with one difference - it takes the structure in, then encodes it
 /// and sends it in bytes. When receiving the message, it decodes the bytes.
 /// So the input should be SCALE codeс encodable, output - decodable
@@ -135,7 +135,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 
 /// Send a message and wait for reply.
 ///
-/// This function works similarly to `send_and_wait_for_reply`,
+/// This function works similarly to [`send_and_wait_for_reply`],
 /// with one difference - it works with raw bytes as a paylod.
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `MessageFuture` object returned by the function.
