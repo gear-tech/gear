@@ -19,11 +19,14 @@
 //! Module with basic messaging functions wrapped from `gcore` to `gstd`.
 
 use crate::{
+    async_runtime::signals,
     errors::{ContractError, Result},
+    msg::r#async::MessageFuture,
     prelude::{convert::AsRef, vec, Vec},
     ActorId, MessageId,
 };
-use codec::Output;
+use codec::{Decode, Output};
+use gstd_codegen::wait_for_reply;
 
 trait IntoContractResult<T> {
     fn into_contract_result(self) -> Result<T>;
@@ -461,6 +464,7 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
+#[wait_for_reply]
 pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Result<MessageId> {
     gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
 }

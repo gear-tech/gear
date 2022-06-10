@@ -24,6 +24,8 @@ use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 
+mod utils;
+
 /// A global flag, determining if `handle_reply` already was generated.
 static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 
@@ -151,4 +153,35 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
     .into();
 
     generate_handle_reply_if_required(code)
+}
+
+#[proc_macro_attribute]
+pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
+    let function = syn::parse_macro_input!(item as syn::ItemFn);
+    let ident = function.sig.ident.clone();
+
+    // generate new function new
+    let (for_reply, for_reply_as) = (
+        utils::with_suffix(&function.sig.ident, "_for_reply"),
+        utils::with_suffix(&function.sig.ident, "_for_reply_as"),
+    );
+
+    let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
+    let args = utils::get_args(&inputs);
+
+    quote! {
+        #function
+
+        pub async fn #for_reply ( #inputs #variadic ) -> Result<Vec<u8>> {
+            let waiting_reply_to = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            MessageFuture { waiting_reply_to }.await
+        }
+
+        pub async fn #for_reply_as <D: Decode> ( #inputs #variadic ) -> Result<D> {
+            D::decode(&mut #for_reply #args .await?.as_ref() ).map_err(ContractError::Decode)
+        }
+    }
+    .into()
 }
