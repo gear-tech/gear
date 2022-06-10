@@ -43,4 +43,5 @@ members = [
 ]
 
 [patch.crates-io]
-wasmi = { git = "https://github.com/ark0f/wasmi", rev = "2ce19afb3a0e392fad744397a1e7dc722dde4052" }
+# TODO: remove when sp-sandbox will use wasmi 0.11.0
+wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "al-win-vmem" }

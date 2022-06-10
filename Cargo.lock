@@ -9604,7 +9604,7 @@ dependencies = [
 [[package]]
 name = "wasmi"
 version = "0.9.1"
-source = "git+https://github.com/ark0f/wasmi?rev=2ce19afb3a0e392fad744397a1e7dc722dde4052#2ce19afb3a0e392fad744397a1e7dc722dde4052"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-win-vmem#62a3bd922caa3f132ce7b7aa3255da291f76959a"
 dependencies = [
  "downcast-rs",
  "libm",
@@ -9619,7 +9619,7 @@ dependencies = [
 [[package]]
 name = "wasmi-validation"
 version = "0.4.1"
-source = "git+https://github.com/ark0f/wasmi?rev=2ce19afb3a0e392fad744397a1e7dc722dde4052#2ce19afb3a0e392fad744397a1e7dc722dde4052"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-win-vmem#62a3bd922caa3f132ce7b7aa3255da291f76959a"
 dependencies = [
  "parity-wasm 0.42.2",
 ]
