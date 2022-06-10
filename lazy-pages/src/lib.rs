@@ -73,6 +73,9 @@ pub fn is_enabled() -> bool {
 /// Initialize lazy pages:
 /// 1) checks whether lazy pages is supported in current environment
 /// 2) set signals handler
+///
+/// # Safety
+/// See [`sys::setup_signal_handler`]
 pub unsafe fn init() -> bool {
     if LAZY_PAGES_ENABLED.with(|x| *x.borrow()) {
         log::trace!("Lazy-pages has been already enabled");

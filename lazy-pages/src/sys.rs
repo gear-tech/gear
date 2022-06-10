@@ -11,7 +11,7 @@ cfg_if! {
         mod unix;
         pub use unix::*;
     } else {
-        compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature")
+        compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature");
     }
 }
 

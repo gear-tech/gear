@@ -23,7 +23,6 @@
 use codec::{Decode, Encode};
 use core::ops::RangeInclusive;
 use gear_core::memory::{HostPointer, PageBuf};
-use gear_lazy_pages::LazyPage;
 use sp_runtime_interface::runtime_interface;
 
 mod deprecated;
@@ -114,10 +113,10 @@ unsafe fn sys_mprotect_interval(
 #[cfg(feature = "std")]
 fn mprotect_pages_slice(
     mem_addr: HostPointer,
-    pages: &[LazyPage],
+    pages: &[gear_lazy_pages::LazyPage],
     protect: bool,
 ) -> Result<(), RIError> {
-    let mprotect = |start: LazyPage, count, protect: bool| unsafe {
+    let mprotect = |start: gear_lazy_pages::LazyPage, count, protect: bool| unsafe {
         let addr = mem_addr + (start.as_u32() as usize * PageNumber::size()) as HostPointer;
         let size = count as usize * PageNumber::size();
         sys_mprotect_interval(addr, size, !protect, !protect, false)
@@ -191,21 +190,21 @@ pub trait GearRI {
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
-        LazyPage::from(page).set_info(key);
+        gear_lazy_pages::LazyPage::from(page).set_info(key);
     }
 
     // TODO: deprecated, remove before release
-    fn get_wasm_lazy_pages_numbers(&self) -> Vec<u32> {
+    fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::available_pages()
             .into_iter()
-            .map(LazyPage::as_u32)
+            .map(gear_lazy_pages::LazyPage::as_u32)
             .collect()
     }
 
     fn get_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::available_pages()
             .into_iter()
-            .map(LazyPage::as_u32)
+            .map(gear_lazy_pages::LazyPage::as_u32)
             .collect()
     }
 
@@ -267,13 +266,13 @@ pub trait GearRI {
     fn get_released_pages() -> Vec<u32> {
         gear_lazy_pages::released_pages()
             .into_iter()
-            .map(LazyPage::as_u32)
+            .map(gear_lazy_pages::LazyPage::as_u32)
             .collect()
     }
 
     // TODO: deprecated, remove before release
     fn get_released_page_old_data(page: u32) -> Vec<u8> {
-        LazyPage::from(page)
+        gear_lazy_pages::LazyPage::from(page)
             .take_data()
             .expect("Must have data for released page")
             .to_vec()
@@ -282,7 +281,7 @@ pub trait GearRI {
     // TODO: deprecated, remove before release
     #[version(2)]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
-        LazyPage::from(page)
+        gear_lazy_pages::LazyPage::from(page)
             .take_data()
             .ok_or(GetReleasedPageError)
             .map(|data| data.to_vec())
@@ -291,12 +290,14 @@ pub trait GearRI {
     // TODO: deprecated, remove before release
     #[version(3)]
     fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
-        LazyPage::from(page).take_data().ok_or(GetReleasedPageError)
+        gear_lazy_pages::LazyPage::from(page)
+            .take_data()
+            .ok_or(GetReleasedPageError)
     }
 
     #[version(4)]
     fn get_released_page_old_data(page: u32) -> Option<PageBuf> {
-        LazyPage::from(page).take_data()
+        gear_lazy_pages::LazyPage::from(page).take_data()
     }
 
     fn print_hello() {
