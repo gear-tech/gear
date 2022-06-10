@@ -203,23 +203,6 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 
 /// Same as ['reply'], but with explicit gas limit.
 ///
-/// Some programs can reply to other programs, i.e. check another program's
-/// state and use it as a parameter for its own business logic [`MessageId`].
-///
-/// This function allows sending such replies, which are similar to standard
-/// messages in terms of payload and different only in the way the message
-/// processing is handled by a separate program function called
-/// `handle_reply`.
-///
-/// First argument is the reply message payload in bytes.
-/// Second argument is `gas_limit`. It means the maximum amount of gas that you
-/// want to spend on message sending.
-/// Third argument `value` is the value to be transferred from the current
-/// program account to the reply message target account.
-///
-/// Reply message transactions will be posted only after processing is finished,
-/// similar to the standard message [`send`](crate::msg::send).
-///
 /// # Examples
 ///
 /// ```
@@ -230,10 +213,6 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 ///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }
 /// ```
-///
-/// # See also
-///
-/// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
@@ -293,16 +272,6 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 
 /// Same as ['reply_commit'], but with explicit gas limit.
 ///
-/// Some programs can reply on their messages to other programs, i.e. check
-/// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
-/// function.
-///
-/// This function allows sending reply messages with gas limit filled with
-/// payload parts sent via ['reply_push'] during the message handling.
-/// Finalization of the reply message is done via [`reply_commit`] function
-/// similar to [`send_commit`].
-///
 /// # Examples
 ///
 /// ```
@@ -317,10 +286,6 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 ///     msg::reply_commit_with_gas(42, 0).unwrap();
 /// }
 /// ```
-///
-/// # See also
-///
-/// [`reply_push`] function allows to form a reply message with in parts.
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
@@ -434,17 +399,7 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> 
     }
 }
 
-/// Send a new message to the program or user, with gas limit.
-///
-/// Gear allows programs to communicate to each other and users via messages.
-/// [`send`](crate::msg::send) function allows sending such messages.
-///
-/// First argument is the address of the target account.
-/// Second argument is message payload in bytes.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-/// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`](crate::msg::reply).
+/// Same as ['send'], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -461,11 +416,6 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> 
 ///     msg::send(ActorId(id), b"HELLO", 12345678);
 /// }
 /// ```
-///
-/// # See also
-///
-/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
-/// message to send in parts.
 pub fn send_with_gas(
     program: ActorId,
     payload: &[u8],
@@ -535,18 +485,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
     }
 }
 
-/// Finalize and send message formed in parts, with gas limit.
-///
-/// Gear allows programs to work with messages that consist of several parts.
-/// This function finalizes the message built in parts and sends it.
-///
-/// First argument is the message handle [MessageHandle] which specifies a
-/// particular message built in parts.
-/// Second argument is the address of the target account.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-/// Send transaction will be posted only after the execution of processing is
-/// finished.
+/// Same as ['send_commit'], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -560,13 +499,6 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 ///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
 /// ```
-///
-/// # See also
-///
-/// [`send`](crate::msg::send) allows to send message in one step.
-///
-/// [`send_push`], [`send_init`] functions allows to form a message to send in
-/// parts.
 pub fn send_commit_with_gas(
     handle: MessageHandle,
     program: ActorId,
