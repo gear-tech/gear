@@ -169,37 +169,45 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// outputs:
 ///
-/// ```
-/// /// Same as [`reply_bytes`](crate::msg::basic::reply_bytes), but the program
-/// /// will interrupt until the reply is received.
-/// ///
-/// /// # See also
-/// ///
-/// /// - [`reply_bytes_for_reply_as`](crate::msg::basic::reply_bytes_for_reply_as)
-/// pub async fn reply_bytes_for_reply(
-///     payload: impl AsRef<[u8]>,
+/// ```ignore
+/// Same as [`send_bytes`](crate::msg::basic::send_bytes), but the program
+/// will interrupt until the reply is received.
+///
+/// # See also
+///
+/// - [`send_bytes_for_reply_as`](crate::msg::basic::send_bytes_for_reply_as)
+/// pub fn send_bytes_for_reply<T: AsRef<[u8]>>(
+///     program: ActorId,
+///     payload: T,
 ///     value: u128,
-/// ) -> Result<Vec<u8>> {
-///     let waiting_reply_to = reply_bytes(payload, value)?;
+/// ) -> Result<MessageFuture> {
+///     let waiting_reply_to = send_bytes(program, payload, value)?;
 ///     signals().register_signal(waiting_reply_to);
-///     MessageFuture { waiting_reply_to }.await
+///
+///     Ok(MessageFuture { waiting_reply_to })
 /// }
 ///
-/// /// Same as [`reply_bytes`](crate::msg::basic::reply_bytes), but the program
+/// /// Same as [`send_bytes`](crate::msg::basic::send_bytes), but the program
 /// /// will interrupt until the reply is received.
 /// ///
 /// /// The output should be decodable via [`SCALE CODEC`].
 /// ///
 /// /// # See also
 /// ///
-/// /// - [`reply_bytes_for_reply`](crate::msg::basic::reply_bytes_for_reply)
+/// /// - [`send_bytes_for_reply`](crate::msg::basic::send_bytes_for_reply)
 /// /// - https://docs.substrate.io/v3/advanced/scale-codec
-/// pub async fn reply_bytes_for_reply_as<D: Decode>(
-///     payload: impl AsRef<[u8]>,
+/// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
+///     program: ActorId,
+///     payload: T,
 ///     value: u128,
-/// ) -> Result<D> {
-///     D::decode(&mut reply_bytes_for_reply(payload, value).await?.as_ref())
-///         .map_err(ContractError::Decode)
+/// ) -> Result<CodecMessageFuture<D>> {
+///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///     signals().register_signal(waiting_reply_to);
+///
+///     Ok(CodecMessageFuture::<D> {
+///         waiting_reply_to,
+///         phantom: PhantomData,
+///     })
 /// }
 /// ```
 #[proc_macro_attribute]
