@@ -10,9 +10,10 @@ pub unsafe extern "C" fn init() {}
 #[gstd::async_main]
 async fn main() {
     let kind: Kind = msg::load().expect("invalid arguments");
-    let encoded_kind = kind.encode().to_vec();
+    let encoded_kind = kind.encode();
 
     match kind {
+        Kind::Reply => msg::reply_for_reply(kind, 0).await,
         Kind::ReplyWithGas(gas) => msg::reply_with_gas_for_reply(&encoded_kind, gas, 0).await,
         Kind::ReplyBytes => msg::reply_bytes_for_reply(&encoded_kind, 0).await,
         Kind::ReplyBytesWithGas(gas) => {
@@ -26,6 +27,8 @@ async fn main() {
             msg::reply_push(&encoded_kind).expect("push payload failed");
             msg::reply_commit_with_gas_for_reply(gas, 0).await
         }
+        Kind::Send => msg::send_for_reply(msg::source(), kind, 0).await,
+        Kind::SendWithGas(gas) => msg::send_with_gas_for_reply(msg::source(), kind, gas, 0).await,
         Kind::SendBytes => msg::send_bytes_for_reply(msg::source(), &encoded_kind, 0).await,
         Kind::SendBytesWithGas(gas) => {
             msg::send_bytes_with_gas_for_reply(msg::source(), &encoded_kind, gas, 0).await
@@ -44,7 +47,8 @@ async fn main() {
     .expect("ran into error-reply");
 
     match kind {
-        Kind::ReplyWithGas(_)
+        Kind::Reply
+        | Kind::ReplyWithGas(_)
         | Kind::ReplyBytes
         | Kind::ReplyBytesWithGas(_)
         | Kind::ReplyCommit

@@ -25,7 +25,7 @@ use crate::{
     },
     pallet, Config, Error, Event, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
-use codec::Encode;
+use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
@@ -3481,44 +3481,45 @@ fn test_async_messages() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            2_000_000_000u64,
+            1_000_000_000u64,
             0,
         ));
 
         let pid = get_last_program_id();
         for kind in vec![
+            Kind::Reply,
             Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
             Kind::ReplyBytes,
             Kind::ReplyBytesWithGas(DEFAULT_GAS_LIMIT),
             Kind::ReplyCommit,
             Kind::ReplyCommitWithGas(DEFAULT_GAS_LIMIT),
+            Kind::Send,
+            Kind::SendWithGas(DEFAULT_GAS_LIMIT),
             Kind::SendBytes,
             Kind::SendBytesWithGas(DEFAULT_GAS_LIMIT),
             Kind::SendCommit,
             Kind::SendCommitWithGas(DEFAULT_GAS_LIMIT),
         ] {
             run_to_next_block(None);
-            let encoded_kind = kind.encode();
-
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 pid,
-                encoded_kind.clone(),
-                2_000_000_000u64,
+                kind.encode(),
+                3_000_000_000u64,
                 0,
             ));
 
             // check the message sent from the program
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
-            assert_eq!(last_mail.payload(), encoded_kind.clone());
+            assert_eq!(Kind::decode(&mut last_mail.payload().as_ref()), Ok(kind));
 
             // reply to the message
             let message_id = last_mail.id();
             assert_ok!(Gear::send_reply(
                 Origin::signed(USER_1),
                 message_id,
-                EMPTY_PAYLOAD.to_vec().encode(),
+                EMPTY_PAYLOAD.to_vec(),
                 2_000_000_000u64,
                 0,
             ));
