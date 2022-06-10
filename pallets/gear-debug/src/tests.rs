@@ -479,7 +479,7 @@ fn check_changed_pages_in_storage() {
         PalletGear::<Test>::send_message(origin, program_id, vec![], 10_000_000_u64, 0_u128)
             .expect("Failed to send message");
 
-        run_to_block(3, None); // no message will get processed
+        run_to_block(3, None);
 
         Pallet::<Test>::do_snapshot();
 

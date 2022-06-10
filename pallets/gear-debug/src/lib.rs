@@ -98,20 +98,16 @@ pub mod pallet {
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
-                    &self
-                        .persistent_pages
-                        .iter()
-                        .map(|(page, data)| {
-                            // Prints only bytes which is not null
-                            let mut no_zero_bytes = BTreeMap::new();
-                            for (byte_idx, byte_value) in data.iter().enumerate() {
-                                if *byte_value != 0 {
-                                    no_zero_bytes.insert(byte_idx, *byte_value);
-                                }
-                            }
-                            (*page, no_zero_bytes)
-                        })
-                        .collect::<BTreeMap<PageNumber, BTreeMap<usize, u8>>>(),
+                    &self.persistent_pages.iter().map(|(page, data)|
+                        // Prints only bytes which is not zero
+                        (
+                            *page,
+                            data.iter()
+                                .enumerate()
+                                .filter(|(_, val)| **val != 0)
+                                .map(|(idx, val)| (idx, *val))
+                                .collect::<BTreeMap<_, _>>(),
+                        )).collect::<BTreeMap<_, _>>(),
                 )
                 .field("code_hash", &self.code_hash)
                 .finish()
