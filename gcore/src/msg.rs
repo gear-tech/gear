@@ -213,6 +213,10 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 ///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
@@ -286,6 +290,10 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 ///     msg::reply_commit_with_gas(42, 0).unwrap();
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message with in parts.
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     unsafe {
         let mut message_id = MessageId::default();
@@ -416,6 +424,11 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> 
 ///     msg::send(ActorId(id), b"HELLO", 12345678);
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
 pub fn send_with_gas(
     program: ActorId,
     payload: &[u8],
@@ -499,6 +512,13 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 ///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`send`](crate::msg::send) allows to send message in one step.
+///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
 pub fn send_commit_with_gas(
     handle: MessageHandle,
     program: ActorId,

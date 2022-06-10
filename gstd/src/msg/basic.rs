@@ -305,6 +305,10 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 ///     msg::reply_commit_with_gas(42, 0).unwrap();
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
 }
@@ -408,6 +412,11 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
 ///     msg::send_bytes_with_gas(id, b"HELLO", 1000, 12345678);
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
 pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -468,6 +477,13 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 ///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`send`](crate::msg::send) allows to send message in one step.
+///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
 pub fn send_commit_with_gas(
     handle: MessageHandle,
     program: ActorId,
