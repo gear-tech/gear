@@ -1,4 +1,4 @@
-use crate::{LAZY_PAGES_ENABLED, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES, WASM_MEM_BEGIN};
+use crate::{LazyPage, LAZY_PAGES_ENABLED, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES, WASM_MEM_BEGIN};
 use cfg_if::cfg_if;
 use gear_core::memory::{PageBuf, PageNumber, WasmPageNumber};
 use region::Protection;
@@ -28,8 +28,8 @@ pub enum ExceptionHandlerError {
         wasm_mem_begin: usize,
         native_page: usize,
     },
-    #[display(fmt = "Exception is from unknown memory: {:#x}", page)]
-    LazyPagesUnknownInfo { page: u32 },
+    #[display(fmt = "Exception is from unknown memory: {}", page)]
+    UnknownInfoPage { page: LazyPage },
     #[display(
         fmt = "Page data must contain {} bytes, actually has {}",
         expected,
@@ -37,7 +37,7 @@ pub enum ExceptionHandlerError {
     )]
     InvalidPageSize { expected: usize, actual: u32 },
     #[display(fmt = "Page #{} cannot be released twice", _0)]
-    PageDoubleRelease(u32),
+    PageDoubleRelease(LazyPage),
     #[display(fmt = "Protection error: {}", _0)]
     #[from]
     Protect(region::Error),
@@ -107,21 +107,21 @@ pub unsafe fn memory_exception_handler(info: ExceptionInfo) -> Result<(), Except
     region::protect(unprot_addr as *mut (), unprot_size, Protection::READ_WRITE)?;
 
     for idx in 0..gear_pages_num as u32 {
-        let page = gear_page.0 + idx;
+        let page = LazyPage::from(gear_page) + idx;
 
-        let hash_key_in_storage = LAZY_PAGES_INFO
-            .with(|info| info.borrow_mut().remove(&page))
-            .ok_or(ExceptionHandlerError::LazyPagesUnknownInfo { page })?;
-
+        let hash_key_in_storage = page.take_info()?;
         let ptr = (unprot_addr as *mut u8).add(idx as usize * gear_ps);
         let buffer_as_slice = std::slice::from_raw_parts_mut(ptr, gear_ps);
 
         let res = sp_io::storage::read(&hash_key_in_storage, buffer_as_slice, 0);
 
         if res.is_none() {
-            log::trace!("Page {:?} has no data in storage, so just save current page data to released pages", page);
+            log::trace!(
+                "Page #{} has no data in storage, so just save current page data to released pages",
+                page
+            );
         } else {
-            log::trace!("Page {:?} has data in storage, so set this data for page and save it in released pages", page);
+            log::trace!("Page #{} has data in storage, so set this data for page and save it in released pages", page);
         }
 
         if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
@@ -131,33 +131,9 @@ pub unsafe fn memory_exception_handler(info: ExceptionInfo) -> Result<(), Except
             });
         }
 
-        RELEASED_LAZY_PAGES.with(|released_pages| {
-            let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
-                .expect("Cannot panic here, because we create slice with PageBuf size");
-            // Restrict any page handling in signal handler more then one time.
-            // If some page will be released twice it means, that this page has been added
-            // to lazy pages more then one time during current execution.
-            // This situation may cause problems with memory data update in storage.
-            // For example: one page has no data in storage, but allocated for current program.
-            // Let's make some action for it:
-            // 1) Change data in page: Default data  ->  Data1
-            // 2) Free page
-            // 3) Alloc page, data will Data2 (may be equal Data1).
-            // 4) After alloc we can set page as lazy, to identify wether page is changed after allocation.
-            // This means that we can skip page update in storage in case it wasnt changed after allocation.
-            // 5) Write some data in page but do not change it Data2 -> Data2.
-            // During this step signal handler writes Data2 as data for released page.
-            // 6) After execution we will have Data2 in page. And Data2 in released. So, nothing will be updated
-            // in storage. But program may have some significant data for next execution - so we have a bug.
-            // To avoid this we restrict double releasing.
-            // You can also check another cases in test: memory_access_cases.
-            let res = released_pages.borrow_mut().insert(page, Some(page_buf));
-            if res.is_some() {
-                Err(ExceptionHandlerError::PageDoubleRelease(page))
-            } else {
-                Ok(())
-            }
-        })?;
+        let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
+            .expect("Cannot panic here, because we create slice with PageBuf size");
+        page.release(page_buf)?;
     }
 
     Ok(())
