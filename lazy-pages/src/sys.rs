@@ -1,6 +1,6 @@
-use crate::{LazyPage, LAZY_PAGES_ENABLED, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES, WASM_MEM_BEGIN};
+use crate::{LazyPage, LazyPageError, WASM_MEM_BEGIN};
 use cfg_if::cfg_if;
-use gear_core::memory::{PageBuf, PageNumber, WasmPageNumber};
+use gear_core::memory::{PageBuf, PageNumber};
 use region::Protection;
 
 cfg_if! {
@@ -16,7 +16,7 @@ cfg_if! {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum ExceptionHandlerError {
+pub enum Error {
     #[display(fmt = "WASM memory begin address is not set")]
     WasmBeginIsNotSet,
     #[display(
@@ -28,19 +28,18 @@ pub enum ExceptionHandlerError {
         wasm_mem_begin: usize,
         native_page: usize,
     },
-    #[display(fmt = "Exception is from unknown memory: {}", page)]
-    UnknownInfoPage { page: LazyPage },
     #[display(
         fmt = "Page data must contain {} bytes, actually has {}",
         expected,
         actual
     )]
     InvalidPageSize { expected: usize, actual: u32 },
-    #[display(fmt = "Page #{} cannot be released twice", _0)]
-    PageDoubleRelease(LazyPage),
     #[display(fmt = "Protection error: {}", _0)]
     #[from]
     Protect(region::Error),
+    #[display(fmt = "Lazy page error: {}", _0)]
+    #[from]
+    LazyPage(LazyPageError),
 }
 
 #[derive(Debug)]
@@ -60,7 +59,7 @@ pub struct ExceptionInfo {
 /// After signal handler is done, OS returns execution to the same machine
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
-pub unsafe fn memory_exception_handler(info: ExceptionInfo) -> Result<(), ExceptionHandlerError> {
+pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     let native_ps = region::page::size();
     let gear_ps = PageNumber::size();
 
@@ -71,11 +70,11 @@ pub unsafe fn memory_exception_handler(info: ExceptionInfo) -> Result<(), Except
     let wasm_mem_begin = WASM_MEM_BEGIN.with(|x| *x.borrow()) as usize;
 
     if wasm_mem_begin == 0 {
-        return Err(ExceptionHandlerError::WasmBeginIsNotSet);
+        return Err(Error::WasmBeginIsNotSet);
     }
 
     if wasm_mem_begin > native_page {
-        return Err(ExceptionHandlerError::UnknownMemory {
+        return Err(Error::UnknownMemory {
             wasm_mem_begin,
             native_page,
         });
@@ -125,7 +124,7 @@ pub unsafe fn memory_exception_handler(info: ExceptionInfo) -> Result<(), Except
         }
 
         if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
-            return Err(ExceptionHandlerError::InvalidPageSize {
+            return Err(Error::InvalidPageSize {
                 expected: PageNumber::size(),
                 actual: size,
             });
@@ -137,49 +136,4 @@ pub unsafe fn memory_exception_handler(info: ExceptionInfo) -> Result<(), Except
     }
 
     Ok(())
-}
-
-/// Initialize lazy pages:
-/// 1) checks whether lazy pages is supported in current environment
-/// 2) set signals handler
-pub unsafe fn init() -> bool {
-    if LAZY_PAGES_ENABLED.with(|x| *x.borrow()) {
-        log::trace!("Lazy-pages has been already enabled");
-        return true;
-    }
-
-    if !LAZY_PAGES_INFO.with(|x| x.borrow().is_empty()) {
-        log::error!("Lazy pages info must be empty before initialization");
-        return false;
-    }
-
-    if !WASM_MEM_BEGIN.with(|x| *x.borrow() == 0) {
-        log::error!("Wasm mem begin must be 0 before initialization");
-        return false;
-    }
-
-    if !RELEASED_LAZY_PAGES.with(|x| x.borrow().is_empty()) {
-        log::error!("Released lazy pages must be empty before initialization");
-        return false;
-    }
-
-    let ps = region::page::size();
-    if ps > WasmPageNumber::size()
-        || WasmPageNumber::size() % ps != 0
-        || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
-        || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
-    {
-        log::debug!("Unsupported native pages size: {:#x}", ps);
-        return false;
-    }
-
-    if let Err(err) = setup_memory_exception_handler() {
-        log::debug!("Failed to setup memory exception handler: {}", err);
-        return false;
-    }
-
-    log::debug!("Lazy pages are successfully enabled");
-    LAZY_PAGES_ENABLED.with(|x| *x.borrow_mut() = true);
-
-    true
 }
