@@ -155,6 +155,53 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
     generate_handle_reply_if_required(code)
 }
 
+/// Extends async methods `for_reply` and `for_reply_as` for sending
+/// methods.
+///
+/// # Usage
+///
+/// ```ignore
+/// #[wait_for_reply]
+/// pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
+///   gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
+/// }
+/// ```
+///
+/// outputs:
+///
+/// ```
+/// /// Same as [`reply_bytes`](crate::msg::basic::reply_bytes), but the program
+/// /// will interrupt until the reply is received.
+/// ///
+/// /// # See also
+/// ///
+/// /// - [`reply_bytes_for_reply_as`](crate::msg::basic::reply_bytes_for_reply_as)
+/// pub async fn reply_bytes_for_reply(
+///     payload: impl AsRef<[u8]>,
+///     value: u128,
+/// ) -> Result<Vec<u8>> {
+///     let waiting_reply_to = reply_bytes(payload, value)?;
+///     signals().register_signal(waiting_reply_to);
+///     MessageFuture { waiting_reply_to }.await
+/// }
+///
+/// /// Same as [`reply_bytes`](crate::msg::basic::reply_bytes), but the program
+/// /// will interrupt until the reply is received.
+/// ///
+/// /// The output should be decodable via [`SCALE CODEC`].
+/// ///
+/// /// # See also
+/// ///
+/// /// - [`reply_bytes_for_reply`](crate::msg::basic::reply_bytes_for_reply)
+/// /// - https://docs.substrate.io/v3/advanced/scale-codec
+/// pub async fn reply_bytes_for_reply_as<D: Decode>(
+///     payload: impl AsRef<[u8]>,
+///     value: u128,
+/// ) -> Result<D> {
+///     D::decode(&mut reply_bytes_for_reply(payload, value).await?.as_ref())
+///         .map_err(ContractError::Decode)
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);

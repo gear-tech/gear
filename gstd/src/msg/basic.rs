@@ -219,16 +219,19 @@ pub fn load_bytes() -> Vec<u8> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
 }
 
 /// Same as [`replay`], without encoding payload.
+#[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
 /// Same as [`replay_bytes`], with gas limit.
+#[wait_for_reply]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
@@ -267,6 +270,7 @@ pub fn reply_bytes_with_gas(
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
 pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
@@ -301,6 +305,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
 }
@@ -386,6 +391,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
+// #[wait_for_reply]
 pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
@@ -422,6 +428,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
+#[wait_for_reply]
 pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -503,6 +510,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
+#[wait_for_reply]
 pub fn send_commit_with_gas(
     handle: MessageHandle,
     program: ActorId,

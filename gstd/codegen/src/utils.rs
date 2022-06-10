@@ -105,6 +105,11 @@ pub fn append_generic(mut generics: Generics, ident: Ident, traits: Vec<Ident>) 
         )
     }
 
+    // push `Comma` if there is any generic params
+    if generics.params.len() > 0 {
+        generics.params.push_punct(Token![,](Span::call_site()));
+    }
+
     generics.params.push_value(
         TypeParam {
             attrs: Default::default(),
