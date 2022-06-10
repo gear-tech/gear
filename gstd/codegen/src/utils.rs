@@ -16,7 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use proc_macro2::Span;
-use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, Ident};
+use syn::{
+    parse_quote,
+    punctuated::Punctuated,
+    token::{Add, Comma},
+    Expr, Generics, Ident, PathArguments, PathSegment, Token, TraitBound, TraitBoundModifier,
+    TypeParam, TypeParamBound,
+};
 
 const SPAN_CODEC: &str = "${CODEC}";
 const SPAN_ELSE: &str = "${ELSE}";
@@ -30,11 +36,17 @@ const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
  - [`${ELSE}`](crate::msg::basic::${ELSE})
 "#;
 
+/// New `Ident`
+pub fn ident(s: &str) -> Ident {
+    Ident::new(s, Span::call_site())
+}
+
 /// Appends suffix to ident
-pub fn with_suffix(ident: &Ident, suffix: &str) -> Ident {
-    let mut name = ident.to_string();
+pub fn with_suffix(i: &Ident, suffix: &str) -> Ident {
+    let mut name = i.to_string();
     name.push_str(suffix);
-    Ident::new(&name, Span::call_site())
+
+    ident(&name)
 }
 
 /// Get arguments from the inputs for function signature
@@ -68,4 +80,42 @@ pub fn wait_for_reply_docs(name: String) -> (String, String) {
             "\n\n The output should be decodable via [`SCALE CODEC`].",
         ) + " - https://docs.substrate.io/v3/advanced/scale-codec",
     )
+}
+
+/// Append new generic to `Generics`
+///
+/// # NOTE
+///
+/// Only supports `TraitBound` for now.
+pub fn append_generic(mut generics: Generics, ident: Ident, traits: Vec<Ident>) -> Generics {
+    let mut bounds: Punctuated<TypeParamBound, Add> = Punctuated::new();
+    for t in traits {
+        bounds.push_value(
+            TraitBound {
+                paren_token: None,
+                modifier: TraitBoundModifier::None,
+                lifetimes: None,
+                path: PathSegment {
+                    ident: t,
+                    arguments: PathArguments::None,
+                }
+                .into(),
+            }
+            .into(),
+        )
+    }
+
+    generics.params.push_value(
+        TypeParam {
+            attrs: Default::default(),
+            ident,
+            colon_token: Some(Token![:](Span::call_site())),
+            bounds,
+            eq_token: None,
+            default: None,
+        }
+        .into(),
+    );
+
+    generics
 }

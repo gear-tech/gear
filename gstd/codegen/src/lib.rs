@@ -173,11 +173,23 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
     let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
+    // generate generics
+    let decodeable_ty = utils::ident("D");
+    let decodeable_traits = vec![utils::ident("Decode")];
+    let (for_reply_generics, for_reply_as_generics) = (
+        function.sig.generics.clone(),
+        utils::append_generic(
+            function.sig.generics.clone(),
+            decodeable_ty,
+            decodeable_traits,
+        ),
+    );
+
     quote! {
         #function
 
         #[doc = #for_reply_docs]
-        pub async fn #for_reply ( #inputs #variadic ) -> Result<Vec<u8>> {
+        pub async fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<Vec<u8>> {
             let waiting_reply_to = #ident #args ?;
             signals().register_signal(waiting_reply_to);
 
@@ -185,7 +197,7 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #[doc = #for_reply_as_docs]
-        pub async fn #for_reply_as <D: Decode> ( #inputs #variadic ) -> Result<D> {
+        pub async fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<D> {
             D::decode(&mut #for_reply #args .await?.as_ref() ).map_err(ContractError::Decode)
         }
     }
