@@ -282,36 +282,76 @@ pub trait GearRI {
 }
 
 #[cfg(feature = "std")]
-#[cfg(unix)]
 #[test]
 fn test_mprotect_pages_vec() {
     use gear_core::memory::WasmPageNumber;
-    use libc::{c_void, siginfo_t};
-    use nix::sys::signal;
 
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
 
-    extern "C" fn handle_sigsegv(_: i32, info: *mut siginfo_t, _: *mut c_void) {
-        unsafe {
-            let mem = (*info).si_addr() as usize;
-            let ps = region::page::size();
-            let addr = ((mem / ps) * ps) as *mut c_void;
-            region::protect(addr, ps, region::Protection::WRITE).unwrap();
-            for p in 0..ps / PageNumber::size() {
-                *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
-            }
-            region::protect(addr, ps, region::Protection::READ).unwrap();
+    unsafe fn test_handler(mem: usize) {
+        let ps = region::page::size();
+        let addr = ((mem / ps) * ps) as *mut ();
+        region::protect(addr, ps, region::Protection::READ_WRITE).unwrap();
+        for p in 0..ps / PageNumber::size() {
+            *((mem + p * PageNumber::size()) as *mut u8) = NEW_VALUE;
         }
+        region::protect(addr, ps, region::Protection::READ).unwrap();
+    }
+
+    #[cfg(unix)]
+    unsafe {
+        use libc::{c_void, siginfo_t};
+        use nix::sys::signal;
+
+        extern "C" fn handle_sigsegv(_: i32, info: *mut siginfo_t, _: *mut c_void) {
+            unsafe {
+                let mem = (*info).si_addr() as usize;
+                test_handler(mem);
+            }
+        }
+
+        let sig_handler = signal::SigHandler::SigAction(handle_sigsegv);
+        let sig_action = signal::SigAction::new(
+            sig_handler,
+            signal::SaFlags::SA_SIGINFO,
+            signal::SigSet::empty(),
+        );
+        signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
+        signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
+    }
+
+    #[cfg(windows)]
+    unsafe {
+        use winapi::{
+            shared::ntdef::LONG,
+            um::{
+                errhandlingapi::SetUnhandledExceptionFilter,
+                minwinbase::EXCEPTION_ACCESS_VIOLATION, winnt::EXCEPTION_POINTERS,
+            },
+            vc::excpt::EXCEPTION_CONTINUE_EXECUTION,
+        };
+
+        unsafe extern "system" fn exception_handler(
+            exception_info: *mut EXCEPTION_POINTERS,
+        ) -> LONG {
+            let record = (*exception_info).ExceptionRecord;
+            assert_eq!((*record).ExceptionCode, EXCEPTION_ACCESS_VIOLATION);
+            assert_eq!((*record).NumberParameters, 2);
+
+            let mem = (*record).ExceptionInformation[1] as usize;
+            test_handler(mem);
+
+            EXCEPTION_CONTINUE_EXECUTION
+        }
+
+        SetUnhandledExceptionFilter(Some(exception_handler));
     }
 
     let mut v = vec![0u8; 3 * WasmPageNumber::size()];
     let buff = v.as_mut_ptr() as usize;
     let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
         * WasmPageNumber::size()) as u64;
-
-    mprotect_pages_slice(page_begin + 1, &[0, 1, 2, 3].map(LazyPage::from), true)
-        .expect_err("Must fail because page_begin + 1 is not aligned addr");
 
     let pages_to_protect = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(LazyPage::from);
     let pages_unprotected = [
@@ -330,15 +370,6 @@ fn test_mprotect_pages_vec() {
     mprotect_pages_slice(page_begin, &pages_to_protect, true).expect("Must be correct");
 
     unsafe {
-        let sig_handler = signal::SigHandler::SigAction(handle_sigsegv);
-        let sig_action = signal::SigAction::new(
-            sig_handler,
-            signal::SaFlags::SA_SIGINFO,
-            signal::SigSet::empty(),
-        );
-        signal::sigaction(signal::SIGSEGV, &sig_action).expect("Must be correct");
-        signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
-
         for &p in pages_to_protect.iter() {
             let addr = page_begin as usize + p.as_u32() as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
