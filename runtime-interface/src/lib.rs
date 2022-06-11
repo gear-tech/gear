@@ -34,8 +34,9 @@ static_assertions::const_assert!(
 
 #[cfg(feature = "std")]
 use gear_core::memory::PageNumber;
-
+#[cfg(feature = "std")]
 use gear_lazy_pages::LazyPage;
+
 pub use sp_std::{result::Result, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
@@ -114,10 +115,10 @@ unsafe fn sys_mprotect_interval(
 #[cfg(feature = "std")]
 fn mprotect_pages_slice(
     mem_addr: HostPointer,
-    pages: &[gear_lazy_pages::LazyPage],
+    pages: &[LazyPage],
     protect: bool,
 ) -> Result<(), RIError> {
-    let mprotect = |start: gear_lazy_pages::LazyPage, count, protect: bool| unsafe {
+    let mprotect = |start: LazyPage, count, protect: bool| unsafe {
         let addr = mem_addr + (start.as_u32() as usize * PageNumber::size()) as HostPointer;
         let size = count as usize * PageNumber::size();
         sys_mprotect_interval(addr, size, !protect, !protect, false)
@@ -191,21 +192,21 @@ pub trait GearRI {
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
-        gear_lazy_pages::LazyPage::from(page).set_info(key);
+        LazyPage::from(page).set_info(key);
     }
 
     // TODO: deprecated, remove before release
     fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::available_pages()
             .into_iter()
-            .map(gear_lazy_pages::LazyPage::as_u32)
+            .map(LazyPage::as_u32)
             .collect()
     }
 
     fn get_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::available_pages()
             .into_iter()
-            .map(gear_lazy_pages::LazyPage::as_u32)
+            .map(LazyPage::as_u32)
             .collect()
     }
 
@@ -267,13 +268,13 @@ pub trait GearRI {
     fn get_released_pages() -> Vec<u32> {
         gear_lazy_pages::released_pages()
             .into_iter()
-            .map(gear_lazy_pages::LazyPage::as_u32)
+            .map(LazyPage::as_u32)
             .collect()
     }
 
     // TODO: deprecated, remove before release
     fn get_released_page_old_data(page: u32) -> Vec<u8> {
-        gear_lazy_pages::LazyPage::from(page)
+        LazyPage::from(page)
             .take_data()
             .expect("Must have data for released page")
             .to_vec()
@@ -282,7 +283,7 @@ pub trait GearRI {
     // TODO: deprecated, remove before release
     #[version(2)]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
-        gear_lazy_pages::LazyPage::from(page)
+        LazyPage::from(page)
             .take_data()
             .ok_or(GetReleasedPageError)
             .map(|data| data.to_vec())
@@ -291,14 +292,12 @@ pub trait GearRI {
     // TODO: deprecated, remove before release
     #[version(3)]
     fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
-        gear_lazy_pages::LazyPage::from(page)
-            .take_data()
-            .ok_or(GetReleasedPageError)
+        LazyPage::from(page).take_data().ok_or(GetReleasedPageError)
     }
 
     #[version(4)]
     fn get_released_page_old_data(page: u32) -> Option<PageBuf> {
-        gear_lazy_pages::LazyPage::from(page).take_data()
+        LazyPage::from(page).take_data()
     }
 
     fn print_hello() {
@@ -335,18 +334,22 @@ fn test_mprotect_pages_vec() {
     let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
         * WasmPageNumber::size()) as u64;
 
-    mprotect_pages_slice(page_begin + 1, &[0, 1, 2, 3], true)
-        .expect_err("Must fail because page_begin + 1 is not aligned addr");
+    mprotect_pages_slice(
+        page_begin + 1,
+        &[0, 1, 2, 3].map(LazyPage::from),
+        true,
+    )
+    .expect_err("Must fail because page_begin + 1 is not aligned addr");
 
-    let pages_to_protect = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23];
+    let pages_to_protect = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(LazyPage::from);
     let pages_unprotected = [
         4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
-    ];
+    ].map(LazyPage::from);
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
-        for p in pages_to_protect.iter().chain(pages_unprotected.iter()) {
-            let addr = page_begin as usize + *p as usize * PageNumber::size() + 1;
+        for &p in pages_to_protect.iter().chain(pages_unprotected.iter()) {
+            let addr = page_begin as usize + p.as_u32() as usize * PageNumber::size() + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }
@@ -364,14 +367,14 @@ fn test_mprotect_pages_vec() {
         signal::sigaction(signal::SIGBUS, &sig_action).expect("Must be correct");
 
         for &p in pages_to_protect.iter() {
-            let addr = page_begin as usize + p as usize * PageNumber::size() + 1;
+            let addr = page_begin as usize + p.as_u32() as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
             // value must be changed to `NEW_VALUE` in sig handler
             assert_eq!(x, NEW_VALUE);
         }
 
         for &p in pages_unprotected.iter() {
-            let addr = page_begin as usize + p as usize * PageNumber::size() + 1;
+            let addr = page_begin as usize + p.as_u32() as usize * PageNumber::size() + 1;
             let x = *(addr as *mut u8);
             // value must not be changed
             assert_eq!(x, OLD_VALUE);
