@@ -49,9 +49,9 @@ async fn main() {
     let request = SignRequest { message };
 
     let sign_response: Result<SignResponse, _> =
-        Err(msg::send_for_reply(unsafe { SIGNATORY }, &request, 0)
+        msg::send_for_reply_as(unsafe { SIGNATORY }, &request, 0)
             .unwrap()
-            .await);
+            .await;
 
     let verified = sign_response
         .ok()
