@@ -16,37 +16,37 @@ log = { version = "0.4.17", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", optional = true }
-frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-aura = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-sudo = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-block-builder = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", default-features = false, version = "4.0.0-dev" }
-sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-core = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-inherents = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", default-features = false, version = "4.0.0-dev" }
-sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-sp-version = { version = "5.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-aura = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-sudo = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-block-builder = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, version = "4.0.0-dev" }
+sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-core = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-inherents = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, version = "4.0.0-dev" }
+sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-version = { version = "5.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # Used for the node template's RPCs
-frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
-pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # Used for runtime benchmarking
-frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", optional = true }
-frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", optional = true }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 hex-literal = { version = "0.3.4", optional = true }
 
 # Internal deps
@@ -61,7 +61,7 @@ pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, pat
 gear-common = { version = "0.1.0", default-features = false, path = "../common" }
 
 [build-dependencies]
-substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest" }
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
 default = ["std"]
