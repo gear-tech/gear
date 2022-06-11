@@ -227,31 +227,7 @@ pub trait GearRI {
         gear_lazy_pages::set_wasm_mem_begin_addr(addr);
     }
 
-    // TODO: deprecated, remove before release
     #[version(2)]
-    fn set_wasm_mem_begin_addr(addr: HostPointer) -> Result<(), RIError> {
-        #[cfg(not(unix))]
-        {
-            let _addr = addr;
-            Err(RIError::UnsupportedOS)
-        }
-
-        #[cfg(unix)]
-        {
-            if addr % region::page::size() as u64 != 0 {
-                return Err(RIError::WasmMemBufferNotAligned {
-                    addr: addr as u64,
-                    page_size: region::page::size() as u64,
-                });
-            }
-
-            gear_lazy_pages::set_wasm_mem_begin_addr(addr);
-
-            Ok(())
-        }
-    }
-
-    #[version(3)]
     fn set_wasm_mem_begin_addr(addr: HostPointer) -> Result<(), RIError> {
         if addr % region::page::size() as u64 != 0 {
             return Err(RIError::WasmMemBufferNotAligned {
