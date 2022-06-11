@@ -1,5 +1,6 @@
 use codec::Encode;
 use core::fmt;
+use std::collections::BTreeSet;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind,
 };
@@ -176,4 +177,5 @@ impl Ext for ExtImplementedStruct {
     fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
         Ok(Default::default())
     }
+    fn forbidden_funcs(&self) -> &BTreeSet<&'static str> { unreachable!() }
 }
