@@ -35,6 +35,7 @@ static_assertions::const_assert!(
 #[cfg(feature = "std")]
 use gear_core::memory::PageNumber;
 
+use gear_lazy_pages::LazyPage;
 pub use sp_std::{result::Result, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
@@ -308,7 +309,7 @@ pub trait GearRI {
 #[cfg(feature = "std")]
 #[cfg(unix)]
 #[test]
-unsafe fn test_mprotect_pages_vec() {
+fn test_mprotect_pages_vec() {
     use gear_core::memory::WasmPageNumber;
     use libc::{c_void, siginfo_t};
     use nix::sys::signal;
