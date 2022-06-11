@@ -310,17 +310,14 @@ fn test_mprotect_pages_vec() {
     let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
         * WasmPageNumber::size()) as u64;
 
-    mprotect_pages_slice(
-        page_begin + 1,
-        &[0, 1, 2, 3].map(LazyPage::from),
-        true,
-    )
-    .expect_err("Must fail because page_begin + 1 is not aligned addr");
+    mprotect_pages_slice(page_begin + 1, &[0, 1, 2, 3].map(LazyPage::from), true)
+        .expect_err("Must fail because page_begin + 1 is not aligned addr");
 
     let pages_to_protect = [0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23].map(LazyPage::from);
     let pages_unprotected = [
         4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31,
-    ].map(LazyPage::from);
+    ]
+    .map(LazyPage::from);
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
