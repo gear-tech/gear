@@ -31,6 +31,7 @@ exports.getWasmMetadata = async (wasmBytes) => {
             gr_send_init: () => { },
             gr_send_push: () => { },
             gr_reply: () => { },
+            gr_reply_wgas: () => { },
             gr_reply_push: () => { },
             gr_reply_commit: () => { },
             gr_reply_to: () => { },
