@@ -11,7 +11,7 @@ rust-version = "1.56"
 
 [dependencies]
 gear-core = { path = "../core" }
-log = { version = "0.4.8", optional = true }
+log = { version = "0.4.17", optional = true }
 libc = { version = "0.2.101", default-features = false }
 sp-runtime-interface = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -20,6 +20,7 @@ errno = { version = "0.2.8", optional = true }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
 page_size = { version = "0.4.2", optional = true }
 derive_more = "0.99.17"
+static_assertions = "1"
 
 [dev-dependencies]
 libc = { version = "0.2.101", default-features = false }

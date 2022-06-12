@@ -18,6 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[macro_use]
+extern crate gear_common_codegen;
+
+pub mod event;
 pub mod lazy_pages;
 pub mod storage;
 
@@ -32,7 +36,7 @@ use core::fmt;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
-    weights::{IdentityFee, WeightToFeePolynomial},
+    weights::{IdentityFee, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -130,7 +134,7 @@ pub trait GasPrice {
     /// A price for the `gas` amount of gas.
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::calc(&gas)
+        IdentityFee::<Self::Balance>::weight_to_fee(&gas)
     }
 }
 
@@ -190,6 +194,12 @@ pub trait ValueTree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
     /// the `key` belongs to a subtree originating at such "orphan" node.
     fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
+
+    /// The id of external node for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error>;
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
     ///

@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 wasm-instrument = { version = "0.1", default-features = false }
@@ -50,19 +50,21 @@ rand = { version = "0.8", optional = true, default-features = false }
 rand_pcg = { version = "0.3", optional = true }
 
 [dev-dependencies]
+sp-externalities = { version = "0.12.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 env_logger = "0.9"
 wabt = "0.10"
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
+demo-init-wait-reply-exit = { path = "../../examples/binaries/init-wait-reply-exit" }
 demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
-demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
-demo-compose = { path = "../../examples/binaries/compose" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
+demo-compose = { path = "../../examples/binaries/compose" }
+demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 page_size = "0.4.2"
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 
@@ -82,6 +84,7 @@ std = [
 	"sp-std/std",
 	"sp-core/std",
 	"sp-runtime/std",
+	"sp-externalities/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",

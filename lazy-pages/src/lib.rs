@@ -22,8 +22,8 @@
 //! During execution data from storage is loaded for all pages, which has been accesed.
 //! See also `handle_sigsegv`.
 
-use gear_core::memory::PageBuf;
-use sp_std::{result::Result, vec::Vec};
+use gear_core::memory::{HostPointer, PageBuf};
+use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeMap};
 
 #[cfg(unix)]
@@ -38,10 +38,10 @@ thread_local! {
     /// NOTE: here we suppose, that each contract is executed in separate thread.
     /// Or may be in one thread but consequentially.
 
-    /// Identify whether signal handler is set
+    /// Identify whether signal handler is set for current thread
     static LAZY_PAGES_ENABLED: RefCell<bool> = RefCell::new(false);
     /// Pointer to the begin of wasm memory buffer
-    static WASM_MEM_BEGIN: RefCell<usize> = RefCell::new(0);
+    static WASM_MEM_BEGIN: RefCell<HostPointer> = RefCell::new(0);
     /// Key in storage for each lazy page
     static LAZY_PAGES_INFO: RefCell<BTreeMap<u32, Vec<u8>>> = RefCell::new(BTreeMap::new());
     /// Page data, which has been in storage before current execution.
@@ -60,7 +60,7 @@ pub fn get_lazy_pages_numbers() -> Vec<u32> {
 }
 
 /// Set current wasm memory begin addr
-pub fn set_wasm_mem_begin_addr(wasm_mem_begin: usize) {
+pub fn set_wasm_mem_begin_addr(wasm_mem_begin: HostPointer) {
     WASM_MEM_BEGIN.with(|x| *x.borrow_mut() = wasm_mem_begin);
 }
 
@@ -81,18 +81,9 @@ pub fn is_lazy_pages_enabled() -> bool {
     LAZY_PAGES_ENABLED.with(|x| *x.borrow())
 }
 
-#[derive(Debug)]
-pub struct GetReleasedPageError;
-
 /// Returns page data which page has in storage before execution
-pub fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
-    RELEASED_LAZY_PAGES.with(|x| {
-        x.borrow_mut()
-            .get_mut(&page)
-            .ok_or(GetReleasedPageError)?
-            .take()
-            .ok_or(GetReleasedPageError)
-    })
+pub fn get_released_page_old_data(page: u32) -> Option<PageBuf> {
+    RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().get_mut(&page)?.take())
 }
 
 pub use sys::init_lazy_pages;

@@ -134,11 +134,11 @@ jobs:
 
       - name: "Install: grcov"
         run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
-          xargs curl -L | 
+          curl https://api.github.com/repos/mozilla/grcov/releases/latest |
+          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" |
+          xargs curl -L |
           tar xj
-          
+
       - name: "Install: rust-covfix"
         run: |
           curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
@@ -225,12 +225,12 @@ jobs:
           body: |
             <details><summary>${{ github.event.pull_request.head.sha }}</summary>
             <details><summary>Pallet tests (values are in nanosegconds)</summary>
-            
+
             ${{ steps.test-performance-pallets.outputs.body }}
             </details>
-            
+
             <details><summary>Runtime tests (values are in nanoseconds)</summary>
-            
+
             ${{ steps.test-performance-runtime.outputs.body }}
             </details>
             </details>
@@ -244,12 +244,12 @@ jobs:
           body: |
             <details><summary>${{ github.event.pull_request.head.sha }}</summary>
             <details><summary>Pallet tests (values are in nanoseconds)</summary>
-            
+
             ${{ steps.test-performance-pallets.outputs.body }}
             </details>
-            
+
             <details><summary>Runtime tests (values are in nanoseconds)</summary>
-            
+
             ${{ steps.test-performance-runtime.outputs.body }}
             </details>
             </details>
@@ -275,11 +275,12 @@ jobs:
           --ignore "gcore/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
+          --ignore "common/codegen/*"
           -o ./lcov.info
-        
+
       - name: "Coverage: Fix report"
         run: ./rust-covfix -o lcov.info lcov.info
-        
+
       - name: "Coverage: Publish"
         uses: codecov/codecov-action@v1
         with:

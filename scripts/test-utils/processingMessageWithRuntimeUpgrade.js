@@ -13,18 +13,18 @@ const upload_program = (api, account, pathToDemoPing) => {
       events.forEach(({ event: { method, data } }) => {
         if (method === 'ExtrinsicFailed') {
           reject('SubmitProgram extrinsic failed');
-        } else if (method === 'InitMessageEnqueued' && status.isFinalized) {
-          resolve(data[0].programId.toHex());
+        } else if (method === 'MessageEnqueued' && status.isFinalized) {
+          resolve(data[2].toHex());
         }
       });
     });
   });
 };
 
-const getDispatchMessageEnqueuedBlock = (api, { events, status }) => {
+const getMessageEnqueuedBlock = (api, { events, status }) => {
   let blockHash = undefined;
   events.forEach(({ event }) => {
-    if (api.events.gear.DispatchMessageEnqueued.is(event)) {
+    if (api.events.gear.MessageEnqueued.is(event)) {
       blockHash = status.asInBlock.toHex();
     }
   });
@@ -37,16 +37,19 @@ const getNextBlock = async (api, hash) => {
   return api.rpc.chain.getBlockHash(blockNumber + 1);
 };
 
-const listenToInit = (api) => {
+const listenToProgramChanged = async (api) => {
   const success = [];
-  api.query.system.events((events) => {
+  const unsubscribe = await api.query.system.events((events) => {
     events
-      .filter(({ event }) => api.events.gear.InitSuccess.is(event))
+      .filter(({ event }) => api.events.gear.ProgramChanged.is(event))
       .forEach(({ event: { data } }) => {
-        success.push(data[0].programId.toHex());
+        if (data[1].isActive) {
+          success.push(data[0].toHex());
+        }
       });
   });
   return (programId) => {
+    unsubscribe();
     if (success.includes(programId)) {
       return true;
     } else {
@@ -55,11 +58,11 @@ const listenToInit = (api) => {
   };
 };
 
-const messageDequeuedIsOccured = async (api, hash) => {
+const messageDispatchedIsOccurred = async (api, hash) => {
   const apiAt = await api.at(hash);
   const events = await apiAt.query.system.events();
   return new Promise((resolve) => {
-    if (events.filter(({ event }) => api.events.gear.MessagesDequeued.is(event)).length > 0) {
+    if (events.filter(({ event }) => api.events.gear.MessagesDispatched.is(event)).length > 0) {
       resolve(true);
     } else {
       resolve(false);
@@ -77,7 +80,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   // Check that it is root
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
-  const isInitialized = listenToInit(api);
+  const isInitialized = await listenToProgramChanged(api);
   // Upload demo_ping
   const programId = await upload_program(api, account, pathToDemoPing);
   // Check that demo_ping was initialized
@@ -86,7 +89,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
   const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
-  const setCodeUnchekedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
+  const setCodeUncheckedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
   // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
   const message = api.tx.gear.sendMessage(programId, 'PING', 200_000_000_000, 0);
@@ -94,9 +97,9 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   let codeUpdatedBlock = undefined;
   let messages = [undefined, undefined];
   await new Promise((resolve) => {
-    api.tx.utility.batchAll([setCodeUnchekedWeight, message]).signAndSend(account, (events) => {
+    api.tx.utility.batchAll([setCodeUncheckedWeight, message]).signAndSend(account, (events) => {
       if (events.status.isInBlock) {
-        messages[0] = getDispatchMessageEnqueuedBlock(api, events);
+        messages[0] = getMessageEnqueuedBlock(api, events);
         events.events.forEach(({ event }) => {
           if (api.events.system.CodeUpdated.is(event)) {
             codeUpdatedBlock = events.status.asInBlock.toHex();
@@ -104,7 +107,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
         });
         message.signAndSend(account, (secondTxEvents) => {
           if (secondTxEvents.status.isInBlock) {
-            messages[1] = getDispatchMessageEnqueuedBlock(api, secondTxEvents);
+            messages[1] = getMessageEnqueuedBlock(api, secondTxEvents);
             resolve();
           }
         });
@@ -115,7 +118,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   assert.notEqual(messages[0], messages[1], 'both sendMessage txs were processed in the same block');
   assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not processed successfully');
   assert.notEqual(
-    await messageDequeuedIsOccured(api, await getNextBlock(api, codeUpdatedBlock)),
+    await messageDispatchedIsOccurred(api, await getNextBlock(api, codeUpdatedBlock)),
     true,
     'A message was processed in the next block after CodeUpdated event',
   );
@@ -135,17 +138,17 @@ main(pathToRuntimeCode, pathToDemoPing)
     exitCode = 1;
   })
   .finally(() => {
-    exec("kill -9 $(pgrep -a gear-node)", (err, stdout, stderr) => {
+    exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
       if (err) {
         console.log(`Unable to execute kill command`);
       }
 
-      if (exitCode == 0) {
-        console.log('✅ Test passed');
-      } else {
-        console.log('❌ Test failed');
-      }
+    if (exitCode == 0) {
+      console.log('✅ Test passed');
+    } else {
+      console.log('❌ Test failed');
+    }
 
-      process.exit(exitCode);
+    process.exit(exitCode);
     });
   });

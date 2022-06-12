@@ -59,7 +59,7 @@ pub trait MapStorage {
     fn remove(key: Self::Key);
 
     /// Removes all values.
-    fn remove_all();
+    fn clear();
 
     /// Gets value stored under given key, if present,
     /// and removes it from storage.
@@ -86,7 +86,7 @@ macro_rules! wrap_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty) => {
         wrap_storage_map!(storage: $storage, name: $name, key: $key, value: $val, counted None);
     };
-    (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty, counted $($rm_arg:expr)?) => {
+    (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty,) => {
         pub struct $name<T>(PhantomData<T>);
 
         impl<T: crate::Config> MapStorage for $name<T> {
@@ -118,8 +118,8 @@ macro_rules! wrap_storage_map {
                 $storage::<T>::remove(key)
             }
 
-            fn remove_all() {
-                $storage::<T>::remove_all($($rm_arg)?);
+            fn clear() {
+                let _ = $storage::<T>::clear(u32::MAX, None);
             }
 
             fn take(key: Self::Key) -> Option<Self::Value> {
@@ -137,13 +137,7 @@ macro_rules! wrap_storage_map {
 #[macro_export]
 macro_rules! wrap_counted_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty, length: $len: ty) => {
-        $crate::wrap_storage_map!(
-            storage: $storage,
-            name: $name,
-            key: $key,
-            value: $val,
-            counted
-        );
+        $crate::wrap_storage_map!(storage: $storage, name: $name, key: $key, value: $val,);
 
         impl<T: crate::Config> Counted for $name<T> {
             type Length = $len;

@@ -43,7 +43,7 @@ unsafe fn room(room_msg: RoomMessage) {
         Join { under_name } => {
             let under_name = String::from_utf8(under_name).expect("Invalid utf-8");
 
-            debug!("ROOM '{}': '{}' joined", STATE.room_name(), under_name,);
+            debug!("ROOM '{}': '{}' joined", STATE.room_name(), under_name);
             STATE.add_member((msg::source(), under_name));
         }
         Yell { text } => {

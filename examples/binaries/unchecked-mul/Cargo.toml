@@ -1,0 +1,19 @@
+[package]
+name = "demo-unchecked-mul"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+workspace = "../../../"
+
+[dependencies]
+gstd = { path = "../../../gstd", features = ["debug"] }
+
+[build-dependencies]
+gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+
+[lib]
+
+[features]
+std = []
+default = ["std"]

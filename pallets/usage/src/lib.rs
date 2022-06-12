@@ -275,7 +275,7 @@ pub mod pallet {
                          WaitlistOf::<T>::remove(ProgramId::from_origin(program_id), MessageId::from_origin(message_id)).ok().and_then(|(dispatch, bn)| {
                             let duration: u32 = current_block.saturating_sub(bn).saturated_into::<u32>();
                             let chargeable_amount =
-                            <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
+                                <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
                                 Ok(maybe_limit) => {
@@ -393,14 +393,25 @@ pub mod pallet {
 
                             if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination()) {
                                 // Enqueue the trap reply message
-                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                if let Err(e) = <T as pallet_gear::Config>::GasHandler::split(
                                     msg_id.into_origin(),
                                     trap_message_id.into_origin(),
-                                );
+                                ) {
+                                    log::debug!(
+                                        target: "essential",
+                                        "Failed to create value node for trap reply message: {:?}",
+                                        e,
+                                    );
+                                }
 
                                 QueueOf::<T>::queue(dispatch)
                                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                             } else if MailboxOf::<T>::insert(dispatch.into_parts().1).is_err() {
+                                    // TODO: update logic of insertion into mailbox following new
+                                    // flow and deposit appropriate event (issue #1010).
+
+                                    // TODO: deposit appropriate (Gear) event,
+                                    // instead of silent insertion.
                                     log::debug!("Duplicate mailbox message");
                                 }
 

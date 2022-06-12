@@ -231,7 +231,7 @@ where
 
     let dispatch = dispatch.into_stored();
 
-    QueueOf::<T>::remove_all();
+    QueueOf::<T>::clear();
 
     QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
 
@@ -449,6 +449,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -534,6 +535,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -586,6 +588,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -625,6 +628,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -666,6 +670,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -705,6 +710,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -748,6 +754,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -788,6 +795,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -827,6 +835,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -879,6 +888,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -942,6 +952,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -1010,6 +1021,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -1061,6 +1073,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -1114,6 +1127,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -1166,6 +1180,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1232,6 +1247,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1296,6 +1312,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1374,6 +1391,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1451,6 +1469,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1518,6 +1537,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1582,6 +1602,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
 
@@ -1766,6 +1787,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1820,6 +1842,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
 
@@ -1877,6 +1900,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
 
@@ -1942,6 +1966,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1996,6 +2021,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -2049,6 +2075,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -2118,6 +2145,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -2293,6 +2321,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
