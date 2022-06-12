@@ -615,13 +615,13 @@ fn memory_access_cases() {
             code,
             salt,
             EMPTY_PAYLOAD.to_vec(),
-            500_000_000,
+            50_000_000_000,
             0,
         )
         .map(|_| prog_id);
         let pid = res.expect("submit result is not ok");
 
-        run_to_block(2, Some(1_000_000_000));
+        run_to_block(2, None);
         assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -630,12 +630,12 @@ fn memory_access_cases() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            10_000_000_000,
             0,
         );
         assert_ok!(res);
 
-        run_to_block(3, Some(1_000_000_000));
+        run_to_block(3, None);
         assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -644,12 +644,12 @@ fn memory_access_cases() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            10_000_000_000,
             0,
         );
         assert_ok!(res);
 
-        run_to_block(4, Some(1_000_000_000));
+        run_to_block(4, None);
         assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
@@ -715,7 +715,7 @@ fn lazy_pages() {
                 code,
                 salt,
                 EMPTY_PAYLOAD.to_vec(),
-                500_000_000,
+                10_000_000_000,
                 0,
             )
             .map(|_| prog_id);
@@ -723,7 +723,7 @@ fn lazy_pages() {
             res.expect("submit result was asserted")
         };
 
-        run_to_block(2, Some(1_000_000_000));
+        run_to_block(2, None);
         log::debug!("submit done {:?}", pid);
         assert_last_dequeued(1);
 
@@ -731,13 +731,13 @@ fn lazy_pages() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            10_000_000_000,
             1000,
         );
         log::debug!("res = {:?}", res);
         assert_ok!(res);
 
-        run_to_block(3, Some(1_000_000_000));
+        run_to_block(3, None);
 
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
@@ -866,7 +866,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 1076960017 + 11542110 - 1; // calc gas pid1 + pid2 - 1
+        let remaining_weight = 1080476846 + 41640740 - 1; // calc gas pid1 + pid2 - 1
 
         // Submit programs and get their ids
         let pid1 = {
@@ -1395,7 +1395,7 @@ fn claim_value_from_mailbox_works() {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
         let claimer_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_sent = 5_000_000_000;
+        let gas_sent = 10_000_000_000;
         let value_sent = 1000;
 
         let prog_id = {
@@ -1674,7 +1674,7 @@ fn messages_to_uninitialized_program_wait() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -1715,7 +1715,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1737,7 +1737,7 @@ fn uninitialized_program_should_accept_replies() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0,
         ));
 
@@ -1760,7 +1760,7 @@ fn defer_program_initialization() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1777,7 +1777,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0,
         ));
 
@@ -1787,7 +1787,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1),
             program_id,
             vec![],
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1818,7 +1818,7 @@ fn wake_messages_after_program_inited() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1834,7 +1834,7 @@ fn wake_messages_after_program_inited() {
                 Origin::signed(USER_3),
                 program_id,
                 vec![],
-                2_000_000_000u64,
+                5_000_000_000u64,
                 0u128
             ));
         }
@@ -1965,7 +1965,7 @@ fn test_create_program_no_code_hash() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -1974,7 +1974,7 @@ fn test_create_program_no_code_hash() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -1993,12 +1993,12 @@ fn test_create_program_no_code_hash() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (valid_code_hash, b"salt1".to_vec(), 2_000_000_000),
-                (valid_code_hash, b"salt2".to_vec(), 2_000_000_000),
-                (valid_code_hash, b"salt3".to_vec(), 2_000_000_000),
+                (valid_code_hash, b"salt1".to_vec(), 5_000_000_000),
+                (valid_code_hash, b"salt2".to_vec(), 5_000_000_000),
+                (valid_code_hash, b"salt3".to_vec(), 5_000_000_000),
             ])
             .encode(),
-            20_000_000_000,
+            100_000_000_000,
             0,
         ));
         run_to_block(3, None);
@@ -2023,12 +2023,12 @@ fn test_create_program_no_code_hash() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (invalid_prog_code_hash, b"salt1".to_vec(), 2_000_000_000),
-                (invalid_prog_code_hash, b"salt2".to_vec(), 2_000_000_000),
-                (invalid_prog_code_hash, b"salt3".to_vec(), 2_000_000_000),
+                (invalid_prog_code_hash, b"salt1".to_vec(), 5_000_000_000),
+                (invalid_prog_code_hash, b"salt2".to_vec(), 5_000_000_000),
+                (invalid_prog_code_hash, b"salt3".to_vec(), 5_000_000_000),
             ])
             .encode(),
-            20_000_000_000,
+            100_000_000_000,
             0,
         ));
 
@@ -2061,7 +2061,7 @@ fn test_create_program_simple() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -2071,7 +2071,7 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(3, None);
@@ -2084,7 +2084,7 @@ fn test_create_program_simple() {
                 vec![(child_code_hash, b"some_data".to_vec(), 300_000)] // too little gas
             )
             .encode(),
-            4_000_000_000,
+            10_000_000_000,
             0,
         ));
         run_to_block(4, None);
@@ -2101,11 +2101,11 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 1_000_000),
-                (child_code_hash, b"salt2".to_vec(), 1_000_000),
+                (child_code_hash, b"salt1".to_vec(), 100_000_000),
+                (child_code_hash, b"salt2".to_vec(), 100_000_000),
             ])
             .encode(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(5, None);
@@ -2119,7 +2119,7 @@ fn test_create_program_simple() {
                 (child_code_hash, b"salt4".to_vec(), 300_000), // too little gas
             ])
             .encode(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(6, None);
@@ -2336,7 +2336,7 @@ fn test_create_program_miscellaneous() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2347,13 +2347,13 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child1_code_hash, b"salt1".to_vec(), 1_000_000),
+                (child1_code_hash, b"salt1".to_vec(), 100_000_000),
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child1_code_hash, b"salt2".to_vec(), 100_000),
             ])
             .encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2367,10 +2367,10 @@ fn test_create_program_miscellaneous() {
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 300_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt2".to_vec(), 1_000_000),
+                (child2_code_hash, b"salt2".to_vec(), 100_000_000),
             ])
             .encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2381,12 +2381,12 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 1_000_000),
+                (child2_code_hash, b"salt1".to_vec(), 100_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt3".to_vec(), 1_000_000),
+                (child2_code_hash, b"salt3".to_vec(), 100_000_000),
             ])
             .encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2412,7 +2412,7 @@ fn exit_handle() {
             code.clone(),
             vec![],
             Vec::new(),
-            400_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -2469,7 +2469,7 @@ fn no_redundant_gas_value_after_exiting() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -2526,7 +2526,7 @@ fn init_wait_reply_exit_cleaned_storage() {
             WASM_BINARY.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
         let pid = get_last_program_id();
@@ -2597,7 +2597,7 @@ fn paused_program_keeps_id() {
             code.clone(),
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2638,7 +2638,7 @@ fn messages_to_paused_program_skipped() {
             code,
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2678,7 +2678,7 @@ fn replies_to_paused_program_skipped() {
             code,
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2726,7 +2726,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2741,7 +2741,7 @@ fn program_messages_to_paused_program_skipped() {
                 destination: paused_program_id.into_origin().into()
             }
             .encode(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             1_000u128
         ));
 
@@ -2757,7 +2757,7 @@ fn program_messages_to_paused_program_skipped() {
             Origin::signed(USER_3),
             program_id,
             vec![],
-            2_000_000_000u64,
+            20_000_000_000u64,
             1_000u128
         ));
 
@@ -2786,7 +2786,7 @@ fn resume_program_works() {
             code,
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2803,7 +2803,7 @@ fn resume_program_works() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            2_000_000_000u64,
+            20_000_000_000u64,
             1_000u128,
         ));
 
@@ -2864,7 +2864,7 @@ fn gas_spent_vs_balance() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2879,7 +2879,7 @@ fn gas_spent_vs_balance() {
             Origin::signed(USER_1),
             prog_id,
             request.clone(),
-            100_000_000,
+            1_000_000_000,
             0
         ));
 
@@ -2994,7 +2994,7 @@ fn test_two_contracts_composition_works() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract_a".to_vec(),
             50_u64.encode(),
-            400_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -3003,7 +3003,7 @@ fn test_two_contracts_composition_works() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract_b".to_vec(),
             75_u64.encode(),
-            400_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -3016,7 +3016,7 @@ fn test_two_contracts_composition_works() {
                 <[u8; 32]>::from(contract_b_id)
             )
                 .encode(),
-            400_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -3349,7 +3349,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract".to_vec(),
             50_u64.encode(),
-            800_000_000,
+            5_000_000_000,
             0,
         ));
 
@@ -3358,7 +3358,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             <[u8; 32]>::from(contract_id).encode(),
-            800_000_000,
+            5_000_000_000,
             0,
         ));
 
@@ -3494,7 +3494,7 @@ mod utils {
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 100_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
 

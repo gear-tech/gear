@@ -90,7 +90,7 @@ fn debug_mode_works() {
             code_1.clone(),
             b"salt".to_vec(),
             Vec::new(),
-            100_000_000_u64,
+            10_000_000_000_u64,
             0_u128,
         )
         .expect("Failed to submit program");
@@ -142,7 +142,7 @@ fn debug_mode_works() {
             code_2.clone(),
             b"salt".to_vec(),
             Vec::new(),
-            100_000_000_u64,
+            10_000_000_000_u64,
             0_u128,
         )
         .expect("Failed to submit program");
@@ -180,7 +180,7 @@ fn debug_mode_works() {
             Origin::signed(1),
             program_id_1,
             vec![],
-            100_000_000_u64,
+            1_000_000_000_u64,
             0_u128,
         )
         .expect("Failed to send message");
@@ -191,7 +191,7 @@ fn debug_mode_works() {
             Origin::signed(1),
             program_id_2,
             vec![],
-            100_000_000_u64,
+            1_000_000_000_u64,
             0_u128,
         )
         .expect("Failed to send message");
