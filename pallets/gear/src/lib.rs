@@ -497,24 +497,26 @@ pub mod pallet {
         /// Submit code for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
         pub fn submit_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+
             let who = ensure_signed(origin)?;
 
             let schedule = T::Schedule::get();
 
-            let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                log::debug!("Module failed to load: {:?}", e);
+            let code = Code::new_raw(code, schedule.instruction_weights.version, None)
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let code = Code::new_raw(code, schedule.instruction_weights.version, Some(module))
-                .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
-                })?;
+            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
-            let code_hash = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
-
-            Self::deposit_event(Event::CodeSaved(code_hash));
+            // TODO: replace this temporary (`None`) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
+            Self::deposit_event(Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active { expiration: None },
+            });
 
             Ok(().into())
         }

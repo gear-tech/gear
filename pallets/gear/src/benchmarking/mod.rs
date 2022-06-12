@@ -1670,6 +1670,7 @@ benchmarks! {
                     gas_allowance,
                     outgoing_limit,
                     Default::default(),
+                    Default::default(),
                 );
     }
 
@@ -1731,6 +1732,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
     }
@@ -2233,6 +2235,7 @@ benchmarks! {
                     program_id,
                     gas_allowance,
                     outgoing_limit,
+                    Default::default(),
                     Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
