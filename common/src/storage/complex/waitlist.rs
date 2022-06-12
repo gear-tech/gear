@@ -57,7 +57,7 @@ pub trait Waitlist {
     ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError>;
 
     /// Removes all values from all key's waitlisted.
-    fn remove_all();
+    fn clear();
 }
 
 /// Represents store of waitlist's action callbacks.
@@ -156,8 +156,8 @@ where
         }
     }
 
-    fn remove_all() {
-        T::remove_all()
+    fn clear() {
+        T::clear()
     }
 }
 

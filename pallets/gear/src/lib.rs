@@ -600,7 +600,7 @@ pub mod pallet {
 
             let dispatch = dispatch.into_stored();
 
-            QueueOf::<T>::remove_all();
+            QueueOf::<T>::clear();
 
             QueueOf::<T>::queue(dispatch).map_err(|_| b"Messages storage corrupted".to_vec())?;
 
@@ -1079,7 +1079,6 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
-        #[frame_support::transactional]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1157,7 +1156,6 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
-        #[frame_support::transactional]
         pub fn submit_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
@@ -1289,7 +1287,6 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
-        #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
@@ -1392,7 +1389,6 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been created.
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-        #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -1495,7 +1491,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[frame_support::transactional]
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
