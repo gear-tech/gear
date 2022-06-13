@@ -86,7 +86,7 @@ impl GearRuntimeTestCmd {
                             let output = run_fixture(test, fixture);
                             let elapsed = now.elapsed();
 
-                            MailboxOf::<Runtime>::remove_all();
+                            MailboxOf::<Runtime>::clear();
 
                             println!("Fixture {}: {}", fixture.title.bold(), output);
                             if !output.contains("Ok") && !output.contains("Skip") {

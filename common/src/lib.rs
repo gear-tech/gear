@@ -36,7 +36,7 @@ use core::fmt;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
-    weights::{IdentityFee, WeightToFeePolynomial},
+    weights::{IdentityFee, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -134,7 +134,7 @@ pub trait GasPrice {
     /// A price for the `gas` amount of gas.
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::calc(&gas)
+        IdentityFee::<Self::Balance>::weight_to_fee(&gas)
     }
 }
 

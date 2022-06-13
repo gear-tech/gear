@@ -376,6 +376,11 @@ impl AllocationsContext {
     pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
         &self.allocations
     }
+
+    /// Returns number of static pages.
+    pub fn static_pages(&self) -> WasmPageNumber {
+        self.static_pages
+    }
 }
 
 #[cfg(test)]
