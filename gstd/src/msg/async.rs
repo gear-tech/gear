@@ -43,9 +43,9 @@ use futures::future::FusedFuture;
 /// does not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct CodecMessageFuture<T> {
-    /// waiting reply to this the message id
+    /// Waiting reply to this the message id
     pub waiting_reply_to: MessageId,
-    /// marker
+    /// Marker
     pub phantom: PhantomData<T>,
 }
 
@@ -84,7 +84,7 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// not equal 0. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 pub struct MessageFuture {
-    /// waiting reply to this the message id
+    /// Waiting reply to this the message id
     pub waiting_reply_to: MessageId,
 }
 
