@@ -500,7 +500,9 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
-            Self::get_gas_spent_impl(source, kind, payload, value)
+            let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+            Self::get_gas_spent_impl(source, kind, initial_gas, payload, value)
+                .map(|(gas, _, _)| gas)
         }
 
         #[cfg(test)]
@@ -509,27 +511,35 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
-            mock::run_with_ext_copy(|| Self::get_gas_spent_impl(source, kind, payload, value))
+        ) -> Result<(u64, u64, u128), Vec<u8>> {
+            let (gas, _, _) = mock::run_with_ext_copy(|| {
+                let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+                Self::get_gas_spent_impl(source, kind.clone(), initial_gas, payload.clone(), value)
+            })?;
+
+            mock::run_with_ext_copy(|| {
+                Self::get_gas_spent_impl(source, kind, gas, payload, value)
+                    .map(|(_, burnt, balance)| (gas, burnt, balance))
+            })
         }
 
         fn get_gas_spent_impl(
             source: H256,
             kind: HandleKind,
+            initial_gas: u64,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
+        ) -> Result<(u64, u64, u128), Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
-            let balance = <T as Config>::Currency::total_balance(&account);
+            let balance = <T as Config>::Currency::free_balance(&account);
             let max_balance: BalanceOf<T> = u128::MAX.unique_saturated_into();
             <T as Config>::Currency::deposit_creating(
                 &account,
                 max_balance.saturating_sub(balance),
             );
 
-            let who = frame_support::dispatch::RawOrigin::Signed(account);
-            let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+            let who = frame_support::dispatch::RawOrigin::Signed(account.clone());
             let value: BalanceOf<T> = value.unique_saturated_into();
 
             QueueOf::<T>::clear();
@@ -563,6 +573,7 @@ pub mod pallet {
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let mut max_gas_spent = 0;
+            let mut burnt = 0;
 
             let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
@@ -645,21 +656,34 @@ pub mod pallet {
                             max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
-                    if let JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
-                        ..
-                    } = note
-                    {
-                        return Err(format!(
-                            "Program terminated with a trap: {}",
-                            trap.unwrap_or_else(|| "No reason".to_string())
-                        )
-                        .into_bytes());
+                    match note {
+                        JournalNote::GasBurned { amount, .. } => {
+                            burnt = burnt.saturating_add(amount);
+                        }
+
+                        JournalNote::MessageDispatched {
+                            outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                            ..
+                        } => {
+                            return Err(format!(
+                                "Program terminated with a trap: {}",
+                                trap.unwrap_or_else(|| "No reason".to_string())
+                            )
+                            .into_bytes());
+                        }
+
+                        _ => (),
                     }
                 }
             }
 
-            Ok(max_gas_spent)
+            Ok((
+                max_gas_spent,
+                burnt,
+                max_balance
+                    .saturating_sub(<T as Config>::Currency::free_balance(&account))
+                    .unique_saturated_into(),
+            ))
         }
 
         /// Returns true if a program has been successfully initialized

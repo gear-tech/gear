@@ -2890,7 +2890,7 @@ fn gas_spent_vs_balance() {
         let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
         let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
 
-        let init_gas_spent = Gear::get_gas_spent(
+        let (init_gas_spent, _, _) = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
@@ -2915,7 +2915,7 @@ fn gas_spent_vs_balance() {
 
         run_to_block(4, None);
 
-        let handle_gas_spent = Gear::get_gas_spent(
+        let (handle_gas_spent, _, _) = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             request,
@@ -2958,7 +2958,7 @@ fn gas_spent_precalculated() {
 
         run_to_block(2, None);
 
-        let gas_spent_1 = Gear::get_gas_spent(
+        let (gas_spent_1, _, _) = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -3381,24 +3381,18 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let user_balance_before_calculating = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_reserved = Gear::get_gas_spent(
-            USER_1.into_origin(),
-            HandleKind::Handle(wrapper_id.into_origin()),
-            payload.clone(),
-            0,
-        )
-        .expect("Failed to get gas spent");
-
         run_to_block(3, None);
 
-        let gas_to_spend = get_gas_burned::<Test>(
+        // The constant added for checks.
+        let value = 10_000_000;
+
+        let (gas_reserved, gas_to_spend, balance_change) = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(wrapper_id.into_origin()),
             payload.clone(),
-            Some(gas_reserved),
-            0,
+            value,
         )
-        .expect("Failed to get gas burned");
+        .expect("Failed to get gas spent");
 
         assert!(gas_reserved >= gas_to_spend);
 
@@ -3418,9 +3412,6 @@ fn cascading_messages_with_value_do_not_overcharge() {
         assert_eq!(user_balance_before_calculating, user_initial_balance);
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
-        // The constant added for checks.
-        let value = 10_000_000;
-
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             wrapper_id,
@@ -3429,8 +3420,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
             value,
         ));
 
-        let gas_to_spend = gas_to_spend as u128;
-        let gas_reserved = gas_reserved as u128;
+        let gas_to_spend = GasPrice::gas_price(gas_to_spend);
+        let gas_reserved = GasPrice::gas_price(gas_reserved);
         let reserved_balance = gas_reserved + value;
 
         assert_eq!(
@@ -3447,6 +3438,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
+        assert_eq!(balance_change, gas_to_spend + value);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             user_initial_balance - gas_to_spend - value

@@ -79,7 +79,7 @@ use sp_std::{
 // Tolerance towards rounding error when converting gas to balance etc.
 pub(crate) const TOL: u128 = 10;
 
-#[derive(Decode, Encode)]
+#[derive(Clone, Decode, Encode)]
 pub enum HandleKind {
     Init(Vec<u8>),
     Handle(H256),
