@@ -452,7 +452,7 @@ where
 
     let dispatch = dispatch.into_stored();
 
-    QueueOf::<T>::remove_all();
+    QueueOf::<T>::clear();
 
     QueueOf::<T>::queue(dispatch).map_err(|_| b"Messages storage corrupted".to_vec())?;
 

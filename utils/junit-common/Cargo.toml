@@ -6,4 +6,4 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-serde = { version = "1.0.137", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }

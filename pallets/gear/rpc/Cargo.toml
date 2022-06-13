@@ -8,9 +8,7 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-jsonrpc-core = "18.0.0"
-jsonrpc-core-client = "18.0.0"
-jsonrpc-derive = "18.0.0"
+jsonrpsee = { version = "0.13.0", features = ["server", "macros"] }
 
 # Substrate packages
 sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
