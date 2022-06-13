@@ -77,6 +77,12 @@ rtest() {
 
 pallet_test() {
   cargo test -p pallet-gear "$@"
+  cargo test -p pallet-gear-debug "$@"
+  cargo test -p pallet-gear-payment "$@"
+  cargo test -p pallet-usage "$@"
+  cargo test -p pallet-gear-messenger "$@"
+  cargo test -p pallet-gear-program "$@"
+  cargo test -p pallet-gas "$@"
 }
 
 # $1 - ROOT DIR
