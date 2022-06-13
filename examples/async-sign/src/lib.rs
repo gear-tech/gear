@@ -31,7 +31,7 @@ pub struct InputArgs {
 gstd::metadata! {
     title: "demo async sign",
     init:
-    input: InputArgs,
+        input: InputArgs,
 }
 
 #[no_mangle]

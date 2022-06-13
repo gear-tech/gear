@@ -112,3 +112,53 @@ impl FusedFuture for MessageFuture {
         !signals().waits_for(self.waiting_reply_to)
     }
 }
+
+/// # Warning
+///
+/// This function is deprecated, please use [`send_for_reply`](crate::msg::basic::send_for_reply)
+/// instead.
+///
+/// Send a message and wait for reply.
+///
+/// This function works similarly to `send_bytes_and_wait_for_reply`,
+/// with one difference - it takes the structure in, then encodes it
+/// and sends it in bytes. When receiving the message, it decodes the bytes.
+/// So the input should be SCALE codeс encodable, output - decodable
+/// (<https://docs.substrate.io/v3/advanced/scale-codec/>).
+/// The program will be interrupted (waiting for a reply) if an `.await`
+/// has been called on the `CodecMessageFuture` object returned by the function.
+pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
+    program: ActorId,
+    payload: E,
+    value: u128,
+) -> Result<CodecMessageFuture<D>> {
+    let waiting_reply_to = crate::msg::send(program, payload, value)?;
+    signals().register_signal(waiting_reply_to);
+
+    Ok(CodecMessageFuture::<D> {
+        waiting_reply_to,
+        phantom: PhantomData,
+    })
+}
+
+/// # Warning
+///
+/// This function is deprecated, please use [`send_bytes_for_reply`](crate::msg::basic::send_bytes_for_reply)
+/// instead.
+///
+/// Send a message and wait for reply.
+///
+/// This function works similarly to `send_and_wait_for_reply`,
+/// with one difference - it works with raw bytes as a paylod.
+/// The program will be interrupted (waiting for a reply) if an `.await`
+/// has been called on the `MessageFuture` object returned by the function.
+pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
+    program: ActorId,
+    payload: T,
+    value: u128,
+) -> Result<MessageFuture> {
+    let waiting_reply_to = crate::msg::send_bytes(program, payload, value)?;
+    signals().register_signal(waiting_reply_to);
+
+    Ok(MessageFuture { waiting_reply_to })
+}

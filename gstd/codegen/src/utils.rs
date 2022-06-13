@@ -84,7 +84,7 @@ pub fn wait_for_reply_docs(name: String) -> (String, String) {
 
 /// Append new generic to `Generics`
 ///
-/// # NOTE
+/// # Note
 ///
 /// Only supports `TraitBound` for now.
 pub fn append_generic(mut generics: Generics, ident: Ident, traits: Vec<Ident>) -> Generics {

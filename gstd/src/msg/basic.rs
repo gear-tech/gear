@@ -225,13 +225,13 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
     gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
 }
 
-/// Same as [`replay`], without encoding payload.
+/// Same as [`reply`](crate::msg::encoded::reply), without encoding payload.
 #[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
-/// Same as [`replay_bytes`], with gas limit.
+/// Same as [`reply_bytes`](crate::msg::encoded::reply_bytes), with gas limit.
 #[wait_for_reply]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
