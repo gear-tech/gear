@@ -1,6 +1,6 @@
 use crate::empty_ext::ExtImplementedStruct;
 use core_processor::common::JournalNote;
-use gear_backend_wasmtime::{env::StoreData, funcs_tree_builder};
+use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
     env::{Ext, ExtCarrier},
     ids::ProgramId,
@@ -8,7 +8,10 @@ use gear_core::{
     message::IncomingMessage,
     program::Program,
 };
-use std::{collections::BTreeMap, mem};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    mem,
+};
 use wasmtime::{
     Config, Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
     Val,
@@ -45,7 +48,7 @@ impl WasmExecutor {
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
                 .expect("Failed to create memory");
-        let funcs = funcs_tree_builder::get_funcs_tree(&mut store, memory);
+        let funcs = funcs_tree::build(&mut store, memory, BTreeSet::new());
         let mut externs = Vec::with_capacity(module.imports().len());
         for import in module.imports() {
             if import.module() != "env" {

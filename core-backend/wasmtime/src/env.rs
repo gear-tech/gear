@@ -20,7 +20,7 @@
 
 use core::fmt;
 
-use crate::funcs_tree_builder;
+use crate::{funcs_tree, memory::MemoryWrapExternal};
 use alloc::{
     collections::BTreeMap,
     format,
@@ -40,7 +40,6 @@ use gear_core_errors::MemoryError;
 use wasmtime::{
     Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
-use crate::memory::MemoryWrapExternal;
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
@@ -130,7 +129,7 @@ where
             }
         };
 
-        let funcs = funcs_tree_builder::get_funcs_tree(&mut store, memory);
+        let funcs = funcs_tree::build(&mut store, memory, forbidden_funcs);
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,

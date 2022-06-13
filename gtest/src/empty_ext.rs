@@ -1,6 +1,5 @@
 use codec::Encode;
 use core::fmt;
-use std::collections::BTreeSet;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind,
 };
@@ -13,6 +12,7 @@ use gear_core::{
     message::{HandlePacket, IncomingMessage, InitPacket, MessageContext, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
+use std::collections::BTreeSet;
 
 #[derive(Debug)]
 pub struct AllocError;
@@ -177,5 +177,7 @@ impl Ext for ExtImplementedStruct {
     fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
         Ok(Default::default())
     }
-    fn forbidden_funcs(&self) -> &BTreeSet<&'static str> { unreachable!() }
+    fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
+        unreachable!()
+    }
 }
