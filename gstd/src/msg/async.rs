@@ -22,9 +22,9 @@ use crate::{
     async_runtime::{signals, ReplyPoll},
     errors::{ContractError, Result},
     prelude::{convert::AsRef, Vec},
-    MessageId,
+    ActorId, MessageId,
 };
-use codec::Decode;
+use codec::{Decode, Encode};
 use core::{
     future::Future,
     marker::PhantomData,
@@ -115,8 +115,8 @@ impl FusedFuture for MessageFuture {
 
 /// # Warning
 ///
-/// This function is deprecated, please use [`send_for_reply`](crate::msg::basic::send_for_reply)
-/// instead.
+/// This function is deprecated, please use
+/// [`send_for_reply`](crate::msg::basic::send_for_reply) instead.
 ///
 /// Send a message and wait for reply.
 ///
@@ -143,8 +143,8 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 
 /// # Warning
 ///
-/// This function is deprecated, please use [`send_bytes_for_reply`](crate::msg::basic::send_bytes_for_reply)
-/// instead.
+/// This function is deprecated, please use
+/// [`send_bytes_for_reply`](crate::msg::basic::send_bytes_for_reply) instead.
 ///
 /// Send a message and wait for reply.
 ///
