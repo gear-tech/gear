@@ -19,7 +19,7 @@
 use crate::{
     manager::HandleKind,
     mock::{
-        calc_handle_gas_spent, get_gas_burned, new_test_ext, run_to_block, Event as MockEvent,
+        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent,
         Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
         USER_3,
     },
