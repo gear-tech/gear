@@ -420,10 +420,9 @@ fn restrict_start_section() {
     });
 }
 
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
-    // This access different pages in wasm linear memory.
+    // This test access different pages in wasm linear memory.
     // Some pages accessed many times and some pages are freed and then allocated again
     // during one execution. This actions are helpful to identify problems with pages reallocations
     // and how lazy pages works with them.
