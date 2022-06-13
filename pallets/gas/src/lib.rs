@@ -112,9 +112,7 @@ impl ValueNode {
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
         let mut ret_node = self.clone();
-        while let ValueType::UnspecifiedLocal { parent }
-        | ValueType::SpecifiedLocal { parent, .. } = ret_node.inner
-        {
+        while let Some(parent) = ret_node.parent() {
             ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
         }
 
@@ -148,7 +146,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         /// Gas (gas tree) has already been created for the provided key.
-        GasTreeAlreadyExists,
+        NodeAlreadyExists,
 
         /// Account doesn't have enough funds to complete operation.
         InsufficientBalance,
@@ -158,6 +156,12 @@ pub mod pallet {
 
         /// Gas tree has been invalidated
         GasTreeInvalidated,
+
+        /// Creating node with existing id
+        KeyAlreadyExists,
+
+        /// Procedure can't be called on consumed node
+        NodeWasConsumed,
     }
 
     #[pallet::storage]
@@ -201,9 +205,11 @@ pub mod pallet {
         /// Check if a node is consumed and does not have any child nodes so it can be deleted.
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
         /// Otherwise this function is called for the parent node to propagate the process furter.
+        ///  что при вызове чек-консьюмд узел будет иметь газ только в том случае, если у него на момент вызова consume (на нем)
+        // был не сконсьюмленный ан-спек чайлд (и это в том случае, если мы провалились в ветку с удалением узла в чек консьюмд)
         pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
             let mut delete_current_node = false;
-            let maybe_node = Self::get_node(key);
+            let maybe_node = Self::get_node(key); // todo [sab] перепиши как в консьюмд
             let outcome = if let Some(current_node) = maybe_node {
                 match current_node.inner {
                     ValueType::SpecifiedLocal { parent, .. }
@@ -275,6 +281,10 @@ pub mod pallet {
             };
 
             if delete_current_node {
+                let node = Self::get_node(key).unwrap();
+                if node.parent().is_some() {
+                    assert!(node.consumed && node.refs() == 0);
+                }
                 GasTree::<T>::remove(key);
             }
 
@@ -302,7 +312,7 @@ where
     fn create(origin: H256, key: H256, amount: u64) -> Result<PositiveImbalance<T>, DispatchError> {
         ensure!(
             !GasTree::<T>::contains_key(key),
-            Error::<T>::GasTreeAlreadyExists
+            Error::<T>::NodeAlreadyExists
         );
 
         let node = ValueNode::new(origin, key, amount);
@@ -338,115 +348,119 @@ where
         }
     }
 
+    // comment: Если в consume функции нельзя удалить чайлда, то тем более нельзя удалить и parent-а
+    // comment: Проверять на consumed при удалении (а не только на рефсы) правильно, потому что это есть ситуации, когда родитель не консьюмд, а потомк консьюмд. Например
+    // при вызове wait, до которого было отправлено сообщение.
     fn consume(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
         let mut delete_current_node = false;
         let mut consume_parent_node = false;
-        let maybe_node = Self::get_node(key);
-        let outcome = if let Some(mut node) = maybe_node {
-            match node.inner {
-                ValueType::UnspecifiedLocal { parent }
-                | ValueType::SpecifiedLocal { parent, .. } => {
-                    // Parent node must exist for any node; if it doesn't, the tree's become invalid
-                    let mut parent_node =
-                        Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
-                    assert!(
-                        parent_node.refs() > 0,
-                        "parent node must contain ref to its child node"
-                    );
+        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
-                    if node.refs() == 0 {
-                        delete_current_node = true;
+        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
 
-                        if let ValueType::SpecifiedLocal { .. } = node.inner {
-                            parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
-                        } else {
-                            parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
-                        }
+        let outcome = match node.inner {
+            ValueType::UnspecifiedLocal { parent } | ValueType::SpecifiedLocal { parent, .. } => {
+                // Parent node must exist for any node; if it doesn't, the tree's become invalid
+                let mut parent_node =
+                    Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
+                assert!(
+                    parent_node.refs() > 0,
+                    "parent node must contain ref to its child node"
+                );
 
-                        if parent_node.refs() == 0 {
-                            consume_parent_node = true;
-                        }
+                if node.refs() == 0 {
+                    delete_current_node = true;
 
-                        // Update parent node
-                        GasTree::<T>::mutate(parent, |value| {
-                            *value = Some(parent_node); // сохраняет refs, на случай узел не будет Specified (ветка кода ниже)
-                        });
-                    }
-
-                    // не обязательно, чтобы у узла не было refs. Главное, чтобы не было Unspec.
-                    // Это странно, потому что если для любого узла есть родитель с value, то можно и не проверять unspec
-                    // хотя это чревато тем, что мы получим узел с value равным 0 при обращении к node_with_value
-                    if let ValueType::SpecifiedLocal {
-                        value: self_value, ..
-                    } = node.inner
-                    {
-                        if node.unspec_refs == 0 {
-                            // Any node of type `ValueType::SpecifiedLocal` must have a parent
-                            let mut parent_node = Self::get_node(parent)
-                                .ok_or(<Error<T>>::GasTreeInvalidated)?
-                                // Upstream node with a concrete value must exist for any node
-                                .node_with_value::<T>()?;
-
-                            // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-                            let parent_val = parent_node
-                                .inner_value_mut()
-                                .expect("Querying parent with value");
-                            *parent_val = parent_val.saturating_add(self_value);
-
-                            GasTree::<T>::mutate(parent_node.id, |value| {
-                                *value = Some(parent_node);
-                            });
-                        }
-                    }
-
-                    if delete_current_node {
-                        GasTree::<T>::remove(key);
+                    if let ValueType::SpecifiedLocal { .. } = node.inner {
+                        parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
                     } else {
-                        node.consumed = true;
-
-                        if node.unspec_refs == 0 {
-                            if let Some(inner_value) = node.inner_value_mut() {
-                                *inner_value = 0
-                            }; // перенеси вверх
-                        }
-                        // Save current node
-                        GasTree::<T>::mutate(key, |value| {
-                            *value = Some(node);
-                        });
+                        parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
                     }
 
-                    // now check if the parent node can be consumed as well
-                    if consume_parent_node {
-                        Self::check_consumed(parent)?
-                    } else {
-                        None
+                    if parent_node.refs() == 0 {
+                        consume_parent_node = true;
+                    }
+
+                    // Update parent node
+                    GasTree::<T>::mutate(parent, |value| {
+                        *value = Some(parent_node); // сохраняет refs, на случай узел не будет Specified (ветка кода ниже)
+                    });
+                }
+
+                // не обязательно, чтобы у узла не было refs. Главное, чтобы не было Unspec.
+                // Это странно, потому что если для любого узла есть родитель с value, то можно и не проверять unspec
+                // хотя это чревато тем, что мы получим узел с value равным 0 при обращении к node_with_value
+                if let ValueType::SpecifiedLocal {
+                    value: self_value, ..
+                } = node.inner
+                {
+                    if node.unspec_refs == 0 {
+                        // Any node of type `ValueType::SpecifiedLocal` must have a parent
+                        let mut parent_node = Self::get_node(parent)
+                            .ok_or(<Error<T>>::GasTreeInvalidated)?
+                            // Upstream node with a concrete value must exist for any node
+                            .node_with_value::<T>()?;
+
+                        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+                        let parent_val = parent_node
+                            .inner_value_mut()
+                            .expect("Querying parent with value");
+                        *parent_val = parent_val.saturating_add(self_value);
+
+                        GasTree::<T>::mutate(parent_node.id, |value| {
+                            *value = Some(parent_node);
+                        });
                     }
                 }
-                ValueType::External { id, value } => {
+
+                if delete_current_node {
+                    node.consumed = true;
+                    assert!(node.consumed && node.refs() == 0);
+                    GasTree::<T>::remove(key);
+                } else {
                     node.consumed = true;
 
-                    if node.refs() == 0 {
-                        // Delete current node
-                        GasTree::<T>::remove(key);
-
-                        Some((NegativeImbalance::new(value), id))
-                    } else {
-                        // Save current node
-                        GasTree::<T>::mutate(key, |n| {
-                            *n = Some(node);
-                        });
-
-                        None
+                    if node.unspec_refs == 0 {
+                        if let Some(inner_value) = node.inner_value_mut() {
+                            *inner_value = 0
+                        }; // перенеси вверх
                     }
+                    // Save current node
+                    GasTree::<T>::mutate(key, |value| {
+                        *value = Some(node);
+                    });
+                }
+
+                // now check if the parent node can be consumed as well
+                if consume_parent_node {
+                    Self::check_consumed(parent)?
+                } else {
+                    None
                 }
             }
-        } else {
-            None
+            ValueType::External { id, value } => {
+                node.consumed = true;
+
+                if node.refs() == 0 {
+                    // Delete current node
+                    GasTree::<T>::remove(key);
+
+                    Some((NegativeImbalance::new(value), id))
+                } else {
+                    // Save current node
+                    GasTree::<T>::mutate(key, |n| {
+                        *n = Some(node);
+                    });
+
+                    None
+                }
+            }
         };
 
         Ok(outcome)
     }
 
+    // отметь, что спендить можно у консьюмд ноды
     fn spend(key: H256, amount: u64) -> Result<NegativeImbalance<T>, DispatchError> {
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
@@ -469,9 +483,15 @@ where
         Ok(NegativeImbalance::new(amount))
     }
 
-    // не проверяет, есть ли хоть один узел с value выше него!! Надо ли?
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
+        // This also checks if key == new_node_key
+        ensure!(
+            !GasTree::<T>::contains_key(new_node_key),
+            Error::<T>::NodeAlreadyExists
+        );
 
         node.unspec_refs = node.unspec_refs.saturating_add(1);
 
@@ -493,8 +513,16 @@ where
         Ok(())
     }
 
+    // перепиши, потому что делать 2 проверки у одного и того же узла - странно
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
         let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
+        // This also checks if key == new_node_key
+        ensure!(
+            !GasTree::<T>::contains_key(new_node_key),
+            Error::<T>::NodeAlreadyExists
+        );
 
         // Upstream node with a concrete value exist for any node./ не проверяет, есть ли хоть один узел с value выше него!! Надо ли?
         // If it doesn't, the tree is considered invalidated.
@@ -536,13 +564,13 @@ where
                 .node_with_value::<T>().expect("Node with value exists");
 
         // NOTE: intentional expects. A node_with_value is guaranteed to have inner_value
-        ensure!(
-            node_with_value
-                .inner_value()
-                .expect("Querying node with value")
-                >= amount,
-            Error::<T>::InsufficientBalance
-        );
+        // ensure!(
+        //     node_with_value
+        //         .inner_value()
+        //         .expect("Querying node with value")
+        //         >= amount,
+        //     Error::<T>::InsufficientBalance
+        // );
         *node_with_value
             .inner_value_mut()
             .expect("Querying node with value") -= amount;
