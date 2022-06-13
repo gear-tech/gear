@@ -2440,14 +2440,15 @@ dependencies = [
 name = "gear-lazy-pages"
 version = "0.1.0"
 dependencies = [
- "errno",
+ "cfg-if",
+ "derive_more",
  "gear-core",
- "libc",
  "log",
  "nix 0.23.1",
- "page_size",
+ "region 3.0.0",
  "sp-io",
  "sp-std",
+ "winapi",
 ]
 
 [[package]]
@@ -2551,17 +2552,17 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
- "errno",
  "gear-core",
  "gear-lazy-pages",
  "libc",
  "log",
  "nix 0.24.1",
- "page_size",
  "parity-scale-codec",
+ "region 3.0.0",
  "sp-runtime-interface",
  "sp-std",
  "static_assertions",
+ "winapi",
 ]
 
 [[package]]
@@ -9416,24 +9417,22 @@ dependencies = [
 [[package]]
 name = "wasmi"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca00c5147c319a8ec91ec1a0edbec31e566ce2c9cc93b3f9bb86a9efd0eb795d"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-win-vmem#62a3bd922caa3f132ce7b7aa3255da291f76959a"
 dependencies = [
  "downcast-rs",
- "libc",
  "libm",
  "memory_units",
  "num-rational 0.2.4",
  "num-traits",
  "parity-wasm 0.42.2",
+ "region 3.0.0",
  "wasmi-validation",
 ]
 
 [[package]]
 name = "wasmi-validation"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "165343ecd6c018fc09ebcae280752702c9a2ef3e6f8d02f1cfcbdb53ef6d7937"
+source = "git+https://github.com/gear-tech/wasmi?branch=al-win-vmem#62a3bd922caa3f132ce7b7aa3255da291f76959a"
 dependencies = [
  "parity-wasm 0.42.2",
 ]
