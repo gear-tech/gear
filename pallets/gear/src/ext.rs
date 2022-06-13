@@ -96,14 +96,12 @@ impl IntoExtInfo for LazyPagesExt {
     fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         // Accessed pages are all pages except current lazy pages
         let allocations = self.inner.allocations_context.allocations().clone();
-        let mut accessed_pages: BTreeSet<PageNumber> = allocations
+        let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
+        let accessed_pages: BTreeSet<PageNumber> = allocations
             .iter()
             .flat_map(|p| p.to_gear_pages_iter())
+            .filter(|p| !lazy_pages_numbers.contains(&p))
             .collect();
-        let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
-        lazy_pages_numbers.into_iter().for_each(|p| {
-            accessed_pages.remove(&p);
-        });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
