@@ -161,8 +161,8 @@ pub trait Messenger {
         Self::Sent::reset();
         Self::Dequeued::reset();
         Self::QueueProcessing::allow();
-        Self::Queue::remove_all();
-        Self::Mailbox::remove_all();
-        Self::Waitlist::remove_all();
+        Self::Queue::clear();
+        Self::Mailbox::clear();
+        Self::Waitlist::clear();
     }
 }

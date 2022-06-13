@@ -65,7 +65,7 @@ where
     T: Config,
     T::Messenger: Messenger<QueuedDispatch = StoredDispatch>,
 {
-    QueueOf::<T>::remove_all();
+    QueueOf::<T>::clear();
 
     for i in 0_u64..n {
         let prog_id = (i + 1).into();
@@ -208,7 +208,7 @@ fn mq_size_affecting_fee_works() {
             });
 
         let len = 100_usize;
-        let per_byte_fee = <Test as pallet_transaction_payment::Config>::TransactionByteFee::get();
+        let per_byte_fee = TransactionByteFee::get();
         let len_fee = per_byte_fee.saturating_mul(len as u128);
 
         let weight = 1000_u64;
@@ -297,7 +297,7 @@ fn mq_size_not_affecting_fee_works() {
             });
 
         let len = 100_usize;
-        let per_byte_fee = <Test as pallet_transaction_payment::Config>::TransactionByteFee::get();
+        let per_byte_fee = TransactionByteFee::get();
         let len_fee = per_byte_fee.saturating_mul(len as u128);
 
         let weight = 1000_u64;

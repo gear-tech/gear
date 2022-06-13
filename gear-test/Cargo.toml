@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "3.1.18", features = ["derive"] }
+clap = { version = "3.1", features = ["derive"] }
 derive_more = "0.99"
 env_logger = "0.9"
 colored = "2.0.0"

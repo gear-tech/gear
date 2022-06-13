@@ -32,7 +32,9 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero};
+use frame_support::{
+    assert_noop, assert_ok, dispatch::Dispatchable, sp_runtime::traits::Zero, traits::Currency,
+};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -250,13 +252,19 @@ fn send_message_expected_failure() {
             res.expect("submit result was asserted")
         };
 
+        let send_message_call = crate::mock::Call::Gear(crate::Call::<Test>::send_message {
+            destination: program_id,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: DEFAULT_GAS_LIMIT,
+            value: 0,
+        });
         assert_noop!(
-            send_default_message(LOW_BALANCE_USER, program_id),
+            send_message_call.dispatch(Origin::signed(LOW_BALANCE_USER)),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
         // Because destination is user, no gas will be reserved
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
@@ -1980,7 +1988,7 @@ fn test_create_program_no_code_hash() {
         assert_init_success(1); // 1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Try to create multiple programs with non existing code hash
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2010,7 +2018,7 @@ fn test_create_program_no_code_hash() {
         );
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Try to create with invalid code hash
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2175,7 +2183,7 @@ fn test_create_program_duplicate() {
         assert_init_success(2); // +2 from extrinsics (2 submit_program)
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Create a new program from program
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2271,7 +2279,7 @@ fn test_create_program_duplicate_in_one_execution() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Successful child creation
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2880,6 +2888,7 @@ fn gas_spent_vs_balance() {
         run_to_block(3, None);
 
         let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
+        let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
 
         let init_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
@@ -2888,6 +2897,16 @@ fn gas_spent_vs_balance() {
             0,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
+
+        // check that all changes made by get_gas_spent are rollbacked
+        assert_eq!(
+            balance_after_handle,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
+        assert_eq!(
+            total_balance_after_handle,
+            BalancesPallet::<Test>::total_balance(&USER_1)
+        );
 
         assert_eq!(
             (initial_balance - balance_after_init) as u64,
@@ -3300,16 +3319,18 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
+        let reply_call = crate::mock::Call::Gear(crate::Call::<Test>::send_reply {
+            reply_to_id: mail_id,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: 10_000_000,
+            value: 0,
+        });
         assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1),
-                mail_id,
-                EMPTY_PAYLOAD.to_vec(),
-                10_000_000,
-                0
-            ),
+            reply_call.dispatch(Origin::signed(USER_1)),
             Error::<Test>::ProgramIsTerminated,
         );
+
+        log::debug!("mailbox: {:?}", MailboxOf::<Test>::iter_key(USER_1).next());
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
