@@ -349,7 +349,7 @@ pub fn program_key(id: H256) -> Vec<u8> {
 pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    program_id.encode_to(&mut key);
+    key.extend(program_id.as_fixed_bytes());
 
     key
 }
@@ -357,7 +357,8 @@ pub fn pages_prefix(program_id: H256) -> Vec<u8> {
 fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     let mut key = pages_prefix(id);
     key.extend(b"::");
-    page.0.encode_to(&mut key);
+    key.extend(page.0.to_le_bytes());
+
     key
 }
 
