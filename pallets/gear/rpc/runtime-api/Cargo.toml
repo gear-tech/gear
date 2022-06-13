@@ -16,7 +16,7 @@ pallet-gear = { version = "2.0.0", default-features = false, path = "../../../ge
 [features]
 default = ["std"]
 std = [
-    "sp-api/std",
-    "sp-core/std",
-    "pallet-gear/std"
+    "pallet-gear/std",
+	"sp-api/std",
+	"sp-core/std",
 ]

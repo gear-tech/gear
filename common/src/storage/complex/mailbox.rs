@@ -50,7 +50,7 @@ pub trait Mailbox {
     fn remove(key1: Self::Key1, key2: Self::Key2) -> Result<Self::Value, Self::OutputError>;
 
     /// Removes all values from all key's mailboxes.
-    fn remove_all();
+    fn clear();
 }
 
 /// Represents store of mailbox's action callbacks.
@@ -138,8 +138,8 @@ where
         }
     }
 
-    fn remove_all() {
-        T::remove_all()
+    fn clear() {
+        T::clear()
     }
 }
 

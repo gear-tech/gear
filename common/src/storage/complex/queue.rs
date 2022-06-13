@@ -44,7 +44,7 @@ pub trait Queue {
     fn queue(value: Self::Value) -> Result<(), Self::OutputError>;
 
     /// Removes all values from queue.
-    fn remove_all();
+    fn clear();
 
     /// Inserts given value at the beginning of the queue.
     ///
@@ -87,8 +87,8 @@ where
         T::push_back(key, value).map_err(Into::into)
     }
 
-    fn remove_all() {
-        T::remove_all()
+    fn clear() {
+        T::clear()
     }
 
     fn requeue(value: Self::Value) -> Result<(), Self::OutputError> {

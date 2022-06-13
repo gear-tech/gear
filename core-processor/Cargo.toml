@@ -10,7 +10,7 @@ gear-core = { path = "../core" }
 gear-core-errors = { path = "../core-errors" }
 gear-backend-common = { path = "../core-backend/common" }
 
-blake2-rfc = { version = "0.2.16", default-features = false }
+blake2-rfc = { version = "0.2.18", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"], default-features = false }
 log = { version = "0.4.17", default-features = false }
 anyhow = { version = "1.0.57", default-features = false }
