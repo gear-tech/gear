@@ -225,40 +225,46 @@ pub mod pallet {
                             "parent node must contain ref to its child node"
                         );
 
-                        if let ValueType::SpecifiedLocal { .. } = current_node.inner {
-                            parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
-                        } else {
-                            parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
+                        {
+                            // TODO [sab] отдельная функция и для consume и для check_consumed
+                            if let ValueType::SpecifiedLocal { .. } = current_node.inner {
+                                parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
+                            } else {
+                                parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
+                            }
+
+                            GasTree::<T>::mutate(parent, |node| {
+                                *node = Some(parent_node);
+                            });
                         }
 
-                        GasTree::<T>::mutate(parent, |node| {
-                            *node = Some(parent_node);
-                        });
-
-                        if let ValueType::SpecifiedLocal {
-                            value: self_value, ..
-                        } = current_node.inner
                         {
-                            // this is specified, so it needs to get to the first specified parent also
-                            // going up until external or specified parent is found
+                            // TODO [sab] отдельная функция и для consume и для check_consumed
+                            if let ValueType::SpecifiedLocal {
+                                value: self_value, ..
+                            } = current_node.inner
+                            {
+                                // this is specified, so it needs to get to the first specified parent also
+                                // going up until external or specified parent is found
 
-                            // `parent` key is known to exist, hence there must be a node.
-                            // If there isn't, the gas tree is considered corrupted (invalidated).
-                            let mut parent_node = Self::get_node(parent)
-                                .ok_or(Error::<T>::GasTreeInvalidated)?
-                                // a node with value must exist for a node, unless tree corrupted
-                                .node_with_value::<T>()?;
+                                // `parent` key is known to exist, hence there must be a node.
+                                // If there isn't, the gas tree is considered corrupted (invalidated).
+                                let mut parent_node = Self::get_node(parent)
+                                    .ok_or(Error::<T>::GasTreeInvalidated)?
+                                    // a node with value must exist for a node, unless tree corrupted
+                                    .node_with_value::<T>()?;
 
-                            // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-                            let parent_val = parent_node
-                                .inner_value_mut()
-                                .expect("Querying parent with value");
-                            *parent_val = parent_val.saturating_add(self_value);
-                            // no need to zero `self_value`, because node will be removed
+                                // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+                                let parent_val = parent_node
+                                    .inner_value_mut()
+                                    .expect("Querying parent with value");
+                                *parent_val = parent_val.saturating_add(self_value);
+                                // no need to zero `self_value`, because node will be removed
 
-                            GasTree::<T>::mutate(parent_node.id, |value| {
-                                *value = Some(parent_node);
-                            });
+                                GasTree::<T>::mutate(parent_node.id, |value| {
+                                    *value = Some(parent_node);
+                                });
+                            }
                         }
                         Self::check_consumed(parent)?
                     }
