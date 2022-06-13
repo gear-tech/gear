@@ -362,7 +362,6 @@ fn test_consume_procedure() {
 
         // Check that spending from unspec `node_3` actually decreases balance from the ancestor with value - `node_2`.
         assert_ok!(Gas::spend(node_3, 100));
-        // 
         assert_eq!(Gas::get_limit(node_2).unwrap(), Some(0));
 
         // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.

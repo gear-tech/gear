@@ -460,7 +460,12 @@ where
         Ok(outcome)
     }
 
-    // отметь, что спендить можно у консьюмд ноды
+    /// Spends `amount` of gas from the ancestor of node with `key` id.
+    ///
+    /// Calling the function is possible even if an ancestor is consumed.
+    ///
+    /// ### Note:
+    /// Node is considered as an ancestor of itself.
     fn spend(key: H256, amount: u64) -> Result<NegativeImbalance<T>, DispatchError> {
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
@@ -513,20 +518,19 @@ where
         Ok(())
     }
 
-    // перепиши, потому что делать 2 проверки у одного и того же узла - странно
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
-        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+        let mut parent = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
-        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
+        ensure!(!parent.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
         ensure!(
             !GasTree::<T>::contains_key(new_node_key),
             Error::<T>::NodeAlreadyExists
         );
 
-        // Upstream node with a concrete value exist for any node./ не проверяет, есть ли хоть один узел с value выше него!! Надо ли?
+        // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
-        let node_with_value = node.node_with_value::<T>()?;
+        let mut node_with_value = parent.node_with_value::<T>()?;
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         ensure!(
@@ -537,7 +541,7 @@ where
             Error::<T>::InsufficientBalance
         );
 
-        node.spec_refs = node.spec_refs.saturating_add(1);
+        parent.spec_refs = parent.spec_refs.saturating_add(1);
 
         let new_node = ValueNode {
             id: new_node_key,
@@ -552,31 +556,24 @@ where
 
         // Save new node
         GasTree::<T>::insert(new_node_key, new_node);
-        // Update current node
-        GasTree::<T>::mutate(key, |value| {
-            *value = Some(node);
-        });
 
-        // re-querying it since it might be the same node we already updated above.. :(
-        let mut node_with_value =
-            // NOTE: intentional expects. Querying the same nodes we did earlier in this function
-            Self::get_node(key).expect("Node exists")
-                .node_with_value::<T>().expect("Node with value exists");
-
-        // NOTE: intentional expects. A node_with_value is guaranteed to have inner_value
-        // ensure!(
-        //     node_with_value
-        //         .inner_value()
-        //         .expect("Querying node with value")
-        //         >= amount,
-        //     Error::<T>::InsufficientBalance
-        // );
-        *node_with_value
-            .inner_value_mut()
-            .expect("Querying node with value") -= amount;
-        GasTree::<T>::mutate(node_with_value.id, |value| {
-            *value = Some(node_with_value);
-        });
+        if parent.id == node_with_value.id {
+            *parent.inner_value_mut().expect("Querying node with value") -= amount;
+            GasTree::<T>::mutate(key, |value| {
+                *value = Some(parent);
+            });
+        } else {
+            // Update current node
+            GasTree::<T>::mutate(key, |value| {
+                *value = Some(parent);
+            });
+            *node_with_value
+                .inner_value_mut()
+                .expect("Querying node with value") -= amount;
+            GasTree::<T>::mutate(node_with_value.id, |value| {
+                *value = Some(node_with_value);
+            });
+        }
 
         Ok(())
     }
