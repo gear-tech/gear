@@ -355,7 +355,10 @@ pub fn pages_prefix(program_id: H256) -> Vec<u8> {
 }
 
 fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
-    let mut key = pages_prefix(id);
+    // try to avoid realloc
+    let mut key = Vec::with_capacity(STORAGE_PROGRAM_PAGES_PREFIX.len() + 38);
+    key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
+    key.extend(id.as_fixed_bytes());
     key.extend(b"::");
     key.extend(page.0.to_le_bytes());
 
