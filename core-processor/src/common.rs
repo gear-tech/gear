@@ -288,9 +288,6 @@ pub enum ExecutionErrorReason {
     /// Backend error
     #[display(fmt = "{}", _0)]
     Backend(String),
-    /// Processor error
-    #[display(fmt = "{}", _0)]
-    Processor(String),
     /// Ext error
     #[display(fmt = "{}", _0)]
     Ext(String),
@@ -321,12 +318,18 @@ pub enum ExecutionErrorReason {
     /// Changed page has no data in initial pages
     #[display(fmt = "Changed page has no data in initial pages")]
     PageNoData,
-    /// Ext works with lazy pages, but lazy pages env is not enabled
-    #[display(fmt = "Ext works with lazy pages, but lazy pages env is not enabled")]
-    LazyPagesInconsistentState,
     /// Page with data is not allocated for program
     #[display(fmt = "{:?} is not allocated for program", _0)]
     PageIsNotAllocated(PageNumber),
+    /// Lazy pages init failed for current program.
+    #[display(fmt = "Cannot init lazy pages for program: {}", _0)]
+    LazyPagesInitFailed(String),
+    /// Cannot read initial memory data from wasm memory.
+    #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
+    InitialMemoryReadFailed(PageNumber, MemoryError),
+    /// Cannot write initial data to wasm memory.
+    #[display(fmt = "Cannot write intial data for {:?}: {}", _0, _1)]
+    InitialDataWriteFailed(PageNumber, MemoryError),
 }
 
 /// Executable actor.
