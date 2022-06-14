@@ -22,7 +22,8 @@ use crate::{
         new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram, Origin, System, Test,
         BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, Config, Error, Event, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
+    pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
+    WaitlistOf,
 };
 use codec::Encode;
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
@@ -61,7 +62,10 @@ fn unstoppable_block_execution_works() {
 
         run_to_block(2, None);
 
-        let (expected_burned_gas, ..) = Gear::get_gas_spent(
+        let GasInfo {
+            burnt: expected_burned_gas,
+            ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(program_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -888,14 +892,20 @@ fn block_gas_limit_works() {
         assert_last_dequeued(2);
 
         // Count gas needed to process programs with default payload
-        let (expected_gas_msg_to_pid1, ..) = Gear::get_gas_spent(
+        let GasInfo {
+            burnt: expected_gas_msg_to_pid1,
+            ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(pid1.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
         .expect("get_gas_spent failed");
-        let (expected_gas_msg_to_pid2, ..) = Gear::get_gas_spent(
+        let GasInfo {
+            burnt: expected_gas_msg_to_pid2,
+            ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(pid2.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -1421,7 +1431,9 @@ fn claim_value_from_mailbox_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let (gas_burned, ..) = Gear::get_gas_spent(
+        let GasInfo {
+            burnt: gas_burned, ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -2494,13 +2506,15 @@ fn no_redundant_gas_value_after_exiting() {
 
         run_to_block(2, None);
 
-        let (gas_spent, ..) = Gear::get_gas_spent(
+        let GasInfo {
+            spent: gas_spent, ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("Failed to get gas_burnt");
+        .expect("get_gas_spent failed");
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             prog_id,
@@ -2912,7 +2926,10 @@ fn gas_spent_vs_balance() {
         let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
         let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
 
-        let (init_gas_spent, _, _) = Gear::get_gas_spent(
+        let GasInfo {
+            spent: init_gas_spent,
+            ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
@@ -2937,7 +2954,10 @@ fn gas_spent_vs_balance() {
 
         run_to_block(4, None);
 
-        let (handle_gas_spent, _, _) = Gear::get_gas_spent(
+        let GasInfo {
+            spent: handle_gas_spent,
+            ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             request,
@@ -2980,7 +3000,9 @@ fn gas_spent_precalculated() {
 
         run_to_block(2, None);
 
-        let (gas_spent_1, _, _) = Gear::get_gas_spent(
+        let GasInfo {
+            spent: gas_spent_1, ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -3006,7 +3028,9 @@ fn gas_spent_precalculated() {
 
         assert_eq!(gas_spent_1, total_cost as u64);
 
-        let (gas_spent_2, ..) = Gear::get_gas_spent(
+        let GasInfo {
+            spent: gas_spent_2, ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -3413,7 +3437,11 @@ fn cascading_messages_with_value_do_not_overcharge() {
         // The constant added for checks.
         let value = 10_000_000;
 
-        let (gas_reserved, gas_to_spend, balance_change) = Gear::get_gas_spent(
+        let GasInfo {
+            spent: gas_reserved,
+            burnt: gas_to_spend,
+            ..
+        } = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(wrapper_id.into_origin()),
             payload.clone(),
@@ -3465,10 +3493,9 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
-        assert_eq!(balance_change, gas_reserved + gas_to_spend + value);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - gas_reserved - gas_to_spend - value
+            user_initial_balance - gas_to_spend - value
         );
     });
 }

@@ -101,6 +101,13 @@ impl DebugInfo for () {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GasInfo {
+    pub spent: u64,
+    pub to_send: u64,
+    pub burnt: u64,
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -502,7 +509,7 @@ pub mod pallet {
         ) -> Result<u64, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             Self::get_gas_spent_impl(source, kind, initial_gas, payload, value)
-                .map(|(gas, _, _)| gas)
+                .map(|GasInfo { spent, .. }| spent)
         }
 
         #[cfg(test)]
@@ -511,15 +518,20 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<(u64, u64, u128), Vec<u8>> {
-            let (gas_spent, gas_to_send, _) = mock::run_with_ext_copy(|| {
+        ) -> Result<GasInfo, Vec<u8>> {
+            let GasInfo { spent, to_send, .. } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::get_gas_spent_impl(source, kind.clone(), initial_gas, payload.clone(), value)
             })?;
 
             mock::run_with_ext_copy(|| {
-                Self::get_gas_spent_impl(source, kind, gas_spent + gas_to_send, payload, value)
-                    .map(|(_, gas_to_send, balance)| (gas_spent, gas_to_send, balance))
+                Self::get_gas_spent_impl(source, kind, spent + to_send, payload, value).map(
+                    |GasInfo { to_send, burnt, .. }| GasInfo {
+                        spent,
+                        to_send,
+                        burnt,
+                    },
+                )
             })
         }
 
@@ -529,7 +541,7 @@ pub mod pallet {
             initial_gas: u64,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<(u64, u64, u128), Vec<u8>> {
+        ) -> Result<GasInfo, Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
             let balance = <T as Config>::Currency::free_balance(&account);
@@ -539,7 +551,7 @@ pub mod pallet {
                 max_balance.saturating_sub(balance),
             );
 
-            let who = frame_support::dispatch::RawOrigin::Signed(account.clone());
+            let who = frame_support::dispatch::RawOrigin::Signed(account);
             let value: BalanceOf<T> = value.unique_saturated_into();
 
             QueueOf::<T>::clear();
@@ -573,7 +585,8 @@ pub mod pallet {
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let mut max_gas_spent = 0;
-            let mut gas_to_send: u64 = 0;
+            let mut gas_to_send = 0;
+            let mut burnt = 0;
 
             let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
@@ -662,6 +675,10 @@ pub mod pallet {
                                 gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
                         }
 
+                        JournalNote::GasBurned { amount, .. } => {
+                            burnt = burnt.saturating_add(amount);
+                        }
+
                         JournalNote::MessageDispatched {
                             outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
                             ..
@@ -678,13 +695,11 @@ pub mod pallet {
                 }
             }
 
-            Ok((
-                max_gas_spent,
-                gas_to_send,
-                max_balance
-                    .saturating_sub(<T as Config>::Currency::free_balance(&account))
-                    .unique_saturated_into(),
-            ))
+            Ok(GasInfo {
+                spent: max_gas_spent,
+                to_send: gas_to_send,
+                burnt,
+            })
         }
 
         /// Returns true if a program has been successfully initialized
