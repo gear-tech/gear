@@ -56,7 +56,7 @@ pub fn save_page_lazy_info(page: u32, key: &[u8]) {
 
 /// Returns vec of not-accessed wasm lazy pages
 pub fn get_lazy_pages_numbers() -> Vec<u32> {
-    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().iter().map(|x| *x.0).collect())
+    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().keys().copied().collect())
 }
 
 /// Set current wasm memory begin addr
@@ -66,14 +66,14 @@ pub fn set_wasm_mem_begin_addr(wasm_mem_begin: HostPointer) {
 
 /// Reset lazy pages info
 pub fn reset_lazy_pages_info() {
-    LAZY_PAGES_INFO.with(|x| x.replace(BTreeMap::new()));
-    RELEASED_LAZY_PAGES.with(|x| x.replace(BTreeMap::new()));
-    WASM_MEM_BEGIN.with(|x| x.replace(0));
+    LAZY_PAGES_INFO.with(|x| x.borrow_mut().clear());
+    RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().clear());
+    WASM_MEM_BEGIN.with(|x| *x.borrow_mut() = 0);
 }
 
 /// Returns vec of lazy pages which has been accessed
 pub fn get_released_pages() -> Vec<u32> {
-    RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|x| *x.0).collect())
+    RELEASED_LAZY_PAGES.with(|x| x.borrow().keys().copied().collect())
 }
 
 /// Returns whether lazy pages env is enabled
