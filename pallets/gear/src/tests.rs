@@ -65,13 +65,13 @@ fn unstoppable_block_execution_works() {
         let GasInfo {
             burnt: expected_burned_gas,
             ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(program_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("get_gas_spent failed");
+        .expect("calculate_gas_info failed");
 
         assert!(balance_for_each_execution > expected_burned_gas);
 
@@ -895,23 +895,23 @@ fn block_gas_limit_works() {
         let GasInfo {
             burnt: expected_gas_msg_to_pid1,
             ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid1.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("get_gas_spent failed");
+        .expect("calculate_gas_info failed");
         let GasInfo {
             burnt: expected_gas_msg_to_pid2,
             ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid2.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("get_gas_spent failed");
+        .expect("calculate_gas_info failed");
 
         // TrapInHandle code kind is used because processing default payload in its
         // context requires such an amount of gas, that the following assertion can be passed.
@@ -1433,13 +1433,13 @@ fn claim_value_from_mailbox_works() {
 
         let GasInfo {
             burnt: gas_burned, ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("get_gas_spent failed");
+        .expect("calculate_gas_info failed");
         let gas_burned = GasPrice::gas_price(gas_burned);
 
         run_to_block(3, None);
@@ -2508,13 +2508,13 @@ fn no_redundant_gas_value_after_exiting() {
 
         let GasInfo {
             spent: gas_spent, ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("get_gas_spent failed");
+        .expect("calculate_gas_info failed");
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             prog_id,
@@ -2929,7 +2929,7 @@ fn gas_spent_vs_balance() {
         let GasInfo {
             spent: init_gas_spent,
             ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
@@ -2937,7 +2937,7 @@ fn gas_spent_vs_balance() {
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
-        // check that all changes made by get_gas_spent are rollbacked
+        // check that all changes made by calculate_gas_info are rollbacked
         assert_eq!(
             balance_after_handle,
             BalancesPallet::<Test>::free_balance(USER_1)
@@ -2957,7 +2957,7 @@ fn gas_spent_vs_balance() {
         let GasInfo {
             spent: handle_gas_spent,
             ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             request,
@@ -3002,7 +3002,7 @@ fn gas_spent_precalculated() {
 
         let GasInfo {
             spent: gas_spent_1, ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
@@ -3030,13 +3030,13 @@ fn gas_spent_precalculated() {
 
         let GasInfo {
             spent: gas_spent_2, ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("get_gas_spent failed");
+        .expect("calculate_gas_info failed");
 
         assert_eq!(gas_spent_1, gas_spent_2);
     });
@@ -3441,7 +3441,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             spent: gas_reserved,
             burnt: gas_to_spend,
             ..
-        } = Gear::get_gas_spent(
+        } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(wrapper_id.into_origin()),
             payload.clone(),
@@ -3520,7 +3520,7 @@ fn call_forbidden_function() {
 
         run_to_block(2, None);
 
-        let res = Gear::get_gas_spent(
+        let res = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id.into_origin()),
             EMPTY_PAYLOAD.to_vec(),

@@ -672,7 +672,7 @@ impl_runtime_apis! {
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
-            Gear::get_gas_spent(account_id, kind, payload, value)
+            Gear::calculate_gas_info(account_id, kind, payload, value)
         }
     }
 

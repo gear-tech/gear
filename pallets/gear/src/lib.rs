@@ -501,19 +501,19 @@ pub mod pallet {
         }
 
         #[cfg(not(test))]
-        pub fn get_gas_spent(
+        pub fn calculate_gas_info(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            Self::get_gas_spent_impl(source, kind, initial_gas, payload, value)
+            Self::calculate_gas_info_impl(source, kind, initial_gas, payload, value)
                 .map(|GasInfo { spent, .. }| spent)
         }
 
         #[cfg(test)]
-        pub fn get_gas_spent(
+        pub fn calculate_gas_info(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
@@ -521,12 +521,12 @@ pub mod pallet {
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { spent, to_send, .. } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-                Self::get_gas_spent_impl(source, kind.clone(), initial_gas, payload.clone(), value)
+                Self::calculate_gas_info_impl(source, kind.clone(), initial_gas, payload.clone(), value)
             })?;
 
             mock::run_with_ext_copy(|| {
                 // TODO: add `to_send` until #642 implemented
-                Self::get_gas_spent_impl(source, kind, spent + to_send, payload, value).map(
+                Self::calculate_gas_info_impl(source, kind, spent + to_send, payload, value).map(
                     |GasInfo { to_send, burnt, .. }| GasInfo {
                         spent,
                         to_send,
@@ -536,7 +536,7 @@ pub mod pallet {
             })
         }
 
-        fn get_gas_spent_impl(
+        fn calculate_gas_info_impl(
             source: H256,
             kind: HandleKind,
             initial_gas: u64,
