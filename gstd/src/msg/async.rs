@@ -46,7 +46,7 @@ pub struct CodecMessageFuture<T> {
     /// Waiting reply to this the message id
     pub waiting_reply_to: MessageId,
     /// Marker
-    pub phantom: PhantomData<T>,
+    pub _marker: PhantomData<T>,
 }
 
 impl<D: Decode> Future for CodecMessageFuture<D> {
