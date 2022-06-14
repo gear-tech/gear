@@ -259,11 +259,21 @@ pub mod pallet {
             Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
         }
 
-        /// Check if a node is consumed and does not have any child nodes so it can be deleted.
+        /// Checks if a node with `key` is consumed and doesn't have any child nodes so it can be deleted.
+        /// The function differs from [`ValueTree::consume`] by trying to execute cascade deletion of
+        /// multiple nodes on the same path from the node with `key` id to the tree's root.
+        ///
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
-        /// Otherwise this function is called for the parent node to propagate the process furter.
-        ///  что при вызове чек-консьюмд узел будет иметь газ только в том случае, если у него на момент вызова consume (на нем)
-        // был не сконсьюмленный ан-спек чайлд (и это в том случае, если мы провалились в ветку с удалением узла в чек консьюмд)
+        /// Otherwise pre-delete ops are executed, then the node is deleted and after that the same procedure
+        /// is repeated on the node's parent until it's marked consumed and has no child refs.
+        ///
+        /// Pre-delete ops are:
+        /// 1. Parents refs decrease.
+        /// 2. Value movement to the first parent, which can hold specified value.
+        ///
+        /// The latter op is required, because node can be marked consume, but still has non-zero inner value.
+        /// That is the case, when node was splitted without gas and then consumed. So when node's gas-less child
+        /// is consumed the [`Self::check_consumed`] function is called on the consumed parent with non-zero value.
         pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
             let mut current_node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
             while current_node.consumed && current_node.refs() == 0 {
