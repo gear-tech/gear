@@ -1,8 +1,8 @@
 #![no_std]
 
+use async_recursion::async_recursion;
 use core::num::ParseIntError;
 use gstd::{msg, prelude::*, ActorId};
-use async_recursion::async_recursion;
 
 static mut DEST: ActorId = ActorId::new([0u8; 32]);
 
