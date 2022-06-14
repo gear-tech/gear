@@ -140,10 +140,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         env_logger::Builder::from_default_env();
     }
 
-    let wasm_files: Vec<&str> = matches
+    let wasm_files: Vec<String> = matches
         .get_many("path")
         .ok_or(Error::UndefinedPaths)?
-        .copied()
+        .cloned()
         .collect();
 
     let skip_stack_end = matches.contains_id("skip-stack-end");
@@ -154,7 +154,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(Box::new(Error::InvalidSkip));
     }
 
-    for file in wasm_files {
+    for file in &wasm_files {
         if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
             continue;
         }
