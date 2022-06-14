@@ -291,16 +291,6 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 
 /// Same as ['reply_commit'], but with explicit gas limit.
 ///
-/// Some programs can reply on their messages to other programs, i.e. check
-/// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
-/// function.
-///
-/// This function allows sending reply messages with gas limit filled with
-/// payload parts sent via ['reply_push'] during the message handling.
-/// Finalization of the reply message is done via [`reply_commit`] function
-/// similar to [`send_commit`].
-///
 /// # Examples
 ///
 /// ```
@@ -408,20 +398,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
 
-/// Send a new message to the program or user.
-///
-/// Gear allows programs to communicate to each other and users via messages.
-/// [`send`](crate::msg::send) function allows sending such messages.
-///
-/// First argument is the address of the target account.
-/// Second argument is message payload in bytes.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during the
-/// sent message processing.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-///
-/// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`](crate::msg::reply).
+/// Same as ['send_bytes'], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -486,20 +463,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
     gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
 }
 
-/// Finalize and send message formed in parts, with gas_limit.
-///
-/// Gear allows programs to work with messages that consist of several parts.
-/// This function finalizes the message built in parts and sends it.
-///
-/// First argument is the message handle [MessageHandle] which specifies a
-/// particular message built in parts.
-/// Second argument is the address of the target account.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during
-/// reply message processing.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-/// Send transaction will be posted only after the execution of processing is
-/// finished.
+/// Same as ['send_commit'], but with explicit gas limit.
 ///
 /// # Examples
 ///
