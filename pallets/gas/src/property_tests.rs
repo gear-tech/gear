@@ -21,144 +21,27 @@ use crate::mock::*;
 use frame_support::assert_ok;
 use primitive_types::H256;
 use proptest::prelude::*;
-use std::collections::{BTreeMap, BTreeSet};
-use std::iter::FromIterator;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::FromIterator,
+};
+
+use assertions::*;
+use strategies::*;
+use utils::*;
+
+mod assertions;
+mod strategies;
+mod utils;
 
 type Gas = Pallet<Test>;
-
-const MAX_ACTIONS: usize = 1000;
-
-#[derive(Debug, Clone, Copy)]
-enum GasTreeAction {
-    Split(usize),
-    SplitWithValue(usize, u64),
-    Spend(usize, u64),
-    Consume(usize),
-}
-
-fn gas_action_strategy(max_balance: u64) -> impl Strategy<Value = Vec<GasTreeAction>> {
-    let action_random_variant = prop_oneof![
-        (any::<usize>(), 0..max_balance).prop_flat_map(|(id, amount)| {
-            prop_oneof![
-                Just(GasTreeAction::SplitWithValue(id, amount)),
-                Just(GasTreeAction::Spend(id, amount))
-            ]
-        }),
-        any::<usize>().prop_flat_map(|id| {
-            prop_oneof![
-                Just(GasTreeAction::Consume(id)),
-                Just(GasTreeAction::Split(id))
-            ]
-        }),
-    ];
-    prop::collection::vec(action_random_variant, 0..MAX_ACTIONS)
-}
-
-// todo [sab] потом сделай более абстрактным
-trait RingGet<T> {
-    fn ring_get(&self, index: usize) -> Option<&T>;
-}
-
-impl<T> RingGet<T> for Vec<T> {
-    fn ring_get(&self, index: usize) -> Option<&T> {
-        let is_not_empty = !self.is_empty();
-        is_not_empty
-            .then(|| index % self.len())
-            .and_then(|idx| self.get(idx))
-    }
-}
-
-fn consume_node(consuming: H256) -> Result<BTreeMap<H256, ValueNode>, ()> {
-    let nodes_before_consume = BTreeMap::from_iter(super::GasTree::<Test>::iter());
-    Gas::consume(consuming)
-        .and_then(|_| {
-            let nodes_after_consume = BTreeSet::from_iter(super::GasTree::<Test>::iter_keys());
-            let mut removed_nodes = BTreeMap::new();
-            for (id, node) in nodes_before_consume {
-                if !nodes_after_consume.contains(&id) {
-                    // was removed
-                    removed_nodes.insert(id, node);
-                }
-            }
-
-            Ok(removed_nodes)
-        })
-        .map_err(|_| ())
-}
-
-fn assert_removed_nodes_props(
-    consumed: H256,
-    removed_nodes: BTreeMap<H256, ValueNode>,
-    remaining_ids: &BTreeSet<H256>,
-    marked_consumed_nodes: &BTreeSet<H256>,
-) {
-    if removed_nodes.is_empty() {
-        return;
-    }
-
-    assert_removed_nodes_are_consumed(consumed, &marked_consumed_nodes, &removed_nodes);
-    assert_removed_nodes_form_path(consumed, &remaining_ids, removed_nodes);
-}
-
-fn assert_removed_nodes_are_consumed(
-    consumed: H256,
-    marked_consumed_nodes: &BTreeSet<H256>,
-    removed_nodes: &BTreeMap<H256, ValueNode>,
-) {
-    for (id, node) in removed_nodes {
-        if *id != consumed {
-            assert!(node.consumed);
-            assert!(node.refs() == 1);
-        } else {
-            // todo [sab] set consumed
-            assert!(node.refs() == 0);
-        }
-
-        // Were explicitly consumed, not automatically
-        assert!(marked_consumed_nodes.contains(id))
-    }
-}
-
-fn assert_removed_nodes_form_path(
-    consumed: H256,
-    remaining_ids: &BTreeSet<H256>,
-    removed_nodes: BTreeMap<H256, ValueNode>,
-) {
-    let mut not_checked_parents_count = removed_nodes.len();
-    let mut node = removed_nodes
-        .get(&consumed)
-        .expect("consumed node is absent in removed nodes map");
-
-    while not_checked_parents_count > 1 {
-        if let Some(parent) = node.parent() {
-            assert!(!remaining_ids.contains(&parent));
-            assert!(removed_nodes.contains_key(&parent));
-
-            not_checked_parents_count -= 1;
-            node = removed_nodes.get(&parent).expect("checked");
-        }
-    }
-    if let Some(parent) = node.parent() {
-        assert!(remaining_ids.contains(&parent));
-    }
-}
-
-fn assert_root_removed_last(root_node: H256, remaining_ids: &BTreeSet<H256>) {
-    // Check root is always deleted in the last consume call for the current gas tree,
-    // i.e., if root deleted, no more nodes are in a tree.
-    if Gas::get_node(&root_node).is_none() {
-        assert!(remaining_ids.is_empty());
-    }
-}
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1500))]
     #[test]
-    fn test_tree_properties((max_tree_node_balance, actions) in any::<u64>().prop_flat_map(|max_balance| {
-        (Just(max_balance), gas_action_strategy(max_balance))
-    })) {
+    fn test_tree_properties((max_tree_node_balance, actions) in gas_tree_props_test_strategy())
+    {
         new_test_ext().execute_with(|| {
-            // Test some of gas tree properties
             let mut node_ids = Vec::with_capacity(actions.len());
             let root_node = H256::random();
             node_ids.push(root_node);
@@ -271,7 +154,7 @@ proptest! {
     }
 
     #[test]
-    fn test_empty_tree(actions in gas_action_strategy(100)) {
+    fn test_empty_tree(actions in gas_tree_action_strategy(100)) {
         new_test_ext().execute_with(|| {
             // Tree can be created only with external root
 
@@ -304,4 +187,3 @@ proptest! {
         })
     }
 }
-

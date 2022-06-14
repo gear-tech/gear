@@ -30,9 +30,9 @@ use sp_std::convert::TryInto;
 mod mock;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod property_tests;
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub enum ValueType {
