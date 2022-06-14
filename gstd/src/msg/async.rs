@@ -127,10 +127,7 @@ impl FusedFuture for MessageFuture {
 /// (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `CodecMessageFuture` object returned by the function.
-#[deprecated(
-    since = "0.1.0",
-    note = "please use `gstd::msg::basic::send_for_reply` instead"
-)]
+#[deprecated(note = "please use `gstd::msg::basic::send_for_reply` instead")]
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
@@ -151,10 +148,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 /// with one difference - it works with raw bytes as a paylod.
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `MessageFuture` object returned by the function.
-#[deprecated(
-    since = "0.1.0",
-    note = "please use `gstd::msg::basic::send_bytes_for_reply` instead"
-)]
+#[deprecated(note = "please use `gstd::msg::basic::send_bytes_for_reply` instead")]
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
