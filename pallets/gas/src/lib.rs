@@ -147,7 +147,11 @@ impl ValueNode {
     }
 
     fn move_value_upstream<T: Config>(&mut self) -> DispatchResult {
-        if let ValueType::SpecifiedLocal { value: self_value, parent} = self.inner {
+        if let ValueType::SpecifiedLocal {
+            value: self_value,
+            parent,
+        } = self.inner
+        {
             if self.unspec_refs == 0 {
                 // This is specified, so it needs to get to the first specified parent also
                 // going up until external or specified parent is found
@@ -261,29 +265,25 @@ pub mod pallet {
         ///  что при вызове чек-консьюмд узел будет иметь газ только в том случае, если у него на момент вызова consume (на нем)
         // был не сконсьюмленный ан-спек чайлд (и это в том случае, если мы провалились в ветку с удалением узла в чек консьюмд)
         pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
-            let mut delete_current_node = false;
             let mut current_node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
-            let outcome = if current_node.consumed && current_node.refs() == 0 {
-                // todo [sab] попадание сюда уже означает удаление
-                delete_current_node = true;
+            while current_node.consumed && current_node.refs() == 0 {
+                current_node.decrease_parents_ref::<T>()?;
+                current_node.move_value_upstream::<T>()?;
+                GasTree::<T>::remove(current_node.id);
+
                 match current_node.inner {
-                    ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
+                    ValueType::External { id, value } => {
+                        return Ok(Some((NegativeImbalance::new(value), id)))
+                    }
                     ValueType::SpecifiedLocal { parent, .. }
                     | ValueType::UnspecifiedLocal { parent } => {
-                        current_node.decrease_parents_ref::<T>()?;
-                        current_node.move_value_upstream::<T>()?;
-                        Self::check_consumed(parent)?
+                        current_node =
+                            Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
                     }
                 }
-            } else {
-                None
-            };
-
-            if delete_current_node {
-                GasTree::<T>::remove(key);
             }
 
-            Ok(outcome)
+            Ok(None)
         }
     }
 }
@@ -370,8 +370,9 @@ where
             node.decrease_parents_ref::<T>()?;
             GasTree::<T>::remove(key);
             match node.inner {
-                ValueType::UnspecifiedLocal { parent } | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
-                ValueType::External { id, value } => Some((NegativeImbalance::new(value), id))
+                ValueType::UnspecifiedLocal { parent }
+                | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
+                ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
             }
         } else {
             // Save current node
