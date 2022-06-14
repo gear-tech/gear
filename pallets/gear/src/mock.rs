@@ -17,11 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use crate::{
-    ext::LazyPagesExt,
-    manager::ExtManager,
-    *,
-};
+use crate::{ext::LazyPagesExt, manager::ExtManager, *};
 use common::{self, lazy_pages, Origin as _};
 use core_processor::{
     common::{DispatchOutcome, JournalNote},

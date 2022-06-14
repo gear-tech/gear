@@ -512,14 +512,14 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
         ) -> Result<(u64, u64, u128), Vec<u8>> {
-            let (gas, _, _) = mock::run_with_ext_copy(|| {
+            let (gas_spent, gas_to_send, _) = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::get_gas_spent_impl(source, kind.clone(), initial_gas, payload.clone(), value)
             })?;
 
             mock::run_with_ext_copy(|| {
-                Self::get_gas_spent_impl(source, kind, gas, payload, value)
-                    .map(|(_, burnt, balance)| (gas, burnt, balance))
+                Self::get_gas_spent_impl(source, kind, gas_spent + gas_to_send, payload, value)
+                    .map(|(_, gas_to_send, balance)| (gas_spent, gas_to_send, balance))
             })
         }
 
@@ -573,7 +573,7 @@ pub mod pallet {
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let mut max_gas_spent = 0;
-            let mut burnt = 0;
+            let mut gas_to_send: u64 = 0;
 
             let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
@@ -657,8 +657,9 @@ pub mod pallet {
                     }
 
                     match note {
-                        JournalNote::GasBurned { amount, .. } => {
-                            burnt = burnt.saturating_add(amount);
+                        JournalNote::SendDispatch { dispatch, .. } => {
+                            gas_to_send =
+                                gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
                         }
 
                         JournalNote::MessageDispatched {
@@ -679,7 +680,7 @@ pub mod pallet {
 
             Ok((
                 max_gas_spent,
-                burnt,
+                gas_to_send,
                 max_balance
                     .saturating_sub(<T as Config>::Currency::free_balance(&account))
                     .unique_saturated_into(),
