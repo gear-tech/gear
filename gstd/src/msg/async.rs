@@ -129,7 +129,7 @@ impl FusedFuture for MessageFuture {
 /// has been called on the `CodecMessageFuture` object returned by the function.
 #[deprecated(
     since = "0.1.0",
-    note = "please use gstd::msg::basic::send_for_reply instead"
+    note = "please use `gstd::msg::basic::send_for_reply` instead"
 )]
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
@@ -153,7 +153,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 /// has been called on the `MessageFuture` object returned by the function.
 #[deprecated(
     since = "0.1.0",
-    note = "please use gstd::msg::basic::send_bytes_for_reply instead"
+    note = "please use `gstd::msg::basic::send_bytes_for_reply` instead"
 )]
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
