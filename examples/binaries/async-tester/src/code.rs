@@ -82,15 +82,5 @@ async fn main() {
     }
     .expect("ran into error-reply");
 
-    match kind {
-        Kind::Reply
-        | Kind::ReplyWithGas(_)
-        | Kind::ReplyBytes
-        | Kind::ReplyBytesWithGas(_)
-        | Kind::ReplyCommit
-        | Kind::ReplyCommitWithGas(_) => {
-            msg::send(msg::source(), b"PONG", 0).expect("send message failed")
-        }
-        _ => msg::reply(b"PONG", 0).expect("reply failed"),
-    };
+    msg::send(msg::source(), b"PONG", 0).expect("send message failed");
 }
