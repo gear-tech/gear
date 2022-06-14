@@ -31,18 +31,20 @@ use manager::InMemoryExtManager;
 #[derive(Parser)]
 struct Opts {
     /// Skip messages checks
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub skip_messages: bool,
     /// Skip allocations checks
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub skip_allocations: bool,
     /// Skip memory checks
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub skip_memory: bool,
     /// JSON sample file(s) or dir
+    #[clap(value_parser)]
     pub input: Vec<std::path::PathBuf>,
     /// A level of verbosity
-    #[clap(short, long, parse(from_occurrences))]
+    //#[clap(short, long, parse(from_occurrences))]
+    #[clap(short, long, action = clap::ArgAction::Count)]
     verbose: i32,
 }
 

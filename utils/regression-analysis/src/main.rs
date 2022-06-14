@@ -53,19 +53,19 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     CollectData {
-        #[clap(long)]
+        #[clap(long, value_parser)]
         data_folder_path: PathBuf,
-        #[clap(long)]
+        #[clap(long, value_parser)]
         output_path: PathBuf,
-        #[clap(long)]
+        #[clap(long, value_parser)]
         disable_filter: bool,
     },
     Compare {
-        #[clap(long)]
+        #[clap(long, value_parser)]
         data_path: PathBuf,
-        #[clap(long)]
+        #[clap(long, value_parser)]
         current_junit_path: PathBuf,
-        #[clap(long)]
+        #[clap(long, value_parser)]
         disable_filter: bool,
     },
 }

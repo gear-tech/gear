@@ -134,20 +134,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let matches = app.get_matches();
 
-    if matches.is_present("verbose") {
+    if matches.contains_id("verbose") {
         env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).init();
     } else {
         env_logger::Builder::from_default_env();
     }
 
     let wasm_files: Vec<&str> = matches
-        .values_of("path")
+        .get_many("path")
         .ok_or(Error::UndefinedPaths)?
+        .copied()
         .collect();
 
-    let skip_stack_end = matches.is_present("skip-stack-end");
-    let skip_meta = matches.is_present("skip-meta");
-    let skip_opt = matches.is_present("skip-opt");
+    let skip_stack_end = matches.contains_id("skip-stack-end");
+    let skip_meta = matches.contains_id("skip-meta");
+    let skip_opt = matches.contains_id("skip-opt");
 
     if skip_meta && skip_opt {
         return Err(Box::new(Error::InvalidSkip));
