@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module contains assertion checks that are used during property tests.
+
 use super::*;
 
+/// Check that removed nodes invariants are met
 pub(super) fn assert_removed_nodes_props(
     consumed: H256,
     removed_nodes: BTreeMap<H256, ValueNode>,
@@ -32,7 +35,17 @@ pub(super) fn assert_removed_nodes_props(
     assert_removed_nodes_form_path(consumed, &remaining_ids, removed_nodes);
 }
 
-pub(super) fn assert_removed_nodes_are_consumed(
+// Check that for all the removed nodes:
+// 1. **They don't have children**.
+// Actually we check that they have 1 child ref, each of which points to the node in `removed_nodes`.
+// Actually it's the same to say, that removed nodes have no refs, but `removed_nodes`
+// data is gathered from the tree before calling `ValueTree::consume` procedure. Obviously,
+// it's impossible to get nodes data after it was deleted to be sure it had 0 refs.
+// The only node which can be checked to have 0 refs is the `consumed` one.
+// 2. **They are marked consumed**.
+// That is true for all the removed nodes except for the `consumed` one, because when it's removed
+// it's redundant to update it's status in the persistence layer to `consumed`.
+fn assert_removed_nodes_are_consumed(
     consumed: H256,
     marked_consumed_nodes: &BTreeSet<H256>,
     removed_nodes: &BTreeMap<H256, ValueNode>,
@@ -50,7 +63,8 @@ pub(super) fn assert_removed_nodes_are_consumed(
     }
 }
 
-pub(super) fn assert_removed_nodes_form_path(
+// Check that removed nodes form a path (if more than one was removed).
+fn assert_removed_nodes_form_path(
     consumed: H256,
     remaining_ids: &BTreeSet<H256>,
     removed_nodes: BTreeMap<H256, ValueNode>,
@@ -74,6 +88,10 @@ pub(super) fn assert_removed_nodes_form_path(
     }
 }
 
+// Check that `root_node` was removed the last.
+// That is done the following way. Each time `consume` procedure is called we check `root_node` for existence.
+// if after a new `consume` call it was removed, then all the tree must be empty. So no nodes can be removed
+// after root was removed in the `consume` call.
 pub(super) fn assert_root_removed_last(root_node: H256, remaining_ids: &BTreeSet<H256>) {
     // Check root is always deleted in the last consume call for the current gas tree,
     // i.e., if root deleted, no more nodes are in a tree.

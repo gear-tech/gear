@@ -98,7 +98,7 @@ impl ValueNode {
         self.spec_refs.saturating_add(self.unspec_refs)
     }
 
-    /// The first upstream node (self included), that is able to holds a concrete value, but doesn't
+    /// The first upstream node (self included), that is able to hold a concrete value, but doesn't
     /// necessarily has a non-zero value.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn node_with_value<T: Config>(&self) -> Result<ValueNode, DispatchError> {
@@ -261,9 +261,12 @@ pub mod pallet {
             Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
         }
 
-        /// Checks if a node with `key` is consumed and doesn't have any child nodes so it can be deleted.
-        /// The function differs from [`ValueTree::consume`] by trying to execute cascade deletion of
-        /// multiple nodes on the same path from the node with `key` id to the tree's root.
+        /// Performs, if possible, cascade deletion of multiple nodes on the same path from the node with `key` id
+        /// to the tree's root.
+        ///
+        /// There are two requirements for the node to be deleted:
+        /// 1. Marked as consumed.
+        /// 2. Has no child refs.
         ///
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
         /// Otherwise pre-delete ops are executed, then the node is deleted and after that the same procedure
@@ -467,18 +470,16 @@ where
 
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
-        let mut node_with_value = parent.node_with_value::<T>()?;
+        let mut ancestor_with_value = parent.node_with_value::<T>()?;
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         ensure!(
-            node_with_value
+            ancestor_with_value
                 .inner_value()
                 .expect("Querying node with value")
                 >= amount,
             Error::<T>::InsufficientBalance
         );
-
-        parent.spec_refs = parent.spec_refs.saturating_add(1);
 
         let new_node = ValueNode {
             id: new_node_key,
@@ -490,11 +491,11 @@ where
             unspec_refs: 0,
             consumed: false,
         };
-
         // Save new node
         GasTree::<T>::insert(new_node_key, new_node);
 
-        if parent.id == node_with_value.id {
+        parent.spec_refs = parent.spec_refs.saturating_add(1);
+        if parent.id == ancestor_with_value.id {
             *parent.inner_value_mut().expect("Querying node with value") -= amount;
             GasTree::<T>::mutate(key, |value| {
                 *value = Some(parent);
@@ -504,11 +505,11 @@ where
             GasTree::<T>::mutate(key, |value| {
                 *value = Some(parent);
             });
-            *node_with_value
+            *ancestor_with_value
                 .inner_value_mut()
                 .expect("Querying node with value") -= amount;
-            GasTree::<T>::mutate(node_with_value.id, |value| {
-                *value = Some(node_with_value);
+            GasTree::<T>::mutate(ancestor_with_value.id, |value| {
+                *value = Some(ancestor_with_value);
             });
         }
 

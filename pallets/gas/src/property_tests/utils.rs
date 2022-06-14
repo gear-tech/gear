@@ -32,6 +32,7 @@ impl<T> RingGet<T> for Vec<T> {
     }
 }
 
+/// Consumes node with `consuming` id and returns a map of removed nodes
 pub(super) fn consume_node(consuming: H256) -> Result<BTreeMap<H256, ValueNode>, ()> {
     let nodes_before_consume = BTreeMap::from_iter(super::GasTree::<Test>::iter());
     Gas::consume(consuming)
