@@ -2,18 +2,17 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 use gstd::{prog::ProgramGenerator, CodeHash};
 
 fn salt_uniqueness_test() {
-    let n = 10;
-    let salts: Vec<_> = (0..n).map(|_| ProgramGenerator::get_salt()).collect();
+    let salts: Vec<_> = (0..10).map(|_| ProgramGenerator::get_salt()).collect();
+    let salts_len = salts.len();
 
-    for i in 0..n {
-        for j in (i + 1)..n {
-            assert_ne!(salts[i], salts[j]);
-        }
-    }
+    // The set's length should be equal to the vector's one
+    // if there are no repetitive values.
+    let salts_set: BTreeSet<Vec<u8>> = salts.into_iter().collect();
+    assert_eq!(salts_len, salts_set.len());
 }
 
 #[no_mangle]

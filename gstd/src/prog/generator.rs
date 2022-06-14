@@ -21,8 +21,8 @@
 use crate::{common::errors::Result, prog, ActorId, CodeHash};
 use codec::alloc::vec::Vec;
 
-/// `ProgramGenerator` allows you to create programs without having to set the
-/// salt manually
+/// `ProgramGenerator` allows you to create programs
+/// without need to set the salt manually.
 pub struct ProgramGenerator(u64);
 
 // The only existing instance since there is no public ways to construct it.
@@ -31,7 +31,7 @@ static mut PROGRAM_GENERATOR: ProgramGenerator = ProgramGenerator(0);
 impl ProgramGenerator {
     pub fn get_salt() -> Vec<u8> {
         // Prefix for not crossing with the user salt.
-        let unique_key = b"unique_key: c5755111a6dc6b7498a5";
+        let unique_key = b"salt_generator";
         // Provide salt uniqueness across all programs from other messages.
         let message_id = crate::msg::id();
 

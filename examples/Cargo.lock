@@ -428,6 +428,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-program-generator"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "hex-literal",
+]
+
+[[package]]
 name = "demo-program-id"
 version = "0.1.0"
 dependencies = [
@@ -486,17 +494,6 @@ version = "0.1.0"
 dependencies = [
  "gcore",
  "gstd",
-]
-
-[[package]]
-name = "demo_program_generator"
-version = "0.1.0"
-dependencies = [
- "galloc",
- "gcore",
- "gstd",
- "hex-literal",
- "parity-scale-codec 3.1.2",
 ]
 
 [[package]]
