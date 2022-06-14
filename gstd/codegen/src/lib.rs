@@ -206,7 +206,7 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 ///     Ok(CodecMessageFuture::<D> {
 ///         waiting_reply_to,
-///         phantom: PhantomData,
+///         _marker: Default::default(),
 ///     })
 /// }
 /// ```
@@ -256,7 +256,7 @@ pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
             let waiting_reply_to = #ident #args ?;
             signals().register_signal(waiting_reply_to);
 
-            Ok(CodecMessageFuture::<D> { waiting_reply_to, phantom: PhantomData })
+            Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
         }
     }
     .into()

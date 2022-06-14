@@ -28,7 +28,6 @@ use crate::{
     ActorId, MessageId,
 };
 use codec::{Decode, Encode};
-use core::marker::PhantomData;
 use gstd_codegen::wait_for_reply;
 
 /// `load` returns Result, where Ok case contains a message payload decoded into

@@ -26,7 +26,6 @@ use crate::{
     ActorId, MessageId,
 };
 use codec::{Decode, Output};
-use core::marker::PhantomData;
 use gstd_codegen::wait_for_reply;
 
 trait IntoContractResult<T> {

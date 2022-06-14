@@ -46,7 +46,12 @@ pub struct CodecMessageFuture<T> {
     /// Waiting reply to this the message id
     pub waiting_reply_to: MessageId,
     /// Marker
-    _marker: PhantomData<T>,
+    ///
+    /// # Note
+    ///
+    /// Need to `pub` this field because we are constructing this
+    /// field in other files
+    pub(super) _marker: PhantomData<T>,
 }
 
 impl<D: Decode> Future for CodecMessageFuture<D> {
@@ -137,7 +142,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 
     Ok(CodecMessageFuture::<D> {
         waiting_reply_to,
-        phantom: PhantomData,
+        _marker: PhantomData,
     })
 }
 
