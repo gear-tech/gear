@@ -17,29 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use crate::{ext::LazyPagesExt, manager::ExtManager, *};
-use common::{self, lazy_pages, Origin as _};
-use core_processor::{
-    common::{DispatchOutcome, JournalNote},
-    configs::{AllocationsConfig, BlockInfo},
-    Ext,
-};
+use crate::*;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{Currency, FindAuthor},
+    traits::FindAuthor,
 };
 use frame_system as system;
-use gear_backend_sandbox::SandboxEnvironment;
-use gear_core::{
-    ids::ProgramId,
-    message::{Dispatch, DispatchKind, Message},
-};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
-    traits::{BlakeTwo256, IdentityLookup, UniqueSaturatedInto},
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
