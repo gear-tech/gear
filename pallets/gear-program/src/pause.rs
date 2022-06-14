@@ -75,7 +75,7 @@ impl<T: Config> pallet::Pallet<T> {
             program,
             wait_list_hash: wait_list_hash(
                 &PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
-                    .drain() // 
+                    .drain()
                     .map(|(d, _)| (d.id().into_origin(), d))
                     .collect(),
             ),
