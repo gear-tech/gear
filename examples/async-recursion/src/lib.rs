@@ -26,7 +26,7 @@ pub unsafe extern "C" fn init() {
 /// repeat with `val` decreased by reply len while `val` > reply len.
 #[async_recursion]
 async fn rec_func(val: usize) {
-    let reply = msg::send_bytes_and_wait_for_reply(unsafe { DEST }, b"PING", 0)
+    let reply = msg::send_bytes_for_reply(unsafe { DEST }, b"PING", 0)
         .expect("Error in sending message")
         .await
         .expect("Error in async message processing");

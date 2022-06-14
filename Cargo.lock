@@ -1242,6 +1242,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-tester"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-btree"
 version = "0.1.0"
 dependencies = [
@@ -2779,6 +2788,7 @@ dependencies = [
 name = "gstd-codegen"
 version = "0.1.0"
 dependencies = [
+ "proc-macro2",
  "quote",
  "syn",
 ]
@@ -4793,6 +4803,7 @@ dependencies = [
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
+ "demo-async-tester",
  "demo-btree",
  "demo-compose",
  "demo-distributor",
