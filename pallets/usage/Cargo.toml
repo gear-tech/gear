@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
@@ -70,3 +70,4 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 ]
+lazy-pages = ["pallet-gear/lazy-pages"]

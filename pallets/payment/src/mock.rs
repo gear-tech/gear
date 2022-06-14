@@ -143,9 +143,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Test {
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
-    type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<u128>;
+    type LengthToFee = IdentityFee<u128>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
