@@ -25,7 +25,7 @@ pub unsafe extern "C" fn init() {
 /// Send message "PING" and wait for a reply, then recursively
 /// repeat with `val` decreased by reply len while `val` > reply len.
 #[async_recursion]
-async fn rec_func(val: u32) {
+async fn rec_func(val: usize) {
     let reply = msg::send_bytes_and_wait_for_reply(unsafe { DEST }, b"PING", 0)
         .expect("Error in sending message")
         .await
@@ -33,8 +33,8 @@ async fn rec_func(val: u32) {
 
     msg::send_bytes(msg::source(), format!("Hello, val = {}", val), 0).unwrap();
 
-    if val - reply.len() as u32 > 0 {
-        rec_func(val - reply.len() as u32).await;
+    if val - reply.len() > 0 {
+        rec_func(val - reply.len()).await;
     }
 }
 
