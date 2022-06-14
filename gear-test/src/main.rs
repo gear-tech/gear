@@ -43,7 +43,6 @@ struct Opts {
     #[clap(value_parser)]
     pub input: Vec<std::path::PathBuf>,
     /// A level of verbosity
-    //#[clap(short, long, parse(from_occurrences))]
     #[clap(short, long, action = clap::ArgAction::Count)]
     verbose: i32,
 }
