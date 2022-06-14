@@ -11,7 +11,7 @@ fn salt_uniqueness_test() {
 
     // The set's length should be equal to the vector's one
     // if there are no repetitive values.
-    let salts_set: BTreeSet<Vec<u8>> = salts.into_iter().collect();
+    let salts_set: BTreeSet<_> = salts.into_iter().collect();
     assert_eq!(salts_len, salts_set.len());
 }
 
