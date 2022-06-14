@@ -22,8 +22,8 @@ pub unsafe extern "C" fn init() {
     .expect("Unable to create ActorId");
 }
 
-/// Send message "PING" and waits for reply, then recursevelly
-/// repeats with `val` decreased by reply len, until val > 0.
+/// Send message "PING" and wait for a reply, then recursively
+/// repeat with `val` decreased by reply len while `val` > reply len.
 #[async_recursion]
 async fn rec_func(val: u32) {
     let reply = msg::send_bytes_and_wait_for_reply(unsafe { DEST }, b"PING", 0)
