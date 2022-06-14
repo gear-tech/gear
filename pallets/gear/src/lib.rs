@@ -521,7 +521,13 @@ pub mod pallet {
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { spent, to_send, .. } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-                Self::calculate_gas_info_impl(source, kind.clone(), initial_gas, payload.clone(), value)
+                Self::calculate_gas_info_impl(
+                    source,
+                    kind.clone(),
+                    initial_gas,
+                    payload.clone(),
+                    value,
+                )
             })?;
 
             mock::run_with_ext_copy(|| {
