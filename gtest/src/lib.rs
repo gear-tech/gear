@@ -1,6 +1,5 @@
-extern crate core;
+#![allow(dead_code)]
 
-mod empty_ext;
 mod log;
 mod mailbox;
 mod manager;

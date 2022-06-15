@@ -61,7 +61,7 @@ impl Default for ContextSettings {
 /// Context outcome.
 ///
 /// Contains all sendings and wakes that should be done after execution.
-#[derive(Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo, Clone)]
+#[derive(Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextOutcome {
     init: Vec<InitMessage>,
     handle: Vec<HandleMessage>,
@@ -115,7 +115,7 @@ pub struct ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo, Clone)]
+#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct MessageContext {
     current: IncomingMessage,
     outcome: ContextOutcome,

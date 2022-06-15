@@ -129,8 +129,7 @@ where
             }
         };
 
-        let funcs = funcs_tree::build(&mut store, memory, forbidden_funcs);
-
+        let funcs = funcs_tree::build(&mut store, memory, Some(forbidden_funcs));
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,
             Err(e) => {

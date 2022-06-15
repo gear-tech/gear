@@ -7,7 +7,7 @@ use wasmtime::{Func, Memory, Store};
 pub fn build<'a, E>(
     store: &'a mut Store<StoreData<E>>,
     memory: Memory,
-    forbidden_funcs: BTreeSet<&'a str>,
+    forbidden_funcs: Option<BTreeSet<&'a str>>,
 ) -> BTreeMap<&'a str, Func>
 where
     E: Ext + IntoExtInfo + 'static,
@@ -51,7 +51,7 @@ where
         FuncsHandler::send_commit_wgas(store, memory),
     );
     funcs.insert("gr_send_commit", FuncsHandler::send_commit(store, memory));
-    funcs.insert("gr_send_init", FuncsHandler::send_init(store, memory));
+    funcs.insert("gr_send_commit", FuncsHandler::send_init(store, memory));
     funcs.insert("gr_send_push", FuncsHandler::send_push(store, memory));
     funcs.insert("gr_size", FuncsHandler::size(store));
     funcs.insert("gr_source", FuncsHandler::source(store, memory));
@@ -65,9 +65,11 @@ where
     funcs.insert("gr_wake", FuncsHandler::wake(store, memory));
     funcs.insert("gr_error", FuncsHandler::error(store, memory));
 
-    forbidden_funcs.iter().for_each(|func_name| {
-        funcs.insert(*func_name, FuncsHandler::forbidden(store));
-    });
+    if let Some(forbidden_funcs) = forbidden_funcs {
+        forbidden_funcs.iter().for_each(|func_name| {
+            funcs.insert(*func_name, FuncsHandler::forbidden(store));
+        });
+    }
 
     funcs
 }

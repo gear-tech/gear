@@ -451,8 +451,9 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn execute_custom_function(
+    /// Call non-void meta function from an actor stored in manager.
+    /// Warning! This is a static call that doesn't change actors pages data.
+    pub(crate) fn call_meta(
         &mut self,
         source: ProgramId,
         program_id: &ProgramId,
@@ -460,22 +461,7 @@ impl ExtManager {
         function_name: &str,
     ) -> Vec<u8> {
         let mut executor = self.get_executor(source, program_id, message);
-        let (result, journal) = executor.execute_with_result(function_name);
-        core_processor::handle_journal(journal, self);
-        result
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn execute_custom_void_function(
-        &mut self,
-        source: ProgramId,
-        program_id: &ProgramId,
-        message: Option<IncomingMessage>,
-        function_name: &str,
-    ) {
-        let mut executor = self.get_executor(source, program_id, message);
-        let journal = executor.execute(function_name);
-        core_processor::handle_journal(journal, self);
+        executor.execute(function_name)
     }
 
     fn get_executor(
@@ -484,13 +470,17 @@ impl ExtManager {
         program_id: &ProgramId,
         message: Option<IncomingMessage>,
     ) -> WasmExecutor {
-        let (actor, balance) = self.actors.get_mut(program_id).unwrap();
+        let (actor, balance) = self
+            .actors
+            .get_mut(program_id)
+            .expect("No program with such id");
+
         if actor.is_uninitialized() {
             actor.set_initialized();
         }
         if let Some(message) = &message {
             if message.source() != source {
-                panic!("Source id in message: {:?} is not equal to source id in function arguments: {:?}", message.source(), source);
+                panic!("Source id in message is not equal to source id in function arguments");
             }
         }
 
@@ -503,7 +493,7 @@ impl ExtManager {
             .map(|(page, data)| (page, Box::new(data)))
             .collect();
 
-        WasmExecutor::new(source, actor.program, &pages_initial_data, message)
+        WasmExecutor::new(source, &actor.program, &pages_initial_data, message)
     }
 }
 
