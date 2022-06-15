@@ -1,0 +1,12 @@
+[package]
+name = "demo-async-recursion"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+async-recursion = "1.0.0"

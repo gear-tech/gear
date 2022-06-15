@@ -1,0 +1,123 @@
+title: Async-await
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_async_recursion.opt.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
+
+fixtures:
+  - title: async-recursion
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: LOL
+
+    expected:
+      - log:
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 100
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 96
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 92
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 88
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 84
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 80
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 76
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 72
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 68
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 64
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 60
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 56
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 52
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 48
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 44
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 40
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 36
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 32
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 28
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 24
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 20
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 16
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 12
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 8
+        - destination: 1000001
+          payload:
+            kind: utf-8
+            value: Hello, val = 4

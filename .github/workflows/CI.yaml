@@ -164,6 +164,13 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
+      - name: "Test: Gear pallet tests with lazy pages"
+        run: |
+          cargo test -p pallet-gear --features=lazy-pages --release
+          cargo test -p pallet-gear-debug --features=lazy-pages --release
+          cargo test -p pallet-gear-payment --features=lazy-pages --release
+          cargo test -p pallet-usage --features=lazy-pages --release
+
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
         env:
@@ -191,6 +198,8 @@ jobs:
 
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
+
+      # TODO: make also rtest run for node without lazy-pages feature (issue #1023)
 
       - name: "Test (performance): node runtime testsuite"
         if: ${{ github.ref != 'refs/heads/master' }}

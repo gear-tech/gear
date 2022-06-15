@@ -25,8 +25,7 @@ format() {
   MANIFEST="$1"
   shift
 
-  cargo +nightly fmt --all --manifest-path="$MANIFEST" -- \
-    --config=license_template_path="" "$@"
+  cargo +nightly fmt --all --manifest-path="$MANIFEST" -- "$@"
 }
 
 doc_format() {

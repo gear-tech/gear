@@ -59,7 +59,7 @@ use gear_core::{
 };
 use pallet_gas::Pallet as GasPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -546,90 +546,40 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
-            let schedule = T::Schedule::get();
-            let mut ext_manager = ExtManager::<T>::default();
+            let account = <T::AccountId as Origin>::from_origin(source);
 
-            let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-            let root_message_id = MessageId::from(bn);
+            let balance = <T as Config>::Currency::total_balance(&account);
+            let max_balance: BalanceOf<T> = u128::MAX.unique_saturated_into();
+            <T as Config>::Currency::deposit_creating(
+                &account,
+                max_balance.saturating_sub(balance),
+            );
 
-            let dispatch = match kind {
-                HandleKind::Init(ref code) => {
-                    let program_id = ProgramId::generate(CodeId::generate(code), b"gas_spent_salt");
-
-                    let schedule = T::Schedule::get();
-                    let code = Code::try_new(
-                        code.clone(),
-                        schedule.instruction_weights.version,
-                        |module| schedule.rules(module),
-                    )
-                    .map_err(|_| b"Code failed to load: {}".to_vec())?;
-
-                    let code_and_id = CodeAndId::new(code);
-                    let code_id = code_and_id.code_id();
-
-                    let _ = Self::set_code_with_metadata(code_and_id, source);
-
-                    ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
-
-                    Dispatch::new(
-                        DispatchKind::Init,
-                        Message::new(
-                            root_message_id,
-                            ProgramId::from_origin(source),
-                            program_id,
-                            payload,
-                            Some(u64::MAX),
-                            value,
-                            None,
-                        ),
-                    )
-                }
-                HandleKind::Handle(dest) => Dispatch::new(
-                    DispatchKind::Handle,
-                    Message::new(
-                        root_message_id,
-                        ProgramId::from_origin(source),
-                        ProgramId::from_origin(dest),
-                        payload,
-                        Some(u64::MAX),
-                        value,
-                        None,
-                    ),
-                ),
-                HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = MailboxOf::<T>::remove(
-                        <T::AccountId as Origin>::from_origin(source),
-                        MessageId::from_origin(msg_id),
-                    )
-                    .map_err(|_| b"Internal error: unable to find message in mailbox".to_vec())?;
-                    Dispatch::new(
-                        DispatchKind::Reply,
-                        Message::new(
-                            root_message_id,
-                            ProgramId::from_origin(source),
-                            msg.source(),
-                            payload,
-                            Some(u64::MAX),
-                            value,
-                            Some((msg.id(), exit_code)),
-                        ),
-                    )
-                }
-            };
-
+            let who = frame_support::dispatch::RawOrigin::Signed(account);
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            T::GasHandler::create(
-                source.into_origin(),
-                root_message_id.into_origin(),
-                initial_gas,
-            )
-            .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
-
-            let dispatch = dispatch.into_stored();
+            let value: BalanceOf<T> = value.unique_saturated_into();
 
             QueueOf::<T>::clear();
 
-            QueueOf::<T>::queue(dispatch).map_err(|_| b"Messages storage corrupted".to_vec())?;
+            match kind {
+                HandleKind::Init(code) => {
+                    let salt = b"gas_spent_salt".to_vec();
+                    Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
+                        .map_err(|_| b"Internal error: submit_program failed".to_vec())?;
+                }
+
+                HandleKind::Handle(dest) => {
+                    let destination = ProgramId::from_origin(dest);
+                    Self::send_message(who.into(), destination, payload, initial_gas, value)
+                        .map_err(|_| b"Internal error: send_message failed".to_vec())?;
+                }
+
+                HandleKind::Reply(msg_id, _exit_code) => {
+                    let reply_to_id = MessageId::from_origin(msg_id);
+                    Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
+                        .map_err(|_| b"Internal error: send_reply failed".to_vec())?;
+                }
+            }
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -640,6 +590,9 @@ pub mod pallet {
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let mut max_gas_spent = 0;
+
+            let schedule = T::Schedule::get();
+            let mut ext_manager = ExtManager::<T>::default();
 
             while let Some(queued_dispatch) =
                 QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
@@ -661,7 +614,8 @@ pub mod pallet {
                     load_page_cost: schedule.memory_weights.load_cost,
                 };
 
-                let gas_limit = T::GasHandler::get_limit(queued_dispatch.id().into_origin())
+                let dispatch_id = queued_dispatch.id().into_origin();
+                let gas_limit = T::GasHandler::get_limit(dispatch_id)
                     .ok()
                     .flatten()
                     .ok_or_else(|| {
@@ -702,14 +656,21 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some(remaining_gas) =
-                        T::GasHandler::get_limit(root_message_id.into_origin()).map_err(|_| {
-                            b"Internal error: unable to get gas limit after execution".to_vec()
-                        })?
+                    if let Some(remaining_gas) = T::GasHandler::get_origin_key(dispatch_id)
+                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
+                        .and_then(|root_dispatch_id| {
+                            T::GasHandler::get_limit(root_dispatch_id)
+                                .map_err(|_| {
+                                    b"Internal error: unable to get gas limit after execution"
+                                        .to_vec()
+                                })
+                                .transpose()
+                        })
+                        .transpose()?
                     {
                         max_gas_spent =
                             max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
-                    };
+                    }
 
                     if let JournalNote::MessageDispatched {
                         outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
@@ -721,7 +682,7 @@ pub mod pallet {
                             trap.unwrap_or_else(|| "No reason".to_string())
                         )
                         .into_bytes());
-                    };
+                    }
                 }
             }
 
