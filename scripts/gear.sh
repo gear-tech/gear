@@ -114,7 +114,7 @@ case "$COMMAND" in
 
       gear-test)
         header "Building gear test"
-        gear_build "$@"; ;;
+        gear_test_build "$@"; ;;
 
       examples)
         check_extensions

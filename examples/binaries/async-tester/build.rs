@@ -16,23 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
-
-mod command;
-mod util;
-
-/// The `runtests` command used to test gear with yaml.
-#[derive(Debug, clap::Parser)]
-pub struct GearRuntimeTestCmd {
-    /// Input dir/file with yaml for testing.
-    #[clap(value_parser)]
-    pub input: Vec<PathBuf>,
-
-    /// Produce output in the (almost) JUnit/XUnit XML format.
-    #[clap(long, value_parser)]
-    pub generate_junit: Option<PathBuf>,
-
-    #[allow(missing_docs)]
-    #[clap(flatten)]
-    pub shared_params: sc_cli::SharedParams,
+fn main() {
+    gear_wasm_builder::build();
 }

@@ -34,7 +34,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, WasmPageNumber},
 };
 use gear_core_errors::MemoryError;
 use wasmtime::{
@@ -59,6 +59,8 @@ pub enum WasmtimeEnvironmentError {
     InstanceCreation,
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
+    #[display(fmt = "Unable to save static pages initial data")]
+    SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
     #[display(fmt = "{}", _0)]
@@ -74,26 +76,6 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
     instance: Instance,
 }
 
-fn set_pages<T: Ext>(
-    mut store: &mut Store<StoreData<T>>,
-    memory: &mut WasmtimeMemory,
-    pages: &BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), String> {
-    let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
-    for (page, buf) in pages {
-        if memory_size <= page.to_wasm_page() {
-            return Err(format!(
-                "Memory size {:?} less then {:?}",
-                memory_size, page
-            ));
-        }
-        memory
-            .write(&mut store, page.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write to {:?}: {:?}", page, e))?;
-    }
-    Ok(())
-}
-
 impl<E> Environment<E> for WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
@@ -104,7 +86,6 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let forbidden_funcs = ext.forbidden_funcs().clone();
@@ -118,7 +99,7 @@ where
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
         // Creates new wasm memory
-        let mut memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
+        let memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
@@ -190,15 +171,6 @@ where
             }
         };
 
-        // Set module memory data
-        if let Err(e) = set_pages(&mut store, &mut memory, memory_pages) {
-            return Err(BackendError {
-                reason: WasmtimeEnvironmentError::SetModuleMemoryData,
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: ext_carrier.into_inner().into_gas_amount(),
-            });
-        }
-
         let memory_wrap = MemoryWrapExternal { mem: memory, store };
 
         Ok(WasmtimeEnvironment {
@@ -227,8 +199,12 @@ where
             })
     }
 
-    fn get_mem(&self) -> &dyn gear_core::memory::Memory {
+    fn get_mem(&self) -> &dyn Memory {
         &self.memory_wrap
+    }
+
+    fn get_mem_mut(&mut self) -> &mut dyn Memory {
+        &mut self.memory_wrap
     }
 
     fn execute<F, T>(

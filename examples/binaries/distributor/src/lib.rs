@@ -92,7 +92,7 @@ mod wasm {
             let program_handle = self.handle;
             async move {
                 let reply_bytes =
-                    msg::send_bytes_and_wait_for_reply(program_handle, &encoded_request[..], 0)
+                    msg::send_bytes_for_reply(program_handle, &encoded_request[..], 0)
                         .expect("Error in message sending")
                         .await
                         .expect("Error in async message processing");
