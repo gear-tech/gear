@@ -42,7 +42,7 @@ use wasm_instrument::parity_wasm::{
     },
 };
 
-/// The location where to put the genrated code.
+/// The location where to put the generated code.
 pub enum Location {
     /// Generate all code into the `init` exported function.
     Init,

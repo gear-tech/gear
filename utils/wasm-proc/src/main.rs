@@ -27,7 +27,6 @@ use std::path::PathBuf;
 #[derive(Debug)]
 enum Error {
     OptimizerFailed,
-    WasmOptFailed,
     SerializationFailed(parity_wasm::elements::Error),
     UndefinedPaths,
     InvalidSkip,
@@ -37,7 +36,6 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::OptimizerFailed => write!(f, "Optimizer failed"),
-            Self::WasmOptFailed => write!(f, "wasm-opt failed"),
             Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
             Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
             Self::InvalidSkip => write!(f, "Multiple skipping functional"),
@@ -136,32 +134,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let matches = app.get_matches();
 
-    if matches.is_present("verbose") {
+    if matches.contains_id("verbose") {
         env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).init();
     } else {
         env_logger::Builder::from_default_env();
     }
 
-    let wasm_files: Vec<&str> = matches
-        .values_of("path")
+    let wasm_files: Vec<String> = matches
+        .get_many("path")
         .ok_or(Error::UndefinedPaths)?
+        .cloned()
         .collect();
 
-    let skip_stack_end = matches.is_present("skip-stack-end");
-    let skip_meta = matches.is_present("skip-meta");
-    let skip_opt = matches.is_present("skip-opt");
+    let skip_stack_end = matches.contains_id("skip-stack-end");
+    let skip_meta = matches.contains_id("skip-meta");
+    let skip_opt = matches.contains_id("skip-opt");
 
     if skip_meta && skip_opt {
         return Err(Box::new(Error::InvalidSkip));
     }
 
-    for file in wasm_files {
+    for file in &wasm_files {
         if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
             continue;
         }
 
-        let res = gear_wasm_builder::optimize::optimize_wasm(PathBuf::from(file), "s", true)
-            .map_err(|_| Error::WasmOptFailed)?;
+        let res = gear_wasm_builder::optimize::optimize_wasm(PathBuf::from(file), "s", true)?;
 
         log::info!(
             "wasm-opt: {} {} Kb -> {} Kb",

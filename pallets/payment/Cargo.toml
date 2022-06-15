@@ -14,8 +14,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-log = { version = "0.4.16", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+log = { version = "0.4.17", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
@@ -58,6 +58,7 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-authorship/std",
 	"primitive-types/std",
+	"pallet-gear-messenger/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -65,3 +66,4 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
 ]
+lazy-pages = ["pallet-gear/lazy-pages"]

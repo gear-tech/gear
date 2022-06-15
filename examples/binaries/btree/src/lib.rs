@@ -32,7 +32,7 @@ extern crate alloc;
 use codec::{Decode, Encode};
 use gstd::prelude::*;
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     Insert(u32, u32),
     Remove(u32),
@@ -40,7 +40,7 @@ pub enum Request {
     Clear,
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Reply {
     Error,
     None,

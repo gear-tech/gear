@@ -18,6 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[macro_use]
+extern crate gear_common_codegen;
+
+pub mod event;
 pub mod lazy_pages;
 pub mod storage;
 
@@ -32,12 +36,11 @@ use core::fmt;
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
-    weights::{IdentityFee, WeightToFeePolynomial},
+    weights::{IdentityFee, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
-    message::StoredDispatch,
 };
 use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
@@ -52,7 +55,6 @@ use sp_std::{
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
-pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub type ExitCode = i32;
 
@@ -132,7 +134,7 @@ pub trait GasPrice {
     /// A price for the `gas` amount of gas.
     /// In general case, this doesn't necessarily has to be constant.
     fn gas_price(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::calc(&gas)
+        IdentityFee::<Self::Balance>::weight_to_fee(&gas)
     }
 }
 
@@ -149,7 +151,7 @@ pub trait PaymentProvider<AccountId> {
 /// Abstraction for a chain of value items each piece of which has an attributed owner and
 /// can be traced up to some root origin.
 /// The definition is largely inspired by the `frame_support::traits::Currency` -
-/// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
+/// <https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs>,
 /// however, the intended use is very close to the UTxO based ledger model.
 pub trait ValueTree {
     /// Type representing the external owner of a value (gas) item.
@@ -180,7 +182,7 @@ pub trait ValueTree {
 
     /// Increase the total issuance of the underlying value by creating some `amount` of it
     /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
-    /// In case the `key` already indentifies some other piece of value an error is returned.
+    /// In case the `key` already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
         key: Self::Key,
@@ -192,6 +194,12 @@ pub trait ValueTree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
     /// the `key` belongs to a subtree originating at such "orphan" node.
     fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
+
+    /// The id of external node for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
+    /// the `key` belongs to a subtree originating at such "orphan" node.
+    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error>;
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
     ///
@@ -239,7 +247,7 @@ pub trait ValueTree {
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),
     Terminated,
@@ -293,7 +301,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
     /// Set of wasm pages numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
@@ -304,18 +312,18 @@ pub struct ActiveProgram {
 }
 
 /// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized. All messages to such a
     /// program go to the wait list.
     /// `message_id` contains identifier of the initialization message.
-    Uninitialized { message_id: H256 },
+    Uninitialized { message_id: MessageId },
     /// Program has been successfully initialized and can process messages.
     Initialized,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
     #[codec(compact)]
@@ -350,20 +358,6 @@ fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     let mut key = pages_prefix(id);
     key.extend(b"::");
     page.0.encode_to(&mut key);
-    key
-}
-
-pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_WAITLIST_PREFIX);
-    prog_id.encode_to(&mut key);
-    key.extend(b"::");
-    key
-}
-
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
-    let mut key = wait_prefix(prog_id);
-    msg_id.encode_to(&mut key);
     key
 }
 
@@ -491,23 +485,7 @@ pub fn remove_program_page_data(program_id: H256, page_num: PageNumber) {
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: StoredDispatch, bn: u32) {
-    let payload = (dispatch, bn);
-    sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
-}
-
-pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(StoredDispatch, u32)> {
-    let id = wait_key(dest_prog_id, msg_id);
-    let msg = sp_io::storage::get(&id)
-        .and_then(|val| <(StoredDispatch, u32)>::decode(&mut &val[..]).ok());
-
-    if msg.is_some() {
-        sp_io::storage::clear(&id);
-    }
-    msg
-}
-
-pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: ProgramId) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);
@@ -515,31 +493,15 @@ pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     key
 }
 
-fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_WAITLIST_PREFIX);
-    prog_id.encode_to(&mut key);
-
-    key
-}
-
-pub fn remove_program_waitlist(prog_id: H256) -> Vec<StoredDispatch> {
-    let key = program_waitlist_prefix(prog_id);
-    let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<StoredDispatch>::decode(&mut &v[..]).ok());
-    sp_io::storage::clear(&key);
-
-    messages.unwrap_or_default()
-}
-
-pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
+pub fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
     let key = waiting_init_prefix(dest_prog_id);
     sp_io::storage::append(&key, message_id.encode());
 }
 
-pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
+pub fn waiting_init_take_messages(dest_prog_id: ProgramId) -> Vec<MessageId> {
     let key = waiting_init_prefix(dest_prog_id);
-    let messages = sp_io::storage::get(&key).and_then(|v| Vec::<H256>::decode(&mut &v[..]).ok());
+    let messages =
+        sp_io::storage::get(&key).and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok());
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()
@@ -548,11 +510,7 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
 
     // TODO: Remove this legacy after next runtime upgrade.
-    sp_io::storage::clear_prefix(b"g::msg::", None);
-    sp_io::storage::clear_prefix(b"g::gas_tree", None);
-    sp_io::storage::clear_prefix(b"g::code::", None);
-    sp_io::storage::clear_prefix(b"g::code::orig", None);
+    sp_io::storage::clear_prefix(b"g::wait::", None);
 }

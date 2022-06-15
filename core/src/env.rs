@@ -24,7 +24,7 @@ use crate::{
     memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
-use alloc::rc::Rc;
+use alloc::{collections::BTreeSet, rc::Rc};
 use codec::{Decode, Encode};
 use core::cell::RefCell;
 use gear_core_errors::CoreError;
@@ -151,6 +151,9 @@ pub trait Ext {
 
     /// Send init message to create a new program
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error>;
+
+    /// Return the set of functions that are forbidden to be called.
+    fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
 }
 
 /// An error occurred during [`ExtCarrier::with_fallible`] which should be called only when inner is set
@@ -241,7 +244,6 @@ impl<E: Ext> Clone for ClonedExtCarrier<E> {
 mod tests {
     use super::*;
     use core::fmt;
-    use gear_core_errors::TerminationReason;
 
     #[derive(Debug)]
     struct AllocError;
@@ -252,26 +254,18 @@ mod tests {
         }
     }
 
-    impl CoreError for AllocError {
-        fn from_termination_reason(_reason: TerminationReason) -> Self {
-            unreachable!()
-        }
-
-        fn as_termination_reason(&self) -> Option<TerminationReason> {
-            unreachable!()
-        }
-    }
+    impl CoreError for AllocError {}
 
     // Test function of format `Fn(&mut E: Ext) -> R`
     // to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
     // For example, returns the field of ext's inner value.
-    fn converter(e: &mut ExtImplementedStruct) -> u8 {
-        e.0
+    fn converter(_e: &mut ExtImplementedStruct) -> u8 {
+        0
     }
 
     /// Struct with internal value to interact with ExtCarrier
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    struct ExtImplementedStruct(u8);
+    #[derive(Debug, PartialEq, Eq, Clone, Default)]
+    struct ExtImplementedStruct(BTreeSet<&'static str>);
 
     /// Empty Ext implementation for test struct
     impl Ext for ExtImplementedStruct {
@@ -369,14 +363,17 @@ mod tests {
         fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, Self::Error> {
             Ok(Default::default())
         }
+        fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
+            &self.0
+        }
     }
 
     #[test]
     fn create_and_unwrap_ext_carrier() {
-        let ext_implementer = ExtImplementedStruct(0);
-        let ext = ExtCarrier::new(ext_implementer);
+        let ext_implementer: ExtImplementedStruct = Default::default();
+        let ext = ExtCarrier::new(ext_implementer.clone());
 
-        assert_eq!(ext.0, Rc::new(RefCell::new(Some(ext_implementer))));
+        assert_eq!(ext.0, Rc::new(RefCell::new(Some(ext_implementer.clone()))));
 
         let inner = ext.into_inner();
 
@@ -385,7 +382,7 @@ mod tests {
 
     #[test]
     fn calling_fn_within_inner_ext() {
-        let ext_implementer = ExtImplementedStruct(0);
+        let ext_implementer: ExtImplementedStruct = Default::default();
         let ext = ExtCarrier::new(ext_implementer);
         let ext_clone = ext.cloned();
 
@@ -395,7 +392,7 @@ mod tests {
 
     #[test]
     fn calling_fn_when_ext_unwrapped() {
-        let ext = ExtCarrier::new(ExtImplementedStruct(0));
+        let ext = ExtCarrier::new(ExtImplementedStruct::default());
         let ext_clone = ext.cloned();
 
         let _ = ext.into_inner();
@@ -404,7 +401,7 @@ mod tests {
 
     #[test]
     fn calling_fn_when_dropped_ext() {
-        let ext = ExtCarrier::new(ExtImplementedStruct(0));
+        let ext = ExtCarrier::new(ExtImplementedStruct::default());
         let ext_clone = ext.cloned();
 
         drop(ext);
@@ -416,8 +413,8 @@ mod tests {
     #[allow(clippy::redundant_clone)]
     /// Test that ext's clone still refers to the same inner object as the original one
     fn ext_cloning() {
-        let ext_implementer = ExtImplementedStruct(0);
-        let ext = ExtCarrier::new(ext_implementer);
+        let ext_implementer: ExtImplementedStruct = Default::default();
+        let ext = ExtCarrier::new(ext_implementer.clone());
         let ext_clone = ext.cloned();
 
         assert_eq!(ext_clone.0 .0, Rc::new(RefCell::new(Some(ext_implementer))));
@@ -425,8 +422,8 @@ mod tests {
 
     #[test]
     fn unwrap_ext_with_dropped_clones() {
-        let ext_implementer = ExtImplementedStruct(0);
-        let ext = ExtCarrier::new(ext_implementer);
+        let ext_implementer: ExtImplementedStruct = Default::default();
+        let ext = ExtCarrier::new(ext_implementer.clone());
         let ext_clone1 = ext.cloned();
         let ext_clone2 = ext_clone1.clone();
 

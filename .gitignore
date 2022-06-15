@@ -1,6 +1,8 @@
+utils/economic-checks/*.wat
 node_modules/
 target/
 .binpath
 .vscode
 .DS_Store
 .idea
+.log

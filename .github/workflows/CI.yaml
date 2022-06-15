@@ -134,11 +134,11 @@ jobs:
 
       - name: "Install: grcov"
         run: |
-          curl https://api.github.com/repos/mozilla/grcov/releases/latest | 
-          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" | 
-          xargs curl -L | 
+          curl https://api.github.com/repos/mozilla/grcov/releases/latest |
+          grep -wo "https.*x86_64.*linux-gnu.*tar\.bz2" |
+          xargs curl -L |
           tar xj
-          
+
       - name: "Install: rust-covfix"
         run: |
           curl -L https://github.com/Kogia-sima/rust-covfix/releases/download/v0.2.2/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
@@ -164,10 +164,29 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
+      - name: "Test: Gear pallet tests with lazy pages"
+        run: |
+          cargo test -p pallet-gear --features=lazy-pages --release
+          cargo test -p pallet-gear-debug --features=lazy-pages --release
+          cargo test -p pallet-gear-payment --features=lazy-pages --release
+          cargo test -p pallet-usage --features=lazy-pages --release
+
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
         env:
           RUSTFLAGS: -Cinstrument-coverage
+
+      - name: "Test (performance): pallets"
+        if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-performance-pallets
+        run: |
+          cp /root/cache/pallet-tests.json /tmp/
+          ./target/release/regression-analysis compare --data-path /tmp/pallet-tests.json --current-junit-path ./target/nextest/ci/junit.xml > ./target/pallet-tests-diff.md
+          body="$(cat ./target/pallet-tests-diff.md)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
 
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
@@ -180,9 +199,70 @@ jobs:
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
+      # TODO: make also rtest run for node without lazy-pages feature (issue #1023)
+
+      - name: "Test (performance): node runtime testsuite"
+        if: ${{ github.ref != 'refs/heads/master' }}
+        id: test-performance-runtime
+        run: |
+          cp /root/cache/runtime-tests.json /tmp/
+          ./target/release/regression-analysis compare --disable-filter --data-path /tmp/runtime-tests.json --current-junit-path ./target/runtime-test-junit.xml > ./target/runtime-tests-diff.md
+          body="$(cat ./target/runtime-tests-diff.md)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
+
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
-            
+
+      - name: Find comment (performance)
+        uses: peter-evans/find-comment@v2
+        if: ${{ github.ref != 'refs/heads/master' }}
+        id: find_comment_id
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          direction: last
+
+      - name: "Create comment (performance)"
+        uses: peter-evans/create-or-update-comment@v2
+        if: github.ref != 'refs/heads/master' && steps.find_comment_id.outputs.comment-id == ''
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
+            <details><summary>Pallet tests (values are in nanosegconds)</summary>
+
+            ${{ steps.test-performance-pallets.outputs.body }}
+            </details>
+
+            <details><summary>Runtime tests (values are in nanoseconds)</summary>
+
+            ${{ steps.test-performance-runtime.outputs.body }}
+            </details>
+            </details>
+
+      - name: "Update comment (performance)"
+        uses: peter-evans/create-or-update-comment@v2
+        if: steps.find_comment_id.outputs.comment-id != ''
+        continue-on-error: true
+        with:
+          comment-id: ${{ steps.find_comment_id.outputs.comment-id }}
+          body: |
+            <details><summary>${{ github.event.pull_request.head.sha }}</summary>
+            <details><summary>Pallet tests (values are in nanoseconds)</summary>
+
+            ${{ steps.test-performance-pallets.outputs.body }}
+            </details>
+
+            <details><summary>Runtime tests (values are in nanoseconds)</summary>
+
+            ${{ steps.test-performance-runtime.outputs.body }}
+            </details>
+            </details>
+
       - name: "Coverage: Aggregate"
         run: >-
           ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
@@ -204,16 +284,16 @@ jobs:
           --ignore "gcore/*"
           --ignore "gstd/*"
           --ignore "galloc/*"
+          --ignore "common/codegen/*"
           -o ./lcov.info
-        
+
       - name: "Coverage: Fix report"
         run: ./rust-covfix -o lcov.info lcov.info
-        
+
       - name: "Coverage: Publish"
         uses: codecov/codecov-action@v1
         with:
           file: ./lcov.info
-
 
       - name: "Cache: Pack"
         if: ${{ github.ref == 'refs/heads/master' }}

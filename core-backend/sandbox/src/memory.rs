@@ -18,7 +18,7 @@
 
 //! sp-sandbox extensions for memory.
 
-use gear_core::memory::{Error, Memory, PageNumber, WasmPageNumber};
+use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
 use sp_sandbox::SandboxMemory;
 
 /// Wrapper for sp_sandbox::Memory.
@@ -60,8 +60,8 @@ impl Memory for MemoryWrap {
         self.0.size() as usize * WasmPageNumber::size()
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> u64 {
-        unsafe { self.0.get_buff() }
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+        self.0.get_buff()
     }
 }
 

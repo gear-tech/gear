@@ -1,23 +1,29 @@
-mod counter;
-mod deque;
-mod flag;
-mod map;
-mod messenger;
-mod value;
+// This file is part of Gear.
 
-pub use counter::{StorageCounter, TargetedStorageCounter};
-pub use deque::{DequeError, NextKey, Node, StorageDeque};
-pub use flag::{StorageFlag, TargetedStorageFlag};
-pub use map::{StorageMap, TargetedStorageMap};
-pub use messenger::Messenger;
-pub use value::{StorageValue, TargetedStorageValue};
+// Copyright (C) 2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-/// Callback trait for running some logic depent on conditions.
-pub trait Callback<T, R = ()> {
-    fn call(arg: &T) -> R;
-}
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 
-/// Empty implementation for skipping callback.
-impl<T> Callback<T> for () {
-    fn call(_: &T) {}
-}
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Gear's storage API module.
+
+// Private modules declaration.
+mod complex;
+mod complicated;
+mod primitives;
+
+// Public exports from private storage modules.
+pub use complex::*;
+pub use complicated::*;
+pub use primitives::*;

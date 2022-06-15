@@ -61,7 +61,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
@@ -125,6 +125,7 @@ impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 parameter_types! {
@@ -142,6 +143,7 @@ impl pallet_gear::Config for Test {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type Schedule = ();
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Test {
@@ -156,7 +158,7 @@ parameter_types! {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 impl pallet_usage::Config for Test {
@@ -168,6 +170,7 @@ impl pallet_usage::Config for Test {
     type MaxBatchSize = MaxBatchSize;
     type TrapReplyExistentialGasLimit = ConstU64<1000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
+    type Messenger = GearMessenger;
 }
 
 pub struct FixedBlockAuthor;

@@ -112,17 +112,12 @@ impl ValueNode {
 
     /// Returns the AccountId (as Origin) of the value tree creator.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root_origin<T: Config>(&self) -> Result<H256, DispatchError> {
+    pub fn root<T: Config>(&self) -> Result<Self, DispatchError> {
         let mut ret_node = self.clone();
         while let Some(parent) = ret_node.parent() {
             ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
         }
-
-        if let ValueType::External { id, .. } = ret_node.inner {
-            Ok(id)
-        } else {
-            unreachable!("local nodes were replaced in the loop; qed")
-        }
+        Ok(ret_node)
     }
 
     fn decrease_parents_ref<T: Config>(&self) -> DispatchResult {
@@ -334,7 +329,25 @@ where
     fn get_origin(key: H256) -> Result<Option<H256>, DispatchError> {
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
-            Some(node.root_origin::<T>()?)
+            if let ValueNode {
+                inner: ValueType::External { id, .. },
+                ..
+            } = node.root::<T>()?
+            {
+                Some(id)
+            } else {
+                unreachable!("Guaranteed by ValueNode::root method");
+            }
+        } else {
+            // key unknown - legitimate result
+            None
+        })
+    }
+
+    fn get_origin_key(key: H256) -> Result<Option<H256>, DispatchError> {
+        Ok(if let Some(node) = Self::get_node(key) {
+            // key known, must return the origin, unless corrupted
+            node.root::<T>().map(|n| Some(n.id))?
         } else {
             // key unknown - legitimate result
             None
@@ -417,8 +430,9 @@ where
             Error::<T>::InsufficientBalance
         );
         *node.inner_value_mut().expect("Querying node with value") -= amount;
+        log::debug!("Spent {} of gas", amount);
 
-        // Save node that deliveres limit
+        // Save node that delivers limit
         GasTree::<T>::mutate(node.id, |value| {
             *value = Some(node);
         });
@@ -693,7 +707,8 @@ mod imbalances {
         fn drop(&mut self) {
             <super::TotalIssuance<T>>::mutate(|v| {
                 if self.0 > *v {
-                    log::warn!(
+                    log::debug!(
+                        target: "essential",
                         "Unaccounted gas detected: burnt {:?}, known total supply was {:?}.",
                         self.0,
                         *v

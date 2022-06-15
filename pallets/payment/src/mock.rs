@@ -54,7 +54,7 @@ construct_runtime!(
         Authorship: pallet_authorship::{Pallet, Storage},
         TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        GearMessenger: pallet_gear_messenger::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
         GearPayment: pallet_gear_payment::{Pallet, Storage},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
     }
@@ -143,9 +143,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Test {
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
-    type TransactionByteFee = TransactionByteFee;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<u128>;
+    type LengthToFee = IdentityFee<u128>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
@@ -172,12 +172,14 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 impl pallet_gas::Config for Test {
@@ -185,7 +187,7 @@ impl pallet_gas::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Event = Event;
+    type Currency = Balances;
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
@@ -219,12 +221,9 @@ impl Contains<Call> for ExtraFeeFilter {
     }
 }
 
-type QueueLength =
-    <<GearMessenger as common::storage::Messenger>::Queue as common::storage::StorageDeque>::Length;
-
 impl pallet_gear_payment::Config for Test {
     type ExtraFeeCallFilter = ExtraFeeFilter;
-    type MessageQueueLength = QueueLength;
+    type Messenger = GearMessenger;
 }
 
 // Build genesis storage according to the mock runtime.

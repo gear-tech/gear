@@ -43,6 +43,7 @@ construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearMessenger: pallet_gear_messenger::{Pallet},
     }
 );
 
@@ -91,10 +92,15 @@ impl pallet_balances::Config for Test {
     type WeightInfo = ();
 }
 
+impl pallet_gear_messenger::Config for Test {
+    type Currency = Balances;
+}
+
 impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
     type Currency = Balances;
+    type Messenger = GearMessenger;
 }
 
 // Build genesis storage according to the mock runtime.

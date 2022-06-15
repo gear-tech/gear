@@ -19,13 +19,15 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Payload, StoredDispatch, StoredMessage, Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
+        Value,
     },
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Handle message.
+/// Message for Handle entry point.
+/// Represents a standard message that sends between actors.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct HandleMessage {
     /// Message id.
@@ -156,19 +158,18 @@ impl HandlePacket {
     pub fn destination(&self) -> ProgramId {
         self.destination
     }
+}
 
-    /// Packet payload reference.
-    pub fn payload(&self) -> &[u8] {
+impl Packet for HandlePacket {
+    fn payload(&self) -> &[u8] {
         self.payload.as_ref()
     }
 
-    /// Packet optional gas limit.
-    pub fn gas_limit(&self) -> Option<GasLimit> {
+    fn gas_limit(&self) -> Option<GasLimit> {
         self.gas_limit
     }
 
-    /// Packet value.
-    pub fn value(&self) -> Value {
+    fn value(&self) -> Value {
         self.value
     }
 }

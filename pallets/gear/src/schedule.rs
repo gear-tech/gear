@@ -42,7 +42,7 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
 /// How many instructions are executed in a single batch.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 
-/// Definition of the cost schedule and other parameterizations for the wasm vm.
+/// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
 /// Its [`Default`] implementation is the designated way to initialize this type. It uses
 /// the benchmarked information supplied by [`Config::WeightInfo`]. All of its fields are
@@ -164,7 +164,7 @@ impl Limits {
 /// Describes the weight for all categories of supported wasm instructions.
 ///
 /// There there is one field for each wasm instruction that describes the weight to
-/// execute one instruction of that name. There are a few execptions:
+/// execute one instruction of that name. There are a few exceptions:
 ///
 /// 1. If there is a i64 and a i32 variant of an instruction we use the weight
 ///    of the former for both.

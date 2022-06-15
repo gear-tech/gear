@@ -27,17 +27,20 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, ExtInfo, HostPointer, IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    ExtInfo, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, WasmPageNumber},
 };
+use gear_core_errors::MemoryError;
 use wasmtime::{
-    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryAccessError, MemoryType,
-    Module, Store, Trap,
+    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
+
+use crate::{funcs::FuncsHandler as Funcs, memory::MemoryWrapExternal};
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
@@ -57,81 +60,36 @@ pub enum WasmtimeEnvironmentError {
     InstanceCreation,
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
+    #[display(fmt = "Unable to save static pages initial data")]
+    SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
     #[display(fmt = "{}", _0)]
-    MemoryAccess(MemoryAccessError),
+    MemoryAccess(MemoryError),
     #[display(fmt = "{}", _0)]
     PostExecutionHandler(String),
 }
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
-    store: Store<StoreData<E>>,
     ext: ExtCarrier<E>,
-    memory: WasmtimeMemory,
+    memory_wrap: MemoryWrapExternal<E>,
     instance: Instance,
-}
-
-fn set_pages<T: Ext>(
-    mut store: &mut Store<StoreData<T>>,
-    memory: &mut WasmtimeMemory,
-    pages: &BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), String> {
-    let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
-    for (page, buf) in pages {
-        if memory_size <= page.to_wasm_page() {
-            return Err(format!(
-                "Memory size {:?} less then {:?}",
-                memory_size, page
-            ));
-        }
-        memory
-            .write(&mut store, page.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write to {:?}: {:?}", page, e))?;
-    }
-    Ok(())
-}
-
-impl<E> WasmtimeEnvironment<E>
-where
-    E: Ext + IntoExtInfo,
-{
-    fn prepare_post_execution_data(
-        self,
-    ) -> Result<(ExtInfo, HostPointer), BackendError<WasmtimeEnvironmentError>> {
-        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-        let WasmtimeEnvironment {
-            mut store,
-            ext,
-            memory,
-            ..
-        } = self;
-        ext.into_inner()
-            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                memory.read(&mut store, offset, buffer)
-            })
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                description: None,
-                gas_amount,
-            })
-            .map(|info| (info, wasm_memory_addr))
-    }
 }
 
 impl<E> Environment<E> for WasmtimeEnvironment<E>
 where
     E: Ext + IntoExtInfo,
+    E::Error: AsTerminationReason + IntoExtError,
 {
     type Error = WasmtimeEnvironmentError;
 
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
+        let forbidden_funcs = ext.forbidden_funcs().clone();
         let ext_carrier = ExtCarrier::new(ext);
 
         let engine = Engine::default();
@@ -142,7 +100,7 @@ where
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
         // Creates new wasm memory
-        let mut memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
+        let memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
@@ -153,54 +111,61 @@ where
             }
         };
 
-        /// Make import funcs
-        use crate::funcs::FuncsHandler as funcs;
         let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert("alloc", funcs::alloc(&mut store, memory));
-        funcs.insert("free", funcs::free(&mut store));
-        funcs.insert("gas", funcs::gas(&mut store));
-        funcs.insert("gr_block_height", funcs::block_height(&mut store));
-        funcs.insert("gr_block_timestamp", funcs::block_timestamp(&mut store));
+        funcs.insert("alloc", Funcs::alloc(&mut store, memory));
+        funcs.insert("free", Funcs::free(&mut store));
+        funcs.insert("gas", Funcs::gas(&mut store));
+        funcs.insert("gr_block_height", Funcs::block_height(&mut store));
+        funcs.insert("gr_block_timestamp", Funcs::block_timestamp(&mut store));
+        funcs.insert(
+            "gr_create_program",
+            Funcs::create_program(&mut store, memory),
+        );
         funcs.insert(
             "gr_create_program_wgas",
-            funcs::create_program_wgas(&mut store, memory),
+            Funcs::create_program_wgas(&mut store, memory),
         );
-        funcs.insert("gr_exit_code", funcs::exit_code(&mut store));
-        funcs.insert("gr_gas_available", funcs::gas_available(&mut store));
-        funcs.insert("gr_debug", funcs::debug(&mut store, memory));
-        funcs.insert("gr_exit", funcs::exit(&mut store, memory));
-        funcs.insert("gr_origin", funcs::origin(&mut store, memory));
-        funcs.insert("gr_msg_id", funcs::msg_id(&mut store, memory));
-        funcs.insert("gr_program_id", funcs::program_id(&mut store, memory));
-        funcs.insert("gr_read", funcs::read(&mut store, memory));
-        funcs.insert("gr_reply", funcs::reply(&mut store, memory));
-        funcs.insert("gr_reply_wgas", funcs::reply_wgas(&mut store, memory));
-        funcs.insert("gr_reply_commit", funcs::reply_commit(&mut store, memory));
+        funcs.insert("gr_exit_code", Funcs::exit_code(&mut store));
+        funcs.insert("gr_gas_available", Funcs::gas_available(&mut store));
+        funcs.insert("gr_debug", Funcs::debug(&mut store, memory));
+        funcs.insert("gr_exit", Funcs::exit(&mut store, memory));
+        funcs.insert("gr_origin", Funcs::origin(&mut store, memory));
+        funcs.insert("gr_msg_id", Funcs::msg_id(&mut store, memory));
+        funcs.insert("gr_program_id", Funcs::program_id(&mut store, memory));
+        funcs.insert("gr_read", Funcs::read(&mut store, memory));
+        funcs.insert("gr_reply", Funcs::reply(&mut store, memory));
+        funcs.insert("gr_reply_wgas", Funcs::reply_wgas(&mut store, memory));
+        funcs.insert("gr_reply_commit", Funcs::reply_commit(&mut store, memory));
         funcs.insert(
             "gr_reply_commit_wgas",
-            funcs::reply_commit_wgas(&mut store, memory),
+            Funcs::reply_commit_wgas(&mut store, memory),
         );
-        funcs.insert("gr_reply_push", funcs::reply_push(&mut store, memory));
-        funcs.insert("gr_reply_to", funcs::reply_to(&mut store, memory));
-        funcs.insert("gr_send_wgas", funcs::send_wgas(&mut store, memory));
-        funcs.insert("gr_send", funcs::send(&mut store, memory));
+        funcs.insert("gr_reply_push", Funcs::reply_push(&mut store, memory));
+        funcs.insert("gr_reply_to", Funcs::reply_to(&mut store, memory));
+        funcs.insert("gr_send_wgas", Funcs::send_wgas(&mut store, memory));
+        funcs.insert("gr_send", Funcs::send(&mut store, memory));
         funcs.insert(
             "gr_send_commit_wgas",
-            funcs::send_commit_wgas(&mut store, memory),
+            Funcs::send_commit_wgas(&mut store, memory),
         );
-        funcs.insert("gr_send_commit", funcs::send_commit(&mut store, memory));
-        funcs.insert("gr_send_init", funcs::send_init(&mut store, memory));
-        funcs.insert("gr_send_push", funcs::send_push(&mut store, memory));
-        funcs.insert("gr_size", funcs::size(&mut store));
-        funcs.insert("gr_source", funcs::source(&mut store, memory));
-        funcs.insert("gr_value", funcs::value(&mut store, memory));
+        funcs.insert("gr_send_commit", Funcs::send_commit(&mut store, memory));
+        funcs.insert("gr_send_init", Funcs::send_init(&mut store, memory));
+        funcs.insert("gr_send_push", Funcs::send_push(&mut store, memory));
+        funcs.insert("gr_size", Funcs::size(&mut store));
+        funcs.insert("gr_source", Funcs::source(&mut store, memory));
+        funcs.insert("gr_value", Funcs::value(&mut store, memory));
         funcs.insert(
             "gr_value_available",
-            funcs::value_available(&mut store, memory),
+            Funcs::value_available(&mut store, memory),
         );
-        funcs.insert("gr_leave", funcs::leave(&mut store));
-        funcs.insert("gr_wait", funcs::wait(&mut store));
-        funcs.insert("gr_wake", funcs::wake(&mut store, memory));
+        funcs.insert("gr_leave", Funcs::leave(&mut store));
+        funcs.insert("gr_wait", Funcs::wait(&mut store));
+        funcs.insert("gr_wake", Funcs::wake(&mut store, memory));
+        funcs.insert("gr_error", Funcs::error(&mut store, memory));
+
+        for name in forbidden_funcs {
+            funcs.insert(name, Funcs::forbidden(&mut store));
+        }
 
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,
@@ -262,19 +227,11 @@ where
             }
         };
 
-        // Set module memory data
-        if let Err(e) = set_pages(&mut store, &mut memory, memory_pages) {
-            return Err(BackendError {
-                reason: WasmtimeEnvironmentError::SetModuleMemoryData,
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: ext_carrier.into_inner().into_gas_amount(),
-            });
-        }
+        let memory_wrap = MemoryWrapExternal { mem: memory, store };
 
         Ok(WasmtimeEnvironment {
-            store,
             ext: ext_carrier,
-            memory,
+            memory_wrap,
             instance,
         })
     }
@@ -283,20 +240,27 @@ where
         // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
         let global = self
             .instance
-            .get_global(&mut self.store, "__gear_stack_end")?;
-        global.get(&mut self.store).i32().and_then(|addr| {
-            if addr < 0 {
-                None
-            } else {
-                Some(WasmPageNumber(
-                    (addr as usize / WasmPageNumber::size()) as u32,
-                ))
-            }
-        })
+            .get_global(&mut self.memory_wrap.store, "__gear_stack_end")?;
+        global
+            .get(&mut self.memory_wrap.store)
+            .i32()
+            .and_then(|addr| {
+                if addr < 0 {
+                    None
+                } else {
+                    Some(WasmPageNumber(
+                        (addr as usize / WasmPageNumber::size()) as u32,
+                    ))
+                }
+            })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> HostPointer {
-        self.memory.data_ptr(&self.store) as HostPointer
+    fn get_mem(&self) -> &dyn Memory {
+        &self.memory_wrap
+    }
+
+    fn get_mem_mut(&mut self) -> &mut dyn Memory {
+        &mut self.memory_wrap
     }
 
     fn execute<F, T>(
@@ -305,19 +269,36 @@ where
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), T>,
+        F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let func = self.instance.get_func(&mut self.store, entry_point);
+        let func = self
+            .instance
+            .get_func(&mut self.memory_wrap.store, entry_point);
+
+        let prepare_info =
+            |this: Self| -> Result<(ExtInfo, MemoryWrapExternal<E>), BackendError<Self::Error>> {
+                let WasmtimeEnvironment {
+                    ext, memory_wrap, ..
+                } = this;
+                ext.into_inner()
+                    .into_ext_info(&memory_wrap)
+                    .map_err(|(reason, gas_amount)| BackendError {
+                        reason: WasmtimeEnvironmentError::MemoryAccess(reason),
+                        description: None,
+                        gas_amount,
+                    })
+                    .map(|info| (info, memory_wrap))
+            };
 
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
         } else {
-            let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
+            let (info, memory_wrap) = prepare_info(self)?;
 
             // Entry function not found, so we mean this as empty function
-            return match post_execution_handler(wasm_memory_addr) {
+            return match post_execution_handler(&memory_wrap) {
                 Ok(_) => Ok(BackendReport {
                     termination: TerminationReason::Success,
                     info,
@@ -330,11 +311,11 @@ where
             };
         };
 
-        let res = entry_func.call(&mut self.store, &[], &mut []);
+        let res = entry_func.call(&mut self.memory_wrap.store, &[], &mut []);
 
-        let termination_reason = self.store.data().termination_reason.clone();
+        let termination_reason = self.memory_wrap.store.data().termination_reason.clone();
 
-        let (info, wasm_memory_addr) = self.prepare_post_execution_data()?;
+        let (info, memory_wrap) = prepare_info(self)?;
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
@@ -348,14 +329,14 @@ where
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: Some(e.to_string().into()),
             })
         } else {
             TerminationReason::Success
         };
 
-        match post_execution_handler(wasm_memory_addr) {
+        match post_execution_handler(&memory_wrap) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),

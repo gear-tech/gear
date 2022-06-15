@@ -18,11 +18,8 @@ clean:
 .PHONY: clean-examples
 clean-examples:
 	@ rm -rf ./target/wasm32-unknown-unknown
+	@ rm -rvf target/release/build/demo-*
 	@ cargo clean --manifest-path=./examples/Cargo.toml
-
-.PHONY: clean-node
-clean-node:
-	@ cargo clean -p gear-node
 
 # Build section
 .PHONY: all
@@ -39,11 +36,17 @@ gear:
 gear-release:
 	@ ./scripts/gear.sh build gear --release
 
+.PHONY: gear-test
+gear-test:
+	@ ./scripts/gear.sh build gear-test
+
+.PHONY: gear-test-release
+gear-test-release:
+	@ ./scripts/gear.sh build gear-test --release
+
 .PHONY: examples
 examples: build-examples proc-examples
 
-# You can specify yaml list to build coresponding examples
-# using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: build-examples
 build-examples:
 	@ ./scripts/gear.sh build examples yamls="$(yamls)"
@@ -66,10 +69,10 @@ node-release:
 
 # Check section
 .PHONY: check
-check: check-gear check-examples check-benchmark
+check: check-gear check-examples
 
 .PHONY: check-release
-check-release: check-gear-release check-examples check-benchmark-release
+check-release: check-gear-release check-examples
 
 .PHONY: check-gear
 check-gear:
@@ -82,14 +85,6 @@ check-gear-release:
 .PHONY: check-examples
 check-examples:
 	@ ./scripts/gear.sh check examples
-
-.PHONY: check-benchmark
-check-benchmark:
-	@ ./scripts/gear.sh check benchmark
-
-.PHONY: check-benchmark-release
-check-benchmark-release:
-	@ ./scripts/gear.sh check benchmark --release
 
 # Clippy section
 .PHONY: clippy
@@ -218,14 +213,13 @@ test-gear-release: init-js examples
 test-js: init-js
 	@ ./scripts/gear.sh test js
 
-# You can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: gtest
-gtest: init-js examples
+gtest: init-js gear-test-release examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: rtest
-rtest: init-js examples
-	@ ./scripts/gear.sh test rtest
+rtest: init-js node-release examples
+	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
 
 .PHONY: test-pallet
 test-pallet:
@@ -238,3 +232,7 @@ test-pallet-release:
 .PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
+
+.PHONY: fuzz
+fuzz:
+	@ ./scripts/gear.sh test fuzz

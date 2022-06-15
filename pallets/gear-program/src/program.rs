@@ -17,13 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use common::Origin as _;
+use gear_core::ids::ProgramId;
 
 impl<T: Config> pallet::Pallet<T> {
-    pub fn program_exists(program_id: H256) -> bool {
-        common::program_exists(program_id) | Self::program_paused(program_id)
+    pub fn program_exists(program_id: ProgramId) -> bool {
+        common::program_exists(program_id.into_origin()) | Self::program_paused(program_id)
     }
 
     pub fn reset_storage() {
-        PausedPrograms::<T>::remove_all(None);
+        let _ = PausedPrograms::<T>::clear(u32::MAX, None);
     }
 }

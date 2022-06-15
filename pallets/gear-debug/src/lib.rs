@@ -32,11 +32,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{
-        self,
-        storage::{Messenger, StorageDeque},
-        CodeStorage, Origin, Program,
-    };
+    use common::{self, storage::*, CodeStorage, Origin, Program};
     use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
@@ -47,13 +43,14 @@ pub mod pallet {
         memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
-    use pallet_gear_messenger::Pallet as MessengerPallet;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
+    pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear_messenger::Config {
+    pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>>
             + IsType<<Self as frame_system::Config>::Event>
@@ -62,8 +59,10 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
-        /// Storage with codes for proograms
+        /// Storage with codes for programs.
         type CodeStorage: CodeStorage;
+
+        type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
     }
 
     #[pallet::pallet]
@@ -84,9 +83,9 @@ pub mod pallet {
     pub enum Error<T> {}
 
     /// Program debug info.
-    // TODO: unfortunatelly we cannot store pages data in [PageBuf],
+    // TODO: unfortunately we cannot store pages data in [PageBuf],
     // because polkadot-js api can not support this type.
-    #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
         pub static_pages: WasmPageNumber,
         pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
@@ -99,26 +98,39 @@ pub mod pallet {
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
-                    &self.persistent_pages.keys().cloned().collect::<Vec<_>>(),
+                    &self
+                        .persistent_pages
+                        .iter()
+                        .map(|(page, data)|
+                        // Prints only bytes which is not zero
+                        (
+                            *page,
+                            data.iter()
+                                .enumerate()
+                                .filter(|(_, val)| **val != 0)
+                                .map(|(idx, val)| (idx, *val))
+                                .collect::<BTreeMap<_, _>>(),
+                        ))
+                        .collect::<BTreeMap<_, _>>(),
                 )
                 .field("code_hash", &self.code_hash)
                 .finish()
         }
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub enum ProgramState {
         Active(ProgramInfo),
         Terminated,
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, Debug)]
     pub struct ProgramDetails {
-        pub id: H256,
+        pub id: ProgramId,
         pub state: ProgramState,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct DebugData {
         pub dispatch_queue: Vec<StoredDispatch>,
         pub programs: Vec<ProgramDetails>,
@@ -185,16 +197,16 @@ pub mod pallet {
 
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            let dispatch_queue = <MessengerPallet<T> as Messenger>::Queue::iter()
+            let dispatch_queue = QueueOf::<T>::iter()
                 .map(|v| v.unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e)))
                 .collect();
 
-            let programs = PrefixIterator::<(H256, Program)>::new(
+            let programs = PrefixIterator::<(ProgramId, Program)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 |key, mut value| {
                     assert_eq!(key.len(), 32);
-                    let program_id = H256::from_slice(key);
+                    let program_id = ProgramId::from_origin(H256::from_slice(key));
                     let program = Program::decode(&mut value)?;
                     Ok((program_id, program))
                 },
@@ -214,7 +226,7 @@ pub mod pallet {
                     Some(code) => code.static_pages(),
                     None => WasmPageNumber(0),
                 };
-                let persistent_pages = common::get_program_pages_data(id, &active)
+                let persistent_pages = common::get_program_pages_data(id.into_origin(), &active)
                     .unwrap()
                     .into_iter()
                     .map(|(page, data)| (page, data.into_vec()))
@@ -249,8 +261,7 @@ pub mod pallet {
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
 
-            <MessengerPallet<T> as Messenger>::Queue::mutate_all(|d| remap_with(d, &programs_map))
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<T>::mutate_values(|d| remap_with(d, &programs_map));
         }
     }
 

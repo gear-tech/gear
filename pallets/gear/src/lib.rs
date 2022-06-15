@@ -45,7 +45,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{self, storage::*, CodeStorage};
+use common::{storage::*, CodeStorage};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
@@ -58,16 +58,25 @@ use gear_core::{
     program::Program as NativeProgram,
 };
 use pallet_gas::Pallet as GasPallet;
-use pallet_gear_messenger::Pallet as MessengerPallet;
 use primitive_types::H256;
-use scale_info::TypeInfo;
-use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{convert::TryInto, fmt::Debug, prelude::*};
+use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    convert::TryInto,
+    prelude::*,
+};
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
-type BalanceOf<T> =
+pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
+pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
+pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
+pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
+pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
+pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
 
@@ -98,11 +107,12 @@ pub mod pallet {
 
     use crate::{
         ext::LazyPagesExt,
-        manager::{ExtManager, HandleKind},
+        manager::{ExtManager, HandleKind, QueuePostProcessingData},
     };
     use alloc::format;
     use common::{
-        self, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState, ValueTree,
+        self, event::*, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState,
+        ValueTree,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -123,7 +133,6 @@ pub mod pallet {
         + pallet_timestamp::Config
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
         + pallet_gas::Config
-        + pallet_gear_messenger::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -160,6 +169,19 @@ pub mod pallet {
         type DebugInfo: DebugInfo;
 
         type CodeStorage: CodeStorage;
+
+        type Messenger: Messenger<
+            BlockNumber = Self::BlockNumber,
+            Capacity = u32,
+            OutputError = DispatchError,
+            MailboxFirstKey = Self::AccountId,
+            MailboxSecondKey = MessageId,
+            MailboxedMessage = StoredMessage,
+            QueuedDispatch = StoredDispatch,
+            WaitlistFirstKey = ProgramId,
+            WaitlistSecondKey = MessageId,
+            WaitlistedMessage = StoredDispatch,
+        >;
     }
 
     #[pallet::pallet]
@@ -171,33 +193,116 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// Log event from the specific program.
-        Log(StoredMessage),
-        /// Program created and an init message enqueued.
-        InitMessageEnqueued(MessageInfo),
-        /// Program initialization error.
-        InitFailure(MessageInfo, Reason),
-        /// Program initialized.
-        InitSuccess(MessageInfo),
-        /// Dispatch message with a specific ID enqueued for processing.
-        DispatchMessageEnqueued(MessageInfo),
-        /// Dispatched message has resulted in an outcome
-        MessageDispatched(DispatchOutcome),
-        /// Some number of messages processed.
-        // TODO: will be replaced by more comprehensive stats
-        MessagesDequeued(u32),
-        /// Value and gas has been claimed from a message in mailbox by the addressee
-        ClaimedValueFromMailbox(H256),
-        /// A message has been added to the wait list
-        AddedToWaitList(StoredDispatch),
-        /// A message has been removed from the wait list
-        RemovedFromWaitList(H256),
-        /// Program code with a calculated code hash is saved to the storage
-        CodeSaved(H256),
-        /// Pallet associated storage has been wiped.
+        /// User send message to program, which was successfully
+        /// added to gear message queue.
+        MessageEnqueued {
+            /// Generated id of the message.
+            id: MessageId,
+            /// Account id of the source of the message.
+            source: T::AccountId,
+            /// Program id, who is a destination of the message.
+            destination: ProgramId,
+            /// Entry point for processing of the message.
+            /// On the sending stage, processing function
+            /// of program is always known.
+            entry: Entry,
+        },
+
+        /// Somebody sent message to user.
+        UserMessageSent {
+            /// Message sent.
+            message: StoredMessage,
+            /// Block number of expiration from `Mailbox`.
+            ///
+            /// Equals `Some(_)` with block number when message
+            /// will be removed from `Mailbox` due to some
+            /// reasons (see #642, #646 and #1010).
+            ///
+            /// Equals `None` if message wasn't inserted to
+            /// `Mailbox` and appears as only `Event`.
+            expiration: Option<T::BlockNumber>,
+        },
+
+        /// Message marked as "read" and removes it from `Mailbox`.
+        /// This event only affects messages, which were
+        /// already inserted in `Mailbox` before.
+        UserMessageRead {
+            /// Id of the message read.
+            id: MessageId,
+            /// The reason of the reading (removal from `Mailbox`).
+            ///
+            /// NOTE: See more docs about reasons at `gear_common::event`.
+            reason: UserMessageReadReason,
+        },
+
+        /// The result of the messages processing within the block.
+        MessagesDispatched {
+            /// Total amount of messages removed from message queue.
+            total: MessengerCapacityOf<T>,
+            /// Execution statuses of the messages, which were already known
+            /// by `Event::MessageEnqueued` (sent from user to program).
+            statuses: BTreeMap<MessageId, DispatchStatus>,
+            /// Ids of programs, which state changed during queue processing.
+            state_changes: BTreeSet<ProgramId>,
+        },
+
+        /// Temporary `Event` variant, showing that all storages was cleared.
+        ///
+        /// Will be removed in favor of proper database migrations.
         DatabaseWiped,
-        /// Message was not executed
-        MessageNotExecuted(H256),
+
+        /// Messages execution delayed (waited) and it was successfully
+        /// added to gear waitlist.
+        MessageWaited {
+            /// Id of the message waited.
+            id: MessageId,
+            /// Origin message id, which started messaging chain with programs,
+            /// where currently waited message was created.
+            ///
+            /// Used for identifying by user, that this message associated
+            /// with him and with the concrete initial message.
+            origin: Option<MessageId>,
+            /// The reason of the waiting (addition to `Waitlist`).
+            ///
+            /// NOTE: See more docs about reasons at `gear_common::event`.
+            reason: MessageWaitedReason,
+            /// Block number of expiration from `Waitlist`.
+            ///
+            /// Equals block number when message will be removed from `Waitlist`
+            /// due to some reasons (see #642, #646 and #1010).
+            expiration: T::BlockNumber,
+        },
+
+        /// Message is ready to continue its execution
+        /// and was removed from `Waitlist`.
+        MessageWoken {
+            /// Id of the message woken.
+            id: MessageId,
+            /// The reason of the waking (removal from `Waitlist`).
+            ///
+            /// NOTE: See more docs about reasons at `gear_common::event`.
+            reason: MessageWokenReason,
+        },
+
+        /// Any data related to programs codes changed.
+        CodeChanged {
+            /// Id of the code affected.
+            id: CodeId,
+            /// Change applied on code with current id.
+            ///
+            /// NOTE: See more docs about change kinds at `gear_common::event`.
+            change: CodeChangeKind<T::BlockNumber>,
+        },
+
+        /// Any data related to programs changed.
+        ProgramChanged {
+            /// Id of the program affected.
+            id: ProgramId,
+            /// Change applied on program with current id.
+            ///
+            /// NOTE: See more docs about change kinds at `gear_common::event`.
+            change: ProgramChangeKind<T::BlockNumber>,
+        },
     }
 
     // Gear pallet error.
@@ -215,19 +320,15 @@ pub mod pallet {
         ///
         /// Occurs if a program with some specific program id already exists in program storage.
         ProgramAlreadyExists,
-        /// No message in the mailbox.
+        /// Program is terminated.
         ///
-        /// The user tried to reply on message that was not found in his personal mailbox.
-        NoMessageInMailbox,
-        /// Program is terminated
-        ///
-        /// Program init ended up with failure, so such message destination is unavailable anymore
+        /// Program init ended up with failure, so such message destination is unavailable anymore.
         ProgramIsTerminated,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
         NoMessageTree,
-        /// Code already exists
+        /// Code already exists.
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
@@ -236,46 +337,15 @@ pub mod pallet {
         CodeTooLarge,
         /// Failed to create a program.
         FailedToConstructProgram,
-        /// Value doesn't cover ExistenceDeposit
+        /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
-        /// Unable to instrument program code
+        /// Unable to instrument program code.
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
     }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
-    pub enum Reason {
-        Error,
-        ValueTransfer,
-        Dispatch(Vec<u8>),
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
-    pub enum ExecutionResult {
-        Success,
-        Failure(Vec<u8>),
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
-    pub struct DispatchOutcome {
-        pub message_id: H256,
-        pub outcome: ExecutionResult,
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
-    pub struct MessageInfo {
-        pub message_id: H256,
-        pub program_id: H256,
-        pub origin: H256,
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn mailbox)]
-    pub type Mailbox<T: Config> =
-        StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -318,13 +388,13 @@ pub mod pallet {
                 bn,
             );
 
-            // Adjust the block gas allowance based on actual remaining weight
-            GasPallet::<T>::update_gas_allowance(
-                remaining_weight.saturating_sub(T::DbWeight::get().writes(1)),
-            );
+            // Adjust the block gas allowance based on actual remaining weight.
+            //
+            // This field already was affected by gas pallet within the block,
+            // so we don't need to include that db write.
+            GasPallet::<T>::update_gas_allowance(remaining_weight);
 
-            let weight = T::DbWeight::get().writes(1);
-            weight.saturating_add(Self::process_queue())
+            Self::process_queue()
         }
     }
 
@@ -369,10 +439,9 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
-            let id = program_id.into_origin();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !GearProgramPallet::<T>::program_exists(id),
+                !GearProgramPallet::<T>::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -383,165 +452,107 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.into_origin();
+            let origin = who.clone().into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
-                Self::deposit_event(Event::CodeSaved(code_hash));
+            if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
+                // TODO: replace this temporary (`None`) value
+                // for expiration block number with properly
+                // calculated one (issues #646 and #969).
+                Self::deposit_event(Event::CodeChanged {
+                    id: code_id,
+                    change: CodeChangeKind::Active { expiration: None },
+                });
             }
 
-            let message_id = Self::next_message_id(origin).into_origin();
+            let message_id = Self::next_message_id(origin);
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ =
-                T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
+            let _ = T::GasHandler::create(
+                origin,
+                message_id.into_origin(),
+                packet.gas_limit().expect("Can't fail"),
+            );
 
-            let message = InitMessage::from_packet(MessageId::from_origin(message_id), packet);
+            let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-                .map_err(|_| "Unable to push message")?;
+            QueueOf::<T>::queue(dispatch).map_err(|_| "Unable to push message")?;
 
-            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
-                message_id,
-                program_id: id,
-                origin,
-            }));
+            Self::deposit_event(Event::MessageEnqueued {
+                id: message_id,
+                source: who,
+                destination: program_id,
+                entry: Entry::Init,
+            });
 
             Ok(().into())
         }
 
-        // Messages have only two options to be inserted in mailbox:
-        // 1. While message processing called `gr_wait`.
-        // 2. While message addressed to program, that hadn't finished it's initialization.
-        //
-        // This means that program always exists in storage in active or terminated status.
-        //
-        // We also remove messages from mailbox for cases of out of rent (in `pallet-usage`)
-        // and once program initialized or failed it's inititalization.
-        pub fn insert_to_mailbox(user: H256, message: StoredMessage) {
-            let user_id = &<T::AccountId as Origin>::from_origin(user);
-
-            <Mailbox<T>>::insert(user_id, message.id(), message);
-        }
-
-        pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<StoredMessage> {
-            let user_id = &<T::AccountId as Origin>::from_origin(user);
-            let message_id = MessageId::from_origin(message_id);
-
-            <Mailbox<T>>::take(user_id, message_id)
-        }
-
-        pub fn remove_and_claim_from_mailbox(
-            user_id: &T::AccountId,
-            message_id: H256,
-        ) -> Result<StoredMessage, DispatchError> {
-            let message = Self::remove_from_mailbox(user_id.clone().into_origin(), message_id)
-                .ok_or(Error::<T>::NoMessageInMailbox)?;
-
-            if message.value() > 0 {
-                // Assuming the programs has enough balance
-                <T as Config>::Currency::repatriate_reserved(
-                    &<T::AccountId as Origin>::from_origin(message.source().into_origin()),
-                    user_id,
-                    message.value().unique_saturated_into(),
-                    BalanceStatus::Free,
-                )?;
-            }
-
-            Ok(message)
-        }
-
+        #[cfg(not(test))]
         pub fn get_gas_spent(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
         ) -> Result<u64, Vec<u8>> {
-            let schedule = T::Schedule::get();
-            let mut ext_manager = ExtManager::<T>::default();
+            Self::get_gas_spent_impl(source, kind, payload, value)
+        }
 
-            let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-            let root_message_id = MessageId::from(bn).into_origin();
+        #[cfg(test)]
+        pub fn get_gas_spent(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            mock::run_with_ext_copy(|| Self::get_gas_spent_impl(source, kind, payload, value))
+        }
 
-            let dispatch = match kind {
-                HandleKind::Init(ref code) => {
-                    let program_id = ProgramId::generate(CodeId::generate(code), b"gas_spent_salt");
+        fn get_gas_spent_impl(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            let account = <T::AccountId as Origin>::from_origin(source);
 
-                    let schedule = T::Schedule::get();
-                    let code = Code::try_new(
-                        code.clone(),
-                        schedule.instruction_weights.version,
-                        |module| schedule.rules(module),
-                    )
-                    .map_err(|_| b"Code failed to load: {}".to_vec())?;
+            let balance = <T as Config>::Currency::total_balance(&account);
+            let max_balance: BalanceOf<T> = u128::MAX.unique_saturated_into();
+            <T as Config>::Currency::deposit_creating(
+                &account,
+                max_balance.saturating_sub(balance),
+            );
 
-                    let code_and_id = CodeAndId::new(code);
-                    let code_id = code_and_id.code_id();
-
-                    let _ = Self::set_code_with_metadata(code_and_id, source);
-
-                    ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
-
-                    Dispatch::new(
-                        DispatchKind::Init,
-                        Message::new(
-                            MessageId::from_origin(root_message_id),
-                            ProgramId::from_origin(source),
-                            program_id,
-                            payload,
-                            Some(u64::MAX),
-                            value,
-                            None,
-                        ),
-                    )
-                }
-                HandleKind::Handle(dest) => Dispatch::new(
-                    DispatchKind::Handle,
-                    Message::new(
-                        MessageId::from_origin(root_message_id),
-                        ProgramId::from_origin(source),
-                        ProgramId::from_origin(dest),
-                        payload,
-                        Some(u64::MAX),
-                        value,
-                        None,
-                    ),
-                ),
-                HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = Self::remove_from_mailbox(source, msg_id).ok_or_else(|| {
-                        b"Internal error: unable to find message in mailbox".to_vec()
-                    })?;
-                    Dispatch::new(
-                        DispatchKind::Reply,
-                        Message::new(
-                            MessageId::from_origin(root_message_id),
-                            ProgramId::from_origin(source),
-                            msg.source(),
-                            payload,
-                            Some(u64::MAX),
-                            value,
-                            Some((msg.id(), exit_code)),
-                        ),
-                    )
-                }
-            };
-
+            let who = frame_support::dispatch::RawOrigin::Signed(account);
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
-                .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
+            let value: BalanceOf<T> = value.unique_saturated_into();
 
-            let dispatch = dispatch.into_stored();
+            QueueOf::<T>::clear();
 
-            <MessengerPallet<T> as Messenger>::Queue::clear()
-                .map_err(|_| b"Failed to clear MQ".to_vec())?;
+            match kind {
+                HandleKind::Init(code) => {
+                    let salt = b"gas_spent_salt".to_vec();
+                    Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
+                        .map_err(|_| b"Internal error: submit_program failed".to_vec())?;
+                }
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-                .map_err(|_| b"Messages storage corrupted".to_vec())?;
+                HandleKind::Handle(dest) => {
+                    let destination = ProgramId::from_origin(dest);
+                    Self::send_message(who.into(), destination, payload, initial_gas, value)
+                        .map_err(|_| b"Internal error: send_message failed".to_vec())?;
+                }
+
+                HandleKind::Reply(msg_id, _exit_code) => {
+                    let reply_to_id = MessageId::from_origin(msg_id);
+                    Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
+                        .map_err(|_| b"Internal error: send_reply failed".to_vec())?;
+                }
+            }
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -553,8 +564,11 @@ pub mod pallet {
 
             let mut max_gas_spent = 0;
 
-            while let Some(queued_dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
-                .map_err(|_| b"MQ storage corrupted".to_vec())?
+            let schedule = T::Schedule::get();
+            let mut ext_manager = ExtManager::<T>::default();
+
+            while let Some(queued_dispatch) =
+                QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
             {
                 let actor_id = queued_dispatch.destination();
 
@@ -562,7 +576,7 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_executable_actor(actor_id.into_origin(), !lazy_pages_enabled)
+                    .get_executable_actor(actor_id, !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let allocations_config = AllocationsConfig {
@@ -573,66 +587,74 @@ pub mod pallet {
                     load_page_cost: schedule.memory_weights.load_cost,
                 };
 
-                let journal = if lazy_pages_enabled {
-                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(initial_gas),
-                        block_info,
-                        allocations_config,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                    )
-                } else {
-                    core_processor::process::<Ext, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(initial_gas),
-                        block_info,
-                        allocations_config,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                    )
-                };
-
-                core_processor::handle_journal(journal.clone(), &mut ext_manager);
-
-                let remaining_gas = T::GasHandler::get_limit(root_message_id)
-                    .map_err(|_| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?
+                let dispatch_id = queued_dispatch.id().into_origin();
+                let gas_limit = T::GasHandler::get_limit(dispatch_id)
+                    .ok()
+                    .flatten()
                     .ok_or_else(|| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
+                let journal = if lazy_pages_enabled {
+                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(gas_limit),
+                        block_info,
+                        allocations_config,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                        ["gr_gas_available"].into(),
+                    )
+                } else {
+                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        Some(actor),
+                        queued_dispatch.into_incoming(gas_limit),
+                        block_info,
+                        allocations_config,
+                        existential_deposit,
+                        ProgramId::from_origin(source),
+                        actor_id,
+                        u64::MAX,
+                        T::OutgoingLimit::get(),
+                        schedule.host_fn_weights.clone().into_core(),
+                        ["gr_gas_available"].into(),
+                    )
+                };
+
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
-                    match note {
-                        JournalNote::SendDispatch { .. }
-                        | JournalNote::WaitDispatch(..)
-                        | JournalNote::MessageConsumed(..) => {
-                            let gas_spent = initial_gas.saturating_sub(remaining_gas);
-                            if gas_spent > max_gas_spent {
-                                max_gas_spent = gas_spent;
-                            }
-                        }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            trap,
-                            ..
-                        }) => {
-                            return Err(format!(
-                                "Program terminated with a trap: {}",
-                                trap.unwrap_or_else(|| "No reason".to_string())
-                            )
-                            .into_bytes());
-                        }
-                        _ => (),
+                    core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
+
+                    if let Some(remaining_gas) = T::GasHandler::get_origin_key(dispatch_id)
+                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
+                        .and_then(|root_dispatch_id| {
+                            T::GasHandler::get_limit(root_dispatch_id)
+                                .map_err(|_| {
+                                    b"Internal error: unable to get gas limit after execution"
+                                        .to_vec()
+                                })
+                                .transpose()
+                        })
+                        .transpose()?
+                    {
+                        max_gas_spent =
+                            max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
+                    }
+
+                    if let JournalNote::MessageDispatched {
+                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                        ..
+                    } = note
+                    {
+                        return Err(format!(
+                            "Program terminated with a trap: {}",
+                            trap.unwrap_or_else(|| "No reason".to_string())
+                        )
+                        .into_bytes());
                     }
                 }
             }
@@ -641,27 +663,27 @@ pub mod pallet {
         }
 
         /// Returns true if a program has been successfully initialized
-        pub fn is_initialized(program_id: H256) -> bool {
-            common::get_program(program_id)
+        pub fn is_initialized(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
                 .map(|p| p.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if a program has terminated status
-        pub fn is_terminated(program_id: H256) -> bool {
-            common::get_program(program_id)
+        pub fn is_terminated(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
                 .map(|p| p.is_terminated())
                 .unwrap_or(false)
         }
 
         /// Returns MessageId for newly created user message.
-        pub fn next_message_id(user_id: H256) -> H256 {
-            let nonce = <MessengerPallet<T> as Messenger>::Sent::get();
-            <MessengerPallet<T> as Messenger>::Sent::increase();
+        pub fn next_message_id(user_id: H256) -> MessageId {
+            let nonce = SentOf::<T>::get();
+            SentOf::<T>::increase();
             let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
             let user_id = ProgramId::from_origin(user_id);
 
-            MessageId::generate_from_user(block_number, user_id, nonce.into()).into_origin()
+            MessageId::generate_from_user(block_number, user_id, nonce.into())
         }
 
         /// Message Queue processing.
@@ -690,8 +712,8 @@ pub mod pallet {
                 T::DebugInfo::remap_id();
             }
 
-            while <MessengerPallet<T> as Messenger>::QueueProcessing::allowed() {
-                if let Some(dispatch) = <MessengerPallet<T> as Messenger>::Queue::pop_front()
+            while QueueProcessingOf::<T>::allowed() {
+                if let Some(dispatch) = QueueOf::<T>::dequeue()
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
                     let msg_id = dispatch.id().into_origin();
@@ -708,10 +730,9 @@ pub mod pallet {
                                     dispatch.destination(),
                                 );
 
-                                <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-                                    .unwrap_or_else(|e| {
-                                        unreachable!("Message queue corrupted! {:?}", e)
-                                    });
+                                QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
+                                    unreachable!("Message queue corrupted! {:?}", e)
+                                });
 
                                 // Since we requeue the message without GasHandler we have to take
                                 // into account that there can left only such messages in the queue.
@@ -786,21 +807,42 @@ pub mod pallet {
                                 continue;
                             };
 
-                            let is_for_wait_list = maybe_message_reply.is_none()
-                                && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id.into_origin());
-                            if is_for_wait_list {
-                                Self::deposit_event(Event::AddedToWaitList(dispatch.clone()));
-                                common::waiting_init_append_message_id(
-                                    program_id.into_origin(),
-                                    current_message_id.into_origin(),
-                                );
-                                common::insert_waiting_message(
-                                    program_id.into_origin(),
-                                    current_message_id.into_origin(),
-                                    dispatch,
-                                    block_info.height,
-                                );
+                            if maybe_message_reply.is_none()
+                                && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
+                            {
+                                let origin = if let Some(origin) =
+                                    GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
+                                        .unwrap_or_else(|e| {
+                                            unreachable!("ValueTree corrupted: {:?}!", e)
+                                        })
+                                        .map(MessageId::from_origin)
+                                {
+                                    if origin == dispatch.id() {
+                                        None
+                                    } else {
+                                        Some(origin)
+                                    }
+                                } else {
+                                    unreachable!("ValueTree corrupted!")
+                                };
 
+                                // TODO: replace this temporary (zero) value
+                                // for expiration block number with properly
+                                // calculated one (issues #646 and #969).
+                                Pallet::<T>::deposit_event(Event::MessageWaited {
+                                    id: dispatch.id(),
+                                    origin,
+                                    reason: MessageWaitedSystemReason::ProgramIsNotInitialized
+                                        .into_reason(),
+                                    expiration: T::BlockNumber::zero(),
+                                });
+                                common::waiting_init_append_message_id(
+                                    program_id,
+                                    current_message_id,
+                                );
+                                WaitlistOf::<T>::insert(dispatch).unwrap_or_else(|e| {
+                                    unreachable!("Waitlist corrupted! {:?}", e)
+                                });
                                 continue;
                             }
 
@@ -890,6 +932,7 @@ pub mod pallet {
                             GasPallet::<T>::gas_allowance(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
+                            Default::default(),
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -903,6 +946,7 @@ pub mod pallet {
                             GasPallet::<T>::gas_allowance(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
+                            Default::default(),
                         )
                     };
 
@@ -920,10 +964,15 @@ pub mod pallet {
                 }
             }
 
-            let total_handled = <MessengerPallet<T> as Messenger>::Dequeued::get();
+            let post_data: QueuePostProcessingData = ext_manager.into();
+            let total_handled = DequeuedOf::<T>::get();
 
             if total_handled > 0 {
-                Self::deposit_event(Event::MessagesDequeued(total_handled));
+                Self::deposit_event(Event::MessagesDispatched {
+                    total: total_handled,
+                    statuses: post_data.dispatch_statuses,
+                    state_changes: post_data.state_changes,
+                });
             }
 
             weight.saturating_sub(GasPallet::<T>::gas_allowance())
@@ -939,8 +988,8 @@ pub mod pallet {
         pub(crate) fn set_code_with_metadata(
             code_and_id: CodeAndId,
             who: H256,
-        ) -> Result<H256, Error<T>> {
-            let hash: H256 = code_and_id.code_id().into_origin();
+        ) -> Result<CodeId, Error<T>> {
+            let code_id = code_and_id.code_id();
 
             let metadata = {
                 let block_number =
@@ -951,7 +1000,7 @@ pub mod pallet {
             T::CodeStorage::add_code(code_and_id, metadata)
                 .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
-            Ok(hash)
+            Ok(code_id)
         }
 
         pub(crate) fn reinstrument_code(
@@ -1002,7 +1051,6 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
-        #[frame_support::transactional]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1026,9 +1074,15 @@ pub mod pallet {
                 Error::<T>::CodeTooLarge
             );
 
-            let code_hash = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
 
-            Self::deposit_event(Event::CodeSaved(code_hash));
+            // TODO: replace this temporary (`None`) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
+            Self::deposit_event(Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active { expiration: None },
+            });
 
             Ok(().into())
         }
@@ -1074,7 +1128,6 @@ pub mod pallet {
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
         )]
-        #[frame_support::transactional]
         pub fn submit_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
@@ -1131,10 +1184,9 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
-            let id = program_id.into_origin();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !GearProgramPallet::<T>::program_exists(id),
+                !GearProgramPallet::<T>::program_exists(program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1145,36 +1197,47 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.into_origin();
+            let origin = who.clone().into_origin();
 
             let code_id = code_and_id.code_id();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
-                Self::deposit_event(Event::CodeSaved(code_hash));
+                // TODO: replace this temporary (`None`) value
+                // for expiration block number with properly
+                // calculated one (issues #646 and #969).
+                Self::deposit_event(Event::CodeChanged {
+                    id: code_hash,
+                    change: CodeChangeKind::Active { expiration: None },
+                });
             }
 
-            let message_id = Self::next_message_id(origin).into_origin();
+            let message_id = Self::next_message_id(origin);
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ =
-                T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
+            let _ = T::GasHandler::create(
+                origin,
+                message_id.into_origin(),
+                packet.gas_limit().expect("Can't fail"),
+            );
 
-            let message = InitMessage::from_packet(MessageId::from_origin(message_id), packet);
+            let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
-                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            let event = Event::MessageEnqueued {
+                id: dispatch.id(),
+                source: who,
+                destination: dispatch.destination(),
+                entry: Entry::Init,
+            };
 
-            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
-                message_id,
-                program_id: id,
-                origin,
-            }));
+            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+            Self::deposit_event(event);
 
             Ok(().into())
         }
@@ -1196,11 +1259,10 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
-        #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
-            destination: H256,
+            destination: ProgramId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1237,12 +1299,12 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
             let packet = HandlePacket::new_with_gas(
-                ProgramId::from_origin(destination),
+                destination,
                 payload,
                 gas_limit,
                 value.unique_saturated_into(),
             );
-            let message = HandleMessage::from_packet(MessageId::from_origin(message_id), packet);
+            let message = HandleMessage::from_packet(message_id, packet);
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -1251,26 +1313,37 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.into_origin();
+                let origin = who.clone().into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
-                <MessengerPallet<T> as Messenger>::Queue::push_back(
-                    message.into_stored_dispatch(ProgramId::from_origin(origin)),
-                )
-                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+                let event = Event::MessageEnqueued {
+                    id: message.id(),
+                    source: who,
+                    destination: message.destination(),
+                    entry: Entry::Handle,
+                };
 
-                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                    message_id: message_id.into_origin(),
-                    origin,
-                    program_id: destination,
-                }));
+                QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin)))
+                    .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+                Self::deposit_event(event);
             } else {
                 // Message in mailbox is not meant for any processing, hence 0 gas limit
                 // and no gas tree needs to be created
                 let origin = who.into_origin();
                 let message = message.into_stored(ProgramId::from_origin(origin));
-                Self::insert_to_mailbox(destination.into_origin(), message.clone());
-                Self::deposit_event(Event::Log(message));
+
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
+                MailboxOf::<T>::insert(message.clone())?;
+
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    expiration: Some(T::BlockNumber::zero()),
+                });
             }
 
             Ok(().into())
@@ -1288,11 +1361,10 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been created.
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-        #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
-            reply_to_id: H256,
+            reply_to_id: MessageId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1315,11 +1387,11 @@ pub mod pallet {
             );
 
             // Claim outstanding value from the original message first
-            let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
+            let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
             let destination = original_message.source();
 
             ensure!(
-                !Self::is_terminated(original_message.source().into_origin()),
+                !Self::is_terminated(original_message.source()),
                 Error::<T>::ProgramIsTerminated
             );
 
@@ -1334,28 +1406,36 @@ pub mod pallet {
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
             let message = ReplyMessage::from_packet(message_id, packet);
 
-            if GearProgramPallet::<T>::program_exists(destination.into_origin()) {
+            if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.into_origin();
+                let origin = who.clone().into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
-                <MessengerPallet<T> as Messenger>::Queue::push_back(message.into_stored_dispatch(
+                Self::deposit_event(Event::UserMessageRead {
+                    id: reply_to_id,
+                    reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
+                });
+
+                let event = Event::MessageEnqueued {
+                    id: message.id(),
+                    source: who,
+                    destination,
+                    entry: Entry::Reply(reply_to_id),
+                };
+
+                QueueOf::<T>::queue(message.into_stored_dispatch(
                     ProgramId::from_origin(origin),
                     destination,
                     original_message.id(),
                 ))
                 .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                    message_id: message_id.into_origin(),
-                    origin,
-                    program_id: destination.into_origin(),
-                }));
+                Self::deposit_event(event);
             } else {
                 // Message in mailbox is not meant for any processing, hence 0 gas limit
                 // and no gas tree needs to be created
@@ -1366,24 +1446,34 @@ pub mod pallet {
                     destination,
                     original_message.id(),
                 );
-                Self::insert_to_mailbox(destination.into_origin(), message.clone());
-                Self::deposit_event(Event::Log(message));
+
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
+                MailboxOf::<T>::insert(message.clone())?;
+
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    expiration: Some(T::BlockNumber::zero()),
+                });
             }
 
             Ok(().into())
         }
 
-        #[frame_support::transactional]
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
-            message_id: H256,
+            message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
+            let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
 
-            let _ = Self::remove_and_claim_from_mailbox(&who, message_id)?;
-
-            Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
+            Self::deposit_event(Event::UserMessageRead {
+                id: message_id,
+                reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
+            });
 
             Ok(().into())
         }
@@ -1392,7 +1482,7 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
-            <Mailbox<T>>::remove_all(None);
+            <T as Config>::Messenger::reset();
             GearProgramPallet::<T>::reset_storage();
             common::reset_storage();
 
@@ -1413,12 +1503,23 @@ pub mod pallet {
             dest: &T::AccountId,
             amount: Self::Balance,
         ) -> Result<(), DispatchError> {
-            let _ = <T as Config>::Currency::repatriate_reserved(
+            let leftover = <T as Config>::Currency::repatriate_reserved(
                 &<T::AccountId as Origin>::from_origin(source),
                 dest,
                 amount,
                 BalanceStatus::Free,
             )?;
+
+            if leftover > 0_u128.unique_saturated_into() {
+                log::debug!(
+                    target: "essential",
+                    "Reserved funds not fully repatriated from {} to 0x{:?} : amount = {:?}, leftover = {:?}",
+                    source,
+                    dest,
+                    amount,
+                    leftover,
+                );
+            }
 
             Ok(())
         }

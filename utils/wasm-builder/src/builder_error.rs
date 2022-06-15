@@ -25,6 +25,9 @@ pub enum BuilderError {
     #[error("invalid manifest path `{0}`")]
     InvalidManifestPath(PathBuf),
 
+    #[error("please add \"rlib\" to [lib.crate-type]")]
+    InvalidCrateType,
+
     #[error("cargo command run failed: {0}")]
     CargoRunFailed(String),
 

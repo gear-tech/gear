@@ -18,7 +18,7 @@
 
 // This contract recursively composes itself with another contract (the other contract
 // being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract incremets the internal `ITER` counter.
+// Every call to the auto_composer contract increments the internal `ITER` counter.
 // As soon as the counter reaches the `MAX_ITER`, the recursion stops.
 // Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
 // where the output of the previous call is fed to the input of the next call.
@@ -72,12 +72,7 @@ mod wasm {
     pub unsafe extern "C" fn handle() {
         let x: u64 = msg::load().expect("Expecting a u64 number");
 
-        debug!(
-            "[0x{} mul_by_const::handle] Before sending reply message, gas_available = {}",
-            DEBUG.me,
-            exec::gas_available()
-        );
-        msg::reply(STATE.unchecked_mul(x), 0);
+        msg::reply(STATE.unchecked_mul(x), 0).unwrap();
     }
 
     #[no_mangle]
@@ -87,7 +82,7 @@ mod wasm {
         DEBUG = DebugInfo {
             me: hex::encode(exec::program_id()),
         };
-        msg::reply((), 0);
+        msg::reply_bytes([], 0).unwrap();
         debug!(
             "[0x{} mul_by_const::init] Program initialized with input {}",
             DEBUG.me, val

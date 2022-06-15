@@ -480,3 +480,18 @@ fn subtree_gas_limit_remains_intact() {
         assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
     });
 }
+
+#[test]
+fn gas_free_after_consumed() {
+    sp_io::TestExternalities::new_empty().execute_with(|| {
+        let origin = H256::random();
+        let root_msg_id = H256::random();
+
+        assert_ok!(Gas::create(origin, root_msg_id, 1000));
+        assert_ok!(Gas::spend(root_msg_id, 300));
+
+        let (v, _) = Gas::consume(root_msg_id).unwrap().unwrap();
+        assert_eq!(v.peek(), 700);
+        assert_eq!(Gas::get_limit(root_msg_id), Ok(None));
+    })
+}

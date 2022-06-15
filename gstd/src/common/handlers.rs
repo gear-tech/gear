@@ -25,32 +25,35 @@
 //! debug and non-debug mode, for programs built in `wasm32` architecture.
 //! For `debug` mode it provides more extensive logging.
 
+#[cfg(target_arch = "wasm32")]
+use core::{alloc::Layout, arch::wasm32, panic::PanicInfo};
+
 #[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
-pub fn oom(_: core::alloc::Layout) -> ! {
-    core::arch::wasm32::unreachable()
+pub fn oom(_: Layout) -> ! {
+    wasm32::unreachable()
 }
 
 #[cfg(feature = "debug")]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
-pub fn oom(_: core::alloc::Layout) -> ! {
+pub fn oom(_: Layout) -> ! {
     crate::debug!("Runtime memory exhausted. Aborting");
-    core::arch::wasm32::unreachable()
+    wasm32::unreachable()
 }
 
 #[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    core::arch::wasm32::unreachable();
+pub fn panic(_: &PanicInfo) -> ! {
+    wasm32::unreachable();
 }
 
 #[cfg(feature = "debug")]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+pub fn panic(panic_info: &PanicInfo) -> ! {
     match (panic_info.message(), panic_info.location()) {
         (Some(msg), Some(loc)) => crate::debug!(
             "panic occurred: '{:?}', {}:{}:{}",
@@ -62,14 +65,14 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
         (Some(msg), None) => crate::debug!("panic occurred: '{:?}'", msg),
         (None, Some(loc)) => {
             crate::debug!(
-                "panic occurred, {}:{}:{}",
+                "panic occurred: {}:{}:{}",
                 loc.file(),
                 loc.line(),
                 loc.column()
             )
         }
-        _ => crate::debug!("panic occurred"),
+        _ => crate::debug!("panic occurred: no info"),
     }
 
-    core::arch::wasm32::unreachable();
+    wasm32::unreachable();
 }

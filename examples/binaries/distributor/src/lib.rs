@@ -32,14 +32,14 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     Receive(u64),
     Join(u64),
     Report,
 }
 
-#[derive(Encode, Debug, Decode, PartialEq)]
+#[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Reply {
     Success,
     Failure,
@@ -92,7 +92,7 @@ mod wasm {
             let program_handle = self.handle;
             async move {
                 let reply_bytes =
-                    msg::send_bytes_and_wait_for_reply(program_handle, &encoded_request[..], 0)
+                    msg::send_bytes_for_reply(program_handle, &encoded_request[..], 0)
                         .expect("Error in message sending")
                         .await
                         .expect("Error in async message processing");

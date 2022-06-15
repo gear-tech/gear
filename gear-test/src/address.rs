@@ -43,7 +43,7 @@ static ACCOUNTS: Lazy<HashMap<&'static str, H256>> = Lazy::new(|| {
     accounts
 });
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", content = "value")]
 pub enum Address {
     #[serde(rename = "account")]

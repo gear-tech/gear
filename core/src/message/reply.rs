@@ -19,14 +19,15 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, ExitCode, GasLimit, Message, Payload, StoredDispatch,
+        Dispatch, DispatchKind, ExitCode, GasLimit, Message, Packet, Payload, StoredDispatch,
         StoredMessage, Value,
     },
 };
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Reply message.
+/// Message for Reply entry point.
+/// [`ReplyMessage`] is unique because of storing [`MessageId`] from message on what it replies, and can be the only one per some message execution.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyMessage {
     /// Message id.
@@ -181,23 +182,22 @@ impl ReplyPacket {
         self.payload.splice(0..0, data);
     }
 
-    /// Packet payload reference.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
-    }
-
-    /// Packet optional gas limit.
-    pub fn gas_limit(&self) -> Option<GasLimit> {
-        self.gas_limit
-    }
-
-    /// Packet value.
-    pub fn value(&self) -> Value {
-        self.value
-    }
-
     /// Packet exit code.
     pub fn exit_code(&self) -> ExitCode {
         self.exit_code
+    }
+}
+
+impl Packet for ReplyPacket {
+    fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    fn gas_limit(&self) -> Option<GasLimit> {
+        self.gas_limit
+    }
+
+    fn value(&self) -> Value {
+        self.value
     }
 }

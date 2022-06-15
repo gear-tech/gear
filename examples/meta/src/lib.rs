@@ -56,7 +56,7 @@ impl From<MessageIn> for MessageOut {
 }
 
 // Additional to primary types
-#[derive(TypeInfo, Decode, Encode, Debug, PartialEq, Clone)]
+#[derive(TypeInfo, Decode, Encode, Debug, PartialEq, Eq, Clone)]
 pub struct Id {
     pub decimal: u64,
     pub hex: Vec<u8>,

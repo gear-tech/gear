@@ -18,26 +18,30 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::{funcs::FuncError, memory::MemoryWrap};
+use crate::{
+    funcs::{FuncError, FuncsHandler as Funcs},
+    memory::MemoryWrap,
+};
 use alloc::{
-    collections::BTreeMap,
+    collections::BTreeSet,
     format,
     string::{String, ToString},
     vec::Vec,
 };
 use core::fmt;
 use gear_backend_common::{
-    BackendError, BackendReport, Environment, HostPointer, IntoExtInfo, TerminationReason,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, WasmPageNumber},
 };
-use gear_core_errors::{CoreError, MemoryError, TerminationReason as CoreTerminationReason};
+use gear_core_errors::MemoryError;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
+    HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
 
 #[derive(Debug, derive_more::Display)]
@@ -48,6 +52,8 @@ pub enum SandboxEnvironmentError {
     GetWasmExports,
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
+    #[display(fmt = "Unable to save static pages initial data")]
+    SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
     #[display(fmt = "{}", _0)]
@@ -67,6 +73,34 @@ pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
+    pub termination_reason: Option<TerminationReasonKind>,
+}
+
+// A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
+// It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
+struct EnvBuilder<'a, E: Ext> {
+    env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
+    forbidden_funcs: &'a BTreeSet<&'static str>,
+}
+
+impl<'a, E: Ext + IntoExtInfo + 'static> EnvBuilder<'a, E> {
+    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<E>>)
+    where
+        E::Error: AsTerminationReason + IntoExtError,
+    {
+        if self.forbidden_funcs.contains(name) {
+            self.env_def_builder
+                .add_host_func("env", name, Funcs::forbidden);
+        } else {
+            self.env_def_builder.add_host_func("env", name, f);
+        }
+    }
+}
+
+impl<E: Ext> From<EnvBuilder<'_, E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
+    fn from(builder: EnvBuilder<E>) -> Self {
+        builder.env_def_builder
+    }
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -80,34 +114,57 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
         .collect())
 }
 
-fn set_pages(
-    memory: &mut impl Memory,
-    pages: &BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), String> {
-    let memory_size = memory.size();
-    for (page, buf) in pages {
-        if page.to_wasm_page() >= memory_size {
-            return Err(format!(
-                "{:?} is out of memory size: {:?}",
-                page, memory_size
-            ));
-        }
-        memory
-            .write(page.offset(), &buf[..])
-            .map_err(|e| format!("Cannot write mem to {:?}: {:?}", page, e))?;
-    }
-    Ok(())
-}
-
-impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
+impl<E> Environment<E> for SandboxEnvironment<E>
+where
+    E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason + IntoExtError,
+{
     type Error = SandboxEnvironmentError;
 
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
+        let mut builder = EnvBuilder::<E> {
+            env_def_builder: EnvironmentDefinitionBuilder::new(),
+            forbidden_funcs: ext.forbidden_funcs(),
+        };
+
+        builder.add_func("gr_block_height", Funcs::block_height);
+        builder.add_func("gr_block_timestamp", Funcs::block_timestamp);
+        builder.add_func("gr_create_program", Funcs::create_program);
+        builder.add_func("gr_create_program_wgas", Funcs::create_program_wgas);
+        builder.add_func("gr_debug", Funcs::debug);
+        builder.add_func("gr_error", Funcs::error);
+        builder.add_func("gr_exit", Funcs::exit);
+        builder.add_func("gr_exit_code", Funcs::exit_code);
+        builder.add_func("gr_gas_available", Funcs::gas_available);
+        builder.add_func("gr_leave", Funcs::leave);
+        builder.add_func("gr_msg_id", Funcs::msg_id);
+        builder.add_func("gr_origin", Funcs::origin);
+        builder.add_func("gr_program_id", Funcs::program_id);
+        builder.add_func("gr_read", Funcs::read);
+        builder.add_func("gr_reply", Funcs::reply);
+        builder.add_func("gr_reply_commit", Funcs::reply_commit);
+        builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reply_push", Funcs::reply_push);
+        builder.add_func("gr_reply_to", Funcs::reply_to);
+        builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
+        builder.add_func("gr_send", Funcs::send);
+        builder.add_func("gr_send_commit", Funcs::send_commit);
+        builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_send_init", Funcs::send_init);
+        builder.add_func("gr_send_push", Funcs::send_push);
+        builder.add_func("gr_send_wgas", Funcs::send_wgas);
+        builder.add_func("gr_size", Funcs::size);
+        builder.add_func("gr_source", Funcs::source);
+        builder.add_func("gr_value", Funcs::value);
+        builder.add_func("gr_value_available", Funcs::value_available);
+        builder.add_func("gr_wait", Funcs::wait);
+        builder.add_func("gr_wake", Funcs::wake);
+        let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
+
         let ext_carrier = ExtCarrier::new(ext);
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
@@ -121,48 +178,16 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             }
         };
 
-        let mut env_builder = EnvironmentDefinitionBuilder::new();
-
-        use crate::funcs::FuncsHandler as funcs;
         env_builder.add_memory("env", "memory", mem.clone());
-        env_builder.add_host_func("env", "alloc", funcs::alloc);
-        env_builder.add_host_func("env", "free", funcs::free);
-        env_builder.add_host_func("env", "gr_block_height", funcs::block_height);
-        env_builder.add_host_func("env", "gr_block_timestamp", funcs::block_timestamp);
-        env_builder.add_host_func("env", "gr_create_program_wgas", funcs::create_program_wgas);
-        env_builder.add_host_func("env", "gr_exit", funcs::exit);
-        env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
-        env_builder.add_host_func("env", "gr_origin", funcs::origin);
-        env_builder.add_host_func("env", "gr_send", funcs::send);
-        env_builder.add_host_func("env", "gr_send_wgas", funcs::send_wgas);
-        env_builder.add_host_func("env", "gr_send_commit", funcs::send_commit);
-        env_builder.add_host_func("env", "gr_send_commit_wgas", funcs::send_commit_wgas);
-        env_builder.add_host_func("env", "gr_send_init", funcs::send_init);
-        env_builder.add_host_func("env", "gr_send_push", funcs::send_push);
-        env_builder.add_host_func("env", "gr_read", funcs::read);
-        env_builder.add_host_func("env", "gr_size", funcs::size);
-        env_builder.add_host_func("env", "gr_source", funcs::source);
-        env_builder.add_host_func("env", "gr_program_id", funcs::program_id);
-        env_builder.add_host_func("env", "gr_value", funcs::value);
-        env_builder.add_host_func("env", "gr_value_available", funcs::value_available);
-        env_builder.add_host_func("env", "gr_reply", funcs::reply);
-        env_builder.add_host_func("env", "gr_reply_commit", funcs::reply_commit);
-        env_builder.add_host_func("env", "gr_reply_commit_wgas", funcs::reply_commit_wgas);
-        env_builder.add_host_func("env", "gr_reply_to", funcs::reply_to);
-        env_builder.add_host_func("env", "gr_reply_push", funcs::reply_push);
-        env_builder.add_host_func("env", "gr_reply_wgas", funcs::reply_wgas);
-        env_builder.add_host_func("env", "gr_debug", funcs::debug);
-        env_builder.add_host_func("env", "gr_gas_available", funcs::gas_available);
-        env_builder.add_host_func("env", "gr_msg_id", funcs::msg_id);
-        env_builder.add_host_func("env", "gr_leave", funcs::leave);
-        env_builder.add_host_func("env", "gr_wait", funcs::wait);
-        env_builder.add_host_func("env", "gr_wake", funcs::wake);
-        env_builder.add_host_func("env", "gas", funcs::gas);
+        env_builder.add_host_func("env", "alloc", Funcs::alloc);
+        env_builder.add_host_func("env", "free", Funcs::free);
+        env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut runtime = Runtime {
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
+            termination_reason: None,
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
@@ -187,15 +212,6 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             }
         };
 
-        // Set module memory.
-        if let Err(e) = set_pages(&mut runtime.memory, memory_pages) {
-            return Err(BackendError {
-                reason: SandboxEnvironmentError::SetModuleMemoryData,
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: runtime.ext.into_inner().into_gas_amount(),
-            });
-        }
-
         Ok(SandboxEnvironment {
             runtime,
             instance,
@@ -217,8 +233,12 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         })
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> HostPointer {
-        self.runtime.memory.get_wasm_memory_begin_addr()
+    fn get_mem(&self) -> &dyn Memory {
+        &self.runtime.memory
+    }
+
+    fn get_mem_mut(&mut self) -> &mut dyn Memory {
+        &mut self.runtime.memory
     }
 
     fn execute<F, T>(
@@ -227,7 +247,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(HostPointer) -> Result<(), T>,
+        F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
         let res = if self.entries.contains(&String::from(entry_point)) {
@@ -236,15 +256,18 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             Ok(ReturnValue::Unit)
         };
 
-        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
-
-        let Runtime { ext, memory, trap } = self.runtime;
+        let Runtime {
+            ext,
+            memory,
+            trap,
+            termination_reason,
+        } = self.runtime;
 
         log::debug!("execution res = {:?}", res);
 
         let info = ext
             .into_inner()
-            .into_ext_info(|ptr, buff| memory.read(ptr, buff))
+            .into_ext_info(&memory)
             .map_err(|(reason, gas_amount)| BackendError {
                 reason: SandboxEnvironmentError::Memory(reason),
                 description: None,
@@ -252,31 +275,33 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             })?;
 
         let termination = if res.is_err() {
-            let reason = if let Some(FuncError::Core(err)) = &trap {
-                match err.as_termination_reason() {
-                    Some(CoreTerminationReason::Exit) => {
-                        info.exit_argument.map(TerminationReason::Exit)
-                    }
-                    Some(CoreTerminationReason::Wait) => Some(TerminationReason::Wait),
-                    Some(CoreTerminationReason::Leave) => Some(TerminationReason::Leave),
-                    Some(CoreTerminationReason::GasAllowanceExceeded) => {
-                        Some(TerminationReason::GasAllowanceExceeded)
-                    }
-                    None => None,
+            let reason = match termination_reason {
+                Some(TerminationReasonKind::Exit) => {
+                    info.exit_argument.map(TerminationReason::Exit)
                 }
-            } else {
-                None
+                Some(TerminationReasonKind::Wait) => Some(TerminationReason::Wait),
+                Some(TerminationReasonKind::Leave) => Some(TerminationReason::Leave),
+                Some(TerminationReasonKind::GasAllowanceExceeded) => {
+                    Some(TerminationReason::GasAllowanceExceeded)
+                }
+                Some(TerminationReasonKind::ForbiddenFunction) => Some(TerminationReason::Trap {
+                    explanation: Some(TrapExplanation::Other(
+                        "Unable to call a forbidden function".into(),
+                    )),
+                    description: None,
+                }),
+                None => None,
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation,
+                explanation: info.trap_explanation.clone(),
                 description: trap.map(|e| e.to_string()).map(Into::into),
             })
         } else {
             TerminationReason::Success
         };
 
-        match post_execution_handler(wasm_memory_addr) {
+        match post_execution_handler(&memory) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),

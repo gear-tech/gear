@@ -21,9 +21,9 @@
 use crate::env::StoreData;
 use gear_core::{
     env::Ext,
-    memory::{Error, Memory, PageNumber, WasmPageNumber},
+    memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber},
 };
-use wasmtime::StoreContextMut;
+use wasmtime::{Store, StoreContextMut};
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap<'a, E: Ext> {
@@ -60,7 +60,45 @@ impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
         self.mem.data_size(&self.store)
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> u64 {
-        self.mem.data_ptr(&self.store) as u64
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+        self.mem.data_ptr(&self.store) as HostPointer
+    }
+}
+
+pub struct MemoryWrapExternal<E: Ext> {
+    pub mem: wasmtime::Memory,
+    pub store: Store<StoreData<E>>,
+}
+
+impl<E: Ext> Memory for MemoryWrapExternal<E> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
+        self.mem
+            .grow(&mut self.store, pages.0 as u64)
+            .map(|offset| (offset as u32).into())
+            .map_err(|_| Error::OutOfMemory)
+    }
+
+    fn size(&self) -> WasmPageNumber {
+        (self.mem.size(&self.store) as u32).into()
+    }
+
+    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+        self.mem
+            .write(&mut self.store, offset, buffer)
+            .map_err(|_| Error::MemoryAccessError)
+    }
+
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+        self.mem
+            .read(&self.store, offset, buffer)
+            .map_err(|_| Error::MemoryAccessError)
+    }
+
+    fn data_size(&self) -> usize {
+        self.mem.data_size(&self.store)
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+        self.mem.data_ptr(&self.store) as HostPointer
     }
 }

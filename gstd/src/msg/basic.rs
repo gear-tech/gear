@@ -19,11 +19,14 @@
 //! Module with basic messaging functions wrapped from `gcore` to `gstd`.
 
 use crate::{
+    async_runtime::signals,
     errors::{ContractError, Result},
+    msg::r#async::{CodecMessageFuture, MessageFuture},
     prelude::{convert::AsRef, vec, Vec},
     ActorId, MessageId,
 };
-use codec::Output;
+use codec::{Decode, Output};
+use gstd_codegen::wait_for_reply;
 
 trait IntoContractResult<T> {
     fn into_contract_result(self) -> Result<T>;
@@ -43,7 +46,7 @@ where
 ///
 /// Gear allows users and programs to interact with other users and programs via
 /// messages. Message creation consists of the following parts - message
-/// initialisation, filling the message with payload (can be gradual), message
+/// initialization, filling the message with payload (can be gradual), message
 /// sending.
 ///
 /// Here are the functions that make up the parts of building and sending
@@ -183,41 +186,6 @@ pub fn load_bytes() -> Vec<u8> {
     result
 }
 
-/// Send a new message as a reply to the message currently being processed.
-///
-/// Some programs can reply to other programs, i.e. check another program's
-/// state and use it as a parameter for its own business logic [`MessageId`].
-///
-/// This function allows sending such replies, which are similar to standard
-/// messages in terms of payload and different only in the way the message
-/// processing is handled by a separate program function called
-/// `handle_reply`.
-///
-/// First argument is the reply message payload in bytes.
-/// Second argument `value` is the value to be transferred from the current
-/// program account to the reply message target account.
-///
-/// Reply message transactions will be posted only after processing is finished,
-/// similar to the standard message [`send`](crate::msg::send).
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// pub unsafe extern "C" fn handle() {
-///     // ...
-///     msg::reply_bytes(b"PONG", 0).unwrap();
-/// }
-/// ```
-///
-/// # See also
-///
-/// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId> {
-    gcore::msg::reply(payload.as_ref(), value).into_contract_result()
-}
-
 /// Same as ['reply'], but with explicit gas limit.
 ///
 /// Some programs can reply to other programs, i.e. check another program's
@@ -251,8 +219,25 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId>
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
 pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
+}
+
+/// Same as [`reply`](crate::msg::encoded::reply), without encoding payload.
+#[wait_for_reply]
+pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
+    gcore::msg::reply(payload.as_ref(), value).into_contract_result()
+}
+
+/// Same as [`reply_bytes`](crate::msg::encoded::reply_bytes), with gas limit.
+#[wait_for_reply]
+pub fn reply_bytes_with_gas(
+    payload: impl AsRef<[u8]>,
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageId> {
+    gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value).into_contract_result()
 }
 
 /// Finalize and send a current reply message.
@@ -285,21 +270,12 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
 pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
 
 /// Same as ['reply_commit'], but with explicit gas limit.
-///
-/// Some programs can reply on their messages to other programs, i.e. check
-/// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
-/// function.
-///
-/// This function allows sending reply messages with gas limit filled with
-/// payload parts sent via ['reply_push'] during the message handling.
-/// Finalization of the reply message is done via [`reply_commit`] function
-/// similar to [`send_commit`].
 ///
 /// # Examples
 ///
@@ -319,6 +295,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
+#[wait_for_reply]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value).into_contract_result()
 }
@@ -363,7 +340,7 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 ///
 /// pub unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let orginal_message_id = msg::reply_to();
+///     let original_message_id = msg::reply_to();
 /// }
 /// ```
 ///
@@ -404,24 +381,12 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
+#[wait_for_reply]
 pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
 
-/// Send a new message to the program or user.
-///
-/// Gear allows programs to communicate to each other and users via messages.
-/// [`send`](crate::msg::send) function allows sending such messages.
-///
-/// First argument is the address of the target account.
-/// Second argument is message payload in bytes.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during the
-/// sent message processing.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-///
-/// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`](crate::msg::reply).
+/// Same as ['send_bytes'], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -440,6 +405,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
+#[wait_for_reply]
 pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -482,24 +448,12 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
+#[wait_for_reply]
 pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Result<MessageId> {
     gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
 }
 
-/// Finalize and send message formed in parts, with gas_limit.
-///
-/// Gear allows programs to work with messages that consist of several parts.
-/// This function finalizes the message built in parts and sends it.
-///
-/// First argument is the message handle [MessageHandle] which specifies a
-/// particular message built in parts.
-/// Second argument is the address of the target account.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during
-/// reply message processing.
-/// Last argument is the value to be transferred from the current program
-/// account to the message target account.
-/// Send transaction will be posted only after the execution of processing is
-/// finished.
+/// Same as ['send_commit'], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -520,6 +474,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
+#[wait_for_reply]
 pub fn send_commit_with_gas(
     handle: MessageHandle,
     program: ActorId,

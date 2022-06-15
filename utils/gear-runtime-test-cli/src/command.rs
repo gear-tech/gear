@@ -19,16 +19,13 @@
 #![allow(unused_must_use)]
 
 use crate::{
-    util::{get_dispatch_queue, new_test_ext, process_queue},
+    util::{get_dispatch_queue, new_test_ext, process_queue, MailboxOf, QueueOf},
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{
-    storage::{Messenger, StorageDeque},
-    CodeStorage, Origin as _, ValueTree,
-};
+use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
@@ -44,7 +41,6 @@ use gear_test::{
 use pallet_gas::Pallet as GasPallet;
 use pallet_gear::Pallet as GearPallet;
 use pallet_gear_debug::{DebugData, ProgramState};
-use pallet_gear_messenger::Pallet as MessengerPallet;
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -53,7 +49,10 @@ use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 use std::{
     collections::BTreeMap,
     sync::atomic::{AtomicUsize, Ordering},
+    time::Instant,
 };
+
+use junit_common::{TestCase, TestSuite, TestSuites};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -73,20 +72,63 @@ impl GearRuntimeTestCmd {
         let total_failed = AtomicUsize::new(0);
 
         println!("Total fixtures: {}", total_fixtures);
-        tests.par_iter().for_each(|test| {
-            test.fixtures.par_iter().for_each(|fixture| {
-                new_test_ext().execute_with(|| {
-                    gear_common::reset_storage();
-                    let output = run_fixture(test, fixture);
-                    pallet_gear::Mailbox::<Runtime>::drain();
+        let (executions, times) = tests
+            .par_iter()
+            .map(|test| {
+                let (fixtures, times) = test
+                    .fixtures
+                    .par_iter()
+                    .map(|fixture| {
+                        new_test_ext().execute_with(|| {
+                            gear_common::reset_storage();
 
-                    println!("Fixture {}: {}", fixture.title.bold(), output);
-                    if !output.contains("Ok") && !output.contains("Skip") {
-                        total_failed.fetch_add(1, Ordering::SeqCst);
-                    }
-                });
-            });
-        });
+                            let now = Instant::now();
+                            let output = run_fixture(test, fixture);
+                            let elapsed = now.elapsed();
+
+                            MailboxOf::<Runtime>::clear();
+
+                            println!("Fixture {}: {}", fixture.title.bold(), output);
+                            if !output.contains("Ok") && !output.contains("Skip") {
+                                total_failed.fetch_add(1, Ordering::SeqCst);
+                            }
+
+                            (
+                                TestCase {
+                                    name: fixture.title.clone(),
+                                    time: elapsed.as_secs_f64().to_string(),
+                                },
+                                elapsed.as_secs_f64(),
+                            )
+                        })
+                    })
+                    .collect::<(Vec<_>, Vec<_>)>();
+
+                (
+                    TestSuite {
+                        name: test.title.clone(),
+                        testcase: fixtures,
+                    },
+                    times.iter().sum::<f64>(),
+                )
+            })
+            .collect::<(Vec<_>, Vec<_>)>();
+
+        if let Some(ref junit_path) = self.generate_junit {
+            let writer = std::fs::File::create(junit_path)?;
+            quick_xml::se::to_writer(
+                writer,
+                &TestSuites {
+                    time: times.iter().sum::<f64>().to_string(),
+                    testsuite: executions,
+                },
+            )
+            .map_err(|e| {
+                let mapped: Box<dyn std::error::Error + Send + Sync + 'static> = Box::new(e);
+                mapped
+            })?;
+        }
+
         if total_failed.load(Ordering::SeqCst) == 0 {
             Ok(())
         } else {
@@ -215,7 +257,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         return format!("Initialization error ({})", err).bright_red();
     }
 
-    log::trace!("intial programs: {:?}", &programs);
+    log::trace!("initial programs: {:?}", &programs);
 
     let mut errors = vec![];
     let mut expected_log = vec![];
@@ -251,7 +293,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 .unwrap_or_default(),
         };
 
-        let dest = programs[&message.destination.to_program_id()];
+        let dest = ProgramId::from_origin(programs[&message.destination.to_program_id()]);
 
         let gas_limit = message
             .gas_limit
@@ -264,21 +306,23 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             let source = H256::from_slice(source.to_program_id().as_ref());
             let id = GearPallet::<Runtime>::next_message_id(source);
 
-            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
+            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(
+                source,
+                id.into_origin(),
+                gas_limit,
+            );
 
             let msg = StoredMessage::new(
-                MessageId::from_origin(id),
+                id,
                 ProgramId::from_origin(source),
-                ProgramId::from_origin(dest),
+                dest,
                 payload,
                 value,
                 None,
             );
 
-            <<MessengerPallet<Runtime> as Messenger>::Queue as StorageDeque>::push_back(
-                StoredDispatch::new(DispatchKind::Handle, msg, None),
-            )
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+            QueueOf::<Runtime>::queue(StoredDispatch::new(DispatchKind::Handle, msg, None))
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             GearPallet::<Runtime>::send_message(
                 Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
@@ -308,17 +352,14 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // After processing queue some new programs could be created, so we
     // search for them
     for snapshot_program in &snapshots.last().unwrap().programs {
-        let exists = programs
-            .iter()
-            .any(|(k, v)| k.into_origin() == snapshot_program.id || v == &snapshot_program.id);
+        let exists = programs.iter().any(|(k, v)| {
+            *k == snapshot_program.id || ProgramId::from_origin(*v) == snapshot_program.id
+        });
         if exists {
             continue;
         } else {
             // A new program was created
-            programs.insert(
-                ProgramId::from_origin(snapshot_program.id),
-                snapshot_program.id,
-            );
+            programs.insert(snapshot_program.id, snapshot_program.id.into_origin());
         }
     }
 
@@ -383,7 +424,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             .iter()
             .filter_map(|p| {
                 if let ProgramState::Active(info) = &p.state {
-                    if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                    if let Some((pid, _)) = programs
+                        .iter()
+                        .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
+                    {
                         let code_id = CodeId::from_origin(info.code_hash);
                         let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
                             .expect("code should be in the storage");
@@ -435,7 +479,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             .programs
             .iter()
             .filter_map(|p| {
-                if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                if let Some((pid, _)) = programs
+                    .iter()
+                    .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
+                {
                     Some((*pid, p.state == ProgramState::Terminated))
                 } else {
                     None

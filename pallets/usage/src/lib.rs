@@ -21,7 +21,6 @@
 #[macro_use]
 extern crate alloc;
 
-use common::ValueTree;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -46,7 +45,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 #[frame_support::pallet]
 pub mod pallet {
     use super::{offchain::PayeeInfo, *};
-    use common::{storage::*, GasPrice, Origin, PaymentProvider};
+    use common::{storage::*, GasPrice, Origin, PaymentProvider, ValueTree};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -54,10 +53,9 @@ pub mod pallet {
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
     use gear_core::{
-        ids::MessageId,
-        message::{ReplyMessage, ReplyPacket},
+        ids::{MessageId, ProgramId},
+        message::{ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     };
-    use pallet_gear_messenger::Pallet as MessengerPallet;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -68,6 +66,10 @@ pub mod pallet {
         Perbill,
     };
     use sp_std::{convert::TryInto, prelude::*};
+
+    pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
+    pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
+    pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 
     #[pallet::config]
     pub trait Config:
@@ -106,6 +108,15 @@ pub mod pallet {
         /// The fraction of the collected wait list rent an external submitter will get as a reward
         #[pallet::constant]
         type ExternalSubmitterRewardFraction: Get<Perbill>;
+
+        type Messenger: Messenger<
+            BlockNumber = Self::BlockNumber,
+            QueuedDispatch = StoredDispatch,
+            MailboxedMessage = StoredMessage,
+            WaitlistFirstKey = ProgramId,
+            WaitlistSecondKey = MessageId,
+            WaitlistedMessage = StoredDispatch,
+        >;
     }
 
     type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
@@ -210,7 +221,7 @@ pub mod pallet {
             };
 
             if now.saturating_sub(current_round_started_at) < T::WaitListTraversalInterval::get()
-                && &last_key[..] == common::STORAGE_WAITLIST_PREFIX
+                && last_key.is_none()
             {
                 // We have either finished the previous round or never started one, and the number of
                 // elapsed blocks since last traversal is less than the expected minimum interval
@@ -222,7 +233,7 @@ pub mod pallet {
                 return;
             }
 
-            if &last_key[..] == common::STORAGE_WAITLIST_PREFIX {
+            if last_key.is_none() {
                 // Starting a new round
                 current_round_storage_ref.set(&now);
             }
@@ -261,10 +272,10 @@ pub mod pallet {
                          program_id,
                          message_id,
                      }| {
-                        common::remove_waiting_message(program_id, message_id).and_then(|(dispatch, bn)| {
-                            let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
+                         WaitlistOf::<T>::remove(ProgramId::from_origin(program_id), MessageId::from_origin(message_id)).ok().and_then(|(dispatch, bn)| {
+                            let duration: u32 = current_block.saturating_sub(bn).saturated_into::<u32>();
                             let chargeable_amount =
-                            <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
+                                <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
                                 Ok(maybe_limit) => {
@@ -380,18 +391,29 @@ pub mod pallet {
                             let message = ReplyMessage::from_packet(trap_message_id, packet);
                             let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
-                            if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination().into_origin()) {
+                            if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination()) {
                                 // Enqueue the trap reply message
-                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                if let Err(e) = <T as pallet_gear::Config>::GasHandler::split(
                                     msg_id.into_origin(),
                                     trap_message_id.into_origin(),
-                                );
+                                ) {
+                                    log::debug!(
+                                        target: "essential",
+                                        "Failed to create value node for trap reply message: {:?}",
+                                        e,
+                                    );
+                                }
 
-                                <MessengerPallet<T> as Messenger>::Queue::push_back(dispatch)
+                                QueueOf::<T>::queue(dispatch)
                                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                            } else {
-                                pallet_gear::Pallet::<T>::insert_to_mailbox(dispatch.source().into_origin(), dispatch.into_parts().1)
-                            }
+                            } else if MailboxOf::<T>::insert(dispatch.into_parts().1).is_err() {
+                                    // TODO: update logic of insertion into mailbox following new
+                                    // flow and deposit appropriate event (issue #1010).
+
+                                    // TODO: deposit appropriate (Gear) event,
+                                    // instead of silent insertion.
+                                    log::debug!("Duplicate mailbox message");
+                                }
 
                             // Consume the corresponding node
                             match T::GasHandler::consume(msg_id.into_origin()) {
@@ -427,16 +449,12 @@ pub mod pallet {
                                 program_id,
                             )
                         }
-                    } else {
-                        // Message still got enough gas limit and may keep waiting.
-                        // Updating gas limit value and re-inserting the message into wait list.
-                        common::insert_waiting_message(
-                            program_id.into_origin(),
-                            msg_id.into_origin(),
-                            dispatch,
-                            current_block.saturated_into(),
-                        );
+                    } // Message still got enough gas limit and may keep waiting.
+                      // Updating gas limit value and re-inserting the message into wait list.
+                    else if WaitlistOf::<T>::insert(dispatch).is_err() {
+                        log::error!("Failed to insert dispatch into waitlist");
                     }
+
 
                     total_collected += 1;
                 });
