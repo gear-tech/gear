@@ -9,8 +9,6 @@ license = "GPL-3.0"
 gear-core = { path = "../core" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 core-processor = { package = "gear-core-processor", path = "../core-processor" }
-gear-backend-common = { path = "../core-backend/common" }
-gear-core-errors = { path = "../core-errors" }
 
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
 logger = { package = "log", version = "0.4.17" }
