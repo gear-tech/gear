@@ -162,3 +162,11 @@ pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
         .map(|p| PageNumber(*p))
         .collect()
 }
+
+/// Returns list of realeased pages numbers
+pub fn get_released_pages() -> Vec<PageNumber> {
+    gear_ri::get_released_pages()
+        .iter()
+        .map(|p| PageNumber(*p))
+        .collect()
+}
