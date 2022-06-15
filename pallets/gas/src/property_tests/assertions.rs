@@ -31,8 +31,8 @@ pub(super) fn assert_removed_nodes_props(
         return;
     }
 
-    assert_removed_nodes_are_consumed(consumed, &marked_consumed_nodes, &removed_nodes);
-    assert_removed_nodes_form_path(consumed, &remaining_ids, removed_nodes);
+    assert_removed_nodes_are_consumed(consumed, marked_consumed_nodes, &removed_nodes);
+    assert_removed_nodes_form_path(consumed, remaining_ids, removed_nodes);
 }
 
 // Check that for all the removed nodes:

@@ -36,7 +36,7 @@ impl<T> RingGet<T> for Vec<T> {
 pub(super) fn consume_node(consuming: H256) -> Result<BTreeMap<H256, ValueNode>, ()> {
     let nodes_before_consume = BTreeMap::from_iter(super::GasTree::<Test>::iter());
     Gas::consume(consuming)
-        .and_then(|_| {
+        .map(|_| {
             let nodes_after_consume = BTreeSet::from_iter(super::GasTree::<Test>::iter_keys());
             let mut removed_nodes = BTreeMap::new();
             for (id, node) in nodes_before_consume {
@@ -46,7 +46,7 @@ pub(super) fn consume_node(consuming: H256) -> Result<BTreeMap<H256, ValueNode>,
                 }
             }
 
-            Ok(removed_nodes)
+            removed_nodes
         })
         .map_err(|_| ())
 }
