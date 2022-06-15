@@ -54,9 +54,9 @@ pub(super) enum GasTreeAction {
 /// Returns random vector of `GasTreeAction`s with a tree's root max balance.
 ///
 /// Execution of the random set of `GasTreeAction`s results in a unique gas tree in the
-/// storage, which is needed to perform property tests. Max balance is needed to guarantee,
-/// that all the actions, which decrease node's value (split_with_value, spend) can't decrease
-/// it by the value more than the returned max balance.
+/// storage, which is needed to perform property tests. Max balance sets upper boundary on the
+/// amount by which node's value can be decreased (in split_with_value and spend procedures).
+/// Also max balance defines root's balance.  
 pub(super) fn gas_tree_props_test_strategy() -> impl Strategy<Value = (u64, Vec<GasTreeAction>)> {
     any::<u64>()
         .prop_flat_map(|max_balance| (Just(max_balance), gas_tree_action_strategy(max_balance)))

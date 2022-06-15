@@ -26,8 +26,8 @@ use std::{
     iter::FromIterator,
 };
 
-use utils::RingGet;
 use strategies::GasTreeAction;
+use utils::RingGet;
 
 mod assertions;
 mod strategies;
@@ -41,8 +41,8 @@ proptest! {
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
         new_test_ext().execute_with(|| {
-            // `actions` can consist only from splits. Then it will represent a potential
-            // amount of nodes in the tree.
+            // `actions` can consist only from tree splits. Then it's length will
+            // represent a potential amount of nodes in the tree.
             let mut node_ids = Vec::with_capacity(actions.len() + 1); // +1 for the root
             let root_node = H256::random();
             node_ids.push(root_node);
@@ -112,7 +112,7 @@ proptest! {
                 }
 
                 if node_ids.is_empty() {
-                    // Nodes were consumed, no need to process actions anymore
+                    // Nodes were consumed, no need to process `actions` anymore
                     break;
                 }
             }

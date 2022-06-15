@@ -38,10 +38,10 @@ pub(super) fn assert_removed_nodes_props(
 // Check that for all the removed nodes:
 // 1. **They don't have children**.
 // Actually we check that they have 1 child ref, each of which points to the node in `removed_nodes`.
-// Actually it's the same to say, that removed nodes have no refs, but `removed_nodes`
-// data is gathered from the tree before calling `ValueTree::consume` procedure. Obviously,
-// it's impossible to get nodes data after it was deleted to be sure it had 0 refs.
-// The only node which can be checked to have 0 refs is the `consumed` one.
+// It's the same to say, that removed nodes have no refs, because `removed_nodes` data is gathered
+// from the tree before calling [`ValueTree::consume`] procedure, when `removed_nodes` have at most
+// 1 child ref. Obviously, it's impossible to get node's data after it was deleted to be sure it had
+// 0 refs after deletion. The only node which can be checked to have 0 refs is the `consumed` one.
 // 2. **They are marked consumed**.
 // That is true for all the removed nodes except for the `consumed` one, because when it's removed
 // it's redundant to update it's status in the persistence layer to `consumed`.
@@ -58,7 +58,7 @@ fn assert_removed_nodes_are_consumed(
             assert!(node.refs() == 0);
         }
 
-        // Were explicitly consumed, not automatically
+        // Check that they were explicitly consumed, not automatically
         assert!(marked_consumed_nodes.contains(id))
     }
 }
@@ -90,11 +90,9 @@ fn assert_removed_nodes_form_path(
 
 // Check that `root_node` was removed the last.
 // That is done the following way. Each time `consume` procedure is called we check `root_node` for existence.
-// if after a new `consume` call it was removed, then all the tree must be empty. So no nodes can be removed
+// If it was removed after a new `consume` call, then all the tree must be empty. So no nodes can be removed
 // after root was removed in the `consume` call.
 pub(super) fn assert_root_removed_last(root_node: H256, remaining_ids: &BTreeSet<H256>) {
-    // Check root is always deleted in the last consume call for the current gas tree,
-    // i.e., if root deleted, no more nodes are in a tree.
     if Gas::get_node(&root_node).is_none() {
         assert!(remaining_ids.is_empty());
     }
