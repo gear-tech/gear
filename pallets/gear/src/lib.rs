@@ -22,6 +22,7 @@
 extern crate alloc;
 
 use alloc::string::ToString;
+use codec::{Decode, Encode};
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -101,7 +102,8 @@ impl DebugInfo for () {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub struct GasInfo {
     pub spent: u64,
     pub to_send: u64,
@@ -506,10 +508,24 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
+        ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            Self::calculate_gas_info_impl(source, kind, initial_gas, payload, value)
-                .map(|GasInfo { spent, .. }| spent)
+            let GasInfo { spent, to_send, .. } = Self::calculate_gas_info_impl(
+                source,
+                kind.clone(),
+                initial_gas,
+                payload.clone(),
+                value,
+            )?;
+
+            // TODO: adding `to_send` until #642 implemented
+            Self::calculate_gas_info_impl(source, kind, spent + to_send, payload, value).map(
+                |GasInfo { to_send, burnt, .. }| GasInfo {
+                    spent,
+                    to_send,
+                    burnt,
+                },
+            )
         }
 
         #[cfg(test)]

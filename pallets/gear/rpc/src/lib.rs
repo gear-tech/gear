@@ -18,7 +18,7 @@
 
 //! RPC interface for the gear module.
 
-use std::{convert::TryInto, sync::Arc};
+use std::sync::Arc;
 
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
@@ -26,11 +26,10 @@ use jsonrpsee::{
     types::error::{CallError, ErrorObject},
 };
 
-pub use pallet_gear_rpc_runtime_api::HandleKind;
+use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
-use sp_rpc::number::NumberOrHex;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
@@ -47,7 +46,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
 
 #[rpc(client, server)]
 pub trait GearApi<BlockHash, ResponseType> {
-    #[method(name = "gear_getInitGasSpent")]
+    #[method(name = "gear_calculateInitGas")]
     fn get_init_gas_spent(
         &self,
         source: H256,
@@ -55,9 +54,9 @@ pub trait GearApi<BlockHash, ResponseType> {
         payload: Bytes,
         value: u128,
         at: Option<BlockHash>,
-    ) -> RpcResult<NumberOrHex>;
+    ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_getHandleGasSpent")]
+    #[method(name = "gear_calculateHandleGas")]
     fn get_handle_gas_spent(
         &self,
         source: H256,
@@ -65,9 +64,9 @@ pub trait GearApi<BlockHash, ResponseType> {
         payload: Bytes,
         value: u128,
         at: Option<BlockHash>,
-    ) -> RpcResult<NumberOrHex>;
+    ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_getReplyGasSpent")]
+    #[method(name = "gear_calculateReplyGas")]
     fn get_reply_gas_spent(
         &self,
         source: H256,
@@ -76,7 +75,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         payload: Bytes,
         value: u128,
         at: Option<BlockHash>,
-    ) -> RpcResult<NumberOrHex>;
+    ) -> RpcResult<GasInfo>;
 }
 
 /// A struct that implements the [`GearApi`].
@@ -128,14 +127,14 @@ where
         payload: Bytes,
         value: u128,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<NumberOrHex> {
+    ) -> RpcResult<GasInfo> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
-			// If the block hash is not supplied assume the best block.
-			self.client.info().best_hash));
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(
+            .calculate_gas_info(
                 &at,
                 source,
                 HandleKind::Init(code.to_vec()),
@@ -144,12 +143,7 @@ where
             )
             .map_err(runtime_error_into_rpc_error)?;
 
-        match runtime_api_result {
-            Ok(gas) => Ok(gas.try_into().map_err(runtime_error_into_rpc_error)?),
-            Err(message) => Err(runtime_error_into_rpc_error(String::from_utf8_lossy(
-                &message,
-            ))),
-        }
+        runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
     }
 
     fn get_handle_gas_spent(
@@ -159,14 +153,14 @@ where
         payload: Bytes,
         value: u128,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<NumberOrHex> {
+    ) -> RpcResult<GasInfo> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
-			// If the block hash is not supplied assume the best block.
-			self.client.info().best_hash));
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(
+            .calculate_gas_info(
                 &at,
                 source,
                 HandleKind::Handle(dest),
@@ -175,12 +169,7 @@ where
             )
             .map_err(runtime_error_into_rpc_error)?;
 
-        match runtime_api_result {
-            Ok(gas) => Ok(gas.try_into().map_err(runtime_error_into_rpc_error)?),
-            Err(message) => Err(runtime_error_into_rpc_error(String::from_utf8_lossy(
-                &message,
-            ))),
-        }
+        runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
     }
 
     fn get_reply_gas_spent(
@@ -191,14 +180,14 @@ where
         payload: Bytes,
         value: u128,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<NumberOrHex> {
+    ) -> RpcResult<GasInfo> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
-			// If the block hash is not supplied assume the best block.
-			self.client.info().best_hash));
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(
+            .calculate_gas_info(
                 &at,
                 source,
                 HandleKind::Reply(message_id, exit_code),
@@ -207,11 +196,6 @@ where
             )
             .map_err(runtime_error_into_rpc_error)?;
 
-        match runtime_api_result {
-            Ok(gas) => Ok(gas.try_into().map_err(runtime_error_into_rpc_error)?),
-            Err(message) => Err(runtime_error_into_rpc_error(String::from_utf8_lossy(
-                &message,
-            ))),
-        }
+        runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
     }
 }
