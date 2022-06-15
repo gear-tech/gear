@@ -18,7 +18,6 @@
 
 use super::*;
 
-// todo [sab] потом сделай более абстрактным
 pub(super) trait RingGet<T> {
     fn ring_get(&self, index: usize) -> Option<&T>;
 }
