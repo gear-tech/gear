@@ -25,11 +25,11 @@ mod util;
 #[derive(Debug, clap::Parser)]
 pub struct GearRuntimeTestCmd {
     /// Input dir/file with yaml for testing.
-    #[clap(parse(from_os_str))]
+    #[clap(value_parser)]
     pub input: Vec<PathBuf>,
 
     /// Produce output in the (almost) JUnit/XUnit XML format.
-    #[clap(long)]
+    #[clap(long, value_parser)]
     pub generate_junit: Option<PathBuf>,
 
     #[allow(missing_docs)]

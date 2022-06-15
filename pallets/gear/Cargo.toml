@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 wasm-instrument = { version = "0.1", default-features = false }
@@ -53,6 +53,7 @@ rand_pcg = { version = "0.3", optional = true }
 sp-externalities = { version = "0.12.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 env_logger = "0.9"
 wabt = "0.10"
+demo-async-tester = { path = "../../examples/binaries/async-tester" }
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }

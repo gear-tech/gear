@@ -236,6 +236,10 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     }
 }
 
+pub fn run_to_next_block(remaining_weight: Option<u64>) {
+    run_to_block(System::block_number() + 1, remaining_weight);
+}
+
 pub fn calc_handle_gas_spent(source: H256, dest: ProgramId, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
@@ -452,7 +456,7 @@ where
 
     let dispatch = dispatch.into_stored();
 
-    QueueOf::<T>::remove_all();
+    QueueOf::<T>::clear();
 
     QueueOf::<T>::queue(dispatch).map_err(|_| b"Messages storage corrupted".to_vec())?;
 

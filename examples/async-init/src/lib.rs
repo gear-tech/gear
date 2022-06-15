@@ -43,7 +43,7 @@ async fn init() {
 
     let mut requests: Vec<_> = [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD]
         .iter()
-        .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", 0))
+        .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
         .collect::<Result<_, _>>()
         .unwrap();
 
@@ -73,7 +73,7 @@ async fn main() {
         unsafe { APPROVER_THIRD },
     ]
     .iter()
-    .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", 0))
+    .map(|s| msg::send_bytes_for_reply(*s, b"", 0))
     .collect::<Result<_, _>>()
     .unwrap();
 

@@ -19,20 +19,22 @@
 use crate::{
     manager::HandleKind,
     mock::{
-        calc_handle_gas_spent, get_gas_burned, new_test_ext, run_to_block, Event as MockEvent,
-        Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
-        USER_3,
+        calc_handle_gas_spent, get_gas_burned, new_test_ext, run_to_block, run_to_next_block,
+        Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, Error, Event, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
-use codec::Encode;
+use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
-use frame_support::{assert_noop, assert_ok, sp_runtime::traits::Zero};
+use frame_support::{
+    assert_noop, assert_ok, dispatch::Dispatchable, sp_runtime::traits::Zero, traits::Currency,
+};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     code::Code,
@@ -250,13 +252,19 @@ fn send_message_expected_failure() {
             res.expect("submit result was asserted")
         };
 
+        let send_message_call = crate::mock::Call::Gear(crate::Call::<Test>::send_message {
+            destination: program_id,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: DEFAULT_GAS_LIMIT,
+            value: 0,
+        });
         assert_noop!(
-            send_default_message(LOW_BALANCE_USER, program_id),
+            send_message_call.dispatch(Origin::signed(LOW_BALANCE_USER)),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
         // Because destination is user, no gas will be reserved
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
@@ -412,11 +420,9 @@ fn restrict_start_section() {
     });
 }
 
-#[cfg(unix)]
-#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
-    // This access different pages in wasm linear memory.
+    // This test access different pages in wasm linear memory.
     // Some pages accessed many times and some pages are freed and then allocated again
     // during one execution. This actions are helpful to identify problems with pages reallocations
     // and how lazy pages works with them.
@@ -1980,7 +1986,7 @@ fn test_create_program_no_code_hash() {
         assert_init_success(1); // 1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Try to create multiple programs with non existing code hash
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2010,7 +2016,7 @@ fn test_create_program_no_code_hash() {
         );
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Try to create with invalid code hash
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2175,7 +2181,7 @@ fn test_create_program_duplicate() {
         assert_init_success(2); // +2 from extrinsics (2 submit_program)
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Create a new program from program
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2271,7 +2277,7 @@ fn test_create_program_duplicate_in_one_execution() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         SystemPallet::<Test>::reset_events();
-        MailboxOf::<Test>::remove_all();
+        MailboxOf::<Test>::clear();
 
         // Successful child creation
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2880,6 +2886,7 @@ fn gas_spent_vs_balance() {
         run_to_block(3, None);
 
         let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
+        let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
 
         let init_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
@@ -2888,6 +2895,16 @@ fn gas_spent_vs_balance() {
             0,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
+
+        // check that all changes made by get_gas_spent are rollbacked
+        assert_eq!(
+            balance_after_handle,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
+        assert_eq!(
+            total_balance_after_handle,
+            BalancesPallet::<Test>::total_balance(&USER_1)
+        );
 
         assert_eq!(
             (initial_balance - balance_after_init) as u64,
@@ -3300,16 +3317,18 @@ fn test_reply_to_terminated_program() {
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         // Send reply
+        let reply_call = crate::mock::Call::Gear(crate::Call::<Test>::send_reply {
+            reply_to_id: mail_id,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: 10_000_000,
+            value: 0,
+        });
         assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1),
-                mail_id,
-                EMPTY_PAYLOAD.to_vec(),
-                10_000_000,
-                0
-            ),
+            reply_call.dispatch(Origin::signed(USER_1)),
             Error::<Test>::ProgramIsTerminated,
         );
+
+        log::debug!("mailbox: {:?}", MailboxOf::<Test>::iter_key(USER_1).next());
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
@@ -3522,6 +3541,73 @@ fn call_forbidden_function() {
             Err("Program terminated with a trap: Unable to call a forbidden function".to_string())
         );
     });
+}
+
+#[test]
+fn test_async_messages() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000u64,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+        for kind in &[
+            Kind::Reply,
+            Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
+            Kind::ReplyBytes,
+            Kind::ReplyBytesWithGas(DEFAULT_GAS_LIMIT),
+            Kind::ReplyCommit,
+            Kind::ReplyCommitWithGas(DEFAULT_GAS_LIMIT),
+            Kind::Send,
+            Kind::SendWithGas(DEFAULT_GAS_LIMIT),
+            Kind::SendBytes,
+            Kind::SendBytesWithGas(DEFAULT_GAS_LIMIT),
+            Kind::SendCommit,
+            Kind::SendCommitWithGas(DEFAULT_GAS_LIMIT),
+        ] {
+            run_to_next_block(None);
+            assert_ok!(Gear::send_message(
+                Origin::signed(USER_1),
+                pid,
+                kind.encode(),
+                3_000_000_000u64,
+                0,
+            ));
+
+            // check the message sent from the program
+            run_to_next_block(None);
+            let last_mail = get_last_mail(USER_1);
+            assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
+
+            // reply to the message
+            let message_id = last_mail.id();
+            assert_ok!(Gear::send_reply(
+                Origin::signed(USER_1),
+                message_id,
+                EMPTY_PAYLOAD.to_vec(),
+                2_000_000_000u64,
+                0,
+            ));
+
+            // check the reply from the program
+            run_to_next_block(None);
+            let last_mail = get_last_mail(USER_1);
+            assert_eq!(last_mail.payload(), b"PONG");
+            MailboxOf::<Test>::remove(USER_1, last_mail.id()).expect("remove last mail failed");
+        }
+
+        assert!(!Gear::is_terminated(pid));
+    })
 }
 
 mod utils {
@@ -3839,6 +3925,12 @@ mod utils {
                 _ => None,
             })
             .expect("can't find message send event")
+    }
+
+    pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
+        MailboxOf::<Test>::iter_key(account)
+            .last()
+            .expect("Element should be")
     }
 
     #[derive(Debug, Copy, Clone)]

@@ -24,6 +24,8 @@ use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 
+mod utils;
+
 /// A global flag, determining if `handle_reply` already was generated.
 static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 
@@ -151,4 +153,111 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
     .into();
 
     generate_handle_reply_if_required(code)
+}
+
+/// Extends async methods `for_reply` and `for_reply_as` for sending
+/// methods.
+///
+/// # Usage
+///
+/// ```ignore
+/// #[wait_for_reply]
+/// pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
+///   gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
+/// }
+/// ```
+///
+/// outputs:
+///
+/// ```ignore
+/// Same as [`send_bytes`](crate::msg::basic::send_bytes), but the program
+/// will interrupt until the reply is received.
+///
+/// # See also
+///
+/// - [`send_bytes_for_reply_as`](crate::msg::basic::send_bytes_for_reply_as)
+/// pub fn send_bytes_for_reply<T: AsRef<[u8]>>(
+///     program: ActorId,
+///     payload: T,
+///     value: u128,
+/// ) -> Result<MessageFuture> {
+///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///     signals().register_signal(waiting_reply_to);
+///
+///     Ok(MessageFuture { waiting_reply_to })
+/// }
+///
+/// /// Same as [`send_bytes`](crate::msg::basic::send_bytes), but the program
+/// /// will interrupt until the reply is received.
+/// ///
+/// /// The output should be decodable via [`SCALE CODEC`].
+/// ///
+/// /// # See also
+/// ///
+/// /// - [`send_bytes_for_reply`](crate::msg::basic::send_bytes_for_reply)
+/// /// - https://docs.substrate.io/v3/advanced/scale-codec
+/// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
+///     program: ActorId,
+///     payload: T,
+///     value: u128,
+/// ) -> Result<CodecMessageFuture<D>> {
+///     let waiting_reply_to = send_bytes(program, payload, value)?;
+///     signals().register_signal(waiting_reply_to);
+///
+///     Ok(CodecMessageFuture::<D> {
+///         waiting_reply_to,
+///         _marker: Default::default(),
+///     })
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn wait_for_reply(_: TokenStream, item: TokenStream) -> TokenStream {
+    let function = syn::parse_macro_input!(item as syn::ItemFn);
+    let ident = function.sig.ident.clone();
+
+    // generate functions' idents
+    let (for_reply, for_reply_as) = (
+        utils::with_suffix(&function.sig.ident, "_for_reply"),
+        utils::with_suffix(&function.sig.ident, "_for_reply_as"),
+    );
+
+    // generate docs
+    let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string());
+
+    // generate arguments
+    let (inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
+    let args = utils::get_args(&inputs);
+
+    // generate generics
+    let decodeable_ty = utils::ident("D");
+    let decodeable_traits = vec![utils::ident("Decode")];
+    let (for_reply_generics, for_reply_as_generics) = (
+        function.sig.generics.clone(),
+        utils::append_generic(
+            function.sig.generics.clone(),
+            decodeable_ty,
+            decodeable_traits,
+        ),
+    );
+
+    quote! {
+        #function
+
+        #[doc = #for_reply_docs]
+        pub fn #for_reply #for_reply_generics ( #inputs #variadic ) -> Result<MessageFuture> {
+            let waiting_reply_to = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(MessageFuture { waiting_reply_to })
+        }
+
+        #[doc = #for_reply_as_docs]
+        pub fn #for_reply_as #for_reply_as_generics ( #inputs #variadic ) -> Result<CodecMessageFuture<D>> {
+            let waiting_reply_to = #ident #args ?;
+            signals().register_signal(waiting_reply_to);
+
+            Ok(CodecMessageFuture::<D> { waiting_reply_to, _marker: Default::default() })
+        }
+    }
+    .into()
 }

@@ -127,15 +127,17 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, PageBuf>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 
     /// Returns addr to the stack end if it can be identified
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
-    /// Get ref to mem impl
+    /// Get ref to mem wrapper
     fn get_mem(&self) -> &dyn Memory;
+
+    /// Get mut ref to mem wrapper
+    fn get_mem_mut(&mut self) -> &mut dyn Memory;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
