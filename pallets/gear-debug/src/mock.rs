@@ -25,7 +25,7 @@ use frame_system as system;
 use primitive_types::H256;
 use sp_runtime::{
     testing::Header,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -140,6 +140,7 @@ impl pallet_gear::Config for Test {
     type WaitListFeePerBlock = ();
     type Schedule = ();
     type CodeStorage = GearProgram;
+    type MessageRent = ConstU64<0>;
     type Messenger = GearMessenger;
 }
 

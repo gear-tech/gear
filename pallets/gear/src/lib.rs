@@ -170,6 +170,15 @@ pub mod pallet {
 
         type CodeStorage: CodeStorage;
 
+        /// The minimal gas count for message to be inserted in mailbox.
+        ///
+        /// This gas will be consuming as rent for storing and message will be available
+        /// for reply, once gas ends, message removes.
+        ///
+        /// Messages with gas limit less than that minimum will not be added in mailbox,
+        /// but will be seen in logs.
+        type MessageRent: Get<u64>;
+
         type Messenger: Messenger<
             BlockNumber = Self::BlockNumber,
             Capacity = u32,
@@ -316,6 +325,10 @@ pub mod pallet {
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
         GasLimitTooHigh,
+        /// Insufficient gas limit.
+        ///
+        /// Occurs when an extrinsic's declared `gas_limit` is less than the constant `MessageRent`
+        InsufficientGasLimit,
         /// Program already exists.
         ///
         /// Occurs if a program with some specific program id already exists in program storage.
@@ -1267,6 +1280,12 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
+            // Ensure that provided `gas_limit` value greater than the `MessageRent`
+            ensure!(
+                gas_limit >= T::MessageRent::get(),
+                Error::<T>::InsufficientGasLimit,
+            );
+
             // Check that provided `value` equals 0 or greater than existential deposit
             ensure!(
                 0 == numeric_value || numeric_value >= minimum,
@@ -1367,6 +1386,12 @@ pub mod pallet {
             ensure!(
                 gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Ensure that provided `gas_limit` value gearter than the `MessageRent`
+            ensure!(
+                gas_limit >= T::MessageRent::get(),
+                Error::<T>::InsufficientGasLimit,
             );
 
             // Check that provided `value` equals 0 or greater than existential deposit

@@ -33,7 +33,7 @@ use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{Currency, FindAuthor, Get},
+    traits::{ConstU64, Currency, FindAuthor, Get},
 };
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
@@ -151,6 +151,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type MessageRent = ConstU64<0>;
     type Messenger = GearMessenger;
 }
 
