@@ -325,10 +325,6 @@ pub mod pallet {
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
         GasLimitTooHigh,
-        /// Insufficient gas limit.
-        ///
-        /// Occurs when an extrinsic's declared `gas_limit` is less than the constant `MessageRent`
-        InsufficientGasLimit,
         /// Program already exists.
         ///
         /// Occurs if a program with some specific program id already exists in program storage.
@@ -1280,12 +1276,6 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Ensure that provided `gas_limit` value greater than the `MessageRent`
-            ensure!(
-                gas_limit >= T::MessageRent::get(),
-                Error::<T>::InsufficientGasLimit,
-            );
-
             // Check that provided `value` equals 0 or greater than existential deposit
             ensure!(
                 0 == numeric_value || numeric_value >= minimum,
@@ -1297,14 +1287,7 @@ pub mod pallet {
                 Error::<T>::ProgramIsTerminated
             );
 
-            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
-            // That's because destination can fail to be initialized, while this dispatch message is next
-            // in the queue.
-            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
             let origin = who.clone().into_origin();
-
             let message_id = Self::next_message_id(origin);
             let packet = HandlePacket::new_with_gas(
                 destination,
@@ -1313,6 +1296,26 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
             let message = HandleMessage::from_packet(message_id, packet);
+
+            if gas_limit < T::MessageRent::get() {
+                let message = message.into_stored(ProgramId::from_origin(origin));
+
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    expiration: Some(T::BlockNumber::zero()),
+                });
+
+                return Ok(().into());
+            }
+
+            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+            // That's because destination can fail to be initialized, while this dispatch message is next
+            // in the queue.
+            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -1388,12 +1391,6 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Ensure that provided `gas_limit` value gearter than the `MessageRent`
-            ensure!(
-                gas_limit >= T::MessageRent::get(),
-                Error::<T>::InsufficientGasLimit,
-            );
-
             // Check that provided `value` equals 0 or greater than existential deposit
             ensure!(
                 0 == numeric_value || numeric_value >= minimum,
@@ -1409,16 +1406,34 @@ pub mod pallet {
                 Error::<T>::ProgramIsTerminated
             );
 
+            let message_id = MessageId::generate_reply(original_message.id(), 0);
+            let packet =
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
+            let message = ReplyMessage::from_packet(message_id, packet);
+
+            if gas_limit < T::MessageRent::get() {
+                let message = message.into_stored(
+                    ProgramId::from_origin(who.into_origin()),
+                    destination,
+                    original_message.id(),
+                );
+
+                // TODO: replace this temporary (zero) value for expiration
+                // block number with properly calculated one
+                // (issues #646 and #969).
+                Pallet::<T>::deposit_event(Event::UserMessageSent {
+                    message,
+                    expiration: Some(T::BlockNumber::zero()),
+                });
+
+                return Ok(().into());
+            }
+
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let message_id = MessageId::generate_reply(original_message.id(), 0);
-            let packet =
-                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
-            let message = ReplyMessage::from_packet(message_id, packet);
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
