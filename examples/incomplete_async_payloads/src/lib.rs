@@ -16,7 +16,7 @@ async fn main() {
             let handle = msg::send_init().unwrap();
             handle.push(b"STORED ").unwrap();
 
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
@@ -32,7 +32,7 @@ async fn main() {
 
             msg::reply_push(b"STORED ").unwrap();
 
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
@@ -59,7 +59,7 @@ async fn main() {
 
             msg::reply_bytes("FIRST", 0).unwrap();
 
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
+            let _ = msg::send_bytes_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .unwrap()
                 .await
                 .expect("Error in async message processing");

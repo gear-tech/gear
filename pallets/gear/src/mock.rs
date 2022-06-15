@@ -215,6 +215,10 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     }
 }
 
+pub fn run_to_next_block(remaining_weight: Option<u64>) {
+    run_to_block(System::block_number() + 1, remaining_weight);
+}
+
 pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
     sp_externalities::with_externalities(|ext| {
         ext.storage_start_transaction();

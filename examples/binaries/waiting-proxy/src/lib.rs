@@ -35,10 +35,9 @@ mod wasm {
     #[gstd::async_main]
     async fn main() {
         let input = msg::load_bytes();
-        if let Ok(outcome) =
-            msg::send_bytes_and_wait_for_reply(unsafe { DESTINATION }, &input[..], 0)
-                .expect("Error sending message")
-                .await
+        if let Ok(outcome) = msg::send_bytes_for_reply(unsafe { DESTINATION }, &input[..], 0)
+            .expect("Error sending message")
+            .await
         {
             msg::reply(outcome, 0);
         }
