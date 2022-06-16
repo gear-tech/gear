@@ -21,11 +21,14 @@
 //! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
 use crate::{
+    async_runtime::signals,
     errors::{ContractError, Result},
+    msg::r#async::{CodecMessageFuture, MessageFuture},
     prelude::convert::AsRef,
     ActorId, MessageId,
 };
 use codec::{Decode, Encode};
+use gstd_codegen::wait_for_reply;
 
 /// `load` returns Result, where Ok case contains a message payload decoded into
 /// the struct of specified type, or as a generic argument. In case of Err,
@@ -42,19 +45,22 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
 }
 
+#[wait_for_reply]
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
 
+#[wait_for_reply]
 pub fn send<E: Encode>(program: ActorId, payload: E, value: u128) -> Result<MessageId> {
-    super::send_bytes(program, payload.encode(), value).map_err(Into::into)
+    super::send_bytes(program, payload.encode(), value)
 }
 
+#[wait_for_reply]
 pub fn send_with_gas<E: Encode>(
     program: ActorId,
     payload: E,
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
-    super::send_bytes_with_gas(program, payload.encode(), gas_limit, value).map_err(Into::into)
+    super::send_bytes_with_gas(program, payload.encode(), gas_limit, value)
 }

@@ -49,6 +49,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
+name = "async-recursion"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cda8f4bcc10624c4e85bc66b3f452cca98cfa5ca002dc83a16aad2367641bea"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,6 +273,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-recursion"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "gstd",
+]
+
+[[package]]
 name = "demo-async-sign"
 version = "0.1.0"
 dependencies = [
@@ -421,6 +440,14 @@ name = "demo-ping-gas"
 version = "0.1.0"
 dependencies = [
  "gstd",
+]
+
+[[package]]
+name = "demo-program-generator"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "hex-literal",
 ]
 
 [[package]]
@@ -728,6 +755,7 @@ dependencies = [
 name = "gstd-codegen"
 version = "0.1.0"
 dependencies = [
+ "proc-macro2",
  "quote",
  "syn",
 ]

@@ -19,13 +19,13 @@
 use crate::{
     manager::HandleKind,
     mock::{
-        calc_handle_gas_spent, get_gas_burned, new_test_ext, run_to_block, Event as MockEvent,
-        Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
-        USER_3,
+        calc_handle_gas_spent, get_gas_burned, new_test_ext, run_to_block, run_to_next_block,
+        Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, Error, Event, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
-use codec::Encode;
+use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
@@ -3486,20 +3486,90 @@ fn call_forbidden_function() {
     });
 }
 
+#[test]
+fn test_async_messages() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000u64,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+        for kind in &[
+            Kind::Reply,
+            Kind::ReplyWithGas(DEFAULT_GAS_LIMIT),
+            Kind::ReplyBytes,
+            Kind::ReplyBytesWithGas(DEFAULT_GAS_LIMIT),
+            Kind::ReplyCommit,
+            Kind::ReplyCommitWithGas(DEFAULT_GAS_LIMIT),
+            Kind::Send,
+            Kind::SendWithGas(DEFAULT_GAS_LIMIT),
+            Kind::SendBytes,
+            Kind::SendBytesWithGas(DEFAULT_GAS_LIMIT),
+            Kind::SendCommit,
+            Kind::SendCommitWithGas(DEFAULT_GAS_LIMIT),
+        ] {
+            run_to_next_block(None);
+            assert_ok!(Gear::send_message(
+                Origin::signed(USER_1),
+                pid,
+                kind.encode(),
+                3_000_000_000u64,
+                0,
+            ));
+
+            // check the message sent from the program
+            run_to_next_block(None);
+            let last_mail = get_last_mail(USER_1);
+            assert_eq!(Kind::decode(&mut last_mail.payload()), Ok(*kind));
+
+            // reply to the message
+            let message_id = last_mail.id();
+            assert_ok!(Gear::send_reply(
+                Origin::signed(USER_1),
+                message_id,
+                EMPTY_PAYLOAD.to_vec(),
+                2_000_000_000u64,
+                0,
+            ));
+
+            // check the reply from the program
+            run_to_next_block(None);
+            let last_mail = get_last_mail(USER_1);
+            assert_eq!(last_mail.payload(), b"PONG");
+            MailboxOf::<Test>::remove(USER_1, last_mail.id()).expect("remove last mail failed");
+        }
+
+        assert!(!Gear::is_terminated(pid));
+    })
+}
+
 mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MockEvent, Origin,
-        SystemPallet, Test,
+        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MailboxOf, MockEvent,
+        Origin, SystemPallet, Test,
     };
     use codec::Decode;
-    use common::{event::*, Origin as _};
+    use common::{event::*, storage::IterableByKeyMap, Origin as _};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::currency::Currency,
     };
-    use gear_core::ids::{CodeId, MessageId, ProgramId};
+    use gear_core::{
+        ids::{CodeId, MessageId, ProgramId},
+        message::StoredMessage,
+    };
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
@@ -3795,6 +3865,12 @@ mod utils {
                 _ => None,
             })
             .expect("can't find message send event")
+    }
+
+    pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
+        MailboxOf::<Test>::iter_key(account)
+            .last()
+            .expect("Element should be")
     }
 
     #[derive(Debug, Copy, Clone)]
