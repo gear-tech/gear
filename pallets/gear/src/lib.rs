@@ -797,7 +797,6 @@ pub mod pallet {
                                     continue;
                                 }
                             } else {
-                                //
                                 log::debug!(
                                     "Code '{:?}' not found for program '{:?}'",
                                     code_id,

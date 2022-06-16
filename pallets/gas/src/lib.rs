@@ -97,10 +97,10 @@ impl ValueNode {
     }
 
     /// The first upstream node (self included), that is able to hold a concrete value, but doesn't
-    /// necessarily has a non-zero value.
+    /// necessarily have a non-zero value.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn node_with_value<T: Config>(&self) -> Result<ValueNode, DispatchError> {
-        let mut ret_node = self.clone();
+    pub fn node_with_value<T: Config>(self) -> Result<ValueNode, DispatchError> {
+        let mut ret_node = self;
         while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
             ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
         }
@@ -480,7 +480,7 @@ where
 
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
-        let mut ancestor_with_value = parent.node_with_value::<T>()?;
+        let mut ancestor_with_value = parent.clone().node_with_value::<T>()?;
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         ensure!(
