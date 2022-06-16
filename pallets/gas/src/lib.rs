@@ -130,9 +130,7 @@ impl ValueNode {
             }
 
             // Update parent node
-            GasTree::<T>::mutate(id, |value| {
-                *value = Some(parent);
-            });
+            GasTree::<T>::insert(id, parent);
         }
 
         Ok(())
@@ -171,9 +169,7 @@ impl ValueNode {
                     .inner_value_mut()
                     .expect("self is a type with a specified value") = 0;
 
-                GasTree::<T>::mutate(parents_ancestor.id, |value| {
-                    *value = Some(parents_ancestor);
-                });
+                GasTree::<T>::insert(parents_ancestor.id, parents_ancestor);
             }
         }
         Ok(())
@@ -418,9 +414,7 @@ where
             }
         } else {
             // Save current node
-            GasTree::<T>::mutate(key, |value| {
-                *value = Some(node);
-            });
+            GasTree::<T>::insert(key, node);
             None
         })
     }
@@ -447,9 +441,7 @@ where
         log::debug!("Spent {} of gas", amount);
 
         // Save node that delivers limit
-        GasTree::<T>::mutate(node.id, |value| {
-            *value = Some(node);
-        });
+        GasTree::<T>::insert(node.id, node);
 
         Ok(NegativeImbalance::new(amount))
     }
@@ -477,9 +469,7 @@ where
         // Save new node
         GasTree::<T>::insert(new_node_key, new_node);
         // Update current node
-        GasTree::<T>::mutate(key, |value| {
-            *value = Some(node);
-        });
+        GasTree::<T>::insert(key, node);
 
         Ok(())
     }
@@ -523,20 +513,14 @@ where
         parent.spec_refs = parent.spec_refs.saturating_add(1);
         if parent.id == ancestor_with_value.id {
             *parent.inner_value_mut().expect("Querying node with value") -= amount;
-            GasTree::<T>::mutate(key, |value| {
-                *value = Some(parent);
-            });
+            GasTree::<T>::insert(key, parent);
         } else {
             // Update current node
-            GasTree::<T>::mutate(key, |value| {
-                *value = Some(parent);
-            });
+            GasTree::<T>::insert(key, parent);
             *ancestor_with_value
                 .inner_value_mut()
                 .expect("Querying node with value") -= amount;
-            GasTree::<T>::mutate(ancestor_with_value.id, |value| {
-                *value = Some(ancestor_with_value);
-            });
+            GasTree::<T>::insert(ancestor_with_value.id, ancestor_with_value);
         }
 
         Ok(())
