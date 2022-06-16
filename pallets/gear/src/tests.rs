@@ -63,7 +63,7 @@ fn unstoppable_block_execution_works() {
         run_to_block(2, None);
 
         let GasInfo {
-            burnt: expected_burned_gas,
+            burned: expected_burned_gas,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -894,7 +894,7 @@ fn block_gas_limit_works() {
 
         // Count gas needed to process programs with default payload
         let GasInfo {
-            burnt: expected_gas_msg_to_pid1,
+            burned: expected_gas_msg_to_pid1,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -905,7 +905,7 @@ fn block_gas_limit_works() {
         )
         .expect("calculate_gas_info failed");
         let GasInfo {
-            burnt: expected_gas_msg_to_pid2,
+            burned: expected_gas_msg_to_pid2,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -1435,7 +1435,7 @@ fn claim_value_from_mailbox_works() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let GasInfo {
-            burnt: gas_burned, ..
+            burned: gas_burned, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -2511,7 +2511,7 @@ fn no_redundant_gas_value_after_exiting() {
         run_to_block(2, None);
 
         let GasInfo {
-            spent: gas_spent, ..
+            min_limit: gas_spent, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -2932,7 +2932,7 @@ fn gas_spent_vs_balance() {
         let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
 
         let GasInfo {
-            spent: init_gas_spent,
+            min_limit: init_gas_spent,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -2961,7 +2961,7 @@ fn gas_spent_vs_balance() {
         run_to_block(4, None);
 
         let GasInfo {
-            spent: handle_gas_spent,
+            min_limit: handle_gas_spent,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -3008,7 +3008,7 @@ fn gas_spent_precalculated() {
         run_to_block(2, None);
 
         let GasInfo {
-            spent: gas_spent_1, ..
+            min_limit: gas_spent_1, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -3037,7 +3037,7 @@ fn gas_spent_precalculated() {
         assert_eq!(gas_spent_1, total_cost as u64);
 
         let GasInfo {
-            spent: gas_spent_2, ..
+            min_limit: gas_spent_2, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -3447,8 +3447,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
         let value = 10_000_000;
 
         let GasInfo {
-            spent: gas_reserved,
-            burnt: gas_to_spend,
+            min_limit: gas_reserved,
+            burned: gas_to_spend,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),

@@ -102,12 +102,17 @@ impl DebugInfo for () {
     }
 }
 
+/// The struct contains results of gas calculation required to process
+/// a message.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub struct GasInfo {
-    pub spent: u64,
+    /// Represents minimum gas limit required for execution.
+    pub min_limit: u64,
+    /// Gas amount that was send to other programs during exection.
     pub to_send: u64,
-    pub burnt: u64,
+    /// Contains number of gas burned during message processing.
+    pub burned: u64,
 }
 
 #[frame_support::pallet]
@@ -511,7 +516,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            let GasInfo { spent, to_send, .. } = Self::calculate_gas_info_impl(
+            let GasInfo { min_limit, to_send, .. } = Self::calculate_gas_info_impl(
                 source,
                 kind.clone(),
                 initial_gas,
@@ -525,16 +530,16 @@ pub mod pallet {
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                spent + to_send,
+                min_limit + to_send,
                 payload,
                 value,
                 allow_other_panics,
                 b"calculate_gas_salt1".to_vec(),
             )
-            .map(|GasInfo { to_send, burnt, .. }| GasInfo {
-                spent,
+            .map(|GasInfo { to_send, burned, .. }| GasInfo {
+                min_limit,
                 to_send,
-                burnt,
+                burned,
             })
         }
 
@@ -546,7 +551,7 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
-            let GasInfo { spent, to_send, .. } = mock::run_with_ext_copy(|| {
+            let GasInfo { min_limit, to_send, .. } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -564,16 +569,16 @@ pub mod pallet {
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
-                    spent + to_send,
+                    min_limit + to_send,
                     payload,
                     value,
                     allow_other_panics,
                     b"calculate_gas_salt".to_vec(),
                 )
-                .map(|GasInfo { to_send, burnt, .. }| GasInfo {
-                    spent,
+                .map(|GasInfo { to_send, burned, .. }| GasInfo {
+                    min_limit,
                     to_send,
-                    burnt,
+                    burned,
                 })
             })
         }
@@ -652,7 +657,7 @@ pub mod pallet {
 
             let mut max_gas_spent = 0;
             let mut gas_to_send = 0;
-            let mut burnt = 0;
+            let mut burned = 0;
 
             let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
@@ -742,7 +747,7 @@ pub mod pallet {
                         }
 
                         JournalNote::GasBurned { amount, .. } => {
-                            burnt = burnt.saturating_add(amount);
+                            burned = burned.saturating_add(amount);
                         }
 
                         JournalNote::MessageDispatched {
@@ -762,9 +767,9 @@ pub mod pallet {
             }
 
             Ok(GasInfo {
-                spent: max_gas_spent,
+                min_limit: max_gas_spent,
                 to_send: gas_to_send,
-                burnt,
+                burned,
             })
         }
 
