@@ -280,7 +280,7 @@ pub struct ExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Debug, derive_more::Display)]
+#[derive(Encode, Decode, Debug, derive_more::Display)]
 pub enum ExecutionErrorReason {
     /// Memory error
     #[display(fmt = "{}", _0)]

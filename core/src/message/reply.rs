@@ -169,9 +169,12 @@ impl ReplyPacket {
         }
     }
 
+    // TODO: consider using here impl `CoreError` and provide `AsExitCode`
+    // trait or append such functionality to `CoreError`.
     /// Create new empty ReplyPacket (for system generation).
-    pub fn system(exit_code: ExitCode) -> Self {
+    pub fn system(payload: Payload, exit_code: ExitCode) -> Self {
         Self {
+            payload,
             exit_code,
             ..Default::default()
         }

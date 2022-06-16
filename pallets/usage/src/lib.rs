@@ -387,7 +387,7 @@ pub mod pallet {
 
                             // Generate trap reply
                             let trap_message_id = MessageId::generate_reply(msg_id, core_processor::ERR_EXIT_CODE);
-                            let packet = ReplyPacket::system(core_processor::ERR_EXIT_CODE);
+                            let packet = ReplyPacket::system(Default::default(), core_processor::ERR_EXIT_CODE);
                             let message = ReplyMessage::from_packet(trap_message_id, packet);
                             let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
