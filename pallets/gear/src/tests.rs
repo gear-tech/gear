@@ -655,7 +655,6 @@ fn memory_access_cases() {
     });
 }
 
-#[cfg(unix)]
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
