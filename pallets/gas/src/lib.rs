@@ -123,10 +123,16 @@ impl ValueNode {
             let mut parent = <Pallet<T>>::get_node(id).ok_or(Error::<T>::ParentIsLost)?;
             ensure!(parent.refs() > 0, Error::<T>::ParentHasNoChildren,);
 
-            if let ValueType::SpecifiedLocal { .. } = self.inner {
-                parent.spec_refs = parent.spec_refs.saturating_sub(1);
-            } else {
-                parent.unspec_refs = parent.unspec_refs.saturating_sub(1);
+            match self.inner {
+                ValueType::SpecifiedLocal { .. } => {
+                    parent.spec_refs = parent.spec_refs.saturating_sub(1)
+                }
+                ValueType::UnspecifiedLocal { .. } => {
+                    parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
+                }
+                ValueType::External { .. } => {
+                    unreachable!("node is guaranteed to have a parent, so can't be an external one")
+                }
             }
 
             // Update parent node
