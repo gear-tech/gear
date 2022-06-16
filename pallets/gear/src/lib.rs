@@ -516,9 +516,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            let GasInfo {
-                min_limit, ..
-            } = Self::calculate_gas_info_impl(
+            let GasInfo { min_limit, .. } = Self::calculate_gas_info_impl(
                 source,
                 kind.clone(),
                 initial_gas,
@@ -539,7 +537,7 @@ pub mod pallet {
             )
             .map(
                 |GasInfo {
-                    reserved, burned, ..
+                     reserved, burned, ..
                  }| GasInfo {
                     min_limit,
                     reserved,
@@ -556,9 +554,7 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
-            let GasInfo {
-                min_limit, ..
-            } = mock::run_with_ext_copy(|| {
+            let GasInfo { min_limit, .. } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -754,11 +750,12 @@ pub mod pallet {
                         JournalNote::SendDispatch { dispatch, .. } => {
                             let gas_limit = dispatch.gas_limit().unwrap_or(0);
                             if ext_manager.check_user_id(&dispatch.destination()) && gas_limit > 0 {
-                                return Err(b"Message sent to user with non zero gas limit".to_vec());
+                                return Err(
+                                    b"Message sent to user with non zero gas limit".to_vec()
+                                );
                             }
 
-                            gas_to_send =
-                                gas_to_send.saturating_add(gas_limit);
+                            gas_to_send = gas_to_send.saturating_add(gas_limit);
                         }
 
                         JournalNote::GasBurned { amount, .. } => {
