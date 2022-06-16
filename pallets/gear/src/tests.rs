@@ -810,7 +810,9 @@ fn lazy_pages() {
     });
 }
 
+// TODO: ignored until #642 implemented
 #[test]
+#[ignore]
 fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
@@ -1414,7 +1416,9 @@ fn send_reply_value_claiming_works() {
 // prog send to user 1 msg to mailbox
 // user 1 claims it from mailbox
 
+// TODO: ignored until #642 implemented
 #[test]
+#[ignore]
 fn claim_value_from_mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {

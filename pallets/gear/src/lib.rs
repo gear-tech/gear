@@ -517,7 +517,7 @@ pub mod pallet {
         ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             let GasInfo {
-                min_limit, reserved, ..
+                min_limit, ..
             } = Self::calculate_gas_info_impl(
                 source,
                 kind.clone(),
@@ -528,11 +528,10 @@ pub mod pallet {
                 b"calculate_gas_salt".to_vec(),
             )?;
 
-            // TODO: adding `reserved` until #642 implemented
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                min_limit + reserved,
+                min_limit,
                 payload,
                 value,
                 allow_other_panics,
@@ -558,7 +557,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo {
-                min_limit, reserved, ..
+                min_limit, ..
             } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::calculate_gas_info_impl(
@@ -573,11 +572,10 @@ pub mod pallet {
             })?;
 
             mock::run_with_ext_copy(|| {
-                // TODO: add `to_send` until #642 implemented
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
-                    min_limit + reserved,
+                    min_limit,
                     payload,
                     value,
                     allow_other_panics,
@@ -754,8 +752,13 @@ pub mod pallet {
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
+                            let gas_limit = dispatch.gas_limit().unwrap_or(0);
+                            if ext_manager.check_user_id(&dispatch.destination()) && gas_limit > 0 {
+                                return Err(b"Message sent to user with non zero gas limit".to_vec());
+                            }
+
                             gas_to_send =
-                                gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
+                                gas_to_send.saturating_add(gas_limit);
                         }
 
                         JournalNote::GasBurned { amount, .. } => {
