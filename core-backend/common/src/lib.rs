@@ -31,6 +31,7 @@ use alloc::{
     string::String,
     vec::Vec,
 };
+use codec::{Decode, Encode};
 use core::fmt;
 use gear_core::{
     env::Ext,
@@ -41,7 +42,7 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Decode, Encode, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReasonKind {
     Exit,
     Leave,
@@ -50,7 +51,7 @@ pub enum TerminationReasonKind {
     ForbiddenFunction,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Decode, Encode, Debug, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
@@ -63,7 +64,7 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Decode, Encode, Debug, Clone, derive_more::Display)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
@@ -121,9 +122,9 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     type Error: fmt::Display;
 
     /// Creates new external environment to execute wasm binary:
-    /// 1) instatiates wasm binary.
-    /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
-    /// 3) instatiate external funcs for wasm module.
+    /// 1) Instantiates wasm binary.
+    /// 2) Creates wasm memory with filled data (exception if lazy pages enabled).
+    /// 3) Instantiate external funcs for wasm module.
     fn new(
         ext: E,
         binary: &[u8],

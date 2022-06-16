@@ -2341,6 +2341,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
