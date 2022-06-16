@@ -2360,7 +2360,7 @@ benchmarks! {
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomUnaligned(0, code::max_pages::<T>() * 64 * 1024 - 8),
+                RandomUnaligned(0, 2 * 64 * 1024 - 8),
                 Regular(Instruction::I64Load(3, 0)),
                 Regular(Instruction::Drop),
             ])),
@@ -2376,7 +2376,7 @@ benchmarks! {
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                RandomUnaligned(0, code::max_pages::<T>() * 64 * 1024 - 8),
+                RandomUnaligned(0, 2 * 64 * 1024 - 8),
                 RandomI64Repeated(1),
                 Regular(Instruction::I64Store(3, 0)),
             ])),
