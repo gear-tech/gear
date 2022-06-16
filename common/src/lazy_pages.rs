@@ -19,6 +19,7 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
+use core::fmt;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, PageBuf, PageNumber},
@@ -139,12 +140,20 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
     mem: &dyn Memory,
     old_mem_addr: Option<HostPointer>,
 ) -> Result<(), Error> {
+    struct PointerDisplay(HostPointer);
+
+    impl fmt::Debug for PointerDisplay {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{:#x}", self.0)
+        }
+    }
+
     let new_mem_addr = mem.get_buffer_host_addr();
     if new_mem_addr != old_mem_addr {
         log::debug!(
             "backend executor has changed wasm mem buff: from {:?} to {:?}",
-            old_mem_addr.map(|x| x as *const ()),
-            new_mem_addr.map(|x| x as *const ())
+            old_mem_addr.map(PointerDisplay),
+            new_mem_addr.map(PointerDisplay)
         );
         gear_ri::set_wasm_mem_begin_addr(new_mem_addr.ok_or(Error::WasmMemBufferIsUndefined)?)
             .map_err(|e| {
