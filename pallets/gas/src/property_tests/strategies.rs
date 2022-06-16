@@ -47,7 +47,7 @@ pub(super) enum GasTreeAction {
     SplitWithValue(usize, u64),
     /// Spends `u64` amount of value from the node under the bound `usize` index.
     Spend(usize, u64),
-    /// Consumes he node under the bound `usize` index.
+    /// Consumes the node under the bound `usize` index.
     Consume(usize),
 }
 
