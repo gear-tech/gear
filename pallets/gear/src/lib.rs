@@ -508,6 +508,7 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
+            allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             let GasInfo { spent, to_send, .. } = Self::calculate_gas_info_impl(
@@ -516,16 +517,23 @@ pub mod pallet {
                 initial_gas,
                 payload.clone(),
                 value,
+                allow_other_panics,
             )?;
 
             // TODO: adding `to_send` until #642 implemented
-            Self::calculate_gas_info_impl(source, kind, spent + to_send, payload, value).map(
-                |GasInfo { to_send, burnt, .. }| GasInfo {
-                    spent,
-                    to_send,
-                    burnt,
-                },
+            Self::calculate_gas_info_impl(
+                source,
+                kind,
+                spent + to_send,
+                payload,
+                value,
+                allow_other_panics,
             )
+            .map(|GasInfo { to_send, burnt, .. }| GasInfo {
+                spent,
+                to_send,
+                burnt,
+            })
         }
 
         #[cfg(test)]
@@ -534,6 +542,7 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
+            allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { spent, to_send, .. } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
@@ -543,18 +552,25 @@ pub mod pallet {
                     initial_gas,
                     payload.clone(),
                     value,
+                    allow_other_panics,
                 )
             })?;
 
             mock::run_with_ext_copy(|| {
                 // TODO: add `to_send` until #642 implemented
-                Self::calculate_gas_info_impl(source, kind, spent + to_send, payload, value).map(
-                    |GasInfo { to_send, burnt, .. }| GasInfo {
-                        spent,
-                        to_send,
-                        burnt,
-                    },
+                Self::calculate_gas_info_impl(
+                    source,
+                    kind,
+                    spent + to_send,
+                    payload,
+                    value,
+                    allow_other_panics,
                 )
+                .map(|GasInfo { to_send, burnt, .. }| GasInfo {
+                    spent,
+                    to_send,
+                    burnt,
+                })
             })
         }
 
@@ -564,6 +580,7 @@ pub mod pallet {
             initial_gas: u64,
             payload: Vec<u8>,
             value: u128,
+            allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
@@ -579,23 +596,47 @@ pub mod pallet {
 
             QueueOf::<T>::clear();
 
-            match kind {
+            let main_program_id = match kind {
                 HandleKind::Init(code) => {
                     let salt = b"gas_spent_salt".to_vec();
                     Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|_| b"Internal error: submit_program failed".to_vec())?;
+
+                    QueueOf::<T>::iter()
+                        .next()
+                        .ok_or(b"Internal error: failed to get last message".to_vec())
+                        .and_then(|queued| {
+                            queued
+                                .map_err(|_| {
+                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
+                                })
+                                .map(|dispatch| dispatch.destination())
+                        })?
                 }
 
                 HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
                         .map_err(|_| b"Internal error: send_message failed".to_vec())?;
+
+                    destination
                 }
 
                 HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|_| b"Internal error: send_reply failed".to_vec())?;
+
+                    QueueOf::<T>::iter()
+                        .next()
+                        .ok_or(b"Internal error: failed to get last message".to_vec())
+                        .and_then(|queued| {
+                            queued
+                                .map_err(|_| {
+                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
+                                })
+                                .map(|dispatch| dispatch.destination())
+                        })?
                 }
-            }
+            };
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -701,9 +742,9 @@ pub mod pallet {
                         }
 
                         JournalNote::MessageDispatched {
-                            outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                            outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
                             ..
-                        } => {
+                        } if program_id == main_program_id || !allow_other_panics => {
                             return Err(format!(
                                 "Program terminated with a trap: {}",
                                 trap.unwrap_or_else(|| "No reason".to_string())

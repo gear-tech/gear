@@ -70,6 +70,7 @@ fn unstoppable_block_execution_works() {
             HandleKind::Handle(program_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -900,6 +901,7 @@ fn block_gas_limit_works() {
             HandleKind::Handle(pid1),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .expect("calculate_gas_info failed");
         let GasInfo {
@@ -910,6 +912,7 @@ fn block_gas_limit_works() {
             HandleKind::Handle(pid2),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -1438,6 +1441,7 @@ fn claim_value_from_mailbox_works() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .expect("calculate_gas_info failed");
         let gas_burned = GasPrice::gas_price(gas_burned);
@@ -2513,6 +2517,7 @@ fn no_redundant_gas_value_after_exiting() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .expect("calculate_gas_info failed");
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2934,6 +2939,7 @@ fn gas_spent_vs_balance() {
             HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
@@ -2962,6 +2968,7 @@ fn gas_spent_vs_balance() {
             HandleKind::Handle(prog_id),
             request,
             0,
+            true,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
@@ -3007,6 +3014,7 @@ fn gas_spent_precalculated() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
@@ -3035,6 +3043,7 @@ fn gas_spent_precalculated() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -3446,6 +3455,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             HandleKind::Handle(wrapper_id),
             payload.clone(),
             value,
+            true,
         )
         .expect("Failed to get gas spent");
 
@@ -3525,6 +3535,7 @@ fn call_forbidden_function() {
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
+            true,
         )
         .map_err(|e| String::from_utf8(e).unwrap());
 

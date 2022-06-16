@@ -24,6 +24,6 @@ use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
     pub trait GearApi {
-        fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128) -> Result<GasInfo, Vec<u8>>;
+        fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool,) -> Result<GasInfo, Vec<u8>>;
     }
 }

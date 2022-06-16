@@ -52,6 +52,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         code: Bytes,
         payload: Bytes,
         value: u128,
+        allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
@@ -62,6 +63,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         dest: H256,
         payload: Bytes,
         value: u128,
+        allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
@@ -73,6 +75,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         exit_code: i32,
         payload: Bytes,
         value: u128,
+        allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 }
@@ -125,6 +128,7 @@ where
         code: Bytes,
         payload: Bytes,
         value: u128,
+        allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
         let api = self.client.runtime_api();
@@ -139,6 +143,7 @@ where
                 HandleKind::Init(code.to_vec()),
                 payload.to_vec(),
                 value,
+                allow_other_panics,
             )
             .map_err(runtime_error_into_rpc_error)?;
 
@@ -151,6 +156,7 @@ where
         dest: H256,
         payload: Bytes,
         value: u128,
+        allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
         let api = self.client.runtime_api();
@@ -165,6 +171,7 @@ where
                 HandleKind::Handle(ProgramId::from_origin(dest)),
                 payload.to_vec(),
                 value,
+                allow_other_panics,
             )
             .map_err(runtime_error_into_rpc_error)?;
 
@@ -178,6 +185,7 @@ where
         exit_code: i32,
         payload: Bytes,
         value: u128,
+        allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
         let api = self.client.runtime_api();
@@ -192,6 +200,7 @@ where
                 HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
                 payload.to_vec(),
                 value,
+                allow_other_panics,
             )
             .map_err(runtime_error_into_rpc_error)?;
 
