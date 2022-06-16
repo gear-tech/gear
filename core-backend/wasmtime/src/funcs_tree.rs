@@ -51,7 +51,7 @@ where
         FuncsHandler::send_commit_wgas(store, memory),
     );
     funcs.insert("gr_send_commit", FuncsHandler::send_commit(store, memory));
-    funcs.insert("gr_send_commit", FuncsHandler::send_init(store, memory));
+    funcs.insert("gr_send_init", FuncsHandler::send_init(store, memory));
     funcs.insert("gr_send_push", FuncsHandler::send_push(store, memory));
     funcs.insert("gr_size", FuncsHandler::size(store));
     funcs.insert("gr_source", FuncsHandler::source(store, memory));
