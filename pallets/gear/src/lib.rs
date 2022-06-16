@@ -586,14 +586,12 @@ pub mod pallet {
                         .map_err(|_| b"Internal error: submit_program failed".to_vec())?;
                 }
 
-                HandleKind::Handle(dest) => {
-                    let destination = ProgramId::from_origin(dest);
+                HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
                         .map_err(|_| b"Internal error: send_message failed".to_vec())?;
                 }
 
-                HandleKind::Reply(msg_id, _exit_code) => {
-                    let reply_to_id = MessageId::from_origin(msg_id);
+                HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|_| b"Internal error: send_reply failed".to_vec())?;
                 }

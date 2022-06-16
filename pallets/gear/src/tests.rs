@@ -67,7 +67,7 @@ fn unstoppable_block_execution_works() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(program_id.into_origin()),
+            HandleKind::Handle(program_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -897,7 +897,7 @@ fn block_gas_limit_works() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(pid1.into_origin()),
+            HandleKind::Handle(pid1),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -907,7 +907,7 @@ fn block_gas_limit_works() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(pid2.into_origin()),
+            HandleKind::Handle(pid2),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -1435,7 +1435,7 @@ fn claim_value_from_mailbox_works() {
             burnt: gas_burned, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id.into_origin()),
+            HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -2510,7 +2510,7 @@ fn no_redundant_gas_value_after_exiting() {
             spent: gas_spent, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id.into_origin()),
+            HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -2959,7 +2959,7 @@ fn gas_spent_vs_balance() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id.into_origin()),
+            HandleKind::Handle(prog_id),
             request,
             0,
         )
@@ -3004,7 +3004,7 @@ fn gas_spent_precalculated() {
             spent: gas_spent_1, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id.into_origin()),
+            HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -3032,7 +3032,7 @@ fn gas_spent_precalculated() {
             spent: gas_spent_2, ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id.into_origin()),
+            HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
@@ -3443,7 +3443,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(wrapper_id.into_origin()),
+            HandleKind::Handle(wrapper_id),
             payload.clone(),
             value,
         )
@@ -3522,7 +3522,7 @@ fn call_forbidden_function() {
 
         let res = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Handle(prog_id.into_origin()),
+            HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
         )

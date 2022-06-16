@@ -27,6 +27,8 @@ use jsonrpsee::{
 };
 
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
+use gear_core::ids::{MessageId, ProgramId};
+use gear_common::Origin;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
@@ -163,7 +165,7 @@ where
             .calculate_gas_info(
                 &at,
                 source,
-                HandleKind::Handle(dest),
+                HandleKind::Handle(ProgramId::from_origin(dest)),
                 payload.to_vec(),
                 value,
             )
@@ -190,7 +192,7 @@ where
             .calculate_gas_info(
                 &at,
                 source,
-                HandleKind::Reply(message_id, exit_code),
+                HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
                 payload.to_vec(),
                 value,
             )
