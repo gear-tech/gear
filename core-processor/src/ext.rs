@@ -111,7 +111,7 @@ impl ProcessorError {
     pub fn into_trap_explanation(self) -> Option<TrapExplanation> {
         match self {
             Self::Core(err) => Some(TrapExplanation::Core(err)),
-            Self::Panic(msg) => Some(TrapExplanation::Other(msg)),
+            Self::Panic(msg) => Some(TrapExplanation::Other(msg.into())),
             _ => None,
         }
     }

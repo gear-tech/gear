@@ -42,6 +42,25 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 
+#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub struct TrimmedString(String);
+
+// Amount of characters allowed to be thrown as string explanation of the error.
+const TRIMMING_LEN: usize = 1024;
+
+impl<T: Into<String>> From<T> for TrimmedString {
+    fn from(other: T) -> Self {
+        let mut string = other.into();
+
+        if string.len() >= TRIMMING_LEN {
+            string.truncate(TRIMMING_LEN - 4);
+            string.push_str(" ...")
+        }
+
+        Self(string)
+    }
+}
+
 #[derive(Decode, Encode, Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum TerminationReasonKind {
     Exit,
@@ -69,7 +88,7 @@ pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
     #[display(fmt = "{}", _0)]
-    Other(String),
+    Other(TrimmedString),
     #[display(fmt = "Unreachable instruction")]
     Unreachable,
 }
