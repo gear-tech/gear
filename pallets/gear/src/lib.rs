@@ -110,7 +110,7 @@ pub struct GasInfo {
     /// Represents minimum gas limit required for execution.
     pub min_limit: u64,
     /// Gas amount that was send to other programs during exection.
-    pub to_send: u64,
+    pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
 }
@@ -517,7 +517,7 @@ pub mod pallet {
         ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             let GasInfo {
-                min_limit, to_send, ..
+                min_limit, reserved, ..
             } = Self::calculate_gas_info_impl(
                 source,
                 kind.clone(),
@@ -528,11 +528,11 @@ pub mod pallet {
                 b"calculate_gas_salt".to_vec(),
             )?;
 
-            // TODO: adding `to_send` until #642 implemented
+            // TODO: adding `reserved` until #642 implemented
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                min_limit + to_send,
+                min_limit + reserved,
                 payload,
                 value,
                 allow_other_panics,
@@ -540,10 +540,10 @@ pub mod pallet {
             )
             .map(
                 |GasInfo {
-                     to_send, burned, ..
+                    reserved, burned, ..
                  }| GasInfo {
                     min_limit,
-                    to_send,
+                    reserved,
                     burned,
                 },
             )
@@ -558,7 +558,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo {
-                min_limit, to_send, ..
+                min_limit, reserved, ..
             } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::calculate_gas_info_impl(
@@ -577,7 +577,7 @@ pub mod pallet {
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
-                    min_limit + to_send,
+                    min_limit + reserved,
                     payload,
                     value,
                     allow_other_panics,
@@ -585,10 +585,10 @@ pub mod pallet {
                 )
                 .map(
                     |GasInfo {
-                         to_send, burned, ..
+                         reserved, burned, ..
                      }| GasInfo {
                         min_limit,
-                        to_send,
+                        reserved,
                         burned,
                     },
                 )
@@ -780,7 +780,7 @@ pub mod pallet {
 
             Ok(GasInfo {
                 min_limit: max_gas_spent,
-                to_send: gas_to_send,
+                reserved: gas_to_send,
                 burned,
             })
         }
