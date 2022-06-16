@@ -15,7 +15,6 @@ pub unsafe extern "C" fn init() {
     for (i, item) in v.iter_mut().enumerate() {
         *item = i * i;
     }
-
     msg::reply_bytes(&format!("init: {}", v.into_iter().sum::<usize>()), 0).unwrap();
 }
 
