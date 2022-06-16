@@ -66,7 +66,7 @@ pub trait ProcessorExt {
     /// Returns whether this extension works with lazy pages
     fn is_lazy_pages_enabled() -> bool;
 
-    /// If extention support lazy pages, then checks that
+    /// If extension support lazy pages, then checks that
     /// environment for lazy pages is initialized.
     fn check_lazy_pages_consistent_state() -> bool;
 
@@ -378,16 +378,16 @@ impl EnvExt for Ext {
         // Returns back greedily used gas for allocations
         let first_page = page_number;
         let last_page = first_page + pages_num - 1.into();
-        let mut new_alloced_pages_num = 0;
+        let mut new_allocated_pages_num = 0;
         for page in first_page.0..=last_page.0 {
             if !self.allocations_context.is_init_page(page.into()) {
-                new_alloced_pages_num += 1;
+                new_allocated_pages_num += 1;
             }
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.config
                 .alloc_cost
-                .saturating_mul((pages_num.0 - new_alloced_pages_num) as u64),
+                .saturating_mul((pages_num.0 - new_allocated_pages_num) as u64),
         );
 
         self.refund_gas(gas_to_return_back as u32)?;

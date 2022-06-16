@@ -328,7 +328,7 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
     InitialMemoryReadFailed(PageNumber, MemoryError),
     /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write intial data for {:?}: {}", _0, _1)]
+    #[display(fmt = "Cannot write initial data for {:?}: {}", _0, _1)]
     InitialDataWriteFailed(PageNumber, MemoryError),
 }
 
