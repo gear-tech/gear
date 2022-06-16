@@ -41,7 +41,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<TrapExplanation>),
+    Trap(TrapExplanation),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.
@@ -280,7 +280,7 @@ pub struct ExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, Debug, derive_more::Display)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
     /// Memory error
     #[display(fmt = "{}", _0)]
@@ -290,7 +290,10 @@ pub enum ExecutionErrorReason {
     Backend(String),
     /// Ext error
     #[display(fmt = "{}", _0)]
-    Ext(String),
+    Ext(TrapExplanation),
+    /// Not executable actor.
+    #[display(fmt = "Not executable actor")]
+    NonExecutable,
     /// Program's max page is not last page in wasm page
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,

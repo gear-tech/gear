@@ -51,7 +51,7 @@ pub enum TerminationReasonKind {
     ForbiddenFunction,
 }
 
-#[derive(Decode, Encode, Debug, Clone)]
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
@@ -64,14 +64,17 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Decode, Encode, Debug, Clone, derive_more::Display)]
+#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
     #[display(fmt = "{}", _0)]
     Other(String),
+    #[display(fmt = "Unreachable instruction")]
+    Unreachable,
 }
 
+#[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub allocations: BTreeSet<WasmPageNumber>,

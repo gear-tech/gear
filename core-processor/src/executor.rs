@@ -29,7 +29,9 @@ use alloc::{
     string::ToString,
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
+use gear_backend_common::{
+    BackendReport, Environment, IntoExtInfo, TerminationReason, TrapExplanation,
+};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -355,14 +357,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             explanation,
             description,
         } => {
+            let explanation = explanation.unwrap_or(TrapExplanation::Unreachable);
             log::debug!(
-                "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
+                "💥 Trap during execution of {}\n📔 Explanation: {}\n❓ Description: {}",
                 program_id,
+                explanation,
                 description.unwrap_or_else(|| "None".into()),
-                explanation
-                    .as_ref()
-                    .map(|e| e.to_string())
-                    .unwrap_or_else(|| "None".to_string()),
             );
 
             DispatchResultKind::Trap(explanation)
