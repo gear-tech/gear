@@ -158,6 +158,7 @@ pub(crate) struct ExtManager {
     pub(crate) log: Vec<StoredMessage>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
+    pub(crate) gas_burned: u64,
 }
 
 impl ExtManager {
@@ -269,6 +270,7 @@ impl ExtManager {
             log: log.into_iter().map(CoreLog::from).collect(),
             message_id: self.msg_id,
             total_processed,
+            gas_burned: self.gas_burned,
         }
     }
 
@@ -447,6 +449,8 @@ impl ExtManager {
             Default::default(),
         );
 
+        // Reset gas counter before execution
+        self.gas_burned = 0;
         core_processor::handle_journal(journal, self);
     }
 
@@ -502,7 +506,9 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
+    fn gas_burned(&mut self, _message_id: MessageId, amount: u64) {
+        self.gas_burned = self.gas_burned.saturating_add(amount);
+    }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
         self.actors.remove(&id_exited);
