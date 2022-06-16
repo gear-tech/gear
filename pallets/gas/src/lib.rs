@@ -102,29 +102,26 @@ impl ValueNode {
     pub fn node_with_value<T: Config>(self) -> Result<ValueNode, DispatchError> {
         let mut ret_node = self;
         while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
-            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
+            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
         }
 
         Ok(ret_node)
     }
 
-    /// Returns the AccountId (as Origin) of the value tree creator.
+    /// Returns the root node (as [`ValueNode`]) of the value tree, which contains `self` node.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root<T: Config>(&self) -> Result<Self, DispatchError> {
-        let mut ret_node = self.clone();
+    pub fn root<T: Config>(self) -> Result<Self, DispatchError> {
+        let mut ret_node = self;
         while let Some(parent) = ret_node.parent() {
-            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
+            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
         }
         Ok(ret_node)
     }
 
     fn decrease_parents_ref<T: Config>(&self) -> DispatchResult {
         if let Some(id) = self.parent() {
-            let mut parent = <Pallet<T>>::get_node(id).ok_or(Error::<T>::GasTreeInvalidated)?;
-            assert!(
-                parent.refs() > 0,
-                "parent node must contain ref to its child node"
-            );
+            let mut parent = <Pallet<T>>::get_node(id).ok_or(Error::<T>::ParentIsLost)?;
+            ensure!(parent.refs() > 0, Error::<T>::ParentHasNoChildren,);
 
             if let ValueType::SpecifiedLocal { .. } = self.inner {
                 parent.spec_refs = parent.spec_refs.saturating_sub(1);
@@ -141,6 +138,14 @@ impl ValueNode {
         Ok(())
     }
 
+    /// If `self` is of `ValueType::SpecifiedLocal` type, moves value upstream
+    /// to the first ancestor, that can hold the value, in case `self` has not
+    /// unspec children refs.
+    ///
+    /// This method is actually one of pre-delete procedures called when node is consumed.
+    ///
+    /// # Note
+    /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
     fn move_value_upstream<T: Config>(&mut self) -> DispatchResult {
         if let ValueType::SpecifiedLocal {
             value: self_value,
@@ -154,7 +159,7 @@ impl ValueNode {
                 // `parent` key is known to exist, hence there must be it's ancestor with value.
                 // If there isn't, the gas tree is considered corrupted (invalidated).
                 let mut parents_ancestor = <Pallet<T>>::get_node(parent)
-                    .ok_or(Error::<T>::GasTreeInvalidated)?
+                    .ok_or(Error::<T>::ParentIsLost)?
                     .node_with_value::<T>()?;
 
                 // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
@@ -205,14 +210,27 @@ pub mod pallet {
         /// Value node doesn't exist for a key
         NodeNotFound,
 
-        /// Gas tree has been invalidated
-        GasTreeInvalidated,
-
         /// Creating node with existing id
         KeyAlreadyExists,
 
         /// Procedure can't be called on consumed node
         NodeWasConsumed,
+
+        /// Errors stating that gas tree has been invalidated
+
+        /// Parent must be in the tree, but not found
+        ///
+        /// This differs from `Error::<T>::NodeNotFound`, because parent
+        /// node for local node types must be found, but was not. Thus,
+        /// tree is invalidated.
+        ParentIsLost,
+
+        /// Parent node must have children, but they weren't found
+        ///
+        /// If node is a parent to some other node it must have at least
+        /// one child, otherwise it's id can't be used as a parent for
+        /// local nodes in the tree.
+        ParentHasNoChildren,
     }
 
     #[pallet::storage]
@@ -284,7 +302,7 @@ pub mod pallet {
                     }
                     ValueType::SpecifiedLocal { parent, .. }
                     | ValueType::UnspecifiedLocal { parent } => {
-                        node = Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
+                        node = Self::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
                     }
                 }
             }
@@ -390,7 +408,7 @@ where
         node.consumed = true;
         node.move_value_upstream::<T>()?;
 
-        let outcome = if node.refs() == 0 {
+        Ok(if node.refs() == 0 {
             node.decrease_parents_ref::<T>()?;
             GasTree::<T>::remove(key);
             match node.inner {
@@ -404,9 +422,7 @@ where
                 *value = Some(node);
             });
             None
-        };
-
-        Ok(outcome)
+        })
     }
 
     /// Spends `amount` of gas from the ancestor of node with `key` id.
