@@ -18,23 +18,20 @@
 
 //! RPC interface for the gear module.
 
-use std::sync::Arc;
-
+use gear_common::Origin;
+use gear_core::ids::{MessageId, ProgramId};
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
     proc_macros::rpc,
     types::error::{CallError, ErrorObject},
 };
-
+pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
-use gear_core::ids::{MessageId, ProgramId};
-use gear_common::Origin;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-
-pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
+use std::sync::Arc;
 
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
