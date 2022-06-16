@@ -18,6 +18,8 @@
 
 //! RPC interface for the gear module.
 
+#![allow(clippy::too_many_arguments)]
+
 use gear_common::Origin;
 use gear_core::ids::{MessageId, ProgramId};
 use jsonrpsee::{

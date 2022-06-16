@@ -625,7 +625,7 @@ pub mod pallet {
 
                     QueueOf::<T>::iter()
                         .next()
-                        .ok_or(b"Internal error: failed to get last message".to_vec())
+                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
                         .and_then(|queued| {
                             queued
                                 .map_err(|_| {
@@ -648,7 +648,7 @@ pub mod pallet {
 
                     QueueOf::<T>::iter()
                         .next()
-                        .ok_or(b"Internal error: failed to get last message".to_vec())
+                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
                         .and_then(|queued| {
                             queued
                                 .map_err(|_| {
