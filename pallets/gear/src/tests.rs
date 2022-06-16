@@ -2510,7 +2510,8 @@ fn no_redundant_gas_value_after_exiting() {
         run_to_block(2, None);
 
         let GasInfo {
-            min_limit: gas_spent, ..
+            min_limit: gas_spent,
+            ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -3007,7 +3008,8 @@ fn gas_spent_precalculated() {
         run_to_block(2, None);
 
         let GasInfo {
-            min_limit: gas_spent_1, ..
+            min_limit: gas_spent_1,
+            ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -3036,7 +3038,8 @@ fn gas_spent_precalculated() {
         assert_eq!(gas_spent_1, total_cost as u64);
 
         let GasInfo {
-            min_limit: gas_spent_2, ..
+            min_limit: gas_spent_2,
+            ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),

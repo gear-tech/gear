@@ -516,7 +516,9 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            let GasInfo { min_limit, to_send, .. } = Self::calculate_gas_info_impl(
+            let GasInfo {
+                min_limit, to_send, ..
+            } = Self::calculate_gas_info_impl(
                 source,
                 kind.clone(),
                 initial_gas,
@@ -536,11 +538,15 @@ pub mod pallet {
                 allow_other_panics,
                 b"calculate_gas_salt1".to_vec(),
             )
-            .map(|GasInfo { to_send, burned, .. }| GasInfo {
-                min_limit,
-                to_send,
-                burned,
-            })
+            .map(
+                |GasInfo {
+                     to_send, burned, ..
+                 }| GasInfo {
+                    min_limit,
+                    to_send,
+                    burned,
+                },
+            )
         }
 
         #[cfg(test)]
@@ -551,7 +557,9 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
-            let GasInfo { min_limit, to_send, .. } = mock::run_with_ext_copy(|| {
+            let GasInfo {
+                min_limit, to_send, ..
+            } = mock::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -575,11 +583,15 @@ pub mod pallet {
                     allow_other_panics,
                     b"calculate_gas_salt".to_vec(),
                 )
-                .map(|GasInfo { to_send, burned, .. }| GasInfo {
-                    min_limit,
-                    to_send,
-                    burned,
-                })
+                .map(
+                    |GasInfo {
+                         to_send, burned, ..
+                     }| GasInfo {
+                        min_limit,
+                        to_send,
+                        burned,
+                    },
+                )
             })
         }
 
