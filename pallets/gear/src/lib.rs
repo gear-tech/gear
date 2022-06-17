@@ -109,7 +109,7 @@ impl DebugInfo for () {
 pub struct GasInfo {
     /// Represents minimum gas limit required for execution.
     pub min_limit: u64,
-    /// Gas amount that was send to other programs during exection.
+    /// Gas amount that we reserve for some other on-chain interactions.
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
@@ -661,8 +661,8 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-            let mut max_gas_spent = 0;
-            let mut gas_to_send = 0;
+            let mut min_limit = 0;
+            let mut reserved = 0;
             let mut burned = 0;
 
             let schedule = T::Schedule::get();
@@ -742,8 +742,7 @@ pub mod pallet {
                         })
                         .transpose()?
                     {
-                        max_gas_spent =
-                            max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
+                        min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
                     match note {
@@ -755,7 +754,7 @@ pub mod pallet {
                                 );
                             }
 
-                            gas_to_send = gas_to_send.saturating_add(gas_limit);
+                            reserved = reserved.saturating_add(gas_limit);
                         }
 
                         JournalNote::GasBurned { amount, .. } => {
@@ -779,8 +778,8 @@ pub mod pallet {
             }
 
             Ok(GasInfo {
-                min_limit: max_gas_spent,
-                reserved: gas_to_send,
+                min_limit,
+                reserved,
                 burned,
             })
         }
