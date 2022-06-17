@@ -507,7 +507,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[cfg(not(test))]
         pub fn calculate_gas_info(
             source: H256,
             kind: HandleKind,
@@ -515,46 +514,7 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
-            let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
-            let GasInfo { min_limit, .. } = Self::calculate_gas_info_impl(
-                source,
-                kind.clone(),
-                initial_gas,
-                payload.clone(),
-                value,
-                allow_other_panics,
-                b"calculate_gas_salt".to_vec(),
-            )?;
-
-            Self::calculate_gas_info_impl(
-                source,
-                kind,
-                min_limit,
-                payload,
-                value,
-                allow_other_panics,
-                b"calculate_gas_salt1".to_vec(),
-            )
-            .map(
-                |GasInfo {
-                     reserved, burned, ..
-                 }| GasInfo {
-                    min_limit,
-                    reserved,
-                    burned,
-                },
-            )
-        }
-
-        #[cfg(test)]
-        pub fn calculate_gas_info(
-            source: H256,
-            kind: HandleKind,
-            payload: Vec<u8>,
-            value: u128,
-            allow_other_panics: bool,
-        ) -> Result<GasInfo, Vec<u8>> {
-            let GasInfo { min_limit, .. } = mock::run_with_ext_copy(|| {
+            let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
                 let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -567,7 +527,7 @@ pub mod pallet {
                 )
             })?;
 
-            mock::run_with_ext_copy(|| {
+            Self::run_with_ext_copy(|| {
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
@@ -587,6 +547,23 @@ pub mod pallet {
                     },
                 )
             })
+        }
+
+        pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
+            sp_externalities::with_externalities(|ext| {
+                ext.storage_start_transaction();
+            })
+            .expect("externalities should be set");
+
+            let result = f();
+
+            sp_externalities::with_externalities(|ext| {
+                ext.storage_rollback_transaction()
+                    .expect("transaction was started");
+            })
+            .expect("externalities should be set");
+
+            result
         }
 
         fn calculate_gas_info_impl(
@@ -615,7 +592,10 @@ pub mod pallet {
             let main_program_id = match kind {
                 HandleKind::Init(code) => {
                     Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
-                        .map_err(|_| b"Internal error: submit_program failed".to_vec())?;
+                        .map_err(|e| {
+                            format!("Internal error: submit_program failed with '{:?}'", e)
+                                .into_bytes()
+                        })?;
 
                     QueueOf::<T>::iter()
                         .next()
@@ -631,14 +611,19 @@ pub mod pallet {
 
                 HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
-                        .map_err(|_| b"Internal error: send_message failed".to_vec())?;
+                        .map_err(|e| {
+                            format!("Internal error: send_message failed with '{:?}'", e)
+                                .into_bytes()
+                        })?;
 
                     destination
                 }
 
                 HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
-                        .map_err(|_| b"Internal error: send_reply failed".to_vec())?;
+                        .map_err(|e| {
+                            format!("Internal error: send_reply failed with '{:?}'", e).into_bytes()
+                        })?;
 
                     QueueOf::<T>::iter()
                         .next()
