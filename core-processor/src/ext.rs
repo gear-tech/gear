@@ -34,9 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{
-        GasLimit, HandlePacket, IncomingMessage, InitPacket, MessageContext, Packet, ReplyPacket,
-    },
+    message::{GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
@@ -603,42 +601,5 @@ impl EnvExt for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
         &self.forbidden_funcs
-    }
-}
-
-impl Default for Ext {
-    fn default() -> Self {
-        Ext {
-            gas_counter: GasCounter::new(u64::MAX),
-            gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
-            value_counter: ValueCounter::new(u128::MAX),
-            allocations_context: AllocationsContext::new(
-                Default::default(),
-                Default::default(),
-                WasmPageNumber(512u32),
-            ),
-            message_context: MessageContext::new(
-                IncomingMessage::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    0,
-                    0,
-                    None,
-                ),
-                Default::default(),
-                None,
-            ),
-            block_info: Default::default(),
-            config: Default::default(),
-            existential_deposit: 0,
-            error_explanation: None,
-            exit_argument: None,
-            origin: Default::default(),
-            program_id: Default::default(),
-            program_candidates_data: Default::default(),
-            host_fn_weights: Default::default(),
-            forbidden_funcs: Default::default(),
-        }
     }
 }

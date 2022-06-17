@@ -7,7 +7,7 @@ use codec::Codec;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, IncomingMessage, Message},
     program::Program as CoreProgram,
 };
 use path_clean::PathClean;
@@ -247,6 +247,12 @@ impl<'a> Program<'a> {
 
     pub fn id(&self) -> ProgramId {
         self.id
+    }
+
+    pub fn call_meta(&self, message: Option<IncomingMessage>, function_name: &str) -> Vec<u8> {
+        self.manager
+            .borrow_mut()
+            .call_meta(&self.id, message, function_name)
     }
 }
 

@@ -453,21 +453,18 @@ impl ExtManager {
 
     /// Call non-void meta function from an actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
-    #[allow(dead_code)]
     pub(crate) fn call_meta(
         &mut self,
-        source: ProgramId,
         program_id: &ProgramId,
         message: Option<IncomingMessage>,
         function_name: &str,
     ) -> Vec<u8> {
-        let mut executor = self.get_executor(source, program_id, message);
+        let mut executor = self.get_executor(program_id, message);
         executor.execute(function_name)
     }
 
     fn get_executor(
         &mut self,
-        source: ProgramId,
         program_id: &ProgramId,
         message: Option<IncomingMessage>,
     ) -> WasmExecutor {
@@ -475,12 +472,6 @@ impl ExtManager {
             .actors
             .get_mut(program_id)
             .expect("No program with such id");
-
-        if let Some(message) = &message {
-            if message.source() != source {
-                panic!("Source id in message is not equal to source id in function arguments");
-            }
-        }
 
         let actor = actor
             .get_executable_actor(*balance)
@@ -491,7 +482,7 @@ impl ExtManager {
             .map(|(page, data)| (page, Box::new(data)))
             .collect();
 
-        WasmExecutor::new(source, &actor.program, &pages_initial_data, message)
+        WasmExecutor::new(&actor.program, &pages_initial_data, message)
     }
 }
 

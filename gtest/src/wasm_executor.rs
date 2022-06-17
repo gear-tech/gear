@@ -1,9 +1,9 @@
 use codec::Encode;
-use core_processor::Ext;
+use core_processor::{Ext, ProcessorExt};
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
     env::{Ext as ExtTrait, ExtCarrier},
-    ids::ProgramId,
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{IncomingMessage, MessageContext},
     program::Program,
@@ -15,7 +15,7 @@ use wasmtime::{
 };
 
 /// Binary meta-functions executor for testing purposes
-pub(crate) struct WasmExecutor {
+pub struct WasmExecutor {
     instance: Instance,
     store: Store<StoreData<Ext>>,
     memory: WasmtimeMemory,
@@ -24,14 +24,12 @@ pub(crate) struct WasmExecutor {
 impl WasmExecutor {
     /// Creates a WasmExecutor instance from a program.
     /// Also uses provided memory pages for future execution
-    #[allow(dead_code)]
-    pub(crate) fn new(
-        source: ProgramId,
+    pub fn new(
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         message: Option<IncomingMessage>,
     ) -> Self {
-        let ext = WasmExecutor::build_ext(source, program, message);
+        let ext = WasmExecutor::build_ext(program, message);
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
@@ -80,8 +78,7 @@ impl WasmExecutor {
 
     /// Executes non-void function by provided name.
     /// Panics if no function with such name was found or function was void
-    #[allow(dead_code)]
-    pub(crate) fn execute(&mut self, function_name: &str) -> Vec<u8> {
+    pub fn execute(&mut self, function_name: &str) -> Vec<u8> {
         let function = self.get_function(function_name);
         let mut prt_to_result_array = [Val::I32(0)];
 
@@ -95,18 +92,21 @@ impl WasmExecutor {
         }
     }
 
-    fn build_ext(source: ProgramId, program: &Program, message: Option<IncomingMessage>) -> Ext {
-        Ext {
-            allocations_context: AllocationsContext::new(
+    fn build_ext(program: &Program, message: Option<IncomingMessage>) -> Ext {
+        Ext::new(
+            GasCounter::new(u64::MAX),
+            GasAllowanceCounter::new(u64::MAX),
+            ValueCounter::new(u128::MAX),
+            AllocationsContext::new(
                 program.get_allocations().clone(),
                 program.static_pages(),
                 WasmPageNumber(512u32),
             ),
-            message_context: MessageContext::new(
+            MessageContext::new(
                 message.unwrap_or_else(|| {
                     IncomingMessage::new(
                         Default::default(),
-                        source,
+                        Default::default(),
                         Option::<bool>::encode(&None),
                         0,
                         0,
@@ -116,8 +116,16 @@ impl WasmExecutor {
                 program.id(),
                 None,
             ),
-            ..Default::default()
-        }
+            Default::default(),
+            Default::default(),
+            0,
+            None,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
     }
 
     fn get_function(&mut self, function_name: &str) -> Func {
@@ -205,7 +213,6 @@ mod meta_tests {
     #[test]
     fn test_happy_case() {
         let meta_state_function_name = "meta_state";
-        let user_id: ProgramId = 100.into();
         let system = System::default();
         let program = Program::from_file(
             &system,
@@ -214,22 +221,18 @@ mod meta_tests {
 
         let meta_state_message = IncomingMessage::new(
             system.0.borrow_mut().fetch_inc_message_nonce().into(),
-            user_id,
-            Option::<Id>::encode(&Some(Id {
+            100.into(),
+            (&Some(Id {
                 decimal: 2,
                 hex: vec![2u8],
-            })),
+            }))
+                .encode(),
             0,
             0,
             None,
         );
 
-        let result = system.0.borrow_mut().call_meta(
-            user_id,
-            &program.id,
-            Some(meta_state_message),
-            meta_state_function_name,
-        );
+        let result = program.call_meta(Some(meta_state_message), meta_state_function_name);
 
         assert_eq!(result, vec![0]);
     }
@@ -274,79 +277,35 @@ mod meta_tests {
             },
         );
         assert!(!run_result.main_failed);
-        let result = system.0.borrow_mut().call_meta(
-            user_id,
-            &program.id,
-            Some(meta_state_message),
-            meta_state_function_name,
-        );
+
+        let result = program.call_meta(Some(meta_state_message), meta_state_function_name);
 
         assert_eq!(result, expected_result.encode());
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Source id in message is not equal to source id in function arguments"
-    )]
-    fn fool_test_for_correct_input() {
-        let meta_state_function_name = "meta_state";
-        let system = System::default();
-        let program = Program::from_file(
-            &system,
-            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
-        );
-
-        let meta_state_message = IncomingMessage::new(
-            system.0.borrow_mut().fetch_inc_message_nonce().into(),
-            100.into(),
-            Option::<Id>::encode(&Some(Id {
-                decimal: 2,
-                hex: vec![2u8],
-            })),
-            0,
-            0,
-            None,
-        );
-
-        system.0.borrow_mut().call_meta(
-            200.into(),
-            &program.id,
-            Some(meta_state_message),
-            meta_state_function_name,
-        );
     }
 
     #[test]
     #[should_panic(expected = "No function with such name was found")]
     fn test_failing_with_unknown_function() {
         let unknown_function_name = "fsd314f";
-        let user_id: ProgramId = 100.into();
         let system = System::default();
         let program = Program::from_file(
             &system,
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        system
-            .0
-            .borrow_mut()
-            .call_meta(user_id, &program.id, None, unknown_function_name);
+        program.call_meta(None, unknown_function_name);
     }
 
     #[test]
-    #[should_panic(expected = "No program with such id")]
-    fn test_failing_with_unknown_program_id() {
-        let meta_state_function_name = "meta_state";
-        let user_id: ProgramId = 100.into();
+    #[should_panic(expected = "Failed call: expected 0 results, got 1")]
+    fn test_failing_with_void_function() {
+        let void_function_name = "init";
         let system = System::default();
-        Program::from_file(
+        let program = Program::from_file(
             &system,
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        system
-            .0
-            .borrow_mut()
-            .call_meta(user_id, &0.into(), None, meta_state_function_name);
+        program.call_meta(None, void_function_name);
     }
 }
