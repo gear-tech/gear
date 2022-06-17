@@ -41,8 +41,9 @@ use gear_core::{
     message::{ContextStore, Dispatch},
 };
 use gear_core_errors::{ExtError, MemoryError};
+use scale_info::TypeInfo;
 
-#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[derive(Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub struct TrimmedString(String);
 
 // Amount of characters allowed to be thrown as string explanation of the error.
@@ -83,7 +84,7 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Decode, Encode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+#[derive(Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),

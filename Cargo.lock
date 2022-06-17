@@ -2342,6 +2342,7 @@ dependencies = [
  "gear-core-errors",
  "log",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -2442,8 +2443,10 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "hex",
  "log",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
