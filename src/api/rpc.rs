@@ -10,7 +10,7 @@ use subxt::{
 impl Api {
     /// get rpc client
     pub fn rpc(&self) -> Arc<RpcClient> {
-        self.api.client.rpc().client.clone()
+        self.runtime.client.rpc().client.clone()
     }
 
     /// public key of the signer in H256

@@ -1,8 +1,17 @@
 //! command submit
 use crate::{
-    api::{generated::api::gear::calls::SubmitProgram, Api},
+    api::{
+        events::Events,
+        generated::api::{
+            gear::{calls::SubmitProgram, Event as GearEvent},
+            system::Event as SystemEvent,
+            Event,
+        },
+        Api,
+    },
     Result,
 };
+use futures_util::StreamExt;
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
@@ -34,7 +43,7 @@ pub struct Deploy {
 }
 
 impl Deploy {
-    /// exec command submit
+    /// Exec command submit
     pub async fn exec(&self) -> Result<()> {
         let api = Api::new(
             self.endpoint.as_ref().map(|s| s.as_ref()),
@@ -42,6 +51,15 @@ impl Deploy {
         )
         .await?;
 
+        let events = api.events().await?;
+        let (sp, wis) = tokio::join!(self.submit_program(&api), self.wait_init_status(events));
+        sp?;
+        wis?;
+
+        Ok(())
+    }
+
+    async fn submit_program(&self, api: &Api) -> Result<()> {
         // estimate gas
         let gas_limit = api
             .estimate_gas(self.gas_limit, || async {
@@ -63,7 +81,38 @@ impl Deploy {
             gas_limit,
             value: self.value,
         })
+        .await?
+        .wait_for_success()
         .await?;
+
+        Ok(())
+    }
+
+    async fn wait_init_status(&self, mut events: Events<'_>) -> Result<()> {
+        while let Some(events) = events.next().await {
+            for maybe_event in events?.iter() {
+                let event = maybe_event?.event;
+
+                // Exit when extrinsic failed.
+                //
+                // # Safety
+                //
+                // The error message will be panicked in another thread.
+                if let Event::System(SystemEvent::ExtrinsicFailed { .. }) = event {
+                    return Ok(());
+                }
+
+                // Exit when success or failure.
+                if let Event::Gear(e) = event {
+                    println!("\t{e:?}");
+
+                    match e {
+                        GearEvent::InitSuccess(_) | GearEvent::InitFailure(..) => return Ok(()),
+                        _ => {}
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
