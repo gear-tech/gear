@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod log;
 mod mailbox;
 mod manager;

@@ -1,9 +1,8 @@
 use codec::Encode;
-use core_processor::{Ext, ProcessorExt};
+use core_processor::Ext;
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
     env::{Ext as ExtTrait, ExtCarrier},
-    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{IncomingMessage, MessageContext},
@@ -20,13 +19,12 @@ pub struct WasmExecutor {
     instance: Instance,
     store: Store<StoreData<Ext>>,
     memory: WasmtimeMemory,
-    program_id: ProgramId,
 }
 
 impl WasmExecutor {
     /// Creates a WasmExecutor instance from a program.
     /// Also uses provided memory pages for future execution
-    pub(crate) fn new(
+    pub fn new(
         source: ProgramId,
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
@@ -76,13 +74,12 @@ impl WasmExecutor {
             instance,
             store,
             memory,
-            program_id: program.id(),
         }
     }
 
     /// Executes non-void function by provided name.
     /// Panics if no function with such name was found or function was void
-    pub(crate) fn execute(&mut self, function_name: &str) -> Vec<u8> {
+    pub fn execute(&mut self, function_name: &str) -> Vec<u8> {
         let function = self.get_function(function_name);
         let mut prt_to_result_array = [Val::I32(0)];
 
@@ -97,16 +94,13 @@ impl WasmExecutor {
     }
 
     fn build_ext(source: ProgramId, program: &Program, message: Option<IncomingMessage>) -> Ext {
-        core_processor::Ext::new(
-            GasCounter::new(u64::MAX),
-            GasAllowanceCounter::new(u64::MAX),
-            ValueCounter::new(u128::MAX),
-            AllocationsContext::new(
+        Ext {
+            allocations_context: AllocationsContext::new(
                 program.get_allocations().clone(),
                 program.static_pages(),
                 WasmPageNumber(512u32),
             ),
-            MessageContext::new(
+            message_context: MessageContext::new(
                 message.unwrap_or_else(|| {
                     IncomingMessage::new(
                         Default::default(),
@@ -120,16 +114,8 @@ impl WasmExecutor {
                 program.id(),
                 None,
             ),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            None,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        )
+            ..Default::default()
+        }
     }
 
     fn get_function(&mut self, function_name: &str) -> Func {
