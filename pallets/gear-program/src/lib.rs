@@ -175,6 +175,8 @@ pub mod pallet {
 
             Self::resume_program_impl(program_id, memory_pages, wait_list)?;
 
+            // The value movement `transfer` call respects existence requirements rules, so no need to check
+            // value for being in the valid interval like it's done in `pallet_gear` calls.
             let program_account =
                 &<T::AccountId as common::Origin>::from_origin(program_id.into_origin());
             T::Currency::transfer(
