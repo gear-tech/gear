@@ -476,9 +476,6 @@ impl ExtManager {
             .get_mut(program_id)
             .expect("No program with such id");
 
-        if actor.is_uninitialized() {
-            actor.set_initialized();
-        }
         if let Some(message) = &message {
             if message.source() != source {
                 panic!("Source id in message is not equal to source id in function arguments");
