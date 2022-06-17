@@ -453,6 +453,7 @@ impl ExtManager {
 
     /// Call non-void meta function from an actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.
+    #[allow(dead_code)]
     pub(crate) fn call_meta(
         &mut self,
         source: ProgramId,

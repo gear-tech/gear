@@ -15,7 +15,7 @@ use wasmtime::{
 };
 
 /// Binary meta-functions executor for testing purposes
-pub struct WasmExecutor {
+pub(crate) struct WasmExecutor {
     instance: Instance,
     store: Store<StoreData<Ext>>,
     memory: WasmtimeMemory,
@@ -24,7 +24,8 @@ pub struct WasmExecutor {
 impl WasmExecutor {
     /// Creates a WasmExecutor instance from a program.
     /// Also uses provided memory pages for future execution
-    pub fn new(
+    #[allow(dead_code)]
+    pub(crate) fn new(
         source: ProgramId,
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
@@ -79,7 +80,8 @@ impl WasmExecutor {
 
     /// Executes non-void function by provided name.
     /// Panics if no function with such name was found or function was void
-    pub fn execute(&mut self, function_name: &str) -> Vec<u8> {
+    #[allow(dead_code)]
+    pub(crate) fn execute(&mut self, function_name: &str) -> Vec<u8> {
         let function = self.get_function(function_name);
         let mut prt_to_result_array = [Val::I32(0)];
 
