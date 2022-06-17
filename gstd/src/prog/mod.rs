@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Program creation module
+//! Program creation module.
+
+mod generator;
+
+pub use generator::ProgramGenerator;
 
 use crate::{common::errors::Result, prelude::convert::AsRef, ActorId, CodeHash};
 
