@@ -578,7 +578,8 @@ pub mod pallet {
             let account = <T::AccountId as Origin>::from_origin(source);
 
             let balance = <T as Config>::Currency::free_balance(&account);
-            let max_balance: BalanceOf<T> = u128::MAX.unique_saturated_into();
+            let max_balance: BalanceOf<T> =
+                T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
             <T as Config>::Currency::deposit_creating(
                 &account,
                 max_balance.saturating_sub(balance),
@@ -739,6 +740,7 @@ pub mod pallet {
                                 );
                             }
 
+                            // TODO change calculation of the field #1074
                             reserved = reserved.saturating_add(gas_limit);
                         }
 
