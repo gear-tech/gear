@@ -96,28 +96,89 @@ impl ValueNode {
         self.spec_refs.saturating_add(self.unspec_refs)
     }
 
-    /// The first upstream node (self included), that holds a concrete value.
+    /// The first upstream node (self included), that is able to hold a concrete value, but doesn't
+    /// necessarily have a non-zero value.
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn node_with_value<T: Config>(&self) -> Result<ValueNode, DispatchError> {
-        if let ValueType::UnspecifiedLocal { parent } = self.inner {
-            <Pallet<T>>::get_node(parent)
-                .ok_or(Error::<T>::GasTreeInvalidated)?
-                .node_with_value::<T>()
-        } else {
-            Ok(self.clone())
+    pub fn node_with_value<T: Config>(self) -> Result<ValueNode, DispatchError> {
+        let mut ret_node = self;
+        while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
+            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
         }
+
+        Ok(ret_node)
     }
 
-    /// Returns root node of the value tree where caller node exists.
-    pub fn root<T: Config>(&self) -> Result<Self, DispatchError> {
-        match self.inner {
-            ValueType::External { .. } => Ok(self.clone()),
-            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
-                <Pallet<T>>::get_node(parent)
-                    .ok_or(<Error<T>>::GasTreeInvalidated)?
-                    .root::<T>()
+    /// Returns the root node (as [`ValueNode`]) of the value tree, which contains `self` node.
+    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
+    pub fn root<T: Config>(self) -> Result<Self, DispatchError> {
+        let mut ret_node = self;
+        while let Some(parent) = ret_node.parent() {
+            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
+        }
+        Ok(ret_node)
+    }
+
+    fn decrease_parents_ref<T: Config>(&self) -> DispatchResult {
+        if let Some(id) = self.parent() {
+            let mut parent = <Pallet<T>>::get_node(id).ok_or(Error::<T>::ParentIsLost)?;
+            ensure!(parent.refs() > 0, Error::<T>::ParentHasNoChildren,);
+
+            match self.inner {
+                ValueType::SpecifiedLocal { .. } => {
+                    parent.spec_refs = parent.spec_refs.saturating_sub(1)
+                }
+                ValueType::UnspecifiedLocal { .. } => {
+                    parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
+                }
+                ValueType::External { .. } => {
+                    unreachable!("node is guaranteed to have a parent, so can't be an external one")
+                }
+            }
+
+            // Update parent node
+            GasTree::<T>::insert(id, parent);
+        }
+
+        Ok(())
+    }
+
+    /// If `self` is of `ValueType::SpecifiedLocal` type, moves value upstream
+    /// to the first ancestor, that can hold the value, in case `self` has not
+    /// unspec children refs.
+    ///
+    /// This method is actually one of pre-delete procedures called when node is consumed.
+    ///
+    /// # Note
+    /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
+    fn move_value_upstream<T: Config>(&mut self) -> DispatchResult {
+        if let ValueType::SpecifiedLocal {
+            value: self_value,
+            parent,
+        } = self.inner
+        {
+            if self.unspec_refs == 0 {
+                // This is specified, so it needs to get to the first specified parent also
+                // going up until external or specified parent is found
+
+                // `parent` key is known to exist, hence there must be it's ancestor with value.
+                // If there isn't, the gas tree is considered corrupted (invalidated).
+                let mut parents_ancestor = <Pallet<T>>::get_node(parent)
+                    .ok_or(Error::<T>::ParentIsLost)?
+                    .node_with_value::<T>()?;
+
+                // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
+                let val = parents_ancestor
+                    .inner_value_mut()
+                    .expect("Querying parent with value");
+                *val = val.saturating_add(self_value);
+                *self
+                    .inner_value_mut()
+                    .expect("self is a type with a specified value") = 0;
+
+                GasTree::<T>::insert(parents_ancestor.id, parents_ancestor);
             }
         }
+        Ok(())
     }
 }
 
@@ -143,7 +204,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         /// Gas (gas tree) has already been created for the provided key.
-        GasTreeAlreadyExists,
+        NodeAlreadyExists,
 
         /// Account doesn't have enough funds to complete operation.
         InsufficientBalance,
@@ -151,8 +212,27 @@ pub mod pallet {
         /// Value node doesn't exist for a key
         NodeNotFound,
 
-        /// Gas tree has been invalidated
-        GasTreeInvalidated,
+        /// Creating node with existing id
+        KeyAlreadyExists,
+
+        /// Procedure can't be called on consumed node
+        NodeWasConsumed,
+
+        /// Errors stating that gas tree has been invalidated
+
+        /// Parent must be in the tree, but not found
+        ///
+        /// This differs from `Error::<T>::NodeNotFound`, because parent
+        /// node for local node types must be found, but was not. Thus,
+        /// tree is invalidated.
+        ParentIsLost,
+
+        /// Parent node must have children, but they weren't found
+        ///
+        /// If node is a parent to some other node it must have at least
+        /// one child, otherwise it's id can't be used as a parent for
+        /// local nodes in the tree.
+        ParentHasNoChildren,
     }
 
     #[pallet::storage]
@@ -193,85 +273,43 @@ pub mod pallet {
             Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
         }
 
-        /// Check if a node is consumed and does not have any child nodes so it can be deleted.
+        /// Performs, if possible, cascade deletion of multiple nodes on the same path from the node with `key` id
+        /// to the tree's root.
+        ///
+        /// There are two requirements for the node to be deleted:
+        /// 1. Marked as consumed.
+        /// 2. Has no child refs.
+        ///
         /// If the node's type is `ValueType::External`, the locked value is released to the owner.
-        /// Otherwise this function is called for the parent node to propagate the process further.
+        /// Otherwise pre-delete ops are executed, then the node is deleted and after that the same procedure
+        /// is repeated on the node's parent until it's marked consumed and has no child refs.
+        ///
+        /// Pre-delete ops are:
+        /// 1. Parents refs decrease.
+        /// 2. Value movement to the first parent, which can hold specified value.
+        ///
+        /// The latter op is required, because node can be marked as consumed, but still has non-zero inner value.
+        /// That is the case, when node was splitted without gas and then consumed. So when node's gas-less child
+        /// is consumed the [`Self::check_consumed`] function is called on the consumed parent with non-zero value.
         pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
-            let mut delete_current_node = false;
-            let maybe_node = Self::get_node(key);
-            let outcome = if let Some(current_node) = maybe_node {
-                match current_node.inner {
+            let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+            while node.consumed && node.refs() == 0 {
+                node.decrease_parents_ref::<T>()?;
+                node.move_value_upstream::<T>()?;
+                GasTree::<T>::remove(node.id);
+
+                match node.inner {
+                    ValueType::External { id, value } => {
+                        return Ok(Some((NegativeImbalance::new(value), id)))
+                    }
                     ValueType::SpecifiedLocal { parent, .. }
                     | ValueType::UnspecifiedLocal { parent } => {
-                        if current_node.consumed && current_node.refs() == 0 {
-                            // Parent node must exist for any node; if it doesn't, the tree's become invalid
-                            let mut parent_node =
-                                Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
-                            assert!(
-                                parent_node.refs() > 0,
-                                "parent node must contain ref to its child node"
-                            );
-
-                            if let ValueType::SpecifiedLocal { .. } = current_node.inner {
-                                parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
-                            } else {
-                                parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
-                            }
-
-                            GasTree::<T>::mutate(parent, |node| {
-                                *node = Some(parent_node);
-                            });
-
-                            if let ValueType::SpecifiedLocal {
-                                value: self_value, ..
-                            } = current_node.inner
-                            {
-                                // this is specified, so it needs to get to the first specified parent also
-                                // going up until external or specified parent is found
-
-                                // `parent` key is known to exist, hence there must be a node.
-                                // If there isn't, the gas tree is considered corrupted (invalidated).
-                                let mut parent_node = Self::get_node(parent)
-                                    .ok_or(Error::<T>::GasTreeInvalidated)?
-                                    // a node with value must exist for a node, unless tree corrupted
-                                    .node_with_value::<T>()?;
-
-                                // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-                                let parent_val = parent_node
-                                    .inner_value_mut()
-                                    .expect("Querying parent with value");
-
-                                *parent_val = parent_val.saturating_add(self_value);
-
-                                GasTree::<T>::mutate(parent_node.id, |value| {
-                                    *value = Some(parent_node);
-                                });
-                            }
-
-                            delete_current_node = true;
-                            Self::check_consumed(parent)?
-                        } else {
-                            None
-                        }
-                    }
-                    ValueType::External { id, value } => {
-                        if current_node.refs() == 0 && current_node.consumed {
-                            delete_current_node = true;
-                            Some((NegativeImbalance::new(value), id))
-                        } else {
-                            None
-                        }
+                        node = Self::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
                     }
                 }
-            } else {
-                None
-            };
-
-            if delete_current_node {
-                GasTree::<T>::remove(key);
             }
 
-            Ok(outcome)
+            Ok(None)
         }
     }
 }
@@ -295,7 +333,7 @@ where
     fn create(origin: H256, key: H256, amount: u64) -> Result<PositiveImbalance<T>, DispatchError> {
         ensure!(
             !GasTree::<T>::contains_key(key),
-            Error::<T>::GasTreeAlreadyExists
+            Error::<T>::NodeAlreadyExists
         );
 
         let node = ValueNode::new(origin, key, amount);
@@ -349,112 +387,50 @@ where
         }
     }
 
+    /// Marks a node with `key` as consumed and tries to delete it
+    /// and all the nodes on the path from it to the root.
+    ///
+    /// Deletion of a node happens only if:
+    /// 1. `Self::consume` was called on the node
+    /// 2. The node has no children, i.e. spec/unspec refs.
+    /// So if it's impossible to delete a node, then it's impossible to delete its parent in the current call.
+    /// Also if it's possible to delete a node, then it doesn't necessarily mean that its parent will be deleted.
+    /// An example here could be the case, when during async execution original message went to wait list, so wasn't consumed
+    /// but the one generated during the execution of the original message went to message queue and was successfully executed.
+    ///
+    /// If a node under the `key` is of a `ValueType::SpecifiedLocal` and it has no unspec refs,
+    /// then it moves the value up to the first ancestor, that can hold the value. If node has
+    /// unspec ref, it means the unspec children rely on the gas held by the node, therefore value
+    /// isn't moved up in this case.
     fn consume(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
-        let mut delete_current_node = false;
-        let mut consume_parent_node = false;
-        let maybe_node = Self::get_node(key);
-        let outcome = if let Some(mut node) = maybe_node {
+        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
+
+        node.consumed = true;
+        node.move_value_upstream::<T>()?;
+
+        Ok(if node.refs() == 0 {
+            node.decrease_parents_ref::<T>()?;
+            GasTree::<T>::remove(key);
             match node.inner {
                 ValueType::UnspecifiedLocal { parent }
-                | ValueType::SpecifiedLocal { parent, .. } => {
-                    // Parent node must exist for any node; if it doesn't, the tree's become invalid
-                    let mut parent_node =
-                        Self::get_node(parent).ok_or(Error::<T>::GasTreeInvalidated)?;
-                    assert!(
-                        parent_node.refs() > 0,
-                        "parent node must contain ref to its child node"
-                    );
-
-                    if node.refs() == 0 {
-                        delete_current_node = true;
-
-                        if let ValueType::SpecifiedLocal { .. } = node.inner {
-                            parent_node.spec_refs = parent_node.spec_refs.saturating_sub(1);
-                        } else {
-                            parent_node.unspec_refs = parent_node.unspec_refs.saturating_sub(1);
-                        }
-
-                        if parent_node.refs() == 0 {
-                            consume_parent_node = true;
-                        }
-
-                        // Update parent node
-                        GasTree::<T>::mutate(parent, |value| {
-                            *value = Some(parent_node);
-                        });
-                    }
-
-                    if let ValueType::SpecifiedLocal {
-                        value: self_value, ..
-                    } = node.inner
-                    {
-                        if node.unspec_refs == 0 {
-                            // Any node of type `ValueType::SpecifiedLocal` must have a parent
-                            let mut parent_node = Self::get_node(parent)
-                                .ok_or(<Error<T>>::GasTreeInvalidated)?
-                                // Upstream node with a concrete value must exist for any node
-                                .node_with_value::<T>()?;
-
-                            // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-                            let parent_val = parent_node
-                                .inner_value_mut()
-                                .expect("Querying parent with value");
-                            *parent_val = parent_val.saturating_add(self_value);
-
-                            GasTree::<T>::mutate(parent_node.id, |value| {
-                                *value = Some(parent_node);
-                            });
-                        }
-                    }
-
-                    if delete_current_node {
-                        GasTree::<T>::remove(key);
-                    } else {
-                        node.consumed = true;
-
-                        if node.unspec_refs == 0 {
-                            if let Some(inner_value) = node.inner_value_mut() {
-                                *inner_value = 0
-                            };
-                        }
-                        // Save current node
-                        GasTree::<T>::mutate(key, |value| {
-                            *value = Some(node);
-                        });
-                    }
-
-                    // now check if the parent node can be consumed as well
-                    if consume_parent_node {
-                        Self::check_consumed(parent)?
-                    } else {
-                        None
-                    }
-                }
-                ValueType::External { id, value } => {
-                    node.consumed = true;
-
-                    if node.refs() == 0 {
-                        // Delete current node
-                        GasTree::<T>::remove(key);
-
-                        Some((NegativeImbalance::new(value), id))
-                    } else {
-                        // Save current node
-                        GasTree::<T>::mutate(key, |n| {
-                            *n = Some(node);
-                        });
-
-                        None
-                    }
-                }
+                | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
+                ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
             }
         } else {
+            // Save current node
+            GasTree::<T>::insert(key, node);
             None
-        };
-
-        Ok(outcome)
+        })
     }
 
+    /// Spends `amount` of gas from the ancestor of node with `key` id.
+    ///
+    /// Calling the function is possible even if an ancestor is consumed.
+    ///
+    /// ### Note:
+    /// Node is considered as an ancestor of itself.
     fn spend(key: H256, amount: u64) -> Result<NegativeImbalance<T>, DispatchError> {
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
@@ -471,15 +447,20 @@ where
         log::debug!("Spent {} of gas", amount);
 
         // Save node that delivers limit
-        GasTree::<T>::mutate(node.id, |value| {
-            *value = Some(node);
-        });
+        GasTree::<T>::insert(node.id, node);
 
         Ok(NegativeImbalance::new(amount))
     }
 
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
+        // This also checks if key == new_node_key
+        ensure!(
+            !GasTree::<T>::contains_key(new_node_key),
+            Error::<T>::NodeAlreadyExists
+        );
 
         node.unspec_refs = node.unspec_refs.saturating_add(1);
 
@@ -494,30 +475,33 @@ where
         // Save new node
         GasTree::<T>::insert(new_node_key, new_node);
         // Update current node
-        GasTree::<T>::mutate(key, |value| {
-            *value = Some(node);
-        });
+        GasTree::<T>::insert(key, node);
 
         Ok(())
     }
 
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
-        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+        let mut parent = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        ensure!(!parent.consumed, Error::<T>::NodeWasConsumed);
+        // This also checks if key == new_node_key
+        ensure!(
+            !GasTree::<T>::contains_key(new_node_key),
+            Error::<T>::NodeAlreadyExists
+        );
 
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
-        let node_with_value = node.node_with_value::<T>()?;
+        let mut ancestor_with_value = parent.clone().node_with_value::<T>()?;
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         ensure!(
-            node_with_value
+            ancestor_with_value
                 .inner_value()
                 .expect("Querying node with value")
                 >= amount,
             Error::<T>::InsufficientBalance
         );
-
-        node.spec_refs = node.spec_refs.saturating_add(1);
 
         let new_node = ValueNode {
             id: new_node_key,
@@ -529,34 +513,21 @@ where
             unspec_refs: 0,
             consumed: false,
         };
-
         // Save new node
         GasTree::<T>::insert(new_node_key, new_node);
-        // Update current node
-        GasTree::<T>::mutate(key, |value| {
-            *value = Some(node);
-        });
 
-        // re-querying it since it might be the same node we already updated above.. :(
-        let mut node_with_value =
-            // NOTE: intentional expects. Querying the same nodes we did earlier in this function
-            Self::get_node(key).expect("Node exists")
-                .node_with_value::<T>().expect("Node with value exists");
-
-        // NOTE: intentional expects. A node_with_value is guaranteed to have inner_value
-        ensure!(
-            node_with_value
-                .inner_value()
-                .expect("Querying node with value")
-                >= amount,
-            Error::<T>::InsufficientBalance
-        );
-        *node_with_value
-            .inner_value_mut()
-            .expect("Querying node with value") -= amount;
-        GasTree::<T>::mutate(node_with_value.id, |value| {
-            *value = Some(node_with_value);
-        });
+        parent.spec_refs = parent.spec_refs.saturating_add(1);
+        if parent.id == ancestor_with_value.id {
+            *parent.inner_value_mut().expect("Querying node with value") -= amount;
+            GasTree::<T>::insert(key, parent);
+        } else {
+            // Update current node
+            GasTree::<T>::insert(key, parent);
+            *ancestor_with_value
+                .inner_value_mut()
+                .expect("Querying node with value") -= amount;
+            GasTree::<T>::insert(ancestor_with_value.id, ancestor_with_value);
+        }
 
         Ok(())
     }
