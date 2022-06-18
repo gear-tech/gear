@@ -46,16 +46,16 @@ use sp_sandbox::{
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
-    #[display(fmt = "Unable to instantiate module")]
-    ModuleInstantiation,
-    #[display(fmt = "Unable to get wasm module exports")]
-    GetWasmExports,
+    #[display(fmt = "Unable to instantiate module: {:?}", _0)]
+    ModuleInstantiation(sp_sandbox::Error),
+    #[display(fmt = "Unable to get wasm module exports: {}", _0)]
+    GetWasmExports(String),
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "Failed to create env memory")]
-    CreateEnvMemory,
+    #[display(fmt = "Failed to create env memory: {:?}", _0)]
+    CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "No trap explanation")]
     NoTrapExplanation,
     #[display(fmt = "{}", _0)]
@@ -172,8 +172,7 @@ where
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: SandboxEnvironmentError::CreateEnvMemory,
-                    description: Some(format!("{:?}", e).into()),
+                    reason: SandboxEnvironmentError::CreateEnvMemory(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -194,8 +193,7 @@ where
             Ok(inst) => inst,
             Err(e) => {
                 return Err(BackendError {
-                    reason: SandboxEnvironmentError::ModuleInstantiation,
-                    description: Some(format!("{:?}", e).into()),
+                    reason: SandboxEnvironmentError::ModuleInstantiation(e),
                     gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
@@ -205,8 +203,7 @@ where
             Ok(entries) => entries,
             Err(e) => {
                 return Err(BackendError {
-                    reason: SandboxEnvironmentError::GetWasmExports,
-                    description: Some(format!("{:?}", e).into()),
+                    reason: SandboxEnvironmentError::GetWasmExports(e),
                     gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
@@ -265,7 +262,6 @@ where
             .into_ext_info(&memory)
             .map_err(|(reason, gas_amount)| BackendError {
                 reason: SandboxEnvironmentError::Memory(reason),
-                description: None,
                 gas_amount,
             })?;
 
@@ -280,13 +276,9 @@ where
             } else {
                 let explanation = info.trap_explanation.clone().ok_or_else(|| BackendError {
                     reason: SandboxEnvironmentError::NoTrapExplanation,
-                    description: None,
                     gas_amount: info.gas_amount.clone(),
                 })?;
-                TerminationReason::Trap {
-                    explanation,
-                    description: trap.map(|e| e.to_string()).map(Into::into),
-                }
+                TerminationReason::Trap(explanation)
             }
         } else {
             TerminationReason::Success
@@ -296,7 +288,6 @@ where
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
-                description: None,
                 gas_amount: info.gas_amount,
             }),
         }

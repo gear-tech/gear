@@ -2361,6 +2361,7 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "derive_more",
  "gear-backend-common",
  "gear-core",

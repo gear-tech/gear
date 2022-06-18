@@ -26,7 +26,6 @@ pub mod error_processor;
 pub mod funcs;
 
 use alloc::{
-    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
@@ -46,10 +45,7 @@ pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
-    Trap {
-        explanation: TrapExplanation,
-        description: Option<Cow<'static, str>>,
-    },
+    Trap(TrapExplanation),
     Wait,
     GasAllowanceExceeded,
 }
@@ -87,24 +83,11 @@ pub struct BackendReport {
     pub info: ExtInfo,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{}", reason)]
 pub struct BackendError<T> {
     pub gas_amount: GasAmount,
     pub reason: T,
-    pub description: Option<Cow<'static, str>>,
-}
-
-impl<T> fmt::Display for BackendError<T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(description) = &self.description {
-            write!(f, "{}: {}", self.reason, description)
-        } else {
-            write!(f, "{}", self.reason)
-        }
-    }
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {

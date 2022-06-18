@@ -22,7 +22,6 @@ use core::fmt;
 
 use alloc::{
     collections::BTreeMap,
-    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -50,20 +49,20 @@ pub struct StoreData<E: Ext> {
 
 #[derive(Debug, derive_more::Display)]
 pub enum WasmtimeEnvironmentError {
-    #[display(fmt = "Non-env imports are not supported")]
-    NonEnvImports,
-    #[display(fmt = "Missing import")]
-    MissingImport,
+    #[display(fmt = "Function {:?} is not env", _0)]
+    NonEnvImport(Option<String>),
+    #[display(fmt = "Function {:?} definition wasn't found", _0)]
+    MissingImport(Option<String>),
     #[display(fmt = "Unable to create module")]
-    ModuleCreation,
+    ModuleCreation(anyhow::Error),
     #[display(fmt = "Unable to create instance")]
-    InstanceCreation,
+    InstanceCreation(anyhow::Error),
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "Failed to create env memory")]
-    CreateEnvMemory,
+    #[display(fmt = "Failed to create env memory: {}", _0)]
+    CreateEnvMemory(anyhow::Error),
     #[display(fmt = "No trap explanation")]
     NoTrapExplanation,
     #[display(fmt = "{}", _0)]
@@ -106,8 +105,7 @@ where
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::CreateEnvMemory,
-                    description: Some(e.to_string().into()),
+                    reason: WasmtimeEnvironmentError::CreateEnvMemory(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -173,8 +171,7 @@ where
             Ok(module) => module,
             Err(e) => {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::ModuleCreation,
-                    description: Some(e.to_string().into()),
+                    reason: WasmtimeEnvironmentError::ModuleCreation(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -184,10 +181,7 @@ where
         for import in module.imports() {
             if import.module() != "env" {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::NonEnvImports,
-                    description: import
-                        .name()
-                        .map(|v| format!("Function {:?} is not env", v).into()),
+                    reason: WasmtimeEnvironmentError::NonEnvImport(import.name().map(Into::into)),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 });
             }
@@ -210,9 +204,7 @@ where
                 externs.push(host_function);
             } else {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::MissingImport,
-                    description: name
-                        .map(|v| format!("Function {:?} definition wasn't found", v).into()),
+                    reason: WasmtimeEnvironmentError::MissingImport(name.map(Into::into)),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 });
             }
@@ -222,8 +214,7 @@ where
             Ok(instance) => instance,
             Err(e) => {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::InstanceCreation,
-                    description: Some(e.to_string().into()),
+                    reason: WasmtimeEnvironmentError::InstanceCreation(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -287,7 +278,6 @@ where
                     .into_ext_info(&memory_wrap)
                     .map_err(|(reason, gas_amount)| BackendError {
                         reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                        description: None,
                         gas_amount,
                     })
                     .map(|info| (info, memory_wrap))
@@ -307,7 +297,6 @@ where
                 }),
                 Err(e) => Err(BackendError {
                     reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
-                    description: None,
                     gas_amount: info.gas_amount,
                 }),
             };
@@ -333,13 +322,9 @@ where
             } else {
                 let explanation = info.trap_explanation.clone().ok_or_else(|| BackendError {
                     reason: WasmtimeEnvironmentError::NoTrapExplanation,
-                    description: None,
                     gas_amount: info.gas_amount.clone(),
                 })?;
-                TerminationReason::Trap {
-                    explanation,
-                    description: Some(e.to_string().into()),
-                }
+                TerminationReason::Trap(explanation)
             }
         } else {
             TerminationReason::Success
@@ -349,7 +334,6 @@ where
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
-                description: None,
                 gas_amount: info.gas_amount,
             }),
         }
