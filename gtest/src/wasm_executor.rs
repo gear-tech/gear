@@ -23,7 +23,7 @@ pub(crate) struct WasmExecutor {
 impl WasmExecutor {
     /// Creates a WasmExecutor instance from a program.
     /// Also uses provided memory pages for future execution
-    pub fn new(
+    pub(crate) fn new(
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Payload,
@@ -77,7 +77,7 @@ impl WasmExecutor {
 
     /// Executes non-void function by provided name.
     /// Panics if no function with such name was found or function was void
-    pub fn execute(&mut self, function_name: &str) -> Vec<u8> {
+    pub(crate) fn execute(&mut self, function_name: &str) -> Vec<u8> {
         let function = self.get_function(function_name);
         let mut prt_to_result_array = [Val::I32(0)];
 
