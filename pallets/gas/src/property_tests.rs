@@ -48,7 +48,7 @@ mod utils;
 type Gas = Pallet<Test>;
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(100))] // todo change to 1500
+    #![proptest_config(ProptestConfig::with_cases(600))]
     #[test]
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
@@ -105,20 +105,27 @@ proptest! {
                     }
                     GasTreeAction::Consume(id) => {
                         let consuming = node_ids.ring_get(id).copied().expect("before each iteration there is at least 1 element; qed");
-                        if let Ok(removed_nodes) = utils::consume_node(consuming) {
-                            marked_consumed.insert(consuming);
-                            // Update ids
-                            node_ids.retain(|id| !removed_nodes.contains_key(id));
+                        match utils::consume_node(consuming) {
+                            Ok(removed_nodes) => {
+                                marked_consumed.insert(consuming);
+                                // Update ids
+                                node_ids.retain(|id| !removed_nodes.contains_key(id));
 
-                            // Search operation in a set is faster, then in a vector
-                            let remaining_ids = BTreeSet::from_iter(node_ids.iter().copied());
-                            assertions::assert_removed_nodes_props(
-                                consuming,
-                                removed_nodes,
-                                &remaining_ids,
-                                &marked_consumed,
-                            );
-                            assertions::assert_root_removed_last(root_node, &remaining_ids);
+                                // Search operation in a set is faster, then in a vector
+                                let remaining_ids = BTreeSet::from_iter(node_ids.iter().copied());
+                                assertions::assert_removed_nodes_props(
+                                    consuming,
+                                    removed_nodes,
+                                    &remaining_ids,
+                                    &marked_consumed,
+                                );
+                                assertions::assert_root_removed_last(root_node, &remaining_ids);
+                            }
+                            Err(e) => {
+                                // double consume has happened
+                                assert!(marked_consumed.contains(&consuming));
+                                assert_eq!(e, Error::<Test>::NodeWasConsumed.into());
+                            }
                         }
                     }
                 }
@@ -136,6 +143,10 @@ proptest! {
 
             let mut rest_value = 0;
             for node in GasTree::<Test>::iter_values() {
+                if let Some(value) = node.inner_value() {
+                    rest_value += value;
+                }
+
                 // Check property: all nodes have parents
                 if let Some(parent) = node.parent() {
                     assert!(gas_tree_ids.contains(&parent));
@@ -149,10 +160,6 @@ proptest! {
                     assert!(unspec_ref_nodes.contains(&node.id));
                 }
 
-                // Check property: all nodes have ancestor (node is a self-ancestor too) with value
-                let ancestor_with_value = node.node_with_value::<Test>().expect("tree is invalidated");
-                assert!(ancestor_with_value.inner_value().is_some());
-
                 // Check property: for all the consumed nodes currently existing in the tree...
                 if node.consumed {
                     // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
@@ -164,9 +171,9 @@ proptest! {
                     assert!(!marked_consumed.contains(&node.id));
                 }
 
-                if let Some(value) = node.inner_value() {
-                    rest_value += value;
-                }
+                // Check property: all nodes have ancestor (node is a self-ancestor too) with value
+                let ancestor_with_value = node.node_with_value::<Test>().expect("tree is invalidated");
+                assert!(ancestor_with_value.inner_value().is_some());
             }
 
             if !gas_tree_ids.is_empty() {
