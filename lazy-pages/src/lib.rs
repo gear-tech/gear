@@ -55,7 +55,7 @@ pub fn set_wasm_mem_begin_addr(wasm_mem_begin: HostPointer) {
 
 /// Reset lazy pages info
 pub fn reset_info() {
-    LAZY_PAGES_INFO.with(|x| x.borrow_mut().clear());
+    LAZY_PAGES_INFO.with(|x| x.replace(BTreeMap::new()));
     RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().clear());
     WASM_MEM_BEGIN.with(|x| *x.borrow_mut() = 0);
 }
