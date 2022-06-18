@@ -529,17 +529,17 @@ where
         GasTree::<T>::insert(new_node_key, new_node);
 
         parent.spec_refs = parent.spec_refs.saturating_add(1);
-        if ancestor_id.is_none() {
-            // parent node and ancestor node are the same
-            *parent.inner_value_mut().expect("Querying node with value") -= amount;
-            GasTree::<T>::insert(key, parent);
-        } else {
+        if let Some(ancestor_id) = ancestor_id {
             // Update current node
             GasTree::<T>::insert(key, parent);
             *ancestor_with_value
                 .inner_value_mut()
                 .expect("Querying node with value") -= amount;
-            GasTree::<T>::insert(ancestor_id.expect("checked before"), ancestor_with_value);
+            GasTree::<T>::insert(ancestor_id, ancestor_with_value);
+        } else {
+            // parent and ancestor nodes are the same
+            *parent.inner_value_mut().expect("Querying node with value") -= amount;
+            GasTree::<T>::insert(key, parent);
         }
 
         Ok(())
