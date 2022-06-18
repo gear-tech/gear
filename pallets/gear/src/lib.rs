@@ -689,6 +689,8 @@ pub mod pallet {
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
+        ///
+        /// Returns `Weight` amount being used for processing dispatches in the queue.
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -875,10 +877,18 @@ pub mod pallet {
                                 pages_data,
                             })
                         } else {
+                            // Reaching this branch is possible when init message was processed with failure, while other kind of messages
+                            // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
                             log::debug!("Program '{:?}' is not active", program_id,);
                             None
                         }
                     } else {
+                        // When an actor sends messages, which is intended to be added to the queue
+                        // it's destination existence is always checked. The only case this doesn't
+                        // happen is when program tries to submit another program with non-existing
+                        // code hash. That's the only known case for reaching that branch.
+                        //
+                        // However there is another case with pausing program, but this API is unstable currently.
                         None
                     };
 
