@@ -41,16 +41,7 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum TerminationReasonKind {
-    Exit,
-    Leave,
-    Wait,
-    GasAllowanceExceeded,
-    ForbiddenFunction,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
@@ -63,7 +54,7 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone, derive_more::Display, Eq, PartialEq)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
@@ -155,5 +146,5 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 }
 
 pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&TerminationReasonKind>;
+    fn as_termination_reason(&self) -> Option<&TerminationReason>;
 }

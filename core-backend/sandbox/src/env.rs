@@ -31,7 +31,7 @@ use alloc::{
 use core::fmt;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
+    IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -73,7 +73,6 @@ pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub trap: Option<FuncError<E::Error>>,
-    pub termination_reason: Option<TerminationReasonKind>,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -187,7 +186,6 @@ where
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
             trap: None,
-            termination_reason: None,
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
@@ -256,12 +254,7 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        let Runtime {
-            ext,
-            memory,
-            trap,
-            termination_reason,
-        } = self.runtime;
+        let Runtime { ext, memory, trap } = self.runtime;
 
         log::debug!("execution res = {:?}", res);
 
@@ -275,28 +268,13 @@ where
             })?;
 
         let termination = if res.is_err() {
-            let reason = match termination_reason {
-                Some(TerminationReasonKind::Exit) => {
-                    info.exit_argument.map(TerminationReason::Exit)
-                }
-                Some(TerminationReasonKind::Wait) => Some(TerminationReason::Wait),
-                Some(TerminationReasonKind::Leave) => Some(TerminationReason::Leave),
-                Some(TerminationReasonKind::GasAllowanceExceeded) => {
-                    Some(TerminationReason::GasAllowanceExceeded)
-                }
-                Some(TerminationReasonKind::ForbiddenFunction) => Some(TerminationReason::Trap {
-                    explanation: Some(TrapExplanation::Other(
-                        "Unable to call a forbidden function".into(),
-                    )),
-                    description: None,
-                }),
-                None => None,
-            };
-
-            reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation.clone(),
-                description: trap.map(|e| e.to_string()).map(Into::into),
-            })
+            info.exit_argument
+                .map(TerminationReason::Exit)
+                .or_else(|| trap.as_ref().and_then(FuncError::to_termination_reason))
+                .unwrap_or_else(|| TerminationReason::Trap {
+                    explanation: info.trap_explanation.clone(),
+                    description: trap.map(|e| e.to_string()).map(Into::into),
+                })
         } else {
             TerminationReason::Success
         };

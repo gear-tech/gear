@@ -27,7 +27,7 @@ use codec::Encode;
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     funcs::*,
-    AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
+    AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -208,7 +208,7 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| {
-                    if let Some(TerminationReasonKind::GasAllowanceExceeded) = e
+                    if let Some(TerminationReason::GasAllowanceExceeded) = e
                         .as_core()
                         .and_then(AsTerminationReason::as_termination_reason)
                     {

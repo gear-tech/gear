@@ -25,7 +25,7 @@ use core_processor::{
     Ext, ProcessorError, ProcessorExt,
 };
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReasonKind,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     costs::HostFnWeights,
@@ -56,7 +56,7 @@ impl IntoExtError for Error {
 }
 
 impl AsTerminationReason for Error {
-    fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
+    fn as_termination_reason(&self) -> Option<&TerminationReason> {
         match self {
             Error::Processor(err) => err.as_termination_reason(),
             Error::LazyPages(_) => None,

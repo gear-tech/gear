@@ -24,8 +24,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo,
-    TerminationReasonKind, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -92,7 +92,7 @@ pub enum ProcessorError {
     Core(ExtError),
     /// Termination reason occurred in a syscall
     #[display(fmt = "Terminated: {:?}", _0)]
-    Terminated(TerminationReasonKind),
+    Terminated(TerminationReason),
     /// User's code panicked
     #[display(fmt = "Panic occurred: {}", _0)]
     Panic(String),
@@ -147,7 +147,7 @@ impl IntoExtError for ProcessorError {
 }
 
 impl AsTerminationReason for ProcessorError {
-    fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
+    fn as_termination_reason(&self) -> Option<&TerminationReason> {
         match self {
             ProcessorError::Terminated(reason) => Some(reason),
             _ => None,
@@ -516,7 +516,7 @@ impl EnvExt for Ext {
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReasonKind::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 
@@ -529,7 +529,7 @@ impl EnvExt for Ext {
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReasonKind::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 

@@ -31,7 +31,7 @@ use core::{
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
-    funcs, AsTerminationReason, IntoExtInfo, TerminationReasonKind,
+    funcs, AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -92,20 +92,23 @@ pub enum FuncError<E> {
     DebugString(FromUtf8Error),
     #[display(fmt = "`gr_error` expects error occurred earlier")]
     SyscallErrorExpected,
+    #[display(fmt = "Terminated: {:?}", _0)]
+    Terminated(TerminationReason),
     #[display(fmt = "`gr_exit` has been called")]
     Exit,
-    #[display(fmt = "`gr_leave` has been called")]
-    Leave,
-    #[display(fmt = "`gr_wait` has been called")]
-    Wait,
-    #[display(fmt = "Unable to call a forbidden function")]
-    ForbiddenFunction,
 }
 
 impl<E> FuncError<E> {
     fn as_core(&self) -> Option<&E> {
         match self {
             Self::Core(err) => Some(err),
+            _ => None,
+        }
+    }
+
+    pub fn to_termination_reason(&self) -> Option<TerminationReason> {
+        match self {
+            Self::Terminated(reason) => Some(reason.clone()),
             _ => None,
         }
     }
@@ -348,10 +351,7 @@ where
                 ext.exit(value_dest).map_err(FuncError::Core)
             })
             .err()
-            .or_else(|| {
-                ctx.termination_reason = Some(TerminationReasonKind::Exit);
-                Some(FuncError::Exit)
-            });
+            .or(Some(FuncError::Exit));
 
         Err(HostError)
     }
@@ -382,14 +382,13 @@ where
             .with_fallible(|ext| ext.gas(val).map_err(FuncError::Core))
             .map(|()| ReturnValue::Unit)
             .map_err(|e| {
-                if let reason @ Some(TerminationReasonKind::GasAllowanceExceeded) = e
+                if let reason @ Some(TerminationReason::GasAllowanceExceeded) = e
                     .as_core()
                     .and_then(AsTerminationReason::as_termination_reason)
                     .cloned()
                 {
-                    ctx.termination_reason = reason;
+                    ctx.trap = reason.map(FuncError::Terminated);
                 }
-                ctx.trap = Some(e);
                 HostError
             })
     }
@@ -764,10 +763,7 @@ where
             .ext
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
-            .or_else(|| {
-                ctx.termination_reason = Some(TerminationReasonKind::Leave);
-                Some(FuncError::Leave)
-            });
+            .or(Some(FuncError::Terminated(TerminationReason::Leave)));
         Err(HostError)
     }
 
@@ -776,10 +772,7 @@ where
             .ext
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
-            .or_else(|| {
-                ctx.termination_reason = Some(TerminationReasonKind::Wait);
-                Some(FuncError::Wait)
-            });
+            .or(Some(FuncError::Terminated(TerminationReason::Wait)));
         Err(HostError)
     }
 
@@ -897,8 +890,12 @@ where
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        ctx.termination_reason = Some(TerminationReasonKind::ForbiddenFunction);
-        ctx.trap = Some(FuncError::ForbiddenFunction);
+        ctx.trap = Some(FuncError::Terminated(TerminationReason::Trap {
+            explanation: Some(TrapExplanation::Other(
+                "Unable to call a forbidden function".into(),
+            )),
+            description: None,
+        }));
         Err(HostError)
     }
 }

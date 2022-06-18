@@ -319,11 +319,9 @@ where
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
-                if let Some(value_dest) = info.exit_argument {
-                    Some(TerminationReason::Exit(value_dest))
-                } else {
-                    termination_reason
-                }
+                info.exit_argument
+                    .map(TerminationReason::Exit)
+                    .or(termination_reason)
             } else {
                 None
             };
