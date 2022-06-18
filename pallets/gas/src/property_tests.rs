@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Properties and invariants that are checked:
-//! 1. all non-external nodes have a parent in GasTree storage.
-//! 2. all non-external nodes have at least one ancestor with value (i.e., ValueNode::node_with_value procedure always return Ok),
+//! 1. All non-external nodes have a parent in GasTree storage.
+//! 2. All non-external nodes have at least one ancestor with value (i.e., ValueNode::node_with_value procedure always return Ok),
 //! however this value can be equal to 0. Also there are no guarantees that this ancestor is a parent.
-//! 3. all nodes can't have consumed parent with zero refs (there can't be any nodes like that in storage) between calls to `ValueTree::consume`.
+//! 3. All nodes can't have consumed parent with zero refs (there can't be any nodes like that in storage) between calls to `ValueTree::consume`.
 //! Therefore, if node is deleted, it is consumed and has zero refs (and zero value, if it is able to hold value and is of `ValueType::SpecifiedLocal` type).
 //! So if there is an existing consumed node, it has non-zero refs counter and a value >= 0 (between calls to `ValueTree::consume`)
-//! 4. if a sub-tree of `GasTree` is a tree, where root has `ValueType::External` type, then sub-tree's root is always deleted last.
-//! 5. nodes can become consumed only after `GasTree::consume` call.
-//! 6. Unspec refs counter for the current node is incremented only after `GasTree::split` which creates a node with `ValueType::UnspecifiedLocal` type.
-//! 7. Spec refs counter for the current node is incremented only after `GasTree::split_with_value`, which creates a node with `ValueType::SpecifiedLocal` type is.
+//! 4. If a sub-tree of `GasTree` is a tree, where root has `ValueType::External` type, then sub-tree's root is always deleted last.
+//! 5. Nodes can become consumed only after `ValueTree::consume` call.
+//! 6. Unspec refs counter for the current node is incremented only after `ValueTree::split` which creates a node with `ValueType::UnspecifiedLocal` type.
+//! 7. Spec refs counter for the current node is incremented only after `ValueTree::split_with_value`, which creates a node with `ValueType::SpecifiedLocal` type is.
 
 use super::*;
 use crate::mock::*;
