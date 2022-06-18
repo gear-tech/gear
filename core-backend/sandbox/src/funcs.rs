@@ -891,9 +891,7 @@ where
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         ctx.trap = Some(FuncError::Terminated(TerminationReason::Trap {
-            explanation: Some(TrapExplanation::Other(
-                "Unable to call a forbidden function".into(),
-            )),
+            explanation: TrapExplanation::Other("Unable to call a forbidden function".into()),
             description: None,
         }));
         Err(HostError)

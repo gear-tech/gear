@@ -47,7 +47,7 @@ pub enum TerminationReason {
     Leave,
     Success,
     Trap {
-        explanation: Option<TrapExplanation>,
+        explanation: TrapExplanation,
         description: Option<Cow<'static, str>>,
     },
     Wait,

@@ -56,6 +56,8 @@ pub enum SandboxEnvironmentError {
     SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
+    #[display(fmt = "No trap explanation")]
+    NoTrapExplanation,
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "{}", _0)]
@@ -268,13 +270,24 @@ where
             })?;
 
         let termination = if res.is_err() {
-            info.exit_argument
+            let reason = info
+                .exit_argument
                 .map(TerminationReason::Exit)
-                .or_else(|| trap.as_ref().and_then(FuncError::to_termination_reason))
-                .unwrap_or_else(|| TerminationReason::Trap {
-                    explanation: info.trap_explanation.clone(),
+                .or_else(|| trap.as_ref().and_then(FuncError::to_termination_reason));
+
+            if let Some(reason) = reason {
+                reason
+            } else {
+                let explanation = info.trap_explanation.clone().ok_or_else(|| BackendError {
+                    reason: SandboxEnvironmentError::NoTrapExplanation,
+                    description: None,
+                    gas_amount: info.gas_amount.clone(),
+                })?;
+                TerminationReason::Trap {
+                    explanation,
                     description: trap.map(|e| e.to_string()).map(Into::into),
-                })
+                }
+            }
         } else {
             TerminationReason::Success
         };

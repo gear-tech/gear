@@ -64,6 +64,8 @@ pub enum WasmtimeEnvironmentError {
     SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory")]
     CreateEnvMemory,
+    #[display(fmt = "No trap explanation")]
+    NoTrapExplanation,
     #[display(fmt = "{}", _0)]
     MemoryAccess(MemoryError),
     #[display(fmt = "{}", _0)]
@@ -326,10 +328,19 @@ where
                 None
             };
 
-            reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation.clone(),
-                description: Some(e.to_string().into()),
-            })
+            if let Some(reason) = reason {
+                reason
+            } else {
+                let explanation = info.trap_explanation.clone().ok_or_else(|| BackendError {
+                    reason: WasmtimeEnvironmentError::NoTrapExplanation,
+                    description: None,
+                    gas_amount: info.gas_amount.clone(),
+                })?;
+                TerminationReason::Trap {
+                    explanation,
+                    description: Some(e.to_string().into()),
+                }
+            }
         } else {
             TerminationReason::Success
         };

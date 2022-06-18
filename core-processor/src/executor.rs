@@ -359,10 +359,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
                 program_id,
                 description.unwrap_or_else(|| "None".into()),
-                explanation
-                    .as_ref()
-                    .map(|e| e.to_string())
-                    .unwrap_or_else(|| "None".to_string()),
+                explanation,
             );
 
             DispatchResultKind::Trap(explanation)

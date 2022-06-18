@@ -534,11 +534,7 @@ where
                     outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
                     ..
                 } => {
-                    return Err(format!(
-                        "Program terminated with a trap: {}",
-                        trap.clone().unwrap_or_else(|| "No reason".to_string())
-                    )
-                    .into_bytes());
+                    return Err(format!("Program terminated with a trap: {}", trap).into_bytes());
                 }
                 _ => {}
             }
