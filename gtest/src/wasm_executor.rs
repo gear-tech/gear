@@ -1,11 +1,10 @@
-use codec::Encode;
 use core_processor::{Ext, ProcessorExt};
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
     env::{Ext as ExtTrait, ExtCarrier},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
-    message::{IncomingMessage, MessageContext},
+    message::{IncomingMessage, MessageContext, Payload},
     program::Program,
 };
 use std::{collections::BTreeMap, mem};
@@ -15,7 +14,7 @@ use wasmtime::{
 };
 
 /// Binary meta-functions executor for testing purposes
-pub struct WasmExecutor {
+pub(crate) struct WasmExecutor {
     instance: Instance,
     store: Store<StoreData<Ext>>,
     memory: WasmtimeMemory,
@@ -27,9 +26,9 @@ impl WasmExecutor {
     pub fn new(
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        message: Option<IncomingMessage>,
+        payload: Payload,
     ) -> Self {
-        let ext = WasmExecutor::build_ext(program, message);
+        let ext = WasmExecutor::build_ext(program, payload);
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
@@ -92,7 +91,7 @@ impl WasmExecutor {
         }
     }
 
-    fn build_ext(program: &Program, message: Option<IncomingMessage>) -> Ext {
+    fn build_ext(program: &Program, payload: Payload) -> Ext {
         Ext::new(
             GasCounter::new(u64::MAX),
             GasAllowanceCounter::new(u64::MAX),
@@ -103,16 +102,7 @@ impl WasmExecutor {
                 WasmPageNumber(512u32),
             ),
             MessageContext::new(
-                message.unwrap_or_else(|| {
-                    IncomingMessage::new(
-                        Default::default(),
-                        Default::default(),
-                        Option::<bool>::encode(&None),
-                        0,
-                        0,
-                        None,
-                    )
-                }),
+                IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None),
                 program.id(),
                 None,
             ),
@@ -184,7 +174,7 @@ impl WasmExecutor {
 mod meta_tests {
     use crate::{Program, System};
     use codec::{Decode, Encode};
-    use gear_core::{ids::ProgramId, message::IncomingMessage};
+    use gear_core::ids::ProgramId;
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
     pub struct Id {
@@ -212,34 +202,22 @@ mod meta_tests {
 
     #[test]
     fn test_happy_case() {
-        let meta_state_function_name = "meta_state";
         let system = System::default();
         let program = Program::from_file(
             &system,
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        let meta_state_message = IncomingMessage::new(
-            system.0.borrow_mut().fetch_inc_message_nonce().into(),
-            100.into(),
-            (&Some(Id {
-                decimal: 2,
-                hex: vec![2u8],
-            }))
-                .encode(),
-            0,
-            0,
-            None,
-        );
-
-        let result = program.call_meta(Some(meta_state_message), meta_state_function_name);
+        let result = program.meta_state(&Some(Id {
+            decimal: 2,
+            hex: vec![2u8],
+        }));
 
         assert_eq!(result, vec![0]);
     }
 
     #[test]
     fn test_manager_executions_coworking() {
-        let meta_state_function_name = "meta_state";
         let user_id: ProgramId = 100.into();
         let system = System::default();
         let program = Program::from_file(
@@ -260,15 +238,6 @@ mod meta_tests {
 
         let expected_id = Some(expected_result.first().unwrap().id.clone());
 
-        let meta_state_message = IncomingMessage::new(
-            system.0.borrow_mut().fetch_inc_message_nonce().into(),
-            user_id,
-            Option::<Id>::encode(&expected_id),
-            0,
-            0,
-            None,
-        );
-
         let run_result = program.send(
             user_id,
             MessageInitIn {
@@ -278,7 +247,7 @@ mod meta_tests {
         );
         assert!(!run_result.main_failed);
 
-        let result = program.call_meta(Some(meta_state_message), meta_state_function_name);
+        let result = program.meta_state(&expected_id);
 
         assert_eq!(result, expected_result.encode());
     }
@@ -293,7 +262,10 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        program.call_meta(None, unknown_function_name);
+        system
+            .0
+            .borrow_mut()
+            .call_meta(&program.id, [].into(), unknown_function_name);
     }
 
     #[test]
@@ -306,6 +278,9 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        program.call_meta(None, void_function_name);
+        system
+            .0
+            .borrow_mut()
+            .call_meta(&program.id, [].into(), void_function_name);
     }
 }

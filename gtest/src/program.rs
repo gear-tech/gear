@@ -3,11 +3,11 @@ use crate::{
     manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
-use codec::Codec;
+use codec::{Codec, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, IncomingMessage, Message},
+    message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };
 use path_clean::PathClean;
@@ -249,10 +249,14 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn call_meta(&self, message: Option<IncomingMessage>, function_name: &str) -> Vec<u8> {
+    pub fn meta_state(&self, payload: impl Encode) -> Vec<u8> {
+        self.meta_state_with_bytes(payload.encode())
+    }
+
+    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Vec<u8> {
         self.manager
             .borrow_mut()
-            .call_meta(&self.id, message, function_name)
+            .call_meta(&self.id, payload.as_ref().into(), "meta_state")
     }
 }
 

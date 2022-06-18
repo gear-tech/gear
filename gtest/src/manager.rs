@@ -28,8 +28,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
-        Dispatch, DispatchKind, IncomingMessage, ReplyMessage, ReplyPacket, StoredDispatch,
-        StoredMessage,
+        Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
 };
@@ -456,18 +455,14 @@ impl ExtManager {
     pub(crate) fn call_meta(
         &mut self,
         program_id: &ProgramId,
-        message: Option<IncomingMessage>,
+        payload: Payload,
         function_name: &str,
     ) -> Vec<u8> {
-        let mut executor = self.get_executor(program_id, message);
+        let mut executor = self.get_executor(program_id, payload);
         executor.execute(function_name)
     }
 
-    fn get_executor(
-        &mut self,
-        program_id: &ProgramId,
-        message: Option<IncomingMessage>,
-    ) -> WasmExecutor {
+    fn get_executor(&mut self, program_id: &ProgramId, payload: Payload) -> WasmExecutor {
         let (actor, balance) = self
             .actors
             .get_mut(program_id)
@@ -482,7 +477,7 @@ impl ExtManager {
             .map(|(page, data)| (page, Box::new(data)))
             .collect();
 
-        WasmExecutor::new(&actor.program, &pages_initial_data, message)
+        WasmExecutor::new(&actor.program, &pages_initial_data, payload)
     }
 }
 
