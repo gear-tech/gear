@@ -37,7 +37,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     iter::FromIterator,
 };
-
 use strategies::GasTreeAction;
 use utils::RingGet;
 
