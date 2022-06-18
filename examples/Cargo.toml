@@ -31,6 +31,7 @@ members = [
     "panicker",
     "ping",
     "ping-gas",
+    "program_generator",
     "program-id",
     "rwlock",
     "rwlock_write",

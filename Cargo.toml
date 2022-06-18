@@ -41,3 +41,7 @@ members = [
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
 ]
+
+[patch.crates-io]
+# TODO: remove when sp-sandbox will use wasmi 0.11.0
+wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "al-win-vmem" }
