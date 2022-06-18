@@ -257,10 +257,8 @@ impl EnvExt for LazyPagesExt {
                 continue;
             }
             self.fresh_allocations.insert(wasm_page);
-            wasm_page.to_gear_pages_iter().for_each(|page| {
-                log::trace!("add {:?} to lazy pages", page);
-                save_page_lazy_info(id, page);
-            });
+            let gear_pages: BTreeSet<PageNumber> = wasm_page.to_gear_pages_iter().collect();
+            save_page_lazy_info(id, &gear_pages);
         }
 
         // Protect all lazy pages including new allocations

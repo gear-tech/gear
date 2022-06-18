@@ -43,6 +43,19 @@ thread_local! {
     static RELEASED_LAZY_PAGES: RefCell<BTreeMap<LazyPage, Option<PageBuf>>> = RefCell::new(BTreeMap::new());
 }
 
+pub fn save_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
+    let pages_keys: BTreeMap<LazyPage, Vec<u8>> = pages
+        .iter()
+        .map(|p| {
+            let mut key = Vec::with_capacity(prefix.len() + 4);
+            key.extend(prefix.clone());
+            key.extend(p.to_le_bytes().to_vec());
+            (LazyPage(*p), key)
+        })
+        .collect();
+    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow_mut().extend(pages_keys));
+}
+
 /// Returns vec of not-accessed wasm lazy pages
 pub fn available_pages() -> Vec<LazyPage> {
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().keys().copied().collect())

@@ -104,9 +104,7 @@ pub fn protect_pages_and_init_info(
         e
     })?;
 
-    lazy_pages.iter().for_each(|p| {
-        crate::save_page_lazy_info(prog_id_hash, *p);
-    });
+    crate::save_page_lazy_info(prog_id_hash, lazy_pages);
 
     mprotect_lazy_pages(mem, true)
 }

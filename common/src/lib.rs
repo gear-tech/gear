@@ -405,9 +405,10 @@ pub fn get_program_page_data(
 }
 
 /// Save page data key in storage
-pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
-    let key = page_key(id, page_num);
-    gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
+pub fn save_page_lazy_info(id: H256, page_nums: &BTreeSet<PageNumber>) {
+    let prefix = pages_prefix(id);
+    let pages = page_nums.iter().map(|p| p.0).collect();
+    gear_ri::gear_ri::save_page_lazy_info(pages, prefix);
 }
 
 pub fn get_program_pages_data(
