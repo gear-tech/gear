@@ -480,7 +480,7 @@ benchmarks! {
     //     });
     //     let instance = Program::<T>::new(code, vec![])?;
     // }: {
-    //     Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+    //     Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     // }
 
     gas {
@@ -1645,7 +1645,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -1708,7 +1708,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -2211,7 +2211,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,

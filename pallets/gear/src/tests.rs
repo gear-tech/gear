@@ -3565,7 +3565,7 @@ fn test_async_messages() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000_000u64,
+            10_000_000_000u64,
             0,
         ));
 
@@ -3589,7 +3589,7 @@ fn test_async_messages() {
                 Origin::signed(USER_1),
                 pid,
                 kind.encode(),
-                3_000_000_000u64,
+                10_000_000_000u64,
                 0,
             ));
 
@@ -3604,7 +3604,7 @@ fn test_async_messages() {
                 Origin::signed(USER_1),
                 message_id,
                 EMPTY_PAYLOAD.to_vec(),
-                2_000_000_000u64,
+                10_000_000_000u64,
                 0,
             ));
 
