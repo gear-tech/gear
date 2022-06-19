@@ -102,7 +102,7 @@ impl Code {
 
         let exports = module
             .export_section()
-            .ok_or_else(|| CodeError::ExportSectionNotFound)?
+            .ok_or(CodeError::ExportSectionNotFound)?
             .entries()
             .iter()
             .map(|v| v.field().as_bytes().to_vec())
@@ -153,7 +153,7 @@ impl Code {
 
         let exports = module
             .export_section()
-            .ok_or_else(|| CodeError::ExportSectionNotFound)?
+            .ok_or(CodeError::ExportSectionNotFound)?
             .entries()
             .iter()
             .map(|v| v.field().as_bytes().to_vec())
