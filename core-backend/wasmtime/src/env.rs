@@ -87,6 +87,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        _entries: Vec<Vec<u8>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let forbidden_funcs = ext.forbidden_funcs().clone();

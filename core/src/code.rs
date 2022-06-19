@@ -32,6 +32,8 @@ pub enum CodeError {
     ImportSectionNotFound,
     /// The provided code doesn't contain memory entry section.
     MemoryEntryNotFound,
+    /// The provided code doesn't contain export section.
+    ExportSectionNotFound,
     /// Error occurred during decoding original program code.
     ///
     /// The provided code was a malformed Wasm bytecode or contained unsupported features
@@ -57,6 +59,7 @@ pub struct Code {
     code: Vec<u8>,
     /// The uninstrumented, original version of the code.
     raw_code: Vec<u8>,
+    exports: Vec<Vec<u8>>,
     static_pages: WasmPageNumber,
     #[codec(compact)]
     instruction_weights_version: u32,
@@ -97,6 +100,14 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
+        let exports = module
+            .export_section()
+            .ok_or_else(|| CodeError::ExportSectionNotFound)?
+            .entries()
+            .iter()
+            .map(|v| v.field().as_bytes().to_vec())
+            .collect();
+
         let gas_rules = get_gas_rules(&module);
         let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
             .map_err(|_| CodeError::GasInjection)?;
@@ -107,6 +118,7 @@ impl Code {
         Ok(Self {
             code: instrumented,
             raw_code,
+            exports,
             static_pages,
             instruction_weights_version: version,
         })
@@ -139,9 +151,18 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
+        let exports = module
+            .export_section()
+            .ok_or_else(|| CodeError::ExportSectionNotFound)?
+            .entries()
+            .iter()
+            .map(|v| v.field().as_bytes().to_vec())
+            .collect();
+
         Ok(Self {
             raw_code: original_code.clone(),
             code: original_code,
+            exports,
             static_pages,
             instruction_weights_version: version,
         })
@@ -172,6 +193,7 @@ impl Code {
         (
             InstrumentedCode {
                 code: self.code,
+                exports: self.exports,
                 static_pages: self.static_pages,
                 version: self.instruction_weights_version,
             },
@@ -220,6 +242,7 @@ impl CodeAndId {
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {
     code: Vec<u8>,
+    exports: Vec<Vec<u8>>,
     static_pages: WasmPageNumber,
     version: u32,
 }
@@ -233,6 +256,11 @@ impl InstrumentedCode {
     /// Returns instruction weights version.
     pub fn instruction_weights_version(&self) -> u32 {
         self.version
+    }
+
+    /// Returns initial memory size from memory import.
+    pub fn exports(&self) -> &[Vec<u8>] {
+        &self.exports
     }
 
     /// Returns initial memory size from memory import.

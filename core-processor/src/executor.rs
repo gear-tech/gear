@@ -299,7 +299,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.forbidden_funcs,
     );
 
-    let mut env = E::new(ext, program.raw_code(), mem_size).map_err(|err| {
+    let mut env = E::new(
+        ext,
+        program.raw_code(),
+        program.code().exports().to_vec(),
+        mem_size,
+    )
+    .map_err(|err| {
         log::debug!("Setup instance err = {}", err);
         ExecutionError {
             program_id,

@@ -66,7 +66,7 @@ pub enum SandboxEnvironmentError {
 pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
     runtime: Runtime<E>,
     instance: Instance<Runtime<E>>,
-    entries: Vec<String>,
+    entries: Vec<Vec<u8>>,
 }
 
 pub(crate) struct Runtime<E: Ext> {
@@ -103,17 +103,6 @@ impl<E: Ext> From<EnvBuilder<'_, E>> for EnvironmentDefinitionBuilder<Runtime<E>
     }
 }
 
-fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
-    Ok(parity_wasm::elements::Module::from_bytes(binary)
-        .map_err(|e| format!("Unable to create wasm module: {}", e))?
-        .export_section()
-        .ok_or_else(|| String::from("Unable to get wasm module section"))?
-        .entries()
-        .iter()
-        .map(|v| String::from(v.field()))
-        .collect())
-}
-
 impl<E> Environment<E> for SandboxEnvironment<E>
 where
     E: Ext + IntoExtInfo + 'static,
@@ -124,6 +113,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        entries: Vec<Vec<u8>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let mut builder = EnvBuilder::<E> {
@@ -201,17 +191,6 @@ where
             }
         };
 
-        let entries = match get_module_exports(binary) {
-            Ok(entries) => entries,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: SandboxEnvironmentError::GetWasmExports,
-                    description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
-                })
-            }
-        };
-
         Ok(SandboxEnvironment {
             runtime,
             instance,
@@ -250,7 +229,7 @@ where
         F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let res = if self.entries.contains(&String::from(entry_point)) {
+        let res = if self.entries.contains(&entry_point.as_bytes().to_vec()) {
             self.instance.invoke(entry_point, &[], &mut self.runtime)
         } else {
             Ok(ReturnValue::Unit)
