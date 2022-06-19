@@ -193,7 +193,7 @@ where
             Message::new(
                 root_message_id,
                 ProgramId::from_origin(source),
-                ProgramId::from_origin(dest),
+                dest,
                 payload,
                 Some(u64::MAX),
                 value,
@@ -201,11 +201,8 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let msg = MailboxOf::<T>::remove(
-                <T::AccountId as Origin>::from_origin(source),
-                MessageId::from_origin(msg_id),
-            )
-            .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let msg = MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
+                .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
@@ -427,7 +424,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -513,7 +510,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -566,7 +563,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -607,7 +604,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -648,7 +645,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -689,7 +686,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -731,7 +728,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
 
     }: {
         core_processor::process::<
@@ -773,7 +770,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -814,7 +811,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -867,7 +864,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -931,7 +928,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -999,7 +996,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![0xff; (n * 1024) as usize], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -1052,7 +1049,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -1105,7 +1102,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
                     ext::LazyPagesExt,
@@ -1159,7 +1156,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1225,7 +1222,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1291,7 +1288,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1368,7 +1365,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
 
         let journal = core_processor::process::<
@@ -1447,7 +1444,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1515,7 +1512,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1581,7 +1578,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 10000000u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1767,7 +1764,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1823,7 +1820,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1881,7 +1878,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id.into_origin(), 0), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -1946,7 +1943,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -2001,7 +1998,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -2056,7 +2053,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -2126,7 +2123,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -2303,7 +2300,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
-        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into())?;
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
                     ext::LazyPagesExt,

@@ -123,7 +123,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1100,
+    spec_version: 1120,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -666,13 +666,14 @@ impl_runtime_apis! {
 
     // Here we implement our custom runtime API.
     impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
-        fn get_gas_spent(
+        fn calculate_gas_info(
             account_id: H256,
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
-            Gear::get_gas_spent(account_id, kind, payload, value)
+            allow_other_panics: bool,
+        ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
+            Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics)
         }
     }
 

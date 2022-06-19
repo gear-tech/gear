@@ -18,4 +18,6 @@ sp-rpc = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git"
 sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 # Local packages
+gear-core = { path = "../../../core" }
+gear-common = { path = "../../../common" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", path = "./runtime-api" }
