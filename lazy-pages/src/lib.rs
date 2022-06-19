@@ -151,12 +151,6 @@ impl LazyPage {
             .with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(self, key.to_vec()));
     }
 
-    fn take_info(self) -> Result<Vec<u8>, LazyPageError> {
-        LAZY_PAGES_INFO
-            .with(|info| info.borrow_mut().remove(&self))
-            .ok_or(LazyPageError::UnknownInfo(self))
-    }
-
     /// Returns data of released page which page has in storage before execution
     pub fn take_data(self) -> Option<PageBuf> {
         RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().get_mut(&self)?.take())
