@@ -26,9 +26,9 @@ impl WasmExecutor {
     pub(crate) fn new(
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        payload: Payload,
+        payload: Option<Payload>,
     ) -> Self {
-        let ext = WasmExecutor::build_ext(program, payload);
+        let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
@@ -208,12 +208,24 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        let result = program.meta_state(&Some(Id {
+        let result: Vec<Wallet> = program.meta_state(&Some(Id {
             decimal: 2,
             hex: vec![2u8],
         }));
 
-        assert_eq!(result, vec![0]);
+        assert_eq!(result.encode(), vec![0]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Failed call: wasm trap: wasm `unreachable` instruction executed")]
+    fn test_failing_with_empty_payload() {
+        let system = System::default();
+        let program = Program::from_file(
+            &system,
+            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
+        );
+
+        program.meta_state_empty::<Vec<Wallet>>();
     }
 
     #[test]
@@ -247,9 +259,9 @@ mod meta_tests {
         );
         assert!(!run_result.main_failed);
 
-        let result = program.meta_state(&expected_id);
+        let result: Vec<Wallet> = program.meta_state(&expected_id);
 
-        assert_eq!(result, expected_result.encode());
+        assert_eq!(result.encode(), expected_result.encode());
     }
 
     #[test]
@@ -265,7 +277,7 @@ mod meta_tests {
         system
             .0
             .borrow_mut()
-            .call_meta(&program.id, [].into(), unknown_function_name);
+            .call_meta(&program.id, None, unknown_function_name);
     }
 
     #[test]
@@ -281,6 +293,6 @@ mod meta_tests {
         system
             .0
             .borrow_mut()
-            .call_meta(&program.id, [].into(), void_function_name);
+            .call_meta(&program.id, None, void_function_name);
     }
 }

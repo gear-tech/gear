@@ -3,7 +3,7 @@ use crate::{
     manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
-use codec::{Codec, Encode};
+use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -249,14 +249,39 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn meta_state(&self, payload: impl Encode) -> Vec<u8> {
-        self.meta_state_with_bytes(payload.encode())
+    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> D {
+        D::decode(
+            &mut self
+                .meta_state_with_bytes(payload.encode())
+                .as_slice()
+        )
+            .expect("Failed to decode result")
     }
 
     pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Vec<u8> {
         self.manager
             .borrow_mut()
-            .call_meta(&self.id, payload.as_ref().into(), "meta_state")
+            .call_meta(
+                &self.id,
+                Some(payload.as_ref().into()),
+                "meta_state"
+            )
+    }
+
+    pub fn meta_state_empty<D: Decode>(&self) -> D {
+        D::decode(
+            &mut self
+                .meta_state_empty_with_bytes()
+                .as_slice()
+        )
+            .expect("Failed to decode result")
+    }
+
+    pub fn meta_state_empty_with_bytes(&self) -> Vec<u8> {
+            self
+                .manager
+                .borrow_mut()
+                .call_meta(&self.id, None, "meta_state")
     }
 }
 
