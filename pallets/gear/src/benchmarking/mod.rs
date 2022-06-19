@@ -1318,7 +1318,7 @@ benchmarks! {
     // Benchmark the `gr_send_commit` call.
     // `gr_send` call is shortcut for `gr_send_init` + `gr_send_commit`
     gr_send_commit {
-        let r in 0 .. 1;
+        let r in 0 .. API_BENCHMARK_BATCHES;
         let instance = Program::<T>::new(WasmModule::<T>::dummy(), vec![])?;
         let pid_bytes = instance.addr.encode();
         let pid_len = pid_bytes.len();
@@ -1342,7 +1342,7 @@ benchmarks! {
                     value: value_bytes,
                 },
             ],
-            handle_body: Some(body::repeated(r, &[
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCHES, &[
                 Instruction::I32Const(0), // program_id_ptr
                 Instruction::I32Const(0), // payload_ptr
                 Instruction::I32Const(0), // payload_len
