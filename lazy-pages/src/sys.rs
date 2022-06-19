@@ -1,4 +1,4 @@
-use crate::{LazyPage, LazyPageError, WASM_MEM_BEGIN, LAZY_PAGES_INFO};
+use crate::{LazyPage, LazyPageError, LAZY_PAGES_INFO, WASM_MEM_BEGIN};
 use cfg_if::cfg_if;
 use gear_core::memory::{PageBuf, PageNumber};
 use region::Protection;
@@ -109,13 +109,13 @@ pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
         let mut pages_info = lazy_pages_info.borrow_mut();
         for idx in 0..gear_pages_num as u32 {
             let page = LazyPage::from(gear_page) + idx;
-    
+
             let hash_key_in_storage = pages_info.remove(&page).ok_or(LazyPageError::UnknownInfo(page))?;
             let ptr = (unprot_addr as *mut u8).add(idx as usize * gear_ps);
             let buffer_as_slice = std::slice::from_raw_parts_mut(ptr, gear_ps);
-    
+
             let res = sp_io::storage::read(&hash_key_in_storage, buffer_as_slice, 0);
-    
+
             if res.is_none() {
                 log::trace!(
                     "Page #{} has no data in storage, so just save current page data to released pages",
@@ -124,20 +124,18 @@ pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
             } else {
                 log::trace!("Page #{} has data in storage, so set this data for page and save it in released pages", page);
             }
-    
+
             if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
                 return Err(Error::InvalidPageSize {
                     expected: PageNumber::size(),
                     actual: size,
                 });
             }
-    
+
             let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
                 .expect("Cannot panic here, because we create slice with PageBuf size");
             page.release(page_buf)?;
         }
         Ok(())
     })
-
-
 }

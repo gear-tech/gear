@@ -351,7 +351,7 @@ pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
     key.extend(program_id.as_fixed_bytes());
     key.extend(b"::");
-    
+
     key
 }
 
