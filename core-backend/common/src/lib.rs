@@ -25,6 +25,8 @@ extern crate alloc;
 pub mod error_processor;
 pub mod funcs;
 
+mod utils;
+
 use alloc::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
@@ -43,24 +45,24 @@ use gear_core::{
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
 
+// Max amount of bytes allowed to be thrown as string explanation of the error.
+pub const TRIMMED_MAX_LEN: usize = 1024;
+
 #[derive(
     Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
 )]
 pub struct TrimmedString(String);
 
-// Amount of characters allowed to be thrown as string explanation of the error.
-const TRIMMING_LEN: usize = 1024;
+impl TrimmedString {
+    pub(crate) fn new(mut string: String) -> Self {
+        utils::smart_truncate(&mut string, TRIMMED_MAX_LEN);
+        Self(string)
+    }
+}
 
 impl<T: Into<String>> From<T> for TrimmedString {
     fn from(other: T) -> Self {
-        let mut string = other.into();
-
-        if string.len() >= TRIMMING_LEN {
-            string.truncate(TRIMMING_LEN - 4);
-            string.push_str(" ...")
-        }
-
-        Self(string)
+        Self::new(other.into())
     }
 }
 
