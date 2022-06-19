@@ -182,6 +182,9 @@ where
                 legit_error_3
                     if legit_error_3
                         == pallet_gear::Error::<Runtime>::NotEnoughBalanceForReserve.into() => {}
+                legit_error_4
+                    if legit_error_4
+                        == pallet_gear::Error::<Runtime>::FailedToConstructProgram.into() => {}
                 _ => panic!("{:?}", e),
             }
         }
@@ -684,13 +687,13 @@ mod tests {
     #[test]
     fn run_target_with_params() {
         let params = crate::SimpleParams {
-            num_contracts: 16,
-            queue_len: 15,
-            gas_limit: 21659051775,
-            seed: 361700864190398213,
+            num_contracts: 3,
+            queue_len: 14,
+            gas_limit: 1095299817470,
+            seed: 18371870626081079038,
             input: [
-                5, 150, 5, 5, 13, 5, 255, 255, 255, 255, 255, 255, 5, 5, 5, 5, 5, 5, 84, 0, 0, 0,
-                0, 0, 0, 0, 5, 5, 5, 5, 5, 5,
+                254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254,
+                254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 254, 190,
             ],
         };
         run_target(&crate::Params::Simple(params), simple_scenario);

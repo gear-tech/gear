@@ -44,6 +44,7 @@ pub(crate) unsafe fn sys_mprotect_wasm_pages(
     prot_exec: bool,
 ) -> Result<(), MprotectError> {
     use gear_core::memory::WasmPageNumber;
+    use std::io;
 
     let mut prot_mask = libc::PROT_NONE;
     if prot_read {
@@ -62,7 +63,7 @@ pub(crate) unsafe fn sys_mprotect_wasm_pages(
             log::error!(
                 "Cannot set page protection for {:#x}: {}",
                 addr,
-                errno::errno()
+                io::Error::from_raw_os_error(res)
             );
             return Err(MprotectError::PageError);
         }

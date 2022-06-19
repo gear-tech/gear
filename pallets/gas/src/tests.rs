@@ -47,6 +47,106 @@ fn simple_value_tree() {
 }
 
 #[test]
+fn test_consume_procedure() {
+    new_test_ext().execute_with(|| {
+        let origin = H256::random();
+        let root = H256::random();
+        let node_1 = H256::random();
+        let node_2 = H256::random();
+        let node_3 = H256::random();
+
+        // Chain of nodes, that form more likely a path rather then a tree
+        assert_ok!(Gas::create(origin, root, 300));
+        assert_ok!(Gas::split_with_value(root, node_1, 200));
+        assert_ok!(Gas::split_with_value(node_1, node_2, 100));
+        assert_ok!(Gas::split(node_2, node_3));
+
+        assert_eq!(Gas::consume(root).unwrap(), None);
+        // Consumed root still has a balance. Root is not deleted.
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(100));
+
+        assert_eq!(Gas::consume(node_1).unwrap(), None);
+        // Consumed node without unspec refs moves value up
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(0));
+        // Check value moved up to the root
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
+
+        assert_eq!(Gas::consume(node_2).unwrap(), None);
+        // Consumed node with unspec refs doesn't moves value up
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
+
+        // Check that spending from unspec `node_3` actually decreases balance from the ancestor with value - `node_2`.
+        assert_ok!(Gas::spend(node_3, 100));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(0));
+
+        // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.
+        assert_noop!(Gas::consume(node_2), Error::<Test>::NodeWasConsumed,);
+
+        // Impossible to consume non-existing node.
+        assert_noop!(Gas::consume(H256::random()), Error::<Test>::NodeNotFound,);
+
+        // Before consuming blockage `node_3`
+        assert!(Gas::get_node(root).is_some());
+        assert!(Gas::get_node(node_1).is_some());
+        assert!(Gas::get_node(node_2).is_some());
+
+        assert!(matches!(Gas::consume(node_3).unwrap(), Some(_)));
+
+        // After consuming blockage `node_3`
+        assert!(super::GasTree::<Test>::iter_keys().next().is_none());
+    })
+}
+
+#[test]
+fn splits_fail() {
+    // Consider the following gas tree configuration:
+    //
+    //                          root
+    //                      (external: 200)
+    //                            |
+    //                            |
+    //                          node_1
+    //                     (specified: 300)
+    //                      /           \
+    //                     /             \
+    //                 node_2           node_3
+    //            (specified: 250)    (unspecified)
+    //
+    new_test_ext().execute_with(|| {
+        let origin = H256::random();
+        let root = H256::random();
+        let node_1 = H256::random();
+        let node_2 = H256::random();
+        let node_3 = H256::random();
+
+        // Prepare the initial configuration
+        assert_ok!(Gas::create(origin, root, 1000));
+        assert_ok!(Gas::split_with_value(root, node_1, 800));
+        assert_ok!(Gas::split_with_value(node_1, node_2, 500));
+        assert_ok!(Gas::split(node_1, node_3));
+
+        assert_eq!(Gas::consume(node_1).unwrap(), None);
+        // Can't split consumed node with/without value.
+        assert_noop!(
+            Gas::split(node_1, H256::random()),
+            Error::<Test>::NodeWasConsumed,
+        );
+        assert_noop!(
+            Gas::split_with_value(node_1, H256::random(), 100),
+            Error::<Test>::NodeWasConsumed,
+        );
+
+        // Can't split with existing id.
+        assert_noop!(Gas::split(root, node_2), Error::<Test>::NodeAlreadyExists,);
+        // Special case is when provided 2 existing equal ids
+        assert_noop!(Gas::split(node_2, node_2), Error::<Test>::NodeAlreadyExists,);
+        // Not equal ids can be caught as well
+        let node_4 = H256::random();
+        assert_noop!(Gas::split(node_4, node_4), Error::<Test>::NodeNotFound,);
+    })
+}
+
+#[test]
 fn sub_nodes_tree() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
         let new_root = H256::random();
@@ -92,7 +192,7 @@ fn value_tree_known_errors() {
             // Attempt to re-create an existing node
             assert_noop!(
                 Gas::create(origin, new_root, 1000),
-                Error::<Test>::GasTreeAlreadyExists
+                Error::<Test>::NodeAlreadyExists
             );
 
             // Try to split on non-existent node
@@ -326,6 +426,7 @@ fn subtree_gas_limit_remains_intact() {
     // must remain exactly as it was initially set: not more, not less.
     //
     // In the test scenario node_1 is consumed first, and then node_2 is consumed.
+    // Also an ability to spend value by "unspec" child from "spec" parent will be tested.
     sp_io::TestExternalities::new_empty().execute_with(|| {
         let origin = H256::random();
         let root = H256::random();
@@ -358,8 +459,25 @@ fn subtree_gas_limit_remains_intact() {
 
         // Consume node_2
         assert!(matches!(Gas::consume(node_2).unwrap(), None));
+        // Marked as consumed
+        assert!(Gas::get_node(node_2).map(|node| node.consumed).unwrap());
         // Expect gas limit of the node_4 to remain unchanged
         assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
+
+        // Consume node 5
+        assert!(matches!(Gas::consume(node_5).unwrap(), None));
+        // node_5 was removed
+        assert_eq!(Gas::get_limit(node_5).unwrap(), None);
+        // Expect gas limit from node_5 sent to upstream node with a value (node_2, which is consumed)
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(500));
+
+        // Spend from unspecified node_4, which actually spends gas from node_2 (ancestor with value)
+        assert_ok!(Gas::spend(node_4, 200));
+        // Expect gas limit of consumed node_2 to decrease by 200 (thus checking we can spend from consumed node)
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(300));
+        // Or explicitly spend from consumed node_2 by calling "spend"
+        assert_ok!(Gas::spend(node_2, 200));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
     });
 }
 
