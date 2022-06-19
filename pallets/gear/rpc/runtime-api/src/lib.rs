@@ -18,12 +18,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet_gear::manager::HandleKind;
+pub use pallet_gear::{manager::HandleKind, GasInfo};
 use sp_core::H256;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
     pub trait GearApi {
-        fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128) -> Result<u64, Vec<u8>>;
+        #[allow(clippy::too_many_arguments)]
+        fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool,) -> Result<GasInfo, Vec<u8>>;
     }
 }

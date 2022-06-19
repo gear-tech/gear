@@ -443,6 +443,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-program-generator"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "hex-literal",
+]
+
+[[package]]
 name = "demo-program-id"
 version = "0.1.0"
 dependencies = [

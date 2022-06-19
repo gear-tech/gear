@@ -233,7 +233,7 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             <details><summary>${{ github.event.pull_request.head.sha }}</summary>
-            <details><summary>Pallet tests (values are in nanosegconds)</summary>
+            <details><summary>Pallet tests (values are in nanoseconds)</summary>
 
             ${{ steps.test-performance-pallets.outputs.body }}
             </details>

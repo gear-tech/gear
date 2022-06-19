@@ -64,7 +64,6 @@ use gear_core::{
     program::Program as NativeProgram,
 };
 use pallet_gas::Pallet as GasPallet;
-use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
@@ -79,11 +78,11 @@ use sp_std::{
 // Tolerance towards rounding error when converting gas to balance etc.
 pub(crate) const TOL: u128 = 10;
 
-#[derive(Decode, Encode)]
+#[derive(Clone, Decode, Encode)]
 pub enum HandleKind {
     Init(Vec<u8>),
-    Handle(H256),
-    Reply(H256, ExitCode),
+    Handle(ProgramId),
+    Reply(MessageId, ExitCode),
 }
 
 /// Journal handler implementation for `pallet_gear`.
@@ -191,6 +190,8 @@ where
     }
 
     pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
+        // Program can be added to the storage only with code, which is done in `submit_program` extrinsic.
+        // Code can exist without program, but the latter can't exist without code.
         assert!(
             T::CodeStorage::exists(code_id),
             "Program set must be called only when code exists",

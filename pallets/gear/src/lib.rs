@@ -22,6 +22,7 @@
 extern crate alloc;
 
 use alloc::string::ToString;
+use codec::{Decode, Encode};
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -99,6 +100,19 @@ impl DebugInfo for () {
     fn is_enabled() -> bool {
         false
     }
+}
+
+/// The struct contains results of gas calculation required to process
+/// a message.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub struct GasInfo {
+    /// Represents minimum gas limit required for execution.
+    pub min_limit: u64,
+    /// Gas amount that we reserve for some other on-chain interactions.
+    pub reserved: u64,
+    /// Contains number of gas burned during message processing.
+    pub burned: u64,
 }
 
 #[frame_support::pallet]
@@ -502,66 +516,137 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[cfg(not(test))]
-        pub fn get_gas_spent(
+        pub fn calculate_gas_info(
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
-            Self::get_gas_spent_impl(source, kind, payload, value)
+            allow_other_panics: bool,
+        ) -> Result<GasInfo, Vec<u8>> {
+            let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
+                let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+                Self::calculate_gas_info_impl(
+                    source,
+                    kind.clone(),
+                    initial_gas,
+                    payload.clone(),
+                    value,
+                    allow_other_panics,
+                    b"calculate_gas_salt".to_vec(),
+                )
+            })?;
+
+            Self::run_with_ext_copy(|| {
+                Self::calculate_gas_info_impl(
+                    source,
+                    kind,
+                    min_limit,
+                    payload,
+                    value,
+                    allow_other_panics,
+                    b"calculate_gas_salt".to_vec(),
+                )
+                .map(
+                    |GasInfo {
+                         reserved, burned, ..
+                     }| GasInfo {
+                        min_limit,
+                        reserved,
+                        burned,
+                    },
+                )
+            })
         }
 
-        #[cfg(test)]
-        pub fn get_gas_spent(
-            source: H256,
-            kind: HandleKind,
-            payload: Vec<u8>,
-            value: u128,
-        ) -> Result<u64, Vec<u8>> {
-            mock::run_with_ext_copy(|| Self::get_gas_spent_impl(source, kind, payload, value))
+        pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
+            sp_externalities::with_externalities(|ext| {
+                ext.storage_start_transaction();
+            })
+            .expect("externalities should be set");
+
+            let result = f();
+
+            sp_externalities::with_externalities(|ext| {
+                ext.storage_rollback_transaction()
+                    .expect("transaction was started");
+            })
+            .expect("externalities should be set");
+
+            result
         }
 
-        fn get_gas_spent_impl(
+        fn calculate_gas_info_impl(
             source: H256,
             kind: HandleKind,
+            initial_gas: u64,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
+            allow_other_panics: bool,
+            salt: Vec<u8>,
+        ) -> Result<GasInfo, Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
-            let balance = <T as Config>::Currency::total_balance(&account);
-            let max_balance: BalanceOf<T> = u128::MAX.unique_saturated_into();
+            let balance = <T as Config>::Currency::free_balance(&account);
+            let max_balance: BalanceOf<T> =
+                T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
             <T as Config>::Currency::deposit_creating(
                 &account,
                 max_balance.saturating_sub(balance),
             );
 
             let who = frame_support::dispatch::RawOrigin::Signed(account);
-            let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
             let value: BalanceOf<T> = value.unique_saturated_into();
 
             QueueOf::<T>::clear();
 
-            match kind {
+            let main_program_id = match kind {
                 HandleKind::Init(code) => {
-                    let salt = b"gas_spent_salt".to_vec();
                     Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
-                        .map_err(|_| b"Internal error: submit_program failed".to_vec())?;
+                        .map_err(|e| {
+                            format!("Internal error: submit_program failed with '{:?}'", e)
+                                .into_bytes()
+                        })?;
+
+                    QueueOf::<T>::iter()
+                        .next()
+                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
+                        .and_then(|queued| {
+                            queued
+                                .map_err(|_| {
+                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
+                                })
+                                .map(|dispatch| dispatch.destination())
+                        })?
                 }
 
-                HandleKind::Handle(dest) => {
-                    let destination = ProgramId::from_origin(dest);
+                HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
-                        .map_err(|_| b"Internal error: send_message failed".to_vec())?;
+                        .map_err(|e| {
+                            format!("Internal error: send_message failed with '{:?}'", e)
+                                .into_bytes()
+                        })?;
+
+                    destination
                 }
 
-                HandleKind::Reply(msg_id, _exit_code) => {
-                    let reply_to_id = MessageId::from_origin(msg_id);
+                HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
-                        .map_err(|_| b"Internal error: send_reply failed".to_vec())?;
+                        .map_err(|e| {
+                            format!("Internal error: send_reply failed with '{:?}'", e).into_bytes()
+                        })?;
+
+                    QueueOf::<T>::iter()
+                        .next()
+                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
+                        .and_then(|queued| {
+                            queued
+                                .map_err(|_| {
+                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
+                                })
+                                .map(|dispatch| dispatch.destination())
+                        })?
                 }
-            }
+            };
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -571,7 +656,9 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-            let mut max_gas_spent = 0;
+            let mut min_limit = 0;
+            let mut reserved = 0;
+            let mut burned = 0;
 
             let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
@@ -650,25 +737,47 @@ pub mod pallet {
                         })
                         .transpose()?
                     {
-                        max_gas_spent =
-                            max_gas_spent.max(initial_gas.saturating_sub(remaining_gas));
+                        min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
-                    if let JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
-                        ..
-                    } = note
-                    {
-                        return Err(format!(
-                            "Program terminated with a trap: {}",
-                            trap.unwrap_or_else(|| "No reason".to_string())
-                        )
-                        .into_bytes());
+                    match note {
+                        JournalNote::SendDispatch { dispatch, .. } => {
+                            let gas_limit = dispatch.gas_limit().unwrap_or(0);
+                            if ext_manager.check_user_id(&dispatch.destination()) && gas_limit > 0 {
+                                return Err(
+                                    b"Message sent to user with non zero gas limit".to_vec()
+                                );
+                            }
+
+                            // TODO change calculation of the field #1074
+                            reserved = reserved.saturating_add(gas_limit);
+                        }
+
+                        JournalNote::GasBurned { amount, .. } => {
+                            burned = burned.saturating_add(amount);
+                        }
+
+                        JournalNote::MessageDispatched {
+                            outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
+                            ..
+                        } if program_id == main_program_id || !allow_other_panics => {
+                            return Err(format!(
+                                "Program terminated with a trap: {}",
+                                trap.unwrap_or_else(|| "No reason".to_string())
+                            )
+                            .into_bytes());
+                        }
+
+                        _ => (),
                     }
                 }
             }
 
-            Ok(max_gas_spent)
+            Ok(GasInfo {
+                min_limit,
+                reserved,
+                burned,
+            })
         }
 
         /// Returns true if a program has been successfully initialized
@@ -702,6 +811,8 @@ pub mod pallet {
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
+        ///
+        /// Returns `Weight` amount being used for processing dispatches in the queue.
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -888,10 +999,18 @@ pub mod pallet {
                                 pages_data,
                             })
                         } else {
+                            // Reaching this branch is possible when init message was processed with failure, while other kind of messages
+                            // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
                             log::debug!("Program '{:?}' is not active", program_id,);
                             None
                         }
                     } else {
+                        // When an actor sends messages, which is intended to be added to the queue
+                        // it's destination existence is always checked. The only case this doesn't
+                        // happen is when program tries to submit another program with non-existing
+                        // code hash. That's the only known case for reaching that branch.
+                        //
+                        // However there is another case with pausing program, but this API is unstable currently.
                         None
                     };
 
