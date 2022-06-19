@@ -34,7 +34,7 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode};
-use core::fmt;
+use core::{fmt, ops::Deref};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -48,6 +48,7 @@ use scale_info::TypeInfo;
 // Max amount of bytes allowed to be thrown as string explanation of the error.
 pub const TRIMMED_MAX_LEN: usize = 1024;
 
+/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
 #[derive(
     Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
 )]
@@ -63,6 +64,14 @@ impl TrimmedString {
 impl<T: Into<String>> From<T> for TrimmedString {
     fn from(other: T) -> Self {
         Self::new(other.into())
+    }
+}
+
+impl Deref for TrimmedString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
