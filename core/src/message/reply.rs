@@ -169,8 +169,8 @@ impl ReplyPacket {
         }
     }
 
-    // TODO: consider using here impl `CoreError` and provide `AsExitCode`
-    // trait or append such functionality to `CoreError`.
+    // TODO: consider using here `impl CoreError` and/or provide `AsExitCode`
+    // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new empty ReplyPacket (for system generation).
     pub fn system(payload: Payload, exit_code: ExitCode) -> Self {
         Self {
