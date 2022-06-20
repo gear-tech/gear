@@ -55,7 +55,6 @@ pub trait ProcessorExt {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -175,8 +174,6 @@ pub struct Ext {
     pub existential_deposit: u128,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<ProcessorError>,
-    /// Contains argument to the `exit` if it was called.
-    pub exit_argument: Option<ProgramId>,
     /// Communication origin
     pub origin: ProgramId,
     /// Current program id
@@ -203,7 +200,6 @@ impl ProcessorExt for Ext {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -220,7 +216,6 @@ impl ProcessorExt for Ext {
             config,
             existential_deposit,
             error_explanation: None,
-            exit_argument,
             origin,
             program_id,
             program_candidates_data,
@@ -278,7 +273,6 @@ impl IntoExtInfo for Ext {
             trap_explanation: self
                 .error_explanation
                 .and_then(ProcessorError::into_trap_explanation),
-            exit_argument: self.exit_argument,
             program_candidates_data: self.program_candidates_data,
         })
     }
@@ -461,10 +455,8 @@ impl EnvExt for Ext {
         Ok(self.message_context.current().source())
     }
 
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
+    fn exit(&mut self, _value_destination: ProgramId) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
-        debug_assert!(self.exit_argument.is_none());
-        self.exit_argument = Some(value_destination);
         Ok(())
     }
 

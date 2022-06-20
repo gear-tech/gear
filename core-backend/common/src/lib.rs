@@ -67,7 +67,6 @@ pub struct ExtInfo {
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
     pub trap_explanation: Option<TrapExplanation>,
-    pub exit_argument: Option<ProgramId>,
 }
 
 pub trait IntoExtInfo {

@@ -130,7 +130,6 @@ impl IntoExtInfo for LazyPagesExt {
                 .inner
                 .error_explanation
                 .and_then(ProcessorError::into_trap_explanation),
-            exit_argument: self.inner.exit_argument,
             program_candidates_data: self.inner.program_candidates_data,
         })
     }
@@ -156,7 +155,6 @@ impl ProcessorExt for LazyPagesExt {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -175,7 +173,6 @@ impl ProcessorExt for LazyPagesExt {
                 config,
                 existential_deposit,
                 error_explanation: None,
-                exit_argument,
                 origin,
                 program_id,
                 program_candidates_data,
