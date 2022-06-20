@@ -133,23 +133,29 @@ where
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let runtime_api_result = api
-            .calculate_gas_info(
-                &at,
-                source,
-                HandleKind::Init(code.to_vec()),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-            )
-            .map_err(runtime_error_into_rpc_error)?;
+        let calculate_gas_info = |at, initial_gas| {
+            let api = self.client.runtime_api();
+            let runtime_api_result = api
+                .calculate_gas_info(
+                    at,
+                    source,
+                    HandleKind::Init(code.to_vec()),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    initial_gas,
+                )
+                .map_err(runtime_error_into_rpc_error)?;
 
-        runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+            runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
+        calculate_gas_info(&at, Some(min_limit))
     }
 
     fn get_handle_gas_spent(
@@ -161,23 +167,29 @@ where
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let runtime_api_result = api
-            .calculate_gas_info(
-                &at,
-                source,
-                HandleKind::Handle(ProgramId::from_origin(dest)),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-            )
-            .map_err(runtime_error_into_rpc_error)?;
+        let calculate_gas_info = |at, initial_gas| {
+            let api = self.client.runtime_api();
+            let runtime_api_result = api
+                .calculate_gas_info(
+                    at,
+                    source,
+                    HandleKind::Handle(ProgramId::from_origin(dest)),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    initial_gas,
+                )
+                .map_err(runtime_error_into_rpc_error)?;
 
-        runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+            runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
+        calculate_gas_info(&at, Some(min_limit))
     }
 
     fn get_reply_gas_spent(
@@ -190,22 +202,28 @@ where
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
-        let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let runtime_api_result = api
-            .calculate_gas_info(
-                &at,
-                source,
-                HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
-                payload.to_vec(),
-                value,
-                allow_other_panics,
-            )
-            .map_err(runtime_error_into_rpc_error)?;
+        let calculate_gas_info = |at, initial_gas| {
+            let api = self.client.runtime_api();
+            let runtime_api_result = api
+                .calculate_gas_info(
+                    at,
+                    source,
+                    HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
+                    payload.to_vec(),
+                    value,
+                    allow_other_panics,
+                    initial_gas,
+                )
+                .map_err(runtime_error_into_rpc_error)?;
 
-        runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+            runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+        };
+
+        let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
+        calculate_gas_info(&at, Some(min_limit))
     }
 }

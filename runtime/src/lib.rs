@@ -672,8 +672,9 @@ impl_runtime_apis! {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            initial_gas: Option<u64>,
         ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
-            Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics)
+            Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
         }
     }
 
