@@ -1406,7 +1406,14 @@ pub mod pallet {
                 Error::<T>::ProgramIsTerminated
             );
 
+            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+            // That's because destination can fail to be initialized, while this dispatch message is next
+            // in the queue.
+            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
             let origin = who.clone().into_origin();
+
             let message_id = Self::next_message_id(origin);
             let packet = HandlePacket::new_with_gas(
                 destination,
@@ -1415,12 +1422,6 @@ pub mod pallet {
                 value.unique_saturated_into(),
             );
             let message = HandleMessage::from_packet(message_id, packet);
-
-            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
-            // That's because destination can fail to be initialized, while this dispatch message is next
-            // in the queue.
-            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -1509,17 +1510,18 @@ pub mod pallet {
                 Error::<T>::ProgramIsTerminated
             );
 
-            let origin = who.clone().into_origin();
-            let message_id = MessageId::generate_reply(original_message.id(), 0);
-            let packet =
-                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
-            let message = ReplyMessage::from_packet(message_id, packet);
-
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            let origin = who.clone().into_origin();
+
+            let message_id = MessageId::generate_reply(original_message.id(), 0);
+            let packet =
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
+            let message = ReplyMessage::from_packet(message_id, packet);
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
