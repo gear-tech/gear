@@ -236,19 +236,20 @@ where
             move |mut caller: Caller<'_, StoreData<E>>, program_id_ptr: i32| -> Result<(), Trap> {
                 let ext = caller.data().ext.clone();
 
-                if let Err(err) = ext.with_fallible(|ext| -> Result<_, FuncError<_>> {
-                    let value_dest: ProgramId = get_bytes32(
-                        &get_caller_memory(&mut caller, &mem),
-                        program_id_ptr as u32 as _,
-                    )?
-                    .into();
-                    ext.exit(value_dest).map_err(FuncError::Core)
-                }) {
-                    Err(Trap::new(err))
-                } else {
-                    // Intentionally return an error to break the execution
-                    Err(Trap::new(FuncError::<E::Error>::Exit))
-                }
+                let program_id = ext
+                    .with_fallible(|ext| -> Result<_, FuncError<_>> {
+                        let value_dest: ProgramId = get_bytes32(
+                            &get_caller_memory(&mut caller, &mem),
+                            program_id_ptr as u32 as _,
+                        )?
+                        .into();
+                        ext.exit(value_dest).map_err(FuncError::Core)?;
+                        Ok(value_dest)
+                    })
+                    .map_err(Trap::new)?;
+
+                caller.data_mut().termination_reason = Some(TerminationReason::Exit(program_id));
+                Err(Trap::new(FuncError::<E::Error>::Exit))
             };
         Func::wrap(store, func)
     }

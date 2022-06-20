@@ -94,8 +94,6 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
-    #[display(fmt = "`gr_exit` has been called")]
-    Exit,
 }
 
 impl<E> FuncError<E> {
@@ -346,12 +344,12 @@ where
         let Runtime { ext, memory, .. } = ctx;
 
         ctx.trap = ext
-            .with_fallible(|ext| {
+            .with_fallible(|ext| -> Result<(), _> {
                 let value_dest: ProgramId = funcs::get_bytes32(memory, value_dest_ptr)?.into();
-                ext.exit(value_dest).map_err(FuncError::Core)
+                ext.exit(value_dest).map_err(FuncError::Core)?;
+                Err(FuncError::Terminated(TerminationReason::Exit(value_dest)))
             })
-            .err()
-            .or(Some(FuncError::Exit));
+            .err();
 
         Err(HostError)
     }

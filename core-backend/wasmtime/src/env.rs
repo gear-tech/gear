@@ -309,14 +309,7 @@ where
         let (info, memory_wrap) = prepare_info(self)?;
 
         let termination = if let Err(e) = &res {
-            let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
-                info.exit_argument
-                    .map(TerminationReason::Exit)
-                    .or(termination_reason)
-            } else {
-                None
-            };
-
+            let reason = termination_reason.filter(|_| e.is::<Trap>());
             if let Some(reason) = reason {
                 reason
             } else {

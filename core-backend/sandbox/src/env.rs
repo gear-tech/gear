@@ -266,11 +266,7 @@ where
             })?;
 
         let termination = if res.is_err() {
-            let reason = info
-                .exit_argument
-                .map(TerminationReason::Exit)
-                .or_else(|| trap.as_ref().and_then(FuncError::to_termination_reason));
-
+            let reason = trap.as_ref().and_then(FuncError::to_termination_reason);
             if let Some(reason) = reason {
                 reason
             } else {
