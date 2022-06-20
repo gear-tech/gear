@@ -106,15 +106,12 @@ where
     Client: 'static + ProvideRuntimeApi<Block>,
     Client::Api: GearRuntimeApi<Block>,
 {
-    fn run_with_api_copy<
-        R,
+    fn run_with_api_copy<R, F>(&self, f: F) -> RpcResult<R>
+    where
         F: FnOnce(
             ApiRef<<Client as ProvideRuntimeApi<Block>>::Api>,
         ) -> Result<Result<R, Vec<u8>>, ApiError>,
-    >(
-        &self,
-        f: F,
-    ) -> RpcResult<R> {
+    {
         let api = self.client.runtime_api();
 
         let runtime_api_result = f(api).map_err(runtime_error_into_rpc_error)?;
