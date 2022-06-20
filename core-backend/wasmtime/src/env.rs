@@ -36,7 +36,7 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 use wasmtime::{
-    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
 };
 
 use crate::{funcs::FuncsHandler as Funcs, memory::MemoryWrapExternal};
@@ -44,7 +44,7 @@ use crate::{funcs::FuncsHandler as Funcs, memory::MemoryWrapExternal};
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
     pub ext: ClonedExtCarrier<E>,
-    pub termination_reason: Option<TerminationReason>,
+    pub termination_reason: TerminationReason,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -63,8 +63,6 @@ pub enum WasmtimeEnvironmentError {
     SaveStaticPagesInitialData,
     #[display(fmt = "Failed to create env memory: {}", _0)]
     CreateEnvMemory(anyhow::Error),
-    #[display(fmt = "No trap explanation")]
-    NoTrapExplanation,
     #[display(fmt = "{}", _0)]
     MemoryAccess(MemoryError),
     #[display(fmt = "{}", _0)]
@@ -96,7 +94,7 @@ where
         let engine = Engine::default();
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
-            termination_reason: None,
+            termination_reason: TerminationReason::Success,
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
@@ -303,21 +301,18 @@ where
         };
 
         let res = entry_func.call(&mut self.memory_wrap.store, &[], &mut []);
+        log::debug!("execution res = {:?}", res);
 
         let termination_reason = self.memory_wrap.store.data().termination_reason.clone();
 
         let (info, memory_wrap) = prepare_info(self)?;
 
-        let termination = if let Err(e) = &res {
+        let termination = if res.is_err() {
             let reason = info
                 .trap_explanation
                 .clone()
                 .map(TerminationReason::Trap)
-                .or_else(|| termination_reason.filter(|_| e.is::<Trap>()))
-                .ok_or_else(|| BackendError {
-                    reason: WasmtimeEnvironmentError::NoTrapExplanation,
-                    gas_amount: info.gas_amount.clone(),
-                })?;
+                .unwrap_or(termination_reason);
 
             // success is unacceptable when there is error
             if let TerminationReason::Success = reason {

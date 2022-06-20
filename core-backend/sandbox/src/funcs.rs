@@ -26,6 +26,7 @@ use alloc::{
 use codec::Encode;
 use core::{
     convert::{TryFrom, TryInto},
+    fmt,
     marker::PhantomData,
     slice::Iter,
 };
@@ -96,7 +97,10 @@ pub enum FuncError<E> {
     Terminated(TerminationReason),
 }
 
-impl<E> FuncError<E> {
+impl<E> FuncError<E>
+where
+    E: fmt::Display,
+{
     fn as_core(&self) -> Option<&E> {
         match self {
             Self::Core(err) => Some(err),
@@ -104,10 +108,10 @@ impl<E> FuncError<E> {
         }
     }
 
-    pub fn to_termination_reason(&self) -> Option<TerminationReason> {
+    pub fn into_termination_reason(self) -> TerminationReason {
         match self {
-            Self::Terminated(reason) => Some(reason.clone()),
-            _ => None,
+            Self::Terminated(reason) => reason,
+            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string())),
         }
     }
 }

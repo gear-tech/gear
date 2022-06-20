@@ -213,7 +213,7 @@ where
                         .and_then(AsTerminationReason::as_termination_reason)
                     {
                         caller.data_mut().termination_reason =
-                            Some(TerminationReason::GasAllowanceExceeded);
+                            TerminationReason::GasAllowanceExceeded;
                     }
 
                     Trap::new(e)
@@ -248,7 +248,7 @@ where
                     })
                     .map_err(Trap::new)?;
 
-                caller.data_mut().termination_reason = Some(TerminationReason::Exit(program_id));
+                caller.data_mut().termination_reason = TerminationReason::Exit(program_id);
                 Err(Trap::new(FuncError::<E::Error>::Exit))
             };
         Func::wrap(store, func)
@@ -775,7 +775,7 @@ where
                 if let Err(err) = ext.with_fallible(|ext| ext.leave().map_err(FuncError::Core)) {
                     Trap::new(err)
                 } else {
-                    caller.data_mut().termination_reason = Some(TerminationReason::Leave);
+                    caller.data_mut().termination_reason = TerminationReason::Leave;
                     Trap::new(FuncError::<E::Error>::Leave)
                 };
             // Intentionally return an error to break the execution
@@ -791,7 +791,7 @@ where
                 if let Err(err) = ext.with_fallible(|ext| ext.wait().map_err(FuncError::Core)) {
                     Trap::new(err)
                 } else {
-                    caller.data_mut().termination_reason = Some(TerminationReason::Wait);
+                    caller.data_mut().termination_reason = TerminationReason::Wait;
                     Trap::new(FuncError::<E::Error>::Wait)
                 };
             // Intentionally return an error to break the execution
@@ -830,8 +830,8 @@ where
 
     pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
-            caller.data_mut().termination_reason = Some(TerminationReason::Trap(
-                TrapExplanation::Other("Unable to call a forbidden function".into()),
+            caller.data_mut().termination_reason = TerminationReason::Trap(TrapExplanation::Other(
+                "Unable to call a forbidden function".into(),
             ));
             Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
         };
