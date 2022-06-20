@@ -1,5 +1,5 @@
 [package]
-name = "demo-pow"
+name = "demo-pow-calculator"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
@@ -10,14 +10,12 @@ workspace = "../../../"
 gstd = { path = "../../../gstd", features = ["debug"] }
 
 # encoding
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive", "full"]}
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"]}
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 
-[lib]
-
 [features]
-std = []
+std = [  ]
 default = ["std"]

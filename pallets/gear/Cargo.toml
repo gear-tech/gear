@@ -64,7 +64,8 @@ demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
-demo-pow = { path = "../../examples/binaries/pow" }
+demo-pow-aggregator = { path = "../../examples/binaries/pow-aggregator" }
+demo-pow-calculator = { path = "../../examples/binaries/pow-calculator" }
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 page_size = "0.4.2"

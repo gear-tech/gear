@@ -1376,7 +1376,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-pow"
+name = "demo-pow-aggregator"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-pow-calculator"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -4830,7 +4839,8 @@ dependencies = [
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
  "demo-mul-by-const",
- "demo-pow",
+ "demo-pow-aggregator",
+ "demo-pow-calculator",
  "demo-program-factory",
  "demo-proxy",
  "demo-waiting-proxy",
