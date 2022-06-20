@@ -1436,15 +1436,15 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let origin = who.clone().into_origin();
+            let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-                let origin = who.clone().into_origin();
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
                 let event = Event::MessageEnqueued {
                     id: message.id(),
@@ -1458,9 +1458,6 @@ pub mod pallet {
 
                 Self::deposit_event(event);
             } else {
-                // Message in mailbox is not meant for any processing, hence 0 gas limit
-                // and no gas tree needs to be created
-                let origin = who.into_origin();
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
                 // TODO: update logic of insertion into mailbox following new
@@ -1548,6 +1545,9 @@ pub mod pallet {
                 return Ok(().into());
             }
 
+            let origin = who.clone().into_origin();
+            let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
@@ -1560,9 +1560,6 @@ pub mod pallet {
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-                let origin = who.clone().into_origin();
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
@@ -1585,10 +1582,6 @@ pub mod pallet {
 
                 Self::deposit_event(event);
             } else {
-                // Message in mailbox is not meant for any processing, hence 0 gas limit
-                // and no gas tree needs to be created
-                let origin = who.into_origin();
-
                 let message = message.into_stored(
                     ProgramId::from_origin(origin),
                     destination,

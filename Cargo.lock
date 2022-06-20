@@ -1376,26 +1376,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-pow-aggregator"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "demo-pow-calculator"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
