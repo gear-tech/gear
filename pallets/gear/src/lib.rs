@@ -519,7 +519,7 @@ pub mod pallet {
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                initial_gas.unwrap_or(<T as pallet_gas::Config>::BlockGasLimit::get()),
+                initial_gas.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get),
                 payload,
                 value,
                 allow_other_panics,
