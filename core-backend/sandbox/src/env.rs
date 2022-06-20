@@ -74,7 +74,7 @@ pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
 pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
-    pub trap: Option<FuncError<E::Error>>,
+    pub trap: FuncError<E::Error>,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -186,7 +186,7 @@ where
         let mut runtime = Runtime {
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
-            trap: None,
+            trap: FuncError::Terminated(TerminationReason::Success),
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
@@ -266,7 +266,7 @@ where
             })?;
 
         let termination = if res.is_err() {
-            let reason = trap.as_ref().and_then(FuncError::to_termination_reason);
+            let reason = trap.to_termination_reason();
             if let Some(reason) = reason {
                 reason
             } else {
