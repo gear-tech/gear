@@ -127,7 +127,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
-        entries: Vec<Vec<u8>>,
+        entries: BTreeSet<Vec<u8>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 

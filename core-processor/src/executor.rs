@@ -302,7 +302,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut env = E::new(
         ext,
         program.raw_code(),
-        program.code().exports().to_vec(),
+        program.code().exports().clone(),
         mem_size,
     )
     .map_err(|err| {

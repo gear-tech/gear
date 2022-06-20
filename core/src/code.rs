@@ -18,8 +18,8 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, memory::WasmPageNumber};
-use alloc::vec::Vec;
+use crate::{ids::CodeId, memory::WasmPageNumber, message::DispatchKind};
+use alloc::{collections::BTreeSet, vec::Vec};
 use codec::{Decode, Encode};
 use parity_wasm::elements::Module;
 use scale_info::TypeInfo;
@@ -62,7 +62,7 @@ pub struct Code {
     /// The uninstrumented, original version of the code.
     raw_code: Vec<u8>,
     /// Exports of the wasm module.
-    exports: Vec<Vec<u8>>,
+    exports: BTreeSet<Vec<u8>>,
     static_pages: WasmPageNumber,
     #[codec(compact)]
     instruction_weights_version: u32,
@@ -103,7 +103,7 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let exports: Vec<Vec<u8>> = module
+        let exports: BTreeSet<Vec<u8>> = module
             .export_section()
             .ok_or(CodeError::ExportSectionNotFound)?
             .entries()
@@ -111,7 +111,9 @@ impl Code {
             .map(|v| v.field().as_bytes().to_vec())
             .collect();
 
-        if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec()) {
+        if exports.contains(&DispatchKind::Init.into_entry().as_bytes().to_vec())
+            || exports.contains(&DispatchKind::Handle.into_entry().as_bytes().to_vec())
+        {
             let gas_rules = get_gas_rules(&module);
             let instrumented_module =
                 wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
@@ -160,7 +162,7 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let exports: Vec<Vec<u8>> = module
+        let exports: BTreeSet<Vec<u8>> = module
             .export_section()
             .ok_or(CodeError::ExportSectionNotFound)?
             .entries()
@@ -168,7 +170,9 @@ impl Code {
             .map(|v| v.field().as_bytes().to_vec())
             .collect();
 
-        if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec()) {
+        if exports.contains(&DispatchKind::Init.into_entry().as_bytes().to_vec())
+            || exports.contains(&DispatchKind::Handle.into_entry().as_bytes().to_vec())
+        {
             Ok(Self {
                 raw_code: original_code.clone(),
                 code: original_code,
@@ -192,7 +196,7 @@ impl Code {
     }
 
     /// Returns wasm module exports.
-    pub fn exports(&self) -> &[Vec<u8>] {
+    pub fn exports(&self) -> &BTreeSet<Vec<u8>> {
         &self.exports
     }
 
@@ -260,7 +264,7 @@ impl CodeAndId {
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {
     code: Vec<u8>,
-    exports: Vec<Vec<u8>>,
+    exports: BTreeSet<Vec<u8>>,
     static_pages: WasmPageNumber,
     version: u32,
 }
@@ -277,7 +281,7 @@ impl InstrumentedCode {
     }
 
     /// Returns wasm module exports.
-    pub fn exports(&self) -> &[Vec<u8>] {
+    pub fn exports(&self) -> &BTreeSet<Vec<u8>> {
         &self.exports
     }
 

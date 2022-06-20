@@ -22,6 +22,7 @@ use core::fmt;
 
 use crate::{funcs_tree, memory::MemoryWrapExternal};
 use alloc::{
+    collections::BTreeSet,
     format,
     string::{String, ToString},
     vec::Vec,
@@ -85,7 +86,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        _entries: Vec<Vec<u8>>,
+        _entries: BTreeSet<Vec<u8>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let forbidden_funcs = ext.forbidden_funcs().clone();

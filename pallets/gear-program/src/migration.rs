@@ -37,6 +37,7 @@ pub fn migrate<T: Config>() -> Weight {
 mod v2 {
     use super::*;
     use sp_std::vec::Vec;
+    use sp_std::collections::btree_set::BTreeSet;
 
     #[derive(Encode, Decode)]
     struct WasmPageNumber(u32);
@@ -57,7 +58,7 @@ mod v2 {
     struct Code {
         code: Vec<u8>,
         raw_code: Vec<u8>,
-        exports: Vec<Vec<u8>>,
+        exports: BTreeSet<Vec<u8>>,
         static_pages: WasmPageNumber,
         #[codec(compact)]
         instruction_weights_version: u32,
@@ -73,7 +74,7 @@ mod v2 {
     #[derive(Encode, Decode)]
     struct InstrumentedCode {
         code: Vec<u8>,
-        exports: Vec<Vec<u8>>,
+        exports: BTreeSet<Vec<u8>>,
         static_pages: WasmPageNumber,
         version: u32,
     }
@@ -94,14 +95,14 @@ mod v2 {
                     wasm_instrument::parity_wasm::elements::Module,
                 >(&orig_code)
                 {
-                    let exports = if let Some(export_section) = module.export_section() {
+                    let exports: BTreeSet<Vec<u8>> = if let Some(export_section) = module.export_section() {
                         export_section
                             .entries()
                             .iter()
                             .map(|v| v.field().as_bytes().to_vec())
                             .collect()
                     } else {
-                        Vec::new()
+                        BTreeSet::<Vec<u8>>::new()
                     };
 
                     if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec())

@@ -66,7 +66,7 @@ pub enum SandboxEnvironmentError {
 pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
     runtime: Runtime<E>,
     instance: Instance<Runtime<E>>,
-    entries: Vec<Vec<u8>>,
+    entries: BTreeSet<Vec<u8>>,
 }
 
 pub(crate) struct Runtime<E: Ext> {
@@ -113,7 +113,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        entries: Vec<Vec<u8>>,
+        entries: BTreeSet<Vec<u8>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let mut builder = EnvBuilder::<E> {
