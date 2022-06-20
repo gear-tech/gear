@@ -307,15 +307,16 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
         WaitlistOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
-                let node = pallet_gas::Pallet::<Runtime>::get_node(dispatch.id().into_origin())
+                let node_id = dispatch.id().into_origin();
+                let node = pallet_gas::Pallet::<Runtime>::get_node(node_id)
                     .expect("There is always a value node for a valid dispatch ID");
-                let node_with_value = node
+                let (ancestor_with_value, ancestor_id) = node
                     .node_with_value::<Runtime>()
                     .expect("There is always a node with concrete value for a node");
-                let value = node_with_value
+                let value = ancestor_with_value
                     .inner_value()
                     .expect("Node with value must have value");
-                (node_with_value.id, value)
+                (ancestor_id.unwrap_or(node_id), value)
             })
             .collect();
 

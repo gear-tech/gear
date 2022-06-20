@@ -122,7 +122,7 @@ impl core::fmt::Debug for PayeeInfo {
     }
 }
 
-#[derive(Encode, Decode, Default, Clone, PartialEq, Eq, RuntimeDebug, scale_info::TypeInfo)]
+#[derive(Encode, Decode, Default, Clone, Eq, PartialEq, RuntimeDebug, scale_info::TypeInfo)]
 pub struct WaitListInvoiceData<BlockNumber> {
     pub program_id: H256,
     pub message_id: H256,
