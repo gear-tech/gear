@@ -29,7 +29,7 @@ use jsonrpsee::{
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
-use sp_api::ProvideRuntimeApi;
+use sp_api::{ApiRef, ApiError, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
@@ -100,6 +100,22 @@ impl<C, P> Gear<C, P> {
     }
 }
 
+impl<Client, Block> Gear<Client, Block>
+where
+    Block: BlockT,
+    Client: 'static + ProvideRuntimeApi<Block>,
+    Client::Api: GearRuntimeApi<Block>,
+{
+    fn run_with_api_copy<R, F: FnOnce(ApiRef<<Client as ProvideRuntimeApi<Block>>::Api>) -> Result<Result<R, Vec<u8>>, ApiError>>(&self, f: F) -> RpcResult<R> {
+        let api = self.client.runtime_api();
+
+        let runtime_api_result = f(api).map_err(runtime_error_into_rpc_error)?;
+
+        runtime_api_result
+            .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+    }
+}
+
 /// Error type of this RPC api.
 pub enum Error {
     /// The transaction was not decodable.
@@ -137,26 +153,26 @@ where
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let calculate_gas_info = |at, initial_gas| {
-            let api = self.client.runtime_api();
-            let runtime_api_result = api
-                .calculate_gas_info(
-                    at,
-                    source,
-                    HandleKind::Init(code.to_vec()),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    initial_gas,
-                )
-                .map_err(runtime_error_into_rpc_error)?;
-
-            runtime_api_result
-                .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
-        };
-
-        let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
-        calculate_gas_info(&at, Some(min_limit))
+        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| api
+            .calculate_gas_info(
+                &at,
+                source,
+                HandleKind::Init(code.to_vec()),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                None,
+            ))?;
+        self.run_with_api_copy(|api| api
+            .calculate_gas_info(
+                &at,
+                source,
+                HandleKind::Init(code.to_vec()),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                Some(min_limit),
+            ))
     }
 
     fn get_handle_gas_spent(
@@ -172,26 +188,26 @@ where
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let calculate_gas_info = |at, initial_gas| {
-            let api = self.client.runtime_api();
-            let runtime_api_result = api
-                .calculate_gas_info(
-                    at,
-                    source,
-                    HandleKind::Handle(ProgramId::from_origin(dest)),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    initial_gas,
-                )
-                .map_err(runtime_error_into_rpc_error)?;
-
-            runtime_api_result
-                .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
-        };
-
-        let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
-        calculate_gas_info(&at, Some(min_limit))
+        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| api
+            .calculate_gas_info(
+                &at,
+                source,
+                HandleKind::Handle(ProgramId::from_origin(dest)),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                None,
+            ))?;
+        self.run_with_api_copy(|api| api
+            .calculate_gas_info(
+                &at,
+                source,
+                HandleKind::Handle(ProgramId::from_origin(dest)),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                Some(min_limit),
+            ))
     }
 
     fn get_reply_gas_spent(
@@ -208,25 +224,25 @@ where
             // If the block hash is not supplied assume the best block.
             self.client.info().best_hash));
 
-        let calculate_gas_info = |at, initial_gas| {
-            let api = self.client.runtime_api();
-            let runtime_api_result = api
-                .calculate_gas_info(
-                    at,
-                    source,
-                    HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
-                    payload.to_vec(),
-                    value,
-                    allow_other_panics,
-                    initial_gas,
-                )
-                .map_err(runtime_error_into_rpc_error)?;
-
-            runtime_api_result
-                .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
-        };
-
-        let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
-        calculate_gas_info(&at, Some(min_limit))
+        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| api
+            .calculate_gas_info(
+                &at,
+                source,
+                HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                None,
+            ))?;
+        self.run_with_api_copy(|api| api
+            .calculate_gas_info(
+                &at,
+                source,
+                HandleKind::Reply(MessageId::from_origin(message_id), exit_code),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                Some(min_limit),
+            ))
     }
 }
