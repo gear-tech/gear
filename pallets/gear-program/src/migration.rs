@@ -113,7 +113,7 @@ mod v2 {
                             version: old.version,
                         })
                     } else {
-                        <OriginalCodeStorage<T>>::remove(key); 
+                        <OriginalCodeStorage<T>>::remove(key);
                         weight = weight.saturating_add(T::DbWeight::get().reads_writes(0, 1));
                         None
                     }
