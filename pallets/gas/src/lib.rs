@@ -51,6 +51,7 @@ impl Default for ValueType {
     }
 }
 
+// todo [sab] UnspecifiedLocal don't need refs
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
     pub id: H256,
@@ -104,7 +105,7 @@ impl ValueNode {
     /// If some node along the upstream path is missing, returns an error (tree is invalidated).
     pub fn node_with_value<T: Config>(self) -> Result<ValueNode, DispatchError> {
         let mut ret_node = self;
-        while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
+        if let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
             ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
         }
 
@@ -456,7 +457,9 @@ where
     }
 
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
-        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+        let mut node = Self::get_node(key)
+            .ok_or(Error::<T>::NodeNotFound)?
+            .node_with_value::<T>()?;
 
         ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
@@ -469,7 +472,7 @@ where
 
         let new_node = ValueNode {
             id: new_node_key,
-            inner: ValueType::UnspecifiedLocal { parent: key },
+            inner: ValueType::UnspecifiedLocal { parent: node.id },
             spec_refs: 0,
             unspec_refs: 0,
             consumed: false,
@@ -484,22 +487,20 @@ where
     }
 
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
-        let mut parent = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+        let mut node = Self::get_node(key)
+            .ok_or(Error::<T>::NodeNotFound)?
+            .node_with_value::<T>()?;
 
-        ensure!(!parent.consumed, Error::<T>::NodeWasConsumed);
+        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
         ensure!(
             !GasTree::<T>::contains_key(new_node_key),
             Error::<T>::NodeAlreadyExists
         );
 
-        // Upstream node with a concrete value exist for any node.
-        // If it doesn't, the tree is considered invalidated.
-        let mut ancestor_with_value = parent.clone().node_with_value::<T>()?;
-
-        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+        // NOTE: intentional expect. A `node` is guaranteed to have inner_value
         ensure!(
-            ancestor_with_value
+            node
                 .inner_value()
                 .expect("Querying node with value")
                 >= amount,
@@ -510,7 +511,7 @@ where
             id: new_node_key,
             inner: ValueType::SpecifiedLocal {
                 value: amount,
-                parent: key,
+                parent: node.id,
             },
             spec_refs: 0,
             unspec_refs: 0,
@@ -519,18 +520,9 @@ where
         // Save new node
         GasTree::<T>::insert(new_node_key, new_node);
 
-        parent.spec_refs = parent.spec_refs.saturating_add(1);
-        if parent.id == ancestor_with_value.id {
-            *parent.inner_value_mut().expect("Querying node with value") -= amount;
-            GasTree::<T>::insert(key, parent);
-        } else {
-            // Update current node
-            GasTree::<T>::insert(key, parent);
-            *ancestor_with_value
-                .inner_value_mut()
-                .expect("Querying node with value") -= amount;
-            GasTree::<T>::insert(ancestor_with_value.id, ancestor_with_value);
-        }
+        node.spec_refs = node.spec_refs.saturating_add(1);
+        *node.inner_value_mut().expect("Querying node with value") -= amount;
+        GasTree::<T>::insert(node.id, node);
 
         Ok(())
     }
