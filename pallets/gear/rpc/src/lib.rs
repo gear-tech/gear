@@ -151,7 +151,8 @@ where
                 )
                 .map_err(runtime_error_into_rpc_error)?;
 
-            runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+            runtime_api_result
+                .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
         };
 
         let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
@@ -185,7 +186,8 @@ where
                 )
                 .map_err(runtime_error_into_rpc_error)?;
 
-            runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+            runtime_api_result
+                .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
         };
 
         let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
@@ -220,7 +222,8 @@ where
                 )
                 .map_err(runtime_error_into_rpc_error)?;
 
-            runtime_api_result.map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
+            runtime_api_result
+                .map_err(|e| runtime_error_into_rpc_error(String::from_utf8_lossy(&e)))
         };
 
         let GasInfo { min_limit, .. } = calculate_gas_info(&at, None)?;
