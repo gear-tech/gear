@@ -31,7 +31,7 @@ use alloc::{
 use core::fmt;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason,
+    IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -266,14 +266,22 @@ where
             })?;
 
         let termination = if res.is_err() {
-            info.trap_explanation
+            let reason = info
+                .trap_explanation
                 .clone()
                 .map(TerminationReason::Trap)
                 .or_else(|| trap.to_termination_reason())
                 .ok_or_else(|| BackendError {
                     reason: SandboxEnvironmentError::NoTrapExplanation,
                     gas_amount: info.gas_amount.clone(),
-                })?
+                })?;
+
+            // success is unacceptable when there is error
+            if let TerminationReason::Success = reason {
+                TerminationReason::Trap(TrapExplanation::Unknown)
+            } else {
+                reason
+            }
         } else {
             TerminationReason::Success
         };

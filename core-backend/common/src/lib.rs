@@ -56,6 +56,8 @@ pub enum TrapExplanation {
     Core(ExtError),
     #[display(fmt = "{}", _0)]
     Other(String),
+    #[display(fmt = "Unknown reason")]
+    Unknown,
 }
 
 pub struct ExtInfo {

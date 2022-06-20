@@ -27,7 +27,7 @@ use alloc::{
 };
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    ExtInfo, IntoExtInfo, TerminationReason,
+    ExtInfo, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
@@ -309,14 +309,22 @@ where
         let (info, memory_wrap) = prepare_info(self)?;
 
         let termination = if let Err(e) = &res {
-            info.trap_explanation
+            let reason = info
+                .trap_explanation
                 .clone()
                 .map(TerminationReason::Trap)
                 .or_else(|| termination_reason.filter(|_| e.is::<Trap>()))
                 .ok_or_else(|| BackendError {
                     reason: WasmtimeEnvironmentError::NoTrapExplanation,
                     gas_amount: info.gas_amount.clone(),
-                })?
+                })?;
+
+            // success is unacceptable when there is error
+            if let TerminationReason::Success = reason {
+                TerminationReason::Trap(TrapExplanation::Unknown)
+            } else {
+                reason
+            }
         } else {
             TerminationReason::Success
         };
