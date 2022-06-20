@@ -266,16 +266,14 @@ where
             })?;
 
         let termination = if res.is_err() {
-            let reason = trap.to_termination_reason();
-            if let Some(reason) = reason {
-                reason
-            } else {
-                let explanation = info.trap_explanation.clone().ok_or_else(|| BackendError {
+            info.trap_explanation
+                .clone()
+                .map(TerminationReason::Trap)
+                .or_else(|| trap.to_termination_reason())
+                .ok_or_else(|| BackendError {
                     reason: SandboxEnvironmentError::NoTrapExplanation,
                     gas_amount: info.gas_amount.clone(),
-                })?;
-                TerminationReason::Trap(explanation)
-            }
+                })?
         } else {
             TerminationReason::Success
         };

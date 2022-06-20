@@ -309,16 +309,14 @@ where
         let (info, memory_wrap) = prepare_info(self)?;
 
         let termination = if let Err(e) = &res {
-            let reason = termination_reason.filter(|_| e.is::<Trap>());
-            if let Some(reason) = reason {
-                reason
-            } else {
-                let explanation = info.trap_explanation.clone().ok_or_else(|| BackendError {
+            info.trap_explanation
+                .clone()
+                .map(TerminationReason::Trap)
+                .or_else(|| termination_reason.filter(|_| e.is::<Trap>()))
+                .ok_or_else(|| BackendError {
                     reason: WasmtimeEnvironmentError::NoTrapExplanation,
                     gas_amount: info.gas_amount.clone(),
-                })?;
-                TerminationReason::Trap(explanation)
-            }
+                })?
         } else {
             TerminationReason::Success
         };
