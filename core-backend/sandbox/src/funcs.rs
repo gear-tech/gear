@@ -345,7 +345,7 @@ where
 
         let res = ext.with_fallible(|ext| -> Result<(), _> {
             let value_dest: ProgramId = funcs::get_bytes32(memory, value_dest_ptr)?.into();
-            ext.exit(value_dest).map_err(FuncError::Core)?;
+            ext.exit().map_err(FuncError::Core)?;
             Err(FuncError::Terminated(TerminationReason::Exit(value_dest)))
         });
         if let Err(err) = res {

@@ -243,7 +243,7 @@ where
                             program_id_ptr as u32 as _,
                         )?
                         .into();
-                        ext.exit(value_dest).map_err(FuncError::Core)?;
+                        ext.exit().map_err(FuncError::Core)?;
                         Ok(value_dest)
                     })
                     .map_err(Trap::new)?;

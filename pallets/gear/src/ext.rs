@@ -343,8 +343,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.source().map_err(Error::Processor)
     }
 
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
-        self.inner.exit(value_destination).map_err(Error::Processor)
+    fn exit(&mut self) -> Result<(), Self::Error> {
+        self.inner.exit().map_err(Error::Processor)
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {

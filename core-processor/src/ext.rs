@@ -455,7 +455,7 @@ impl EnvExt for Ext {
         Ok(self.message_context.current().source())
     }
 
-    fn exit(&mut self, _value_destination: ProgramId) -> Result<(), Self::Error> {
+    fn exit(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
         Ok(())
     }
