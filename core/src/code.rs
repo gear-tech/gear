@@ -59,6 +59,7 @@ pub struct Code {
     code: Vec<u8>,
     /// The uninstrumented, original version of the code.
     raw_code: Vec<u8>,
+    /// Exports of the wasm module.
     exports: Vec<Vec<u8>>,
     static_pages: WasmPageNumber,
     #[codec(compact)]
@@ -178,6 +179,11 @@ impl Code {
         &self.code
     }
 
+    /// Returns wasm module exports.
+    pub fn exports(&self) -> &[Vec<u8>] {
+        &self.exports
+    }
+
     /// Returns instruction weights version.
     pub fn instruction_weights_version(&self) -> u32 {
         self.instruction_weights_version
@@ -258,7 +264,7 @@ impl InstrumentedCode {
         self.version
     }
 
-    /// Returns initial memory size from memory import.
+    /// Returns wasm module exports.
     pub fn exports(&self) -> &[Vec<u8>] {
         &self.exports
     }
