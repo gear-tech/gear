@@ -830,9 +830,8 @@ where
 
     pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
-            caller.data_mut().termination_reason = TerminationReason::Trap(TrapExplanation::Other(
-                "Unable to call a forbidden function".into(),
-            ));
+            caller.data_mut().termination_reason =
+                TerminationReason::Trap(TrapExplanation::ForbiddenFunction);
             Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
         };
         Func::wrap(store, func)
