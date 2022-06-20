@@ -436,7 +436,6 @@ impl ExtManager {
             .get(&dispatch.id())
             .expect("Unable to find gas limit for message")
             .unwrap_or(u64::MAX);
-
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             executable_actor,
             dispatch.into_incoming(gas_limit),
