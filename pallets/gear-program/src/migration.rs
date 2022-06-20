@@ -41,7 +41,7 @@ mod v2 {
     #[derive(Encode, Decode)]
     struct WasmPageNumber(u32);
 
-    #[derive(Encode, Decode)]
+    #[derive(Encode, Decode, Clone, Copy)]
     struct CodeId([u8; 32]);
 
     #[derive(Encode, Decode)]
@@ -104,12 +104,17 @@ mod v2 {
                         Vec::new()
                     };
 
-                    Some(InstrumentedCode {
-                        code: old.code,
-                        exports,
-                        static_pages: old.static_pages,
-                        version: old.version,
-                    })
+                    if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec())
+                    {
+                        Some(InstrumentedCode {
+                            code: old.code,
+                            exports,
+                            static_pages: old.static_pages,
+                            version: old.version,
+                        })
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }

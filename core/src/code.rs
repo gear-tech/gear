@@ -34,6 +34,8 @@ pub enum CodeError {
     MemoryEntryNotFound,
     /// The provided code doesn't contain export section.
     ExportSectionNotFound,
+    /// The provided code doesn't contain the required `init` or `handle` export function.
+    RequiredExportNotFound,
     /// Error occurred during decoding original program code.
     ///
     /// The provided code was a malformed Wasm bytecode or contained unsupported features
@@ -101,7 +103,7 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let exports = module
+        let exports: Vec<Vec<u8>> = module
             .export_section()
             .ok_or(CodeError::ExportSectionNotFound)?
             .entries()
@@ -109,20 +111,26 @@ impl Code {
             .map(|v| v.field().as_bytes().to_vec())
             .collect();
 
-        let gas_rules = get_gas_rules(&module);
-        let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-            .map_err(|_| CodeError::GasInjection)?;
+        if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec()) {
+            let gas_rules = get_gas_rules(&module);
+            let instrumented_module =
+                wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
+                    .map_err(|_| CodeError::GasInjection)?;
 
-        let instrumented = wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-            .map_err(|_| CodeError::Encode)?;
+            let instrumented =
+                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| CodeError::Encode)?;
 
-        Ok(Self {
-            code: instrumented,
-            raw_code,
-            exports,
-            static_pages,
-            instruction_weights_version: version,
-        })
+            Ok(Self {
+                code: instrumented,
+                raw_code,
+                exports,
+                static_pages,
+                instruction_weights_version: version,
+            })
+        } else {
+            Err(CodeError::RequiredExportNotFound)
+        }
     }
 
     /// Create the code without checks.
@@ -152,7 +160,7 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let exports = module
+        let exports: Vec<Vec<u8>> = module
             .export_section()
             .ok_or(CodeError::ExportSectionNotFound)?
             .entries()
@@ -160,13 +168,17 @@ impl Code {
             .map(|v| v.field().as_bytes().to_vec())
             .collect();
 
-        Ok(Self {
-            raw_code: original_code.clone(),
-            code: original_code,
-            exports,
-            static_pages,
-            instruction_weights_version: version,
-        })
+        if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec()) {
+            Ok(Self {
+                raw_code: original_code.clone(),
+                code: original_code,
+                exports,
+                static_pages,
+                instruction_weights_version: version,
+            })
+        } else {
+            Err(CodeError::RequiredExportNotFound)
+        }
     }
 
     /// Returns the original code.
