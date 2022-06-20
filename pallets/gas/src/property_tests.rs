@@ -141,7 +141,7 @@ proptest! {
             assert_eq!(gas_tree_ids, BTreeSet::from_iter(node_ids));
 
             let mut rest_value = 0;
-            for node in GasTree::<Test>::iter_values() {
+            for (node_id, node) in GasTree::<Test>::iter() {
                 if let Some(value) = node.inner_value() {
                     rest_value += value;
                 }
@@ -153,10 +153,10 @@ proptest! {
 
                 // Check property: specified local nodes are created only with `split_with_value` call
                 if matches!(node.inner, ValueType::SpecifiedLocal { .. }) {
-                    assert!(spec_ref_nodes.contains(&node.id));
+                    assert!(spec_ref_nodes.contains(&node_id));
                 } else if matches!(node.inner, ValueType::UnspecifiedLocal { .. }) {
                     // Check property: unspecified local nodes are created only with `split` call
-                    assert!(unspec_ref_nodes.contains(&node.id));
+                    assert!(unspec_ref_nodes.contains(&node_id));
                 }
 
                 // Check property: for all the consumed nodes currently existing in the tree...
@@ -164,14 +164,14 @@ proptest! {
                     // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
                     assert!(node.refs() != 0);
                     // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
-                    assert!(marked_consumed.contains(&node.id));
+                    assert!(marked_consumed.contains(&node_id));
                 } else {
                     // If is not consumed, then no consume calls should have been called on it
-                    assert!(!marked_consumed.contains(&node.id));
+                    assert!(!marked_consumed.contains(&node_id));
                 }
 
                 // Check property: all nodes have ancestor (node is a self-ancestor too) with value
-                let ancestor_with_value = node.node_with_value::<Test>().expect("tree is invalidated");
+                let (ancestor_with_value, _) = node.node_with_value::<Test>().expect("tree is invalidated");
                 assert!(ancestor_with_value.inner_value().is_some());
             }
 
