@@ -2816,6 +2816,7 @@ version = "0.1.0"
 dependencies = [
  "colored",
  "env_logger",
+ "gear-backend-common",
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",

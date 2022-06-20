@@ -22,7 +22,6 @@ use core::fmt;
 
 use crate::{funcs_tree, memory::MemoryWrapExternal};
 use alloc::{
-    format,
     string::{String, ToString},
     vec::Vec,
 };
