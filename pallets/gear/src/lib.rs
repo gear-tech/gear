@@ -1416,28 +1416,11 @@ pub mod pallet {
             );
             let message = HandleMessage::from_packet(message_id, packet);
 
-            if gas_limit < T::MessageRent::get() {
-                let message = message.into_stored(ProgramId::from_origin(origin));
-
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                });
-
-                return Ok(().into());
-            }
-
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let origin = who.clone().into_origin();
-            let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -1445,6 +1428,7 @@ pub mod pallet {
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
                 let event = Event::MessageEnqueued {
                     id: message.id(),
@@ -1460,9 +1444,12 @@ pub mod pallet {
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
-                // TODO: update logic of insertion into mailbox following new
-                // flow and deposit appropriate event (issue #1010).
-                MailboxOf::<T>::insert(message.clone())?;
+                if gas_limit >= T::MessageRent::get() {
+                    // TODO: update logic of insertion into mailbox following new
+                    // flow and deposit appropriate event (issue #1010).
+                    MailboxOf::<T>::insert(message.clone())?;
+                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                }
 
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one
@@ -1522,31 +1509,11 @@ pub mod pallet {
                 Error::<T>::ProgramIsTerminated
             );
 
+            let origin = who.clone().into_origin();
             let message_id = MessageId::generate_reply(original_message.id(), 0);
             let packet =
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
             let message = ReplyMessage::from_packet(message_id, packet);
-
-            if gas_limit < T::MessageRent::get() {
-                let message = message.into_stored(
-                    ProgramId::from_origin(who.into_origin()),
-                    destination,
-                    original_message.id(),
-                );
-
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                });
-
-                return Ok(().into());
-            }
-
-            let origin = who.clone().into_origin();
-            let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1560,6 +1527,8 @@ pub mod pallet {
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
@@ -1588,9 +1557,12 @@ pub mod pallet {
                     original_message.id(),
                 );
 
-                // TODO: update logic of insertion into mailbox following new
-                // flow and deposit appropriate event (issue #1010).
-                MailboxOf::<T>::insert(message.clone())?;
+                if gas_limit >= T::MessageRent::get() {
+                    // TODO: update logic of insertion into mailbox following new
+                    // flow and deposit appropriate event (issue #1010).
+                    MailboxOf::<T>::insert(message.clone())?;
+                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                }
 
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one

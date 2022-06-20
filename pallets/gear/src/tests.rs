@@ -20,7 +20,7 @@ use crate::{
     manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, run_to_next_block, Event as MockEvent, Gear, GearProgram,
-        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        MessageRent, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
     WaitlistOf,
@@ -233,8 +233,88 @@ fn send_message_works() {
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            DEFAULT_GAS_LIMIT
+        );
     });
+}
+
+#[test]
+fn message_rent_works_for_mailbox() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let rent = MessageRent::get();
+        let check_result = |sufficient: bool| -> (AccountId, MessageId) {
+            let message =
+                if let MockEvent::Gear(Event::<Test>::UserMessageSent { message, .. }) =
+                    get_last_event()
+                {
+                    message
+                } else {
+                    panic!("Incorrect events after sending or replying message with insufficient message rent");
+                };
+
+            let mailbox_key = AccountId::from_origin(message.destination().into_origin());
+            let message_id = message.id();
+
+            if sufficient {
+                // * message has been inserted into the mailbox.
+                // * the ValueNode has been created.
+                assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
+                assert_eq!(<Test as Config>::GasHandler::get_limit(message_id.into_origin()), Ok(Some(rent)));
+            } else {
+                // * message has not been inserted into the mailbox.
+                // * the ValueNode has not been created.
+                assert!(!MailboxOf::<Test>::contains(&mailbox_key, &message_id));
+                assert_eq!(<Test as Config>::GasHandler::get_limit(message_id.into_origin()), Ok(None));
+            }
+
+            (mailbox_key, message_id)
+        };
+
+        // send message with insufficient message rent
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            Default::default(),
+            EMPTY_PAYLOAD.to_vec(),
+            rent - 1,
+            0,
+        ));
+        check_result(false);
+
+        // send message with enough gas_limit ( over message rent )
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            Default::default(),
+            EMPTY_PAYLOAD.to_vec(),
+            rent,
+            0,
+        ));
+        let (mailbox_key, message_id) = check_result(true);
+
+        // send reply with enough gas_limit ( over message rent )
+        assert_ok!(Gear::send_reply(
+            Origin::signed(mailbox_key),
+            message_id,
+            EMPTY_PAYLOAD.to_vec(),
+            rent,
+            0,
+        ));
+        let (mailbox_key, message_id) = check_result(true);
+
+        // send reply with insufficient message rent
+        assert_ok!(Gear::send_reply(
+            Origin::signed(mailbox_key),
+            message_id,
+            EMPTY_PAYLOAD.to_vec(),
+            rent - 1,
+            0,
+        ));
+        check_result(false);
+    })
 }
 
 #[test]
@@ -3891,6 +3971,14 @@ mod utils {
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::NotExecuted)
+    }
+
+    pub(super) fn get_last_event() -> MockEvent {
+        SystemPallet::<Test>::events()
+            .into_iter()
+            .last()
+            .expect("failed to get last event")
+            .event
     }
 
     pub(super) fn get_last_program_id() -> ProgramId {

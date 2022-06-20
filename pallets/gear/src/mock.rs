@@ -18,12 +18,7 @@
 
 use crate as pallet_gear;
 use crate::*;
-use frame_support::{
-    construct_runtime,
-    pallet_prelude::*,
-    parameter_types,
-    traits::{ConstU64, FindAuthor},
-};
+use frame_support::{construct_runtime, pallet_prelude::*, parameter_types, traits::FindAuthor};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -118,6 +113,7 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
+    pub const MessageRent: u64 = 1_000;
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;
@@ -135,7 +131,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
-    type MessageRent = ConstU64<0>;
+    type MessageRent = MessageRent;
     type Messenger = GearMessenger;
 }
 
