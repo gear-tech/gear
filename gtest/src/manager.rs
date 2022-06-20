@@ -18,7 +18,7 @@
 
 use crate::{
     log::{CoreLog, RunResult},
-    program::WasmProgram,
+    program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
@@ -158,7 +158,7 @@ pub(crate) struct ExtManager {
     pub(crate) log: Vec<StoredMessage>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
-    pub(crate) gas_burned: u64,
+    pub(crate) gas_burned: Gas,
 }
 
 impl ExtManager {
@@ -280,6 +280,7 @@ impl ExtManager {
         self.log.clear();
         self.main_failed = false;
         self.others_failed = false;
+        self.gas_burned = Gas::zero();
 
         // TODO: Remove this check after #349.
         if !self.dispatches.is_empty() {
@@ -435,6 +436,7 @@ impl ExtManager {
             .get(&dispatch.id())
             .expect("Unable to find gas limit for message")
             .unwrap_or(u64::MAX);
+
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             executable_actor,
             dispatch.into_incoming(gas_limit),
@@ -449,8 +451,6 @@ impl ExtManager {
             Default::default(),
         );
 
-        // Reset gas counter before execution
-        self.gas_burned = 0;
         core_processor::handle_journal(journal, self);
     }
 
@@ -506,8 +506,10 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn gas_burned(&mut self, _message_id: MessageId, amount: u64) {
-        self.gas_burned = self.gas_burned.saturating_add(amount);
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+        if self.msg_id == message_id {
+            self.gas_burned += Gas(amount);
+        }
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {

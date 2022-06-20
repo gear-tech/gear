@@ -1,4 +1,4 @@
-use crate::program::ProgramIdWrapper;
+use crate::program::{Gas, ProgramIdWrapper};
 use codec::{Codec, Encode};
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -222,7 +222,7 @@ pub struct RunResult {
     pub(crate) others_failed: bool,
     pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
-    pub(crate) gas_burned: u64,
+    pub(crate) gas_burned: Gas,
 }
 
 impl RunResult {
@@ -252,7 +252,7 @@ impl RunResult {
         self.total_processed
     }
 
-    pub fn gas_burned(&self) -> u64 {
+    pub fn gas_burned(&self) -> Gas {
         self.gas_burned
     }
 

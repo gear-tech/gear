@@ -20,6 +20,27 @@ use std::{
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
 
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Add,
+    derive_more::AddAssign,
+    derive_more::Display,
+)]
+pub struct Gas(pub(crate) u64);
+
+impl Gas {
+    pub const fn zero() -> Self {
+        Self(0)
+    }
+}
+
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;

@@ -2823,6 +2823,7 @@ name = "gtest"
 version = "0.1.0"
 dependencies = [
  "colored",
+ "derive_more",
  "env_logger",
  "gear-backend-wasmtime",
  "gear-core",

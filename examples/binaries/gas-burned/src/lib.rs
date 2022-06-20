@@ -29,7 +29,7 @@ pub unsafe extern "C" fn handle() {
 
 #[cfg(test)]
 mod tests {
-    use gtest::{Program, System};
+    use gtest::{Gas, Program, System};
 
     #[test]
     fn gas_burned() {
@@ -42,7 +42,7 @@ mod tests {
         let res = program.send_bytes(from, "init");
         let init_gas_burned = res.gas_burned();
         println!("Init gas burned: {}", init_gas_burned);
-        assert!(init_gas_burned > 0);
+        assert!(init_gas_burned > Gas::zero());
 
         let res = program.send_bytes(from, "handle");
         let handle_gas_burned = res.gas_burned();
