@@ -19,6 +19,7 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::WasmProgram,
+    wasm_executor::WasmExecutor,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
@@ -26,7 +27,9 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
+    message::{
+        Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
+    },
     program::Program as CoreProgram,
 };
 use std::{
@@ -446,6 +449,36 @@ impl ExtManager {
 
         core_processor::handle_journal(journal, self);
     }
+
+    /// Call non-void meta function from an actor stored in manager.
+    /// Warning! This is a static call that doesn't change actors pages data.
+    pub(crate) fn call_meta(
+        &mut self,
+        program_id: &ProgramId,
+        payload: Option<Payload>,
+        function_name: &str,
+    ) -> Vec<u8> {
+        let mut executor = self.get_executor(program_id, payload);
+        executor.execute(function_name)
+    }
+
+    fn get_executor(&mut self, program_id: &ProgramId, payload: Option<Payload>) -> WasmExecutor {
+        let (actor, balance) = self
+            .actors
+            .get_mut(program_id)
+            .expect("No program with such id");
+
+        let actor = actor
+            .get_executable_actor(*balance)
+            .expect("Wrong actor type");
+        let pages_initial_data = actor
+            .pages_data
+            .into_iter()
+            .map(|(page, data)| (page, Box::new(data)))
+            .collect();
+
+        WasmExecutor::new(&actor.program, &pages_initial_data, payload)
+    }
 }
 
 impl JournalHandler for ExtManager {
@@ -480,6 +513,7 @@ impl JournalHandler for ExtManager {
             self.dispatches.remove(index);
         }
     }
+
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
@@ -496,6 +530,7 @@ impl JournalHandler for ExtManager {
             self.log.push(message);
         }
     }
+
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
         self.message_consumed(dispatch.id());
         self.wait_list
