@@ -35,6 +35,7 @@ use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, WasmPageNumber},
+    message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
 use wasmtime::{
@@ -86,7 +87,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        _entries: BTreeSet<Vec<u8>>,
+        _entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let forbidden_funcs = ext.forbidden_funcs().clone();
@@ -210,7 +211,7 @@ where
 
     fn execute<F, T>(
         mut self,
-        entry_point: &str,
+        entry_point: &DispatchKind,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
@@ -219,7 +220,7 @@ where
     {
         let func = self
             .instance
-            .get_func(&mut self.memory_wrap.store, entry_point);
+            .get_func(&mut self.memory_wrap.store, entry_point.into_entry());
 
         let prepare_info =
             |this: Self| -> Result<(ExtInfo, MemoryWrapExternal<E>), BackendError<Self::Error>> {

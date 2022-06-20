@@ -26,7 +26,6 @@ use alloc::{
     collections::BTreeSet,
     format,
     string::{String, ToString},
-    vec::Vec,
 };
 use core::fmt;
 use gear_backend_common::{
@@ -37,6 +36,7 @@ use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, WasmPageNumber},
+    message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
 use sp_sandbox::{
@@ -66,7 +66,7 @@ pub enum SandboxEnvironmentError {
 pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
     runtime: Runtime<E>,
     instance: Instance<Runtime<E>>,
-    entries: BTreeSet<Vec<u8>>,
+    entries: BTreeSet<DispatchKind>,
 }
 
 pub(crate) struct Runtime<E: Ext> {
@@ -113,7 +113,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
-        entries: BTreeSet<Vec<u8>>,
+        entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let mut builder = EnvBuilder::<E> {
@@ -222,15 +222,16 @@ where
 
     fn execute<F, T>(
         mut self,
-        entry_point: &str,
+        entry_point: &DispatchKind,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
         F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let res = if self.entries.contains(&entry_point.as_bytes().to_vec()) {
-            self.instance.invoke(entry_point, &[], &mut self.runtime)
+        let res = if self.entries.contains(entry_point) {
+            self.instance
+                .invoke(entry_point.into_entry(), &[], &mut self.runtime)
         } else {
             Ok(ReturnValue::Unit)
         };

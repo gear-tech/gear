@@ -36,8 +36,7 @@ pub fn migrate<T: Config>() -> Weight {
 /// V2: `gear_core::Code` is changed to have an exports field.
 mod v2 {
     use super::*;
-    use sp_std::vec::Vec;
-    use sp_std::collections::btree_set::BTreeSet;
+    use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
     #[derive(Encode, Decode)]
     struct WasmPageNumber(u32);
@@ -95,15 +94,16 @@ mod v2 {
                     wasm_instrument::parity_wasm::elements::Module,
                 >(&orig_code)
                 {
-                    let exports: BTreeSet<Vec<u8>> = if let Some(export_section) = module.export_section() {
-                        export_section
-                            .entries()
-                            .iter()
-                            .map(|v| v.field().as_bytes().to_vec())
-                            .collect()
-                    } else {
-                        BTreeSet::<Vec<u8>>::new()
-                    };
+                    let exports: BTreeSet<Vec<u8>> =
+                        if let Some(export_section) = module.export_section() {
+                            export_section
+                                .entries()
+                                .iter()
+                                .map(|v| v.field().as_bytes().to_vec())
+                                .collect()
+                        } else {
+                            BTreeSet::<Vec<u8>>::new()
+                        };
 
                     if exports.contains(&b"init".to_vec()) || exports.contains(&b"handle".to_vec())
                     {
