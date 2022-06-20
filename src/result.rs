@@ -38,6 +38,8 @@ pub enum Error {
         >,
     ),
     #[error(transparent)]
+    SubxtPublic(#[from] subxt::sp_core::crypto::PublicError),
+    #[error(transparent)]
     SubxtRpc(#[from] subxt::rpc::RpcError),
     #[error(transparent)]
     Tx(#[from] TransactionError),

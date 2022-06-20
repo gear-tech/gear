@@ -45,11 +45,7 @@ pub struct Deploy {
 impl Deploy {
     /// Exec command submit
     pub async fn exec(&self) -> Result<()> {
-        let api = Api::new(
-            self.endpoint.as_ref().map(|s| s.as_ref()),
-            self.passwd.as_ref().map(|s| s.as_ref()),
-        )
-        .await?;
+        let api = Api::new(self.endpoint.as_deref(), self.passwd.as_deref()).await?;
 
         let events = api.events().await?;
         let (sp, wis) = tokio::join!(self.submit_program(&api), self.wait_init_status(events));

@@ -18,6 +18,7 @@ pub mod events;
 #[allow(clippy::all)]
 pub mod generated;
 mod rpc;
+mod storage;
 mod utils;
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";

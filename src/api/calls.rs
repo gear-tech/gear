@@ -2,7 +2,7 @@
 use crate::{
     api::{
         config::GearConfig,
-        generated::api::{gear, runtime_types::sp_runtime::DispatchError, Event},
+        generated::api::{balances, gear, runtime_types::sp_runtime::DispatchError, Event},
         Api,
     },
     Result,
@@ -12,11 +12,26 @@ use subxt::{PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionInBlock, T
 type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
 
 impl Api {
-    /// pallet gear extrinsic
+    /// - pallet: pallet_balances
+    /// - method: transfer
+    ///
+    /// transfer balance to destination
+    pub async fn transfer(&self, params: balances::calls::Transfer) -> InBlock<'_> {
+        let ex = self
+            .runtime
+            .tx()
+            .balances()
+            .transfer(params.dest, params.value)?;
+
+        self.ps(ex).await
+    }
+
+    /// - pallet: pallet_gear
+    /// - method: submit_program
     ///
     /// gear submit_program
     pub async fn submit_program(&self, params: gear::calls::SubmitProgram) -> InBlock<'_> {
-        let process = self.runtime.tx().gear().submit_program(
+        let ex = self.runtime.tx().gear().submit_program(
             params.code,
             params.salt,
             params.init_payload,
@@ -24,7 +39,7 @@ impl Api {
             params.value,
         )?;
 
-        self.ps(process).await
+        self.ps(ex).await
     }
 
     /// listen transaction process and print logs
