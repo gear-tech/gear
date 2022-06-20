@@ -53,9 +53,9 @@ pub enum WasmtimeEnvironmentError {
     NonEnvImport(Option<String>),
     #[display(fmt = "Function {:?} definition wasn't found", _0)]
     MissingImport(Option<String>),
-    #[display(fmt = "Unable to create module")]
+    #[display(fmt = "Unable to create module: {}", _0)]
     ModuleCreation(anyhow::Error),
-    #[display(fmt = "Unable to create instance")]
+    #[display(fmt = "Unable to create instance: {}", _0)]
     InstanceCreation(anyhow::Error),
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
