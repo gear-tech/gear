@@ -20,8 +20,8 @@
 
 use core::fmt;
 
+use crate::{funcs_tree, memory::MemoryWrapExternal};
 use alloc::{
-    collections::BTreeMap,
     format,
     string::{String, ToString},
     vec::Vec,
@@ -37,10 +37,8 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError;
 use wasmtime::{
-    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+    Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
-
-use crate::{funcs::FuncsHandler as Funcs, memory::MemoryWrapExternal};
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
@@ -112,62 +110,7 @@ where
             }
         };
 
-        let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert("alloc", Funcs::alloc(&mut store, memory));
-        funcs.insert("free", Funcs::free(&mut store));
-        funcs.insert("gas", Funcs::gas(&mut store));
-        funcs.insert("gr_block_height", Funcs::block_height(&mut store));
-        funcs.insert("gr_block_timestamp", Funcs::block_timestamp(&mut store));
-        funcs.insert(
-            "gr_create_program",
-            Funcs::create_program(&mut store, memory),
-        );
-        funcs.insert(
-            "gr_create_program_wgas",
-            Funcs::create_program_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_exit_code", Funcs::exit_code(&mut store));
-        funcs.insert("gr_gas_available", Funcs::gas_available(&mut store));
-        funcs.insert("gr_debug", Funcs::debug(&mut store, memory));
-        funcs.insert("gr_exit", Funcs::exit(&mut store, memory));
-        funcs.insert("gr_origin", Funcs::origin(&mut store, memory));
-        funcs.insert("gr_msg_id", Funcs::msg_id(&mut store, memory));
-        funcs.insert("gr_program_id", Funcs::program_id(&mut store, memory));
-        funcs.insert("gr_read", Funcs::read(&mut store, memory));
-        funcs.insert("gr_reply", Funcs::reply(&mut store, memory));
-        funcs.insert("gr_reply_wgas", Funcs::reply_wgas(&mut store, memory));
-        funcs.insert("gr_reply_commit", Funcs::reply_commit(&mut store, memory));
-        funcs.insert(
-            "gr_reply_commit_wgas",
-            Funcs::reply_commit_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_reply_push", Funcs::reply_push(&mut store, memory));
-        funcs.insert("gr_reply_to", Funcs::reply_to(&mut store, memory));
-        funcs.insert("gr_send_wgas", Funcs::send_wgas(&mut store, memory));
-        funcs.insert("gr_send", Funcs::send(&mut store, memory));
-        funcs.insert(
-            "gr_send_commit_wgas",
-            Funcs::send_commit_wgas(&mut store, memory),
-        );
-        funcs.insert("gr_send_commit", Funcs::send_commit(&mut store, memory));
-        funcs.insert("gr_send_init", Funcs::send_init(&mut store, memory));
-        funcs.insert("gr_send_push", Funcs::send_push(&mut store, memory));
-        funcs.insert("gr_size", Funcs::size(&mut store));
-        funcs.insert("gr_source", Funcs::source(&mut store, memory));
-        funcs.insert("gr_value", Funcs::value(&mut store, memory));
-        funcs.insert(
-            "gr_value_available",
-            Funcs::value_available(&mut store, memory),
-        );
-        funcs.insert("gr_leave", Funcs::leave(&mut store));
-        funcs.insert("gr_wait", Funcs::wait(&mut store));
-        funcs.insert("gr_wake", Funcs::wake(&mut store, memory));
-        funcs.insert("gr_error", Funcs::error(&mut store, memory));
-
-        for name in forbidden_funcs {
-            funcs.insert(name, Funcs::forbidden(&mut store));
-        }
-
+        let funcs = funcs_tree::build(&mut store, memory, Some(forbidden_funcs));
         let module = match Module::new(&engine, binary) {
             Ok(module) => module,
             Err(e) => {

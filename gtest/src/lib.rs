@@ -3,6 +3,7 @@ mod mailbox;
 mod manager;
 mod program;
 mod system;
+mod wasm_executor;
 
 pub use log::{CoreLog, Log, RunResult};
 pub use program::{calculate_program_id, Program, WasmProgram};
