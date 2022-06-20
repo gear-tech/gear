@@ -258,9 +258,9 @@ where
                 DispatchStatus::Success
             }
             MessageTrap { program_id, trap } => {
-                log::trace!(
-                    "Dispatch outcome trap: {:?}. Program {} terminated with a trap: {}",
-                    message_id,
+                log::trace!("Dispatch outcome trap: {:?}", message_id);
+                log::info!(
+                    "🪤 Program {} terminated with a trap: {}",
                     program_id.into_origin(),
                     trap
                 );
