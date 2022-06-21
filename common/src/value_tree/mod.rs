@@ -23,7 +23,7 @@ where
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: error::Error,
     Error: From<InternalError>,
-    ExternalId: Default,
+    ExternalId: Default + Clone,
     MapKey: Copy,
     StorageMap: super::storage::MapStorage<Key = MapKey, Value = node::ValueNode<ExternalId, MapKey, Balance>>,
 {
@@ -150,7 +150,7 @@ where
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: error::Error,
     Error: From<InternalError>,
-    ExternalId: Default,
+    ExternalId: Default + Clone,
     MapKey: Copy,
     StorageMap: super::storage::MapStorage<Key = MapKey, Value = node::ValueNode<ExternalId, MapKey, Balance>>,
 {
@@ -207,7 +207,13 @@ where
     }
 
     fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error> {
-        todo!()
+        Ok(if let Some(node) = Self::get_node(key) {
+            // key known, must return the origin, unless corrupted
+            Self::root(node).map(|(_, id)| Some(id.unwrap_or(key)))?
+        } else {
+            // key unknown - legitimate result
+            None
+        })
     }
 
     fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error> {
@@ -258,19 +264,120 @@ where
     }
 
     fn spend(key: Self::Key, amount: Self::Balance)
-            -> Result<Self::NegativeImbalance, Self::Error> {
-        todo!()
+            -> Result<Self::NegativeImbalance, Self::Error>
+    {
+        // Upstream node with a concrete value exist for any node.
+        // If it doesn't, the tree is considered invalidated.
+        let (mut node, node_id) = Self::node_with_value(Self::get_node(key)
+            .ok_or(InternalError::node_not_found())?)?;
+
+        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+        if node.inner_value().expect("Querying node with value") < amount {
+            return Err(InternalError::insufficient_balance().into())
+        }
+
+        *node.inner_value_mut().expect("Querying node with value") -= amount;
+        log::debug!("Spent {:?} of gas", amount);
+
+        // Save node that delivers limit
+        // GasTree::<T>::insert(node_id.unwrap_or(key), node);
+        StorageMap::insert(node_id.unwrap_or(key), node);
+
+        Ok(NegativeImbalance::new(amount))
     }
 
     fn split_with_value(
             key: Self::Key,
             new_key: Self::Key,
             amount: Self::Balance,
-        ) -> DispatchResult {
-        todo!()
+        ) -> Result<(), Self::Error>
+    {
+        let mut parent = Self::get_node(key).ok_or(InternalError::node_not_found())?;
+
+        if parent.consumed {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        // This also checks if key == new_node_key
+        if StorageMap::contains_key(&new_key) {
+            return Err(InternalError::node_already_exists().into());
+        }
+
+        // Upstream node with a concrete value exist for any node.
+        // If it doesn't, the tree is considered invalidated.
+        let (mut ancestor_with_value, ancestor_id) = Self::node_with_value(parent.clone())?;
+
+        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+        if ancestor_with_value
+                .inner_value()
+                .expect("Querying node with value")
+                < amount
+        {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        let new_node = node::ValueNode {
+            inner: node::ValueType::SpecifiedLocal {
+                value: amount,
+                parent: key,
+            },
+            spec_refs: 0,
+            unspec_refs: 0,
+            consumed: false,
+        };
+
+        // Save new node
+        // GasTree::<T>::insert(new_node_key, new_node);
+        StorageMap::insert(new_key, new_node);
+
+        parent.spec_refs = parent.spec_refs.saturating_add(1);
+        if let Some(ancestor_id) = ancestor_id {
+            // Update current node
+            // GasTree::<T>::insert(key, parent);
+            StorageMap::insert(key, parent);
+            *ancestor_with_value
+                .inner_value_mut()
+                .expect("Querying node with value") -= amount;
+            // GasTree::<T>::insert(ancestor_id, ancestor_with_value);
+            StorageMap::insert(ancestor_id, ancestor_with_value);
+        } else {
+            // parent and ancestor nodes are the same
+            *parent.inner_value_mut().expect("Querying node with value") -= amount;
+            // GasTree::<T>::insert(key, parent);
+            StorageMap::insert(key, parent);
+        }
+
+        Ok(())
     }
 
-    fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult {
-        todo!()
+    fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
+        let mut node = Self::get_node(key).ok_or(InternalError::node_not_found())?;
+
+        if node.consumed {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        // This also checks if key == new_node_key
+        if StorageMap::contains_key(&new_key) {
+            return Err(InternalError::node_already_exists().into());
+        }
+
+        node.unspec_refs = node.unspec_refs.saturating_add(1);
+
+        let new_node = node::ValueNode {
+            inner: node::ValueType::UnspecifiedLocal { parent: key },
+            spec_refs: 0,
+            unspec_refs: 0,
+            consumed: false,
+        };
+
+        // Save new node
+        // GasTree::<T>::insert(new_node_key, new_node);
+        StorageMap::insert(new_key, new_node);
+        // Update current node
+        // GasTree::<T>::insert(key, node);
+        StorageMap::insert(key, node);
+
+        Ok(())
     }
 }

@@ -8,4 +8,6 @@ pub trait Error {
     fn node_not_found() -> Self;
 
     fn node_was_consumed() -> Self;
+
+    fn insufficient_balance() -> Self;
 }

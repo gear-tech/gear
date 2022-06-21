@@ -19,14 +19,14 @@ impl<ExternalId: Default, Id, Balance: Zero> Default for ValueType<ExternalId, I
 }
 
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub struct ValueNode<ExternalId: Default, Id, Balance: Zero> {
+pub struct ValueNode<ExternalId: Default + Clone, Id: Clone, Balance: Zero + Clone> {
     pub spec_refs: u32,
     pub unspec_refs: u32,
     pub inner: ValueType<ExternalId, Id, Balance>,
     pub consumed: bool,
 }
 
-impl<ExternalId: Default, Id: Copy, Balance: Zero + Copy> ValueNode<ExternalId, Id, Balance> {
+impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy> ValueNode<ExternalId, Id, Balance> {
     pub fn new(origin: ExternalId, value: Balance) -> Self {
         Self {
             inner: ValueType::External { id: origin, value },

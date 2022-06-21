@@ -242,13 +242,13 @@ pub trait ValueTree {
         key: Self::Key,
         new_key: Self::Key,
         amount: Self::Balance,
-    ) -> DispatchResult;
+    ) -> Result<(), Self::Error>;
 
     /// Split underlying value.
     ///
     /// If `key` does not identify any value an error is returned.
     /// This can't create imbalance as no value is burned or created.
-    fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
+    fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error>;
 }
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;

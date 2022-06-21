@@ -269,6 +269,10 @@ pub mod pallet {
         fn node_was_consumed() -> Self {
             Self::NodeWasConsumed
         }
+
+        fn insufficient_balance() -> Self {
+            Self::InsufficientBalance
+        }
     }
 
     #[pallet::storage]
