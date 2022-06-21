@@ -201,7 +201,7 @@ impl Code {
                         .map_err(|_| CodeError::Encode)?;
 
                 Ok(Self {
-                    raw_code: original_code.clone(),
+                    raw_code: original_code,
                     code: instrumented,
                     exports,
                     static_pages,
