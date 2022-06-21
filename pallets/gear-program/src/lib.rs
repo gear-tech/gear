@@ -67,7 +67,7 @@ pub mod pallet {
     const LOCK_ID: LockIdentifier = *b"resume_p";
 
     /// The current storage version.
-    const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
