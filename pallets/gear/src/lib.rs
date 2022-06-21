@@ -507,6 +507,26 @@ pub mod pallet {
             Ok(().into())
         }
 
+        #[cfg(not(test))]
+        pub fn calculate_gas_info(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+            allow_other_panics: bool,
+            initial_gas: Option<u64>,
+        ) -> Result<GasInfo, Vec<u8>> {
+            Self::calculate_gas_info_impl(
+                source,
+                kind,
+                initial_gas.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get),
+                payload,
+                value,
+                allow_other_panics,
+            )
+        }
+
+        #[cfg(test)]
         pub fn calculate_gas_info(
             source: H256,
             kind: HandleKind,
@@ -523,7 +543,6 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
-                    b"calculate_gas_salt".to_vec(),
                 )
             })?;
 
@@ -535,7 +554,6 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
-                    b"calculate_gas_salt".to_vec(),
                 )
                 .map(
                     |GasInfo {
@@ -573,7 +591,6 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
-            salt: Vec<u8>,
         ) -> Result<GasInfo, Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
@@ -592,6 +609,7 @@ pub mod pallet {
 
             let main_program_id = match kind {
                 HandleKind::Init(code) => {
+                    let salt = b"calculate_gas_salt".to_vec();
                     Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: submit_program failed with '{:?}'", e)
