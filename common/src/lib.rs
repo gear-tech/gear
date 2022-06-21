@@ -28,7 +28,7 @@ pub mod storage;
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
-mod value_tree;
+pub mod value_tree;
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -181,7 +181,7 @@ pub trait ValueTree {
     type InternalError: value_tree::Error;
 
     /// Error type
-    type Error;
+    type Error: From<Self::InternalError>;
 
     /// The total amount of value currently in circulation.
     fn total_supply() -> Self::Balance;

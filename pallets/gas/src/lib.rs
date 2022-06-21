@@ -249,6 +249,28 @@ pub mod pallet {
         ParentHasNoChildren,
     }
 
+    impl<T: Config> common::value_tree::Error for Error<T> {
+        fn node_already_exists() -> Self {
+            Self::NodeAlreadyExists
+        }
+
+        fn parent_is_lost() -> Self {
+            Self::ParentIsLost
+        }
+
+        fn parent_has_no_children() -> Self {
+            Self::ParentHasNoChildren
+        }
+
+        fn node_not_found() -> Self {
+            Self::NodeNotFound
+        }
+
+        fn node_was_consumed() -> Self {
+            Self::NodeWasConsumed
+        }
+    }
+
     #[pallet::storage]
     #[pallet::getter(fn gas_allowance)]
     pub type Allowance<T> = StorageValue<_, u64, ValueQuery, <T as Config>::BlockGasLimit>;
@@ -339,6 +361,7 @@ where
     type Balance = u64;
     type PositiveImbalance = PositiveImbalance<T>;
     type NegativeImbalance = NegativeImbalance<T>;
+    type InternalError = Error<T>;
     type Error = DispatchError;
 
     fn total_supply() -> u64 {
