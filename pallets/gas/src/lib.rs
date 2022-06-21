@@ -52,6 +52,9 @@ impl Default for ValueType {
 }
 
 // todo [sab] UnspecifiedLocal don't need refs
+// todo [sab] Check if ok to remove check key not consumed during split/split_with_value
+// todo [sab] test splits with zero amount
+// todo [sab] explore and extensively test cases when imbalances are used externally
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
     pub spec_refs: u32,
@@ -476,7 +479,6 @@ where
             .node_with_value::<T>()?;
         let node_id = node_id.unwrap_or(key);
 
-        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
         ensure!(
             !GasTree::<T>::contains_key(new_node_key),
@@ -506,7 +508,6 @@ where
             .node_with_value::<T>()?;
         let node_id = node_id.unwrap_or(key);
 
-        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
         ensure!(
             !GasTree::<T>::contains_key(new_node_key),
@@ -515,10 +516,7 @@ where
 
         // NOTE: intentional expect. A `node` is guaranteed to have inner_value
         ensure!(
-            node
-                .inner_value()
-                .expect("Querying node with value")
-                >= amount,
+            node.inner_value().expect("Querying node with value") >= amount,
             Error::<T>::InsufficientBalance
         );
 

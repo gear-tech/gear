@@ -32,6 +32,7 @@ fn simple_value_tree() {
             let pos = Gas::create(ALICE.into_origin(), new_root, 1000).unwrap();
 
             assert_eq!(pos.peek(), 1000);
+            assert_eq!(Gas::total_supply(), 0);
         }
         // Positive imbalance dropped - the total issuance should have been upped to 1000
         assert_eq!(Gas::total_supply(), 1000);
@@ -40,6 +41,7 @@ fn simple_value_tree() {
             let (_neg, owner) = Gas::consume(new_root).unwrap().unwrap();
 
             assert_eq!(owner, ALICE.into_origin());
+            assert_eq!(Gas::total_supply(), 1000);
         }
         // Total supply back to original value
         assert_eq!(Gas::total_supply(), 0);
@@ -126,21 +128,14 @@ fn splits_fail() {
         assert_ok!(Gas::split(node_1, node_3));
 
         assert_eq!(Gas::consume(node_1).unwrap(), None);
-        // Can't split consumed node with/without value.
-        assert_noop!(
-            Gas::split(node_1, H256::random()),
-            Error::<Test>::NodeWasConsumed,
-        );
-        assert_noop!(
-            Gas::split_with_value(node_1, H256::random(), 100),
-            Error::<Test>::NodeWasConsumed,
-        );
+        // Can actually split consumed
+        assert_ok!(Gas::split(node_1, H256::random()));
 
         // Can't split with existing id.
         assert_noop!(Gas::split(root, node_2), Error::<Test>::NodeAlreadyExists,);
         // Special case is when provided 2 existing equal ids
         assert_noop!(Gas::split(node_2, node_2), Error::<Test>::NodeAlreadyExists,);
-        // Not equal ids can be caught as well
+        // Not existing ids can be caught as well
         let node_4 = H256::random();
         assert_noop!(Gas::split(node_4, node_4), Error::<Test>::NodeNotFound,);
     })
@@ -308,6 +303,10 @@ fn split_with_no_value() {
 
         assert!(matches!(Gas::consume(split_1).unwrap(), None));
         assert!(matches!(Gas::consume(split_2).unwrap(), None));
+        // gas-less nodes are always leaves, so easily removed
+        assert!(Gas::get_node(split_1).is_none());
+        assert!(Gas::get_node(split_2).is_none());
+
         assert!(matches!(Gas::consume(split_1_2).unwrap(), None));
 
         let final_imb = Gas::consume(new_root).unwrap().unwrap().0;
@@ -339,6 +338,12 @@ fn long_chain() {
         assert_ok!(Gas::spend(m2, 50));
         assert_ok!(Gas::spend(m3, 50));
         assert_ok!(Gas::spend(m4, 50));
+
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(450));
+        assert_eq!(Gas::get_limit(m1).unwrap(), Some(450));
+        assert_eq!(Gas::get_limit(m2).unwrap(), Some(450));
+        assert_eq!(Gas::get_limit(m3).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(m4).unwrap(), Some(200));
 
         assert!(matches!(Gas::consume(m1).unwrap(), None));
         assert!(matches!(Gas::consume(m2).unwrap(), None));
