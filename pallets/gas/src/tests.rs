@@ -47,6 +47,41 @@ fn simple_value_tree() {
 }
 
 #[test]
+fn value_tree_with_all_kinds_of_nodes() {
+    new_test_ext().execute_with(|| {
+        let total_supply = 1000;
+        let cut_value = 500;
+        let specified_value = total_supply - cut_value;
+        let (root, cut, specified, unspecfied) = (
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+        );
+
+        // create nodes
+        {
+            assert_ok!(Gas::create(ALICE.into_origin(), root, total_supply));
+            assert_ok!(Gas::cut(root, cut, cut_value));
+            assert_ok!(Gas::split_with_value(root, specified, specified_value));
+            assert_ok!(Gas::split(root, unspecfied));
+        }
+
+        assert_eq!(Gas::total_supply(), total_supply);
+
+        // consume nodes
+        {
+            assert_ok!(Gas::consume(unspecfied));
+            assert_ok!(Gas::consume(specified));
+            assert_ok!(Gas::consume(root));
+            assert_ok!(Gas::consume(cut));
+        }
+
+        assert_eq!(Gas::total_supply(), 0);
+    })
+}
+
+#[test]
 fn test_consume_procedure() {
     new_test_ext().execute_with(|| {
         let origin = H256::random();
@@ -159,6 +194,7 @@ fn sub_nodes_tree() {
 
         assert_ok!(Gas::split_with_value(new_root, split_1, 500));
         assert_ok!(Gas::split_with_value(new_root, split_2, 500));
+
         // No new value created - total supply not affected
         assert_eq!(pos_imb.peek(), 1000);
 
@@ -166,12 +202,12 @@ fn sub_nodes_tree() {
         drop(pos_imb);
         assert_eq!(Gas::total_supply(), 1000);
 
-        assert!(matches!(Gas::consume(new_root).unwrap(), None));
-        assert!(matches!(Gas::consume(split_1).unwrap(), None));
+        assert!(matches!(Gas::consume(new_root), Ok(None)));
+        assert!(matches!(Gas::consume(split_1), Ok(None)));
 
         let consume_result = Gas::consume(split_2).unwrap();
-        assert!(consume_result.is_some());
-        assert_eq!(consume_result.unwrap().0.peek(), 1000);
+        assert_eq!(consume_result.map(|r| r.0.peek()), Some(1000));
+
         // Negative imbalance moved and dropped above - total supply decreased
         assert_eq!(Gas::total_supply(), 0);
     });
