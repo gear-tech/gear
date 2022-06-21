@@ -38,7 +38,7 @@ mod property_tests;
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub enum ValueType {
     External { id: H256, value: u64 },
-    ReservedLocal { parent: H256, value: u64 },
+    ReservedLocal { id: H256, value: u64 },
     SpecifiedLocal { parent: H256, value: u64 },
     UnspecifiedLocal { parent: H256 },
 }
@@ -56,7 +56,6 @@ impl Default for ValueType {
 pub struct ValueNode {
     pub spec_refs: u32,
     pub unspec_refs: u32,
-    pub reserved_refs: u32,
     pub inner: ValueType,
     pub consumed: bool,
 }
@@ -67,7 +66,6 @@ impl ValueNode {
             inner: ValueType::External { id: origin, value },
             spec_refs: 0,
             unspec_refs: 0,
-            reserved_refs: 0,
             consumed: false,
         }
     }
@@ -92,17 +90,15 @@ impl ValueNode {
 
     pub fn parent(&self) -> Option<H256> {
         match self.inner {
-            ValueType::External { .. } => None,
-            ValueType::ReservedLocal { parent, .. } => Some(parent),
-            ValueType::SpecifiedLocal { parent, .. } => Some(parent),
-            ValueType::UnspecifiedLocal { parent } => Some(parent),
+            ValueType::External { .. } | ValueType::ReservedLocal { .. } => None,
+            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
+                Some(parent)
+            }
         }
     }
 
     pub fn refs(&self) -> u32 {
-        self.spec_refs
-            .saturating_add(self.unspec_refs)
-            .saturating_add(self.reserved_refs)
+        self.spec_refs.saturating_add(self.unspec_refs)
     }
 
     /// The first upstream node (self included), that is able to hold a concrete value, but doesn't
@@ -153,7 +149,7 @@ impl ValueNode {
                     parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
                 }
                 ValueType::ReservedLocal { .. } => {
-                    parent.reserved_refs = parent.reserved_refs.saturating_sub(1)
+                    unreachable!("node is guaranteed to have a parent, so can't be an reserved one")
                 }
                 ValueType::External { .. } => {
                     unreachable!("node is guaranteed to have a parent, so can't be an external one")
@@ -167,50 +163,42 @@ impl ValueNode {
         Ok(())
     }
 
-    /// If `self` is of `ValueType::SpecifiedLocal` or `ValueType::ReservedLocal` type,
-    /// moves value upstream to the first ancestor, that can hold the value, in case `self`
-    /// has not unspec children refs.
+    /// If `self` is of `ValueType::SpecifiedLocal` type, moves value upstream to the first ancestor
+    /// that can hold the value, in case `self` has not unspec children refs.
     ///
     /// This method is actually one of pre-delete procedures called when node is consumed.
     ///
     /// # Note
     /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
     fn move_value_upstream<T: Config>(&mut self) -> DispatchResult {
-        // `Valuetype::ReservedLocal` will never have `unspec_refs`
         if self.unspec_refs != 0 {
             return Ok(());
         }
 
-        match self.inner {
-            ValueType::SpecifiedLocal {
-                value: self_value,
-                parent,
-            }
-            | ValueType::ReservedLocal {
-                value: self_value,
-                parent,
-            } => {
-                // This is specified, so it needs to get to the first specified parent also
-                // going up until external or specified parent is found
+        if let ValueType::SpecifiedLocal {
+            value: self_value,
+            parent,
+        } = self.inner
+        {
+            // This is specified, so it needs to get to the first specified parent also
+            // going up until external or specified parent is found
 
-                // `parent` key is known to exist, hence there must be it's ancestor with value.
-                // If there isn't, the gas tree is considered corrupted (invalidated).
-                let (mut parents_ancestor, ancestor_id) = <Pallet<T>>::get_node(parent)
-                    .ok_or(Error::<T>::ParentIsLost)?
-                    .node_with_value::<T>()?;
+            // `parent` key is known to exist, hence there must be it's ancestor with value.
+            // If there isn't, the gas tree is considered corrupted (invalidated).
+            let (mut parents_ancestor, ancestor_id) = <Pallet<T>>::get_node(parent)
+                .ok_or(Error::<T>::ParentIsLost)?
+                .node_with_value::<T>()?;
 
-                // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
-                let val = parents_ancestor
-                    .inner_value_mut()
-                    .expect("Querying parent with value");
-                *val = val.saturating_add(self_value);
-                *self
-                    .inner_value_mut()
-                    .expect("self is a type with a specified value") = 0;
+            // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
+            let val = parents_ancestor
+                .inner_value_mut()
+                .expect("Querying parent with value");
+            *val = val.saturating_add(self_value);
+            *self
+                .inner_value_mut()
+                .expect("self is a type with a specified value") = 0;
 
-                GasTree::<T>::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
-            }
-            _ => {}
+            GasTree::<T>::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
         }
 
         Ok(())
@@ -338,12 +326,11 @@ pub mod pallet {
                 GasTree::<T>::remove(node_id);
 
                 match node.inner {
-                    ValueType::External { id, value } => {
+                    ValueType::External { id, value } | ValueType::ReservedLocal { id, value } => {
                         return Ok(Some((NegativeImbalance::new(value), id)))
                     }
                     ValueType::SpecifiedLocal { parent, .. }
-                    | ValueType::UnspecifiedLocal { parent }
-                    | ValueType::ReservedLocal { parent, .. } => {
+                    | ValueType::UnspecifiedLocal { parent } => {
                         node_id = parent;
                         node = Self::get_node(node_id).ok_or(Error::<T>::ParentIsLost)?;
                     }
@@ -353,6 +340,10 @@ pub mod pallet {
             Ok(None)
         }
 
+        /// Create ValueNode from node key with value
+        ///
+        /// if `reserve`, create ValueType::ReservedLocal
+        /// else, create ValueType::SpecifiedLocal
         pub(super) fn create_from_with_value(
             key: H256,
             new_node_key: H256,
@@ -370,12 +361,8 @@ pub mod pallet {
 
             // Detect inner from `reserve`.
             let inner = if reserve {
-                parent.reserved_refs = parent.reserved_refs.saturating_add(1);
-
-                ValueType::ReservedLocal {
-                    value: amount,
-                    parent: key,
-                }
+                let id = Self::get_origin_key(key)?.ok_or(Error::<T>::ParentIsLost)?;
+                ValueType::ReservedLocal { id, value: amount }
             } else {
                 // Check if the value node is reserved
                 if let ValueType::ReservedLocal { .. } = parent.inner {
@@ -407,7 +394,6 @@ pub mod pallet {
                 inner,
                 spec_refs: 0,
                 unspec_refs: 0,
-                reserved_refs: 0,
                 consumed: false,
             };
 
@@ -534,9 +520,10 @@ where
             GasTree::<T>::remove(key);
             match node.inner {
                 ValueType::UnspecifiedLocal { parent }
-                | ValueType::SpecifiedLocal { parent, .. }
-                | ValueType::ReservedLocal { parent, .. } => Self::check_consumed(parent)?,
-                ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
+                | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
+                ValueType::ReservedLocal { id, value } | ValueType::External { id, value } => {
+                    Some((NegativeImbalance::new(value), id))
+                }
             }
         } else {
             // Save current node
@@ -593,7 +580,6 @@ where
             inner: ValueType::UnspecifiedLocal { parent: key },
             spec_refs: 0,
             unspec_refs: 0,
-            reserved_refs: 0,
             consumed: false,
         };
 
