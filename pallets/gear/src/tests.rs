@@ -3882,19 +3882,17 @@ mod utils {
                 if let Some((id, exit_code)) = message.reply() {
                     if id == message_id {
                         assert_ne!(exit_code, 0);
-                        println!("{:?}", message.payload());
                         actual_error = Some(
-                            ExecutionErrorReason::decode(&mut message.payload())
-                                .expect("Unable to decode bytes from error reply"),
+                            String::from_utf8(message.payload().to_vec())
+                                .expect("Unable to decode string from error reply"),
                         );
                     }
                 }
             }
         });
 
-        let mut actual_error = actual_error
-            .expect("Error message not found in any `Event::UserMessageSent`")
-            .to_string();
+        let mut actual_error =
+            actual_error.expect("Error message not found in any `Event::UserMessageSent`");
         let mut expectations = error.to_string();
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.

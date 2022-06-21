@@ -334,6 +334,9 @@ pub enum ExecutionErrorReason {
     /// Cannot write initial data to wasm memory.
     #[display(fmt = "Cannot write initial data for {:?}: {}", _0, _1)]
     InitialDataWriteFailed(PageNumber, MemoryError),
+    /// Message killed from storage as out of rent.
+    #[display(fmt = "Out of rent")]
+    OutOfRent,
 }
 
 /// Executable actor.
