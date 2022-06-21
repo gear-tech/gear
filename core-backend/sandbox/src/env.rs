@@ -24,7 +24,6 @@ use crate::{
 };
 use alloc::{
     collections::BTreeSet,
-    format,
     string::{String, ToString},
 };
 use core::fmt;
@@ -182,16 +181,6 @@ where
             Err(e) => {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::ModuleInstantiation(e),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
-                })
-            }
-        };
-
-        let entries = match get_module_exports(binary) {
-            Ok(entries) => entries,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: SandboxEnvironmentError::GetWasmExports(e),
                     gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
