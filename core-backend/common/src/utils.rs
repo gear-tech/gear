@@ -4,7 +4,7 @@ pub(crate) fn smart_truncate(s: &mut String, max_bytes: usize) {
     let mut last_byte = max_bytes;
 
     if s.len() > last_byte {
-        while !s.is_char_boundary(last_byte) && last_byte != 0 {
+        while !s.is_char_boundary(last_byte) {
             last_byte = last_byte.saturating_sub(1);
         }
 
