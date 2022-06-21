@@ -162,6 +162,7 @@ impl Code {
         original_code: Vec<u8>,
         version: u32,
         module: Option<Module>,
+        instrument_with_const_rules: bool,
     ) -> Result<Self, CodeError> {
         let module = module.unwrap_or(
             wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
@@ -187,13 +188,34 @@ impl Code {
         let exports = get_exports(&module, false)?;
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
-            Ok(Self {
-                raw_code: original_code.clone(),
-                code: original_code,
-                exports,
-                static_pages,
-                instruction_weights_version: version,
-            })
+            if instrument_with_const_rules {
+                let instrumented_module = wasm_instrument::gas_metering::inject(
+                    module,
+                    &wasm_instrument::gas_metering::ConstantCostRules::default(),
+                    "env",
+                )
+                .map_err(|_| CodeError::GasInjection)?;
+
+                let instrumented =
+                    wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                        .map_err(|_| CodeError::Encode)?;
+
+                Ok(Self {
+                    raw_code: original_code.clone(),
+                    code: instrumented,
+                    exports,
+                    static_pages,
+                    instruction_weights_version: version,
+                })
+            } else {
+                Ok(Self {
+                    raw_code: original_code.clone(),
+                    code: original_code,
+                    exports,
+                    static_pages,
+                    instruction_weights_version: version,
+                })
+            }
         } else {
             Err(CodeError::RequiredExportFnNotFound)
         }
