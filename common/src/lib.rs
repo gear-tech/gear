@@ -28,11 +28,15 @@ pub mod storage;
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
+mod value_tree;
+
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use core::fmt;
+use sp_runtime::traits::Zero;
+use storage::ValueStorage;
+use core::{fmt, marker::PhantomData};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
@@ -173,6 +177,8 @@ pub trait ValueTree {
     /// `NegativeImbalance` indicates that some value has been removed from circulation
     /// leading to a decrease in the total supply of the underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
+
+    type InternalError: value_tree::Error;
 
     /// Error type
     type Error;
