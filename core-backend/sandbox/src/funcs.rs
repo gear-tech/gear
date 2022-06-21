@@ -163,7 +163,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -196,7 +196,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -229,7 +229,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -263,7 +263,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -285,7 +285,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -310,7 +310,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -330,7 +330,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -353,7 +353,7 @@ where
             Err(FuncError::Terminated(TerminationReason::Exit(value_dest)))
         });
         if let Err(err) = res {
-            ctx.trap = err;
+            ctx.err = err;
         }
 
         Err(HostError)
@@ -364,14 +364,14 @@ where
             .ext
             .with_fallible(|ext| ext.reply_to().map_err(FuncError::Core))
             .map_err(|e| {
-                ctx.trap = e;
+                ctx.err = e;
                 HostError
             })?;
 
         if let Some((_, exit_code)) = reply_tuple {
             return_i32(exit_code)
         } else {
-            ctx.trap = FuncError::NonReplyExitCode;
+            ctx.err = FuncError::NonReplyExitCode;
             Err(HostError)
         }
     }
@@ -390,7 +390,7 @@ where
                     .and_then(AsTerminationReason::as_termination_reason)
                     .cloned()
                 {
-                    ctx.trap = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
+                    ctx.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
                 }
                 HostError
             })
@@ -409,7 +409,7 @@ where
                 Value::I32(page.0 as i32).into()
             })
             .map_err(|e| {
-                ctx.trap = e;
+                ctx.err = e;
                 HostError
             })
     }
@@ -424,7 +424,7 @@ where
             .with_fallible(|ext| ext.free(page.into()).map_err(FuncError::Core))
         {
             log::debug!("FREE ERROR: {}", err);
-            ctx.trap = err;
+            ctx.err = err;
             Err(HostError)
         } else {
             log::debug!("FREE: {}", page);
@@ -437,7 +437,7 @@ where
             .ext
             .with_fallible(|ext| ext.block_height().map_err(FuncError::Core))
             .map_err(|err| {
-                ctx.trap = err;
+                ctx.err = err;
                 HostError
             })?;
 
@@ -449,7 +449,7 @@ where
             .ext
             .with_fallible(|ext| ext.block_timestamp().map_err(FuncError::Core))
             .map_err(|err| {
-                ctx.trap = err;
+                ctx.err = err;
                 HostError
             })?;
 
@@ -469,7 +469,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -498,7 +498,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -528,7 +528,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -554,7 +554,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -585,7 +585,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -599,19 +599,19 @@ where
             .ext
             .with_fallible(|ext| ext.reply_to().map_err(FuncError::Core))
             .map_err(|err| {
-                ctx.trap = err;
+                ctx.err = err;
                 HostError
             })?;
 
         if let Some((message_id, _)) = maybe_message_id {
             wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
-                ctx.trap = err;
+                ctx.err = err;
                 HostError
             })?;
 
             Ok(ReturnValue::Unit)
         } else {
-            ctx.trap = FuncError::NoReplyContext;
+            ctx.err = FuncError::NoReplyContext;
             Err(HostError)
         }
     }
@@ -635,7 +635,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -657,7 +657,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -684,7 +684,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -702,7 +702,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -720,7 +720,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -738,7 +738,7 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -756,13 +756,13 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
 
     pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        ctx.trap = ctx
+        ctx.err = ctx
             .ext
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
@@ -771,7 +771,7 @@ where
     }
 
     pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        ctx.trap = ctx
+        ctx.err = ctx
             .ext
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
@@ -792,7 +792,7 @@ where
         })
         .map(|_| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -826,7 +826,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -867,7 +867,7 @@ where
         })
         .map(|code| Value::I32(code as i32).into())
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
@@ -887,13 +887,13 @@ where
         })
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
-            ctx.trap = err;
+            ctx.err = err;
             HostError
         })
     }
 
     pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        ctx.trap =
+        ctx.err =
             FuncError::Terminated(TerminationReason::Trap(TrapExplanation::ForbiddenFunction));
         Err(HostError)
     }
