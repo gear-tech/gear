@@ -184,10 +184,14 @@ fn value_tree_known_errors() {
         let origin = H256::random();
         let split_1 = H256::random();
         let split_2 = H256::random();
+        let cut = H256::random();
 
         {
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
             assert_eq!(pos_imb.peek(), 1000);
+
+            // Cut a reserved node
+            assert_ok!(Gas::cut(new_root, cut, 100));
 
             // Attempt to re-create an existing node
             assert_noop!(
@@ -205,6 +209,15 @@ fn value_tree_known_errors() {
             assert_noop!(
                 Gas::split_with_value(new_root, split_1, 5000),
                 Error::<Test>::InsufficientBalance
+            );
+
+            // Try to split the reserved node
+            assert_noop!(Gas::split(cut, split_1), Error::<Test>::Forbidden);
+
+            // Try to split the reserved node with value
+            assert_noop!(
+                Gas::split_with_value(cut, split_1, 50),
+                Error::<Test>::Forbidden
             );
 
             // Total supply not affected so far - imbalance is not yet dropped

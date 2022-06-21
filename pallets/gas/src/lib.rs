@@ -24,6 +24,7 @@ use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalanc
 pub use pallet::*;
 pub use primitive_types::H256;
 use scale_info::TypeInfo;
+use sp_runtime::traits::Saturating;
 use sp_std::convert::TryInto;
 
 #[cfg(test)]
@@ -100,7 +101,9 @@ impl ValueNode {
     }
 
     pub fn refs(&self) -> u32 {
-        self.spec_refs.saturating_add(self.unspec_refs)
+        self.spec_refs
+            .saturating_add(self.unspec_refs)
+            .saturating_add(self.reserved_refs)
     }
 
     /// The first upstream node (self included), that is able to hold a concrete value, but doesn't
@@ -226,7 +229,7 @@ pub mod pallet {
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        /// Forbidden operation of the value node
+        /// Forbidden operation for the value node
         Forbidden,
 
         /// Gas (gas tree) has already been created for the provided key.
