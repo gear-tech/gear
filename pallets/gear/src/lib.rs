@@ -435,11 +435,16 @@ pub mod pallet {
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let code = Code::new_raw(code, schedule.instruction_weights.version, Some(module))
-                .map_err(|e| {
-                    log::debug!("Code failed to load: {:?}", e);
-                    Error::<T>::FailedToConstructProgram
-                })?;
+            let code = Code::new_raw(
+                code,
+                schedule.instruction_weights.version,
+                Some(module),
+                false,
+            )
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
