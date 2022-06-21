@@ -185,6 +185,7 @@ fn value_tree_known_errors() {
         let split_1 = H256::random();
         let split_2 = H256::random();
         let cut = H256::random();
+        let cut_1 = H256::random();
 
         {
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
@@ -219,6 +220,9 @@ fn value_tree_known_errors() {
                 Gas::split_with_value(cut, split_1, 50),
                 Error::<Test>::Forbidden
             );
+
+            // Try to cut the reserved node
+            assert_noop!(Gas::cut(cut, cut_1, 50), Error::<Test>::Forbidden);
 
             // Total supply not affected so far - imbalance is not yet dropped
             assert_eq!(pos_imb.peek(), 1000);

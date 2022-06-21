@@ -352,6 +352,11 @@ pub mod pallet {
         ) -> DispatchResult {
             let mut parent = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
+            // Check if the parent node is reserved
+            if let ValueType::ReservedLocal { .. } = parent.inner {
+                return Err(Error::<T>::Forbidden.into());
+            }
+
             ensure!(!parent.consumed, Error::<T>::NodeWasConsumed);
             // This also checks if key == new_node_key
             ensure!(
@@ -361,14 +366,9 @@ pub mod pallet {
 
             // Detect inner from `reserve`.
             let inner = if reserve {
-                let id = Self::get_origin_key(key)?.ok_or(Error::<T>::ParentIsLost)?;
+                let id = Self::get_origin(key)?.ok_or(Error::<T>::ParentIsLost)?;
                 ValueType::ReservedLocal { id, value: amount }
             } else {
-                // Check if the value node is reserved
-                if let ValueType::ReservedLocal { .. } = parent.inner {
-                    return Err(Error::<T>::Forbidden.into());
-                }
-
                 parent.spec_refs = parent.spec_refs.saturating_add(1);
 
                 ValueType::SpecifiedLocal {
@@ -452,14 +452,9 @@ where
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
             let (root, _) = node.root::<T>()?;
-            if let ValueNode {
-                inner: ValueType::External { id, .. },
-                ..
-            } = root
-            {
-                Some(id)
-            } else {
-                unreachable!("Guaranteed by ValueNode::root method");
+            match root.inner {
+                ValueType::External { id, .. } | ValueType::ReservedLocal { id, .. } => Some(id),
+                _ => unreachable!("Guaranteed by ValueNode::root method"),
             }
         } else {
             // key unknown - legitimate result
