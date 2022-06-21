@@ -24,7 +24,6 @@ use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalanc
 pub use pallet::*;
 pub use primitive_types::H256;
 use scale_info::TypeInfo;
-use sp_runtime::traits::Saturating;
 use sp_std::convert::TryInto;
 
 #[cfg(test)]
@@ -168,21 +167,29 @@ impl ValueNode {
         Ok(())
     }
 
-    /// If `self` is of `ValueType::SpecifiedLocal` type, moves value upstream
-    /// to the first ancestor, that can hold the value, in case `self` has not
-    /// unspec children refs.
+    /// If `self` is of `ValueType::SpecifiedLocal` or `ValueType::ReservedLocal` type,
+    /// moves value upstream to the first ancestor, that can hold the value, in case `self`
+    /// has not unspec children refs.
     ///
     /// This method is actually one of pre-delete procedures called when node is consumed.
     ///
     /// # Note
     /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
     fn move_value_upstream<T: Config>(&mut self) -> DispatchResult {
-        if let ValueType::SpecifiedLocal {
-            value: self_value,
-            parent,
-        } = self.inner
-        {
-            if self.unspec_refs == 0 {
+        // `Valuetype::ReservedLocal` will never have `unspec_refs`
+        if self.unspec_refs != 0 {
+            return Ok(());
+        }
+
+        match self.inner {
+            ValueType::SpecifiedLocal {
+                value: self_value,
+                parent,
+            }
+            | ValueType::ReservedLocal {
+                value: self_value,
+                parent,
+            } => {
                 // This is specified, so it needs to get to the first specified parent also
                 // going up until external or specified parent is found
 
@@ -203,7 +210,9 @@ impl ValueNode {
 
                 GasTree::<T>::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
             }
+            _ => {}
         }
+
         Ok(())
     }
 }
