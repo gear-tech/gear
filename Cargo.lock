@@ -1322,6 +1322,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-gas-burned"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
@@ -2814,6 +2823,7 @@ name = "gtest"
 version = "0.1.0"
 dependencies = [
  "colored",
+ "derive_more",
  "env_logger",
  "gear-backend-wasmtime",
  "gear-core",
