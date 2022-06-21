@@ -18,7 +18,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
 
 #[derive(
     Default,
@@ -204,8 +203,7 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        let code = Code::try_new(code, 1, |_| ConstantCostRules::default())
-            .expect("Failed to create Program from code");
+        let code = Code::new_raw(code, 1, None, true).expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
         let (code, _) = code_and_id.into_parts();

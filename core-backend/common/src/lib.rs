@@ -37,7 +37,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch},
+    message::{ContextStore, Dispatch, DispatchKind},
 };
 use gear_core_errors::{ExtError, MemoryError};
 
@@ -127,6 +127,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn new(
         ext: E,
         binary: &[u8],
+        entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 
@@ -143,7 +144,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Also runs `post_execution_handler` after running instance at provided entry point.
     fn execute<F, T>(
         self,
-        entry_point: &str,
+        entry_point: &DispatchKind,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
