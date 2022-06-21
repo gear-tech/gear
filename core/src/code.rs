@@ -25,6 +25,31 @@ use parity_wasm::elements::{Internal, Module};
 use scale_info::TypeInfo;
 use wasm_instrument::gas_metering::Rules;
 
+/// Parse function exports from wasm module into [`DispatchKind`].
+fn get_exports(module: &Module) -> Result<BTreeSet<DispatchKind>, CodeError> {
+    let mut exports = BTreeSet::<DispatchKind>::new();
+
+    for entry in module
+        .export_section()
+        .ok_or(CodeError::ExportSectionNotFound)?
+        .entries()
+        .iter()
+    {
+        if let Internal::Function(_) = entry.internal() {
+            if entry.field() == DispatchKind::Init.into_entry() {
+                exports.insert(DispatchKind::Init);
+            } else if entry.field() == DispatchKind::Handle.into_entry() {
+                exports.insert(DispatchKind::Handle);
+            } else if entry.field() == DispatchKind::Reply.into_entry() {
+                exports.insert(DispatchKind::Reply);
+            } else {
+                return Err(CodeError::NonGearExportFnFound);
+            }
+        }
+    }
+    Ok(exports)
+}
+
 /// Instrumentation error.
 #[derive(Debug)]
 pub enum CodeError {
@@ -105,26 +130,7 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let mut exports = BTreeSet::<DispatchKind>::new();
-
-        for entry in module
-            .export_section()
-            .ok_or(CodeError::ExportSectionNotFound)?
-            .entries()
-            .iter()
-        {
-            if let Internal::Function(_) = entry.internal() {
-                if entry.field() == DispatchKind::Init.into_entry() {
-                    exports.insert(DispatchKind::Init);
-                } else if entry.field() == DispatchKind::Handle.into_entry() {
-                    exports.insert(DispatchKind::Handle);
-                } else if entry.field() == DispatchKind::Reply.into_entry() {
-                    exports.insert(DispatchKind::Reply);
-                } else {
-                    return Err(CodeError::NonGearExportFnFound);
-                }
-            }
-        }
+        let exports = get_exports(&module)?;
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             let gas_rules = get_gas_rules(&module);
@@ -175,26 +181,7 @@ impl Code {
                 .ok_or(CodeError::MemoryEntryNotFound)?,
         );
 
-        let mut exports = BTreeSet::<DispatchKind>::new();
-
-        for entry in module
-            .export_section()
-            .ok_or(CodeError::ExportSectionNotFound)?
-            .entries()
-            .iter()
-        {
-            if let Internal::Function(_) = entry.internal() {
-                if entry.field() == DispatchKind::Init.into_entry() {
-                    exports.insert(DispatchKind::Init);
-                } else if entry.field() == DispatchKind::Handle.into_entry() {
-                    exports.insert(DispatchKind::Handle);
-                } else if entry.field() == DispatchKind::Reply.into_entry() {
-                    exports.insert(DispatchKind::Reply);
-                } else {
-                    return Err(CodeError::NonGearExportFnFound);
-                }
-            }
-        }
+        let exports = get_exports(&module)?;
 
         if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             Ok(Self {
