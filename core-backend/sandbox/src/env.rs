@@ -255,18 +255,16 @@ where
 
         log::debug!("execution res = {:?}", res);
 
-        let info = ext
-            .into_inner()
-            .into_ext_info(&memory)
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason: SandboxEnvironmentError::Memory(reason),
-                gas_amount,
-            })?;
+        let (info, trap_explanation) =
+            ext.into_inner()
+                .into_ext_info(&memory)
+                .map_err(|(reason, gas_amount)| BackendError {
+                    reason: SandboxEnvironmentError::Memory(reason),
+                    gas_amount,
+                })?;
 
         let termination = if res.is_err() {
-            let reason = info
-                .trap_explanation
-                .clone()
+            let reason = trap_explanation
                 .map(TerminationReason::Trap)
                 .unwrap_or_else(|| trap.into_termination_reason());
 

@@ -249,7 +249,10 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(
+        self,
+        memory: &dyn Memory,
+    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
@@ -263,18 +266,19 @@ impl IntoExtInfo for Ext {
         let (outcome, context_store) = self.message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
-        Ok(ExtInfo {
+        let info = ExtInfo {
             gas_amount: self.gas_counter.into(),
             allocations: wasm_pages,
             pages_data,
             generated_dispatches,
             awakening,
             context_store,
-            trap_explanation: self
-                .error_explanation
-                .and_then(ProcessorError::into_trap_explanation),
             program_candidates_data: self.program_candidates_data,
-        })
+        };
+        let trap_explanation = self
+            .error_explanation
+            .and_then(ProcessorError::into_trap_explanation);
+        Ok((info, trap_explanation))
     }
 
     fn into_gas_amount(self) -> GasAmount {

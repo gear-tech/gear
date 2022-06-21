@@ -204,29 +204,42 @@ where
         F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
+        struct PreparedInfo<E: Ext> {
+            info: ExtInfo,
+            trap_explanation: Option<TrapExplanation>,
+            memory_wrap: MemoryWrapExternal<E>,
+        }
+
         let func = self
             .instance
             .get_func(&mut self.memory_wrap.store, entry_point);
 
-        let prepare_info =
-            |this: Self| -> Result<(ExtInfo, MemoryWrapExternal<E>), BackendError<Self::Error>> {
-                let WasmtimeEnvironment {
-                    ext, memory_wrap, ..
-                } = this;
-                ext.into_inner()
-                    .into_ext_info(&memory_wrap)
-                    .map_err(|(reason, gas_amount)| BackendError {
-                        reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                        gas_amount,
-                    })
-                    .map(|info| (info, memory_wrap))
-            };
+        let prepare_info = |this: Self| -> Result<PreparedInfo<E>, BackendError<Self::Error>> {
+            let WasmtimeEnvironment {
+                ext, memory_wrap, ..
+            } = this;
+            ext.into_inner()
+                .into_ext_info(&memory_wrap)
+                .map_err(|(reason, gas_amount)| BackendError {
+                    reason: WasmtimeEnvironmentError::MemoryAccess(reason),
+                    gas_amount,
+                })
+                .map(|(info, trap_explanation)| PreparedInfo {
+                    info,
+                    trap_explanation,
+                    memory_wrap,
+                })
+        };
 
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
         } else {
-            let (info, memory_wrap) = prepare_info(self)?;
+            let PreparedInfo {
+                info,
+                trap_explanation: _,
+                memory_wrap,
+            } = prepare_info(self)?;
 
             // Entry function not found, so we mean this as empty function
             return match post_execution_handler(&memory_wrap) {
@@ -246,12 +259,14 @@ where
 
         let termination_reason = self.memory_wrap.store.data().termination_reason.clone();
 
-        let (info, memory_wrap) = prepare_info(self)?;
+        let PreparedInfo {
+            info,
+            trap_explanation,
+            memory_wrap,
+        } = prepare_info(self)?;
 
         let termination = if res.is_err() {
-            let reason = info
-                .trap_explanation
-                .clone()
+            let reason = trap_explanation
                 .map(TerminationReason::Trap)
                 .unwrap_or(termination_reason);
 

@@ -26,6 +26,7 @@ use core_processor::{
 };
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     costs::HostFnWeights,
@@ -93,7 +94,10 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(
+        self,
+        memory: &dyn Memory,
+    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         // Accessed pages are all pages except current lazy pages
         let allocations = self.inner.allocations_context.allocations().clone();
         let mut accessed_pages: BTreeSet<PageNumber> = allocations
@@ -119,19 +123,20 @@ impl IntoExtInfo for LazyPagesExt {
         let (outcome, context_store) = self.inner.message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
-        Ok(ExtInfo {
+        let info = ExtInfo {
             gas_amount: self.inner.gas_counter.into(),
             allocations,
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,
             context_store,
-            trap_explanation: self
-                .inner
-                .error_explanation
-                .and_then(ProcessorError::into_trap_explanation),
             program_candidates_data: self.inner.program_candidates_data,
-        })
+        };
+        let trap_explanation = self
+            .inner
+            .error_explanation
+            .and_then(ProcessorError::into_trap_explanation);
+        Ok((info, trap_explanation))
     }
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
