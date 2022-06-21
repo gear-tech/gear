@@ -17,9 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Pallet, Weight};
+use common::Origin;
 
 /// Wrapper for all migrations of this pallet, based on `StorageVersion`.
-pub fn migrate<T: Config>() -> Weight {
+pub fn migrate<T: Config>() -> Weight
+where
+    <T as frame_system::Config>::AccountId: Origin,
+{
     use frame_support::traits::StorageVersion;
 
     let _version = StorageVersion::get::<Pallet<T>>();

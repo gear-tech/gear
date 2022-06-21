@@ -3,7 +3,7 @@ use crate::{
     manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
-use codec::Codec;
+use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -18,7 +18,49 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Add,
+    derive_more::AddAssign,
+    derive_more::Sub,
+    derive_more::SubAssign,
+    derive_more::Mul,
+    derive_more::MulAssign,
+    derive_more::Div,
+    derive_more::DivAssign,
+    derive_more::Display,
+)]
+pub struct Gas(pub(crate) u64);
+
+impl Gas {
+    pub const fn zero() -> Self {
+        Self(0)
+    }
+
+    pub const fn saturating_add(self, rhs: Self) -> Self {
+        Self(self.0.saturating_add(rhs.0))
+    }
+
+    pub const fn saturating_sub(self, rhs: Self) -> Self {
+        Self(self.0.saturating_sub(rhs.0))
+    }
+
+    pub const fn saturating_mul(self, rhs: Self) -> Self {
+        Self(self.0.saturating_mul(rhs.0))
+    }
+
+    pub const fn saturating_div(self, rhs: Self) -> Self {
+        Self(self.0.saturating_div(rhs.0))
+    }
+}
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
@@ -161,8 +203,7 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        let code = Code::try_new(code, 1, |_| ConstantCostRules::default())
-            .expect("Failed to create Program from code");
+        let code = Code::new_raw(code, 1, None, true).expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
         let (code, _) = code_and_id.into_parts();
@@ -247,6 +288,28 @@ impl<'a> Program<'a> {
 
     pub fn id(&self) -> ProgramId {
         self.id
+    }
+
+    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> D {
+        D::decode(&mut self.meta_state_with_bytes(payload.encode()).as_slice())
+            .expect("Failed to decode result")
+    }
+
+    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Vec<u8> {
+        self.manager
+            .borrow_mut()
+            .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
+    }
+
+    pub fn meta_state_empty<D: Decode>(&self) -> D {
+        D::decode(&mut self.meta_state_empty_with_bytes().as_slice())
+            .expect("Failed to decode result")
+    }
+
+    pub fn meta_state_empty_with_bytes(&self) -> Vec<u8> {
+        self.manager
+            .borrow_mut()
+            .call_meta(&self.id, None, "meta_state")
     }
 }
 

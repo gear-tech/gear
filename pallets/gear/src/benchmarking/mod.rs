@@ -378,7 +378,7 @@ benchmarks! {
     reinstrument {
         let c in 0 .. T::Schedule::get().limits.code_len;
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
-        let code = Code::new_raw(code, 1, None).unwrap();
+        let code = Code::new_raw(code, 1, None, false).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
