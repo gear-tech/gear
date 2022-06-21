@@ -222,7 +222,8 @@ pub struct RunResult {
     pub(crate) others_failed: bool,
     pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
-    pub(crate) gas_burned: Gas,
+    pub(crate) main_gas_burned: Gas,
+    pub(crate) others_gas_burned: Gas,
 }
 
 impl RunResult {
@@ -252,8 +253,12 @@ impl RunResult {
         self.total_processed
     }
 
-    pub fn gas_burned(&self) -> Gas {
-        self.gas_burned
+    pub fn main_gas_burned(&self) -> Gas {
+        self.main_gas_burned
+    }
+
+    pub fn others_gas_burned(&self) -> Gas {
+        self.others_gas_burned
     }
 
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {

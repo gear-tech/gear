@@ -158,7 +158,8 @@ pub(crate) struct ExtManager {
     pub(crate) log: Vec<StoredMessage>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
-    pub(crate) gas_burned: Gas,
+    pub(crate) main_gas_burned: Gas,
+    pub(crate) others_gas_burned: Gas,
 }
 
 impl ExtManager {
@@ -270,7 +271,8 @@ impl ExtManager {
             log: log.into_iter().map(CoreLog::from).collect(),
             message_id: self.msg_id,
             total_processed,
-            gas_burned: self.gas_burned,
+            main_gas_burned: self.main_gas_burned,
+            others_gas_burned: self.others_gas_burned,
         }
     }
 
@@ -280,7 +282,8 @@ impl ExtManager {
         self.log.clear();
         self.main_failed = false;
         self.others_failed = false;
-        self.gas_burned = Gas::zero();
+        self.main_gas_burned = Gas::zero();
+        self.others_gas_burned = Gas::zero();
 
         // TODO: Remove this check after #349.
         if !self.dispatches.is_empty() {
@@ -507,7 +510,9 @@ impl JournalHandler for ExtManager {
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         if self.msg_id == message_id {
-            self.gas_burned += Gas(amount);
+            self.main_gas_burned = self.main_gas_burned.saturating_add(Gas(amount));
+        } else {
+            self.others_gas_burned = self.others_gas_burned.saturating_add(Gas(amount));
         }
     }
 

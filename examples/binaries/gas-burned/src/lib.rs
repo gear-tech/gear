@@ -40,12 +40,12 @@ mod tests {
 
         let program = Program::current(&system);
         let res = program.send_bytes(from, "init");
-        let init_gas_burned = res.gas_burned();
+        let init_gas_burned = res.main_gas_burned();
         println!("Init gas burned: {}", init_gas_burned);
         assert!(init_gas_burned > Gas::zero());
 
         let res = program.send_bytes(from, "handle");
-        let handle_gas_burned = res.gas_burned();
+        let handle_gas_burned = res.main_gas_burned();
         println!("Handle gas burned: {}", handle_gas_burned);
         assert!(handle_gas_burned > init_gas_burned);
     }
