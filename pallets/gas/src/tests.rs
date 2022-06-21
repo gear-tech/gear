@@ -418,17 +418,20 @@ fn limit_vs_origin() {
         let split_1_2 = H256::random();
         let split_1_1_1 = H256::random();
 
-        assert_ok!(Gas::create(origin, root_node, 1000));
+        assert_ok!(Gas::create(origin, root_node, 1100));
 
-        assert_ok!(Gas::cut(root_node, cut, 200));
+        assert_ok!(Gas::cut(root_node, cut, 300));
         assert_ok!(Gas::split(root_node, split_1));
         assert_ok!(Gas::split(root_node, split_2));
         assert_ok!(Gas::split_with_value(split_1, split_1_1, 600));
         assert_ok!(Gas::split(split_1, split_1_2));
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
-        // Original 1000 less 200 that were `cut` and `split_with_value`
+        // Original 1100 less 200 that were `cut` and `split_with_value`
         assert_eq!(Gas::get_limit(root_node).unwrap(), Some(200));
+
+        // 300 cut from the root node
+        assert_eq!(Gas::get_limit(cut).unwrap(), Some(300));
 
         // Parent's 200
         assert_eq!(Gas::get_limit(split_1).unwrap(), Some(200));
