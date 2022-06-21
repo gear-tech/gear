@@ -411,6 +411,7 @@ fn limit_vs_origin() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
         let origin = H256::random();
         let root_node = H256::random();
+        let cut = H256::random();
         let split_1 = H256::random();
         let split_2 = H256::random();
         let split_1_1 = H256::random();
@@ -419,32 +420,34 @@ fn limit_vs_origin() {
 
         assert_ok!(Gas::create(origin, root_node, 1000));
 
+        assert_ok!(Gas::cut(root_node, cut, 200));
         assert_ok!(Gas::split(root_node, split_1));
         assert_ok!(Gas::split(root_node, split_2));
         assert_ok!(Gas::split_with_value(split_1, split_1_1, 600));
         assert_ok!(Gas::split(split_1, split_1_2));
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
-        // Original 1000 less 600 that were `split_with_value`
-        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(400));
+        // Original 1000 less 200 that were `cut` and `split_with_value`
+        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(200));
 
-        // Parent's 400
-        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(400));
+        // Parent's 200
+        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(200));
 
-        // Parent's 400
-        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(400));
+        // Parent's 200
+        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(200));
 
         // Propriatery 600
         assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some(600));
 
-        // Grand-parent's 400
-        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(400));
+        // Grand-parent's 200
+        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(200));
 
         // Parent's 600
         assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some(600));
 
         // All nodes origin is `origin`
         assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(cut).unwrap(), Some(origin));
         assert_eq!(Gas::get_origin(split_1).unwrap(), Some(origin));
         assert_eq!(Gas::get_origin(split_2).unwrap(), Some(origin));
         assert_eq!(Gas::get_origin(split_1_1).unwrap(), Some(origin));
