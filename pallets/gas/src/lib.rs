@@ -38,6 +38,7 @@ mod property_tests;
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub enum ValueType {
     External { id: H256, value: u64 },
+    ReservedExternal { parent: H256, value: u64 },
     SpecifiedLocal { parent: H256, value: u64 },
     UnspecifiedLocal { parent: H256 },
 }
@@ -55,6 +56,7 @@ impl Default for ValueType {
 pub struct ValueNode {
     pub spec_refs: u32,
     pub unspec_refs: u32,
+    pub reserved_refs: u32,
     pub inner: ValueType,
     pub consumed: bool,
 }
@@ -65,6 +67,7 @@ impl ValueNode {
             inner: ValueType::External { id: origin, value },
             spec_refs: 0,
             unspec_refs: 0,
+            reserved_refs: 0,
             consumed: false,
         }
     }
@@ -72,6 +75,7 @@ impl ValueNode {
     pub fn inner_value(&self) -> Option<u64> {
         match self.inner {
             ValueType::External { value, .. } => Some(value),
+            ValueType::ReservedExternal { value, .. } => Some(value),
             ValueType::SpecifiedLocal { value, .. } => Some(value),
             ValueType::UnspecifiedLocal { .. } => None,
         }
@@ -80,6 +84,7 @@ impl ValueNode {
     pub fn inner_value_mut(&mut self) -> Option<&mut u64> {
         match self.inner {
             ValueType::External { ref mut value, .. } => Some(value),
+            ValueType::ReservedExternal { ref mut value, .. } => Some(value),
             ValueType::SpecifiedLocal { ref mut value, .. } => Some(value),
             ValueType::UnspecifiedLocal { .. } => None,
         }
@@ -88,6 +93,7 @@ impl ValueNode {
     pub fn parent(&self) -> Option<H256> {
         match self.inner {
             ValueType::External { .. } => None,
+            ValueType::ReservedExternal { parent, .. } => Some(parent),
             ValueType::SpecifiedLocal { parent, .. } => Some(parent),
             ValueType::UnspecifiedLocal { parent } => Some(parent),
         }
@@ -143,6 +149,9 @@ impl ValueNode {
                 }
                 ValueType::UnspecifiedLocal { .. } => {
                     parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
+                }
+                ValueType::ReservedExternal { .. } => {
+                    parent.unspec_refs = parent.reserved_refs.saturating_sub(1)
                 }
                 ValueType::External { .. } => {
                     unreachable!("node is guaranteed to have a parent, so can't be an external one")
@@ -217,6 +226,9 @@ pub mod pallet {
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
+        /// Forbidden operation of the value node
+        Forbidden,
+
         /// Gas (gas tree) has already been created for the provided key.
         NodeAlreadyExists,
 
@@ -318,7 +330,8 @@ pub mod pallet {
                         return Ok(Some((NegativeImbalance::new(value), id)))
                     }
                     ValueType::SpecifiedLocal { parent, .. }
-                    | ValueType::UnspecifiedLocal { parent } => {
+                    | ValueType::UnspecifiedLocal { parent }
+                    | ValueType::ReservedExternal { parent, .. } => {
                         node_id = parent;
                         node = Self::get_node(node_id).ok_or(Error::<T>::ParentIsLost)?;
                     }
@@ -432,7 +445,8 @@ where
             GasTree::<T>::remove(key);
             match node.inner {
                 ValueType::UnspecifiedLocal { parent }
-                | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
+                | ValueType::SpecifiedLocal { parent, .. }
+                | ValueType::ReservedExternal { parent, .. } => Self::check_consumed(parent)?,
                 ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
             }
         } else {
@@ -472,6 +486,11 @@ where
     fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
 
+        // Check if the value node is reserved
+        if let ValueType::ReservedExternal { .. } = node.inner {
+            return Err(Error::<T>::Forbidden.into());
+        }
+
         ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
         ensure!(
@@ -485,6 +504,7 @@ where
             inner: ValueType::UnspecifiedLocal { parent: key },
             spec_refs: 0,
             unspec_refs: 0,
+            reserved_refs: 0,
             consumed: false,
         };
 
@@ -498,6 +518,11 @@ where
 
     fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
         let mut parent = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
+
+        // Check if the value node is reserved
+        if let ValueType::ReservedExternal { .. } = parent.inner {
+            return Err(Error::<T>::Forbidden.into());
+        }
 
         ensure!(!parent.consumed, Error::<T>::NodeWasConsumed);
         // This also checks if key == new_node_key
@@ -526,6 +551,7 @@ where
             },
             spec_refs: 0,
             unspec_refs: 0,
+            reserved_refs: 0,
             consumed: false,
         };
         // Save new node
