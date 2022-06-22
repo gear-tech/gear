@@ -520,8 +520,8 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            let code =
-                Code::new_raw(code, schedule.instruction_weights.version, None, false).map_err(|e| {
+            let code = Code::new_raw(code, schedule.instruction_weights.version, None, false)
+                .map_err(|e| {
                     log::debug!("Code failed to load: {:?}", e);
                     Error::<T>::FailedToConstructProgram
                 })?;
