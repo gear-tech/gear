@@ -15,6 +15,8 @@ pub use positive_imbalance::PositiveImbalance;
 pub use negative_imbalance::NegativeImbalance;
 pub use error::Error;
 
+use node::{ValueNode, ValueType};
+
 pub struct ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>(PhantomData<(TotalValue, InternalError, Error, ExternalId, StorageMap)>);
 
 impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
@@ -140,7 +142,26 @@ where
     }
 
     fn check_consumed(key: MapKey) -> Result<crate::ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error> {
-        todo!()
+        let mut node_id = key;
+        let mut node = Self::get_node(node_id).ok_or(InternalError::node_not_found())?;
+        while node.consumed && node.refs() == 0 {
+            Self::decrease_parents_ref(&node)?;
+            Self::move_value_upstream(&mut node)?;
+            StorageMap::remove(node_id);
+
+            match node.inner {
+                ValueType::External { id, value } => {
+                    return Ok(Some((NegativeImbalance::new(value), id)))
+                }
+                ValueType::SpecifiedLocal { parent, .. }
+                | ValueType::UnspecifiedLocal { parent } => {
+                    node_id = parent;
+                    node = Self::get_node(node_id).ok_or(InternalError::parent_is_lost())?;
+                }
+            }
+        }
+
+        Ok(None)
     }
 }
 
