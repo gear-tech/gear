@@ -386,7 +386,7 @@ impl ExtManager {
                         source,
                         DispatchOutcome::InitFailure {
                             program_id,
-                            reason: Some(expl.to_string()),
+                            reason: expl.to_string(),
                         },
                     );
                 } else {
@@ -395,7 +395,7 @@ impl ExtManager {
                         source,
                         DispatchOutcome::MessageTrap {
                             program_id,
-                            trap: Some(expl.to_string()),
+                            trap: expl.to_string(),
                         },
                     )
                 }
