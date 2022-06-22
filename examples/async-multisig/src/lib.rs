@@ -84,9 +84,7 @@ async fn main() {
                     .ok()
                     .and_then(|response| {
                         // the same way as in verify.rs from subkey
-                        let mut signature: Signature = Signature([0u8; 64]);
-                        if response.signature.len() == signature.0.len() {
-                            signature.as_mut().copy_from_slice(&response.signature);
+                        if let Ok(signature) = Signature::try_from(response.signature.as_slice()) {
                             Some(signature)
                         } else {
                             None
