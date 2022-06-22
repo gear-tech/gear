@@ -290,7 +290,7 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
     bn: u32,
 ) -> Program {
     let code = Code::try_new(
-        hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+        hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec(),
         1,
         |_| ConstantCostRules::default(),
     )

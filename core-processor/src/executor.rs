@@ -299,7 +299,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.forbidden_funcs,
     );
 
-    let mut env = E::new(ext, program.raw_code(), mem_size).map_err(|err| {
+    let mut env = E::new(
+        ext,
+        program.raw_code(),
+        program.code().exports().clone(),
+        mem_size,
+    )
+    .map_err(|err| {
         log::debug!("Setup instance err = {}", err);
         ExecutionError {
             program_id,
@@ -327,7 +333,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Execute program in backend env.
-    let BackendReport { termination, info } = match env.execute(kind.into_entry(), |mem| {
+    let BackendReport { termination, info } = match env.execute(&kind, |mem| {
         // released pages initial data will be added to `pages_intial_data` after execution.
         if A::is_lazy_pages_enabled() {
             A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
