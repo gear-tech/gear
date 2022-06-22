@@ -37,8 +37,8 @@ use gear_core::{
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
-/// Make checks that everything allright with memory pages.
-/// Charge gas for pages init/load/grow and checks that there is enought gas for that.
+/// Make checks that everything with memory pages go well.
+/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
 /// Returns size of wasm memory buffer which must be created in execution environment.
 fn make_checks_and_charge_gas_for_pages<'a>(
     settings: &ExecutionSettings,
@@ -116,7 +116,7 @@ fn prepare_memory<A: ProcessorExt>(
     static_pages: WasmPageNumber,
     mem: &mut dyn Memory,
 ) -> Result<(), ExecutionErrorReason> {
-    // Set intial data for pages
+    // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data.as_slice())
             .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
@@ -180,16 +180,16 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
                 }
             }
         } else {
-            let intial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
+            let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
                 initial_data
             } else {
-                // If page has no data in `pages_intial_data` then data is zeros.
+                // If page has no data in `pages_initial_data` then data is zeros.
                 // Because it's default data for wasm pages which is not static,
-                // and for all static pages we save data in `pages_intial_data` in E::new.
+                // and for all static pages we save data in `pages_initial_data` in E::new.
                 PageBuf::new_zeroed()
             };
 
-            if new_data != intial_data {
+            if new_data != initial_data {
                 page_update.insert(page, new_data);
                 log::trace!(
                     "Page {} has been changed - will be updated in storage",
@@ -212,7 +212,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Checks that lazy pages are enabled in case extension A uses them.
     if !A::check_lazy_pages_consistent_state() {
         // This is a gross violation of the terms of use ext with lazy pages,
-        // so we will panic here. This cannot happens unless sombody tries to
+        // so we will panic here. This cannot happens unless somebody tries to
         // use lazy-pages ext in executor without lazy-pages env enabled.
         panic!("Cannot use ext with lazy pages without lazy pages env enabled");
     }
@@ -327,7 +327,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Execute program in backend env.
     let BackendReport { termination, info } = match env.execute(&kind, |mem| {
-        // released pages initial data will be added to `pages_intial_data` after execution.
+        // released pages initial data will be added to `pages_initial_data` after execution.
         if A::is_lazy_pages_enabled() {
             A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
         } else {

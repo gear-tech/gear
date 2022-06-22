@@ -111,7 +111,7 @@ where
     pub fn into_termination_reason(self) -> TerminationReason {
         match self {
             Self::Terminated(reason) => reason,
-            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string())),
+            err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
     }
 }

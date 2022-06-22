@@ -843,14 +843,6 @@ pub mod pallet {
         }
 
         /// Message Queue processing.
-        ///
-        /// Can emit the following events:
-        /// - `InitSuccess(MessageInfo)` when initialization message is processed successfully;
-        /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
-        /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
-        /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
-        ///
-        /// Returns `Weight` amount being used for processing dispatches in the queue.
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 

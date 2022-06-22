@@ -70,7 +70,7 @@ pub struct ExecutionSettings {
     pub block_info: BlockInfo,
     /// Allocation config.
     pub allocations_config: AllocationsConfig,
-    /// Minimal amount of existance for account.
+    /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
