@@ -27,7 +27,7 @@ where
     Error: From<InternalError>,
     ExternalId: Default + Clone,
     MapKey: Copy,
-    StorageMap: super::storage::MapStorage<Key = MapKey, Value = node::ValueNode<ExternalId, MapKey, Balance>>,
+    StorageMap: super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
 {
     fn get_node(key: MapKey) -> Option<StorageMap::Value> {
         StorageMap::get(&key)
@@ -42,10 +42,10 @@ where
     /// - second value is the id of the ancestor.
     /// The latter value is of `Option` type. If it's `None`, it means, that the ancestor and `self`
     /// are the same.
-    fn node_with_value(node: node::ValueNode<ExternalId, MapKey, Balance>) -> Result<(node::ValueNode<ExternalId, MapKey, Balance>, Option<MapKey>), Error> {
+    fn node_with_value(node: StorageMap::Value) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
-        while let node::ValueType::UnspecifiedLocal { parent } = ret_node.inner {
+        while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or(InternalError::parent_is_lost())?;
         }
@@ -70,8 +70,6 @@ where
     }
 
     fn decrease_parents_ref(node: &StorageMap::Value) -> Result<(), Error> {
-        use node::ValueType;
-
         let id = match node.parent() {
             Some(id) => id,
             None => return Ok(()),
@@ -110,7 +108,7 @@ where
     /// # Note
     /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
     fn move_value_upstream(node: &mut StorageMap::Value) -> Result<(), Error> {
-        if let node::ValueType::SpecifiedLocal {
+        if let ValueType::SpecifiedLocal {
             value: self_value,
             parent,
         } = node.inner
@@ -173,7 +171,7 @@ where
     Error: From<InternalError>,
     ExternalId: Default + Clone,
     MapKey: Copy,
-    StorageMap: super::storage::MapStorage<Key = MapKey, Value = node::ValueNode<ExternalId, MapKey, Balance>>,
+    StorageMap: super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
@@ -199,7 +197,7 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        let node = node::ValueNode::new(origin, amount);
+        let node = ValueNode::new(origin, amount);
 
         // Save value node to storage
         // GasTree::<T>::insert(key, node);
@@ -212,8 +210,8 @@ where
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
             let (root, _) = Self::root(node)?;
-            if let node::ValueNode {
-                inner: node::ValueType::External { id, .. },
+            if let ValueNode {
+                inner: ValueType::External { id, .. },
                 ..
             } = root
             {
@@ -256,10 +254,7 @@ where
             key: Self::Key,
         ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>
     {
-        use node::ValueType;
-
         let mut node = Self::get_node(key).ok_or(InternalError::node_not_found())?;
-
         if node.consumed {
             return Err(InternalError::node_was_consumed().into());
         }
@@ -314,7 +309,6 @@ where
         ) -> Result<(), Self::Error>
     {
         let mut parent = Self::get_node(key).ok_or(InternalError::node_not_found())?;
-
         if parent.consumed {
             return Err(InternalError::node_was_consumed().into());
         }
@@ -337,8 +331,8 @@ where
             return Err(InternalError::insufficient_balance().into());
         }
 
-        let new_node = node::ValueNode {
-            inner: node::ValueType::SpecifiedLocal {
+        let new_node = ValueNode {
+            inner: ValueType::SpecifiedLocal {
                 value: amount,
                 parent: key,
             },
@@ -373,7 +367,6 @@ where
 
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
         let mut node = Self::get_node(key).ok_or(InternalError::node_not_found())?;
-
         if node.consumed {
             return Err(InternalError::node_was_consumed().into());
         }
@@ -385,8 +378,8 @@ where
 
         node.unspec_refs = node.unspec_refs.saturating_add(1);
 
-        let new_node = node::ValueNode {
-            inner: node::ValueType::UnspecifiedLocal { parent: key },
+        let new_node = ValueNode {
+            inner: ValueType::UnspecifiedLocal { parent: key },
             spec_refs: 0,
             unspec_refs: 0,
             consumed: false,
