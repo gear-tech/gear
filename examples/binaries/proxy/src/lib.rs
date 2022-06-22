@@ -48,12 +48,12 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle() {
+    unsafe extern "C" fn handle() {
         msg::send(DESTINATION, b"proxied message", msg::value());
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         let args: InputArgs = msg::load().expect("Failed to decode `InputArgs'");
         DESTINATION = args.destination;
     }

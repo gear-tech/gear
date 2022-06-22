@@ -30,14 +30,14 @@ impl State {
 static mut STATE: State = State { user_id: None };
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     STATE.set_user_id(msg::source());
 
     debug!("CONTRACT: Inited successfully");
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let payload: String = msg::load().expect("CONTRACT: Unable to decode handle input");
 
     debug!("CONTRACT: Got payload: '{}'", payload);

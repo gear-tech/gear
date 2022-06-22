@@ -43,7 +43,7 @@
 //! use gstd::{exec, msg};
 //!
 //! // Send a reply after the block height reaches the number 1000
-//! pub unsafe extern "C" fn handle() {
+//! unsafe extern "C" fn handle() {
 //!     if exec::block_height() >= 1000 {
 //!         msg::reply(b"Block #1000 reached", 0).unwrap();
 //!     }
@@ -53,7 +53,7 @@
 //! use gstd::{exec, msg};
 //!
 //! // Send a reply after the block timestamp reaches the February 22, 2022
-//! pub unsafe extern "C" fn handle() {
+//! unsafe extern "C" fn handle() {
 //!     if exec::block_timestamp() >= 1645488000000 {
 //!         msg::reply(b"The current block is generated after February 22, 2022", 0).unwrap();
 //!     }
@@ -63,7 +63,7 @@
 //! use gstd::exec;
 //!
 //! // Perform work while `gas_available` is more than 1000
-//! pub unsafe extern "C" fn handle() {
+//! unsafe extern "C" fn handle() {
 //!     while exec::gas_available() > 1000 {
 //!         // ...
 //!     }
@@ -73,7 +73,7 @@
 //! use gstd::exec;
 //!
 //! // Get self value balance in program
-//! pub unsafe extern "C" fn handle() {
+//! unsafe extern "C" fn handle() {
 //!     let _my_balance = exec::value_available();
 //! }
 //! ```
@@ -91,7 +91,7 @@ pub use gcore::exec::{block_height, block_timestamp, gas_available, value_availa
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::exit(msg::source());
 /// }
@@ -110,7 +110,7 @@ pub fn exit(value_destination: ActorId) -> ! {
 /// ```
 /// use gstd::exec;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::leave();
 /// }
@@ -133,7 +133,7 @@ pub fn leave() -> ! {
 /// ```
 /// use gstd::exec;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::wait();
 /// }
@@ -154,7 +154,7 @@ pub fn wait() -> ! {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_id = msg::id();
 ///     exec::wake(msg_id);
@@ -171,7 +171,7 @@ pub fn wake(waker_id: MessageId) {
 /// ```
 /// use gstd::{exec, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let me = exec::program_id();
 /// }
@@ -188,7 +188,7 @@ pub fn program_id() -> ActorId {
 /// ```
 /// use gstd::{exec, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let _user = exec::origin();
 /// }

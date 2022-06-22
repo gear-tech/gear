@@ -1,5 +1,4 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::missing_safety_doc)]
 
 extern crate alloc;
 
@@ -10,7 +9,7 @@ const SHORT: usize = 100;
 const LONG: usize = 10000;
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let mut v = vec![0; SHORT];
     for (i, item) in v.iter_mut().enumerate() {
         *item = i * i;
@@ -19,7 +18,7 @@ pub unsafe extern "C" fn init() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let mut v = vec![0; LONG];
     for (i, item) in v.iter_mut().enumerate() {
         *item = i * i;
