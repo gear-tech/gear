@@ -190,11 +190,14 @@ impl ProcessorExt for LazyPagesExt {
         lazy_pages::is_lazy_pages_enabled()
     }
 
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_protect_and_init_info<I>(
         mem: &dyn Memory,
-        memory_pages: &BTreeSet<PageNumber>,
+        memory_pages: I,
         prog_id: ProgramId,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::Error>
+    where
+        I: Iterator<Item = PageNumber>,
+    {
         lazy_pages::protect_pages_and_init_info(mem, memory_pages, prog_id)
             .map_err(Error::LazyPages)
     }
@@ -259,8 +262,7 @@ impl EnvExt for LazyPagesExt {
                 continue;
             }
             self.fresh_allocations.insert(wasm_page);
-            let gear_pages: BTreeSet<PageNumber> = wasm_page.to_gear_pages_iter().collect();
-            save_page_lazy_info(id, &gear_pages);
+            save_page_lazy_info(id, wasm_page.to_gear_pages_iter());
         }
 
         // Protect all lazy pages including new allocations

@@ -25,10 +25,7 @@ use gear_core::{
     memory::{HostPointer, Memory, PageBuf, PageNumber},
 };
 use gear_runtime_interface::{gear_ri, RIError};
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    vec::Vec,
-};
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
@@ -79,18 +76,22 @@ pub fn is_lazy_pages_enabled() -> bool {
 }
 
 /// Protect and save storage keys for pages which has no data
-pub fn protect_pages_and_init_info(
+pub fn protect_pages_and_init_info<I>(
     mem: &dyn Memory,
-    lazy_pages: &BTreeSet<PageNumber>,
+    lazy_pages: I,
     prog_id: ProgramId,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    I: Iterator<Item = PageNumber>,
+{
     let prog_id_hash = prog_id.into_origin();
+    let mut lay_pages_peekable = lazy_pages.peekable();
 
     gear_ri::reset_lazy_pages_info();
 
     let addr = match mem.get_buffer_host_addr() {
         None => {
-            return if !lazy_pages.is_empty() {
+            return if lay_pages_peekable.peek().is_none() {
                 // In this case wasm buffer cannot be undefined
                 Err(Error::WasmMemBufferIsUndefined)
             } else {
@@ -104,7 +105,7 @@ pub fn protect_pages_and_init_info(
         e
     })?;
 
-    crate::save_page_lazy_info(prog_id_hash, lazy_pages);
+    crate::save_page_lazy_info(prog_id_hash, lay_pages_peekable);
 
     mprotect_lazy_pages(mem, true)
 }

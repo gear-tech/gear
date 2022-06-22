@@ -32,7 +32,7 @@ pub use code_storage::{CodeStorage, Error as CodeStorageError};
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use core::fmt;
+use core::{fmt, mem};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::Imbalance,
@@ -347,7 +347,8 @@ pub fn program_key(id: H256) -> Vec<u8> {
 }
 
 pub fn pages_prefix(program_id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
+    let id_bytes = program_id.as_fixed_bytes();
+    let mut key = Vec::with_capacity(STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2);
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
     key.extend(program_id.as_fixed_bytes());
     key.extend(b"::");
@@ -357,7 +358,10 @@ pub fn pages_prefix(program_id: H256) -> Vec<u8> {
 
 fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     // try to avoid realloc
-    let mut key = Vec::with_capacity(STORAGE_PROGRAM_PAGES_PREFIX.len() + 38);
+    let id_bytes = id.as_fixed_bytes();
+    let mut key = Vec::with_capacity(
+        STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2 + mem::size_of::<u32>(),
+    );
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
     key.extend(id.as_fixed_bytes());
     key.extend(b"::");
@@ -406,9 +410,13 @@ pub fn get_program_page_data(
 }
 
 /// Save page data key in storage
-pub fn save_page_lazy_info(id: H256, page_nums: &BTreeSet<PageNumber>) {
+pub fn save_page_lazy_info<I>(id: H256, page_nums: I)
+where
+    I: Iterator<Item = PageNumber>,
+{
     let prefix = pages_prefix(id);
-    let pages = page_nums.iter().map(|p| p.0).collect();
+    let pages = page_nums.map(|p| p.0).collect();
+    log::trace!("lazy pages = {:?}", &pages);
     gear_ri::gear_ri::save_page_lazy_info(pages, prefix);
 }
 

@@ -70,11 +70,13 @@ pub trait ProcessorExt {
     fn check_lazy_pages_consistent_state() -> bool;
 
     /// Protect and save storage keys for pages which has no data
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_protect_and_init_info<I>(
         mem: &dyn Memory,
-        lazy_pages: &BTreeSet<PageNumber>,
+        lazy_pages: I,
         prog_id: ProgramId,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Self::Error>
+    where
+        I: Iterator<Item = PageNumber>;
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
@@ -232,11 +234,14 @@ impl ProcessorExt for Ext {
         true
     }
 
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_protect_and_init_info<I>(
         _mem: &dyn Memory,
-        _memory_pages: &BTreeSet<PageNumber>,
+        _memory_pages: I,
         _prog_id: ProgramId,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::Error>
+    where
+        I: Iterator<Item = PageNumber>,
+    {
         unreachable!()
     }
 
