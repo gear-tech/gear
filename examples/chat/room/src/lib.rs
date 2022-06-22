@@ -32,7 +32,7 @@ static mut STATE: State = State {
 };
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     room(msg::load().expect("Failed to decode incoming message"));
 }
 
@@ -73,7 +73,7 @@ unsafe fn room(room_msg: RoomMessage) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let s: &'static str = Box::leak(
         String::from_utf8(msg::load_bytes())
             .expect("Invalid message: should be utf-8")

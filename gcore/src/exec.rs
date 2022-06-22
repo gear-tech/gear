@@ -49,7 +49,7 @@ mod sys {
 /// use gcore::{exec, msg};
 ///
 /// // Send a reply after the block height reaches the number 1000
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     if exec::block_height() >= 1000 {
 ///         msg::reply(b"Block #1000 reached", 0).unwrap();
 ///     }
@@ -69,7 +69,7 @@ pub fn block_height() -> u32 {
 /// use gcore::{exec, msg};
 ///
 /// // Send a reply after the block timestamp reaches the February 22, 2022
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     if exec::block_timestamp() >= 1645488000000 {
 ///         msg::reply(b"The current block is generated after February 22, 2022", 0).unwrap();
 ///     }
@@ -90,7 +90,7 @@ pub fn block_timestamp() -> u64 {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::exit(msg::source());
 /// }
@@ -113,7 +113,7 @@ pub fn exit(value_destination: ActorId) -> ! {
 /// use gcore::exec;
 ///
 /// // Perform work while `gas_available` is more than 1000
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     while exec::gas_available() > 1000 {
 ///         // ...
 ///     }
@@ -133,7 +133,7 @@ pub fn gas_available() -> u64 {
 /// ```
 /// use gcore::exec;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::leave();
 /// }
@@ -153,7 +153,7 @@ pub fn leave() -> ! {
 /// use gcore::exec;
 ///
 /// // Get self value balance in program
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let _my_balance = exec::value_available();
 /// }
 /// ```
@@ -179,7 +179,7 @@ pub fn value_available() -> u128 {
 /// ```
 /// use gcore::exec;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::wait();
 /// }
@@ -200,7 +200,7 @@ pub fn wait() -> ! {
 /// ```
 /// use gcore::{exec, MessageId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     exec::wake(MessageId::default());
 /// }
@@ -218,7 +218,7 @@ pub fn wake(waker_id: MessageId) {
 /// ```
 /// use gcore::{exec, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let me = exec::program_id();
 /// }
@@ -237,7 +237,7 @@ pub fn program_id() -> ActorId {
 /// ```
 /// use gcore::{exec, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let _user = exec::origin();
 /// }

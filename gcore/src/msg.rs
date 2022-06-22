@@ -102,7 +102,7 @@ mod sys {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let exit_code = msg::exit_code();
 /// }
@@ -121,7 +121,7 @@ pub fn exit_code() -> i32 {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 /// }
 /// ```
@@ -141,7 +141,7 @@ pub fn id() -> MessageId {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let mut result = vec![0u8; msg::size()];
 ///     msg::load(&mut result[..]);
 /// }
@@ -178,7 +178,7 @@ pub fn load(buffer: &mut [u8]) {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply(b"PING", 0).unwrap();
 /// }
@@ -208,7 +208,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }
@@ -249,7 +249,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -281,7 +281,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -322,7 +322,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -345,7 +345,7 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle_reply() {
+/// unsafe extern "C" fn handle_reply() {
 ///     // ...
 ///     let orginal_message_id = msg::reply_to();
 /// }
@@ -377,7 +377,7 @@ pub fn reply_to() -> MessageId {
 /// ```
 /// use gcore::{msg, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let mut id: [u8; 32] = [0; 32];
 ///     for i in 0..id.len() {
@@ -414,7 +414,7 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> 
 /// ```
 /// use gcore::{msg, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let mut id: [u8; 32] = [0; 32];
 ///     for i in 0..id.len() {
@@ -470,7 +470,7 @@ pub fn send_with_gas(
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -505,7 +505,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -550,7 +550,7 @@ pub fn send_commit_with_gas(
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -582,7 +582,7 @@ pub fn send_init() -> Result<MessageHandle> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init().unwrap();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -610,7 +610,7 @@ pub fn send_push(handle: &MessageHandle, payload: &[u8]) -> Result<()> {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let payload_size = msg::size();
 /// }
@@ -629,7 +629,7 @@ pub fn size() -> usize {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let who_sends_message = msg::source();
 /// }
@@ -650,7 +650,7 @@ pub fn source() -> ActorId {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let amount_sent_with_message = msg::value();
 /// }

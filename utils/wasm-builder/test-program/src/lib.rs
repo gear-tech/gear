@@ -3,13 +3,13 @@
 use gstd::{debug, msg};
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     debug!("handle()");
     msg::reply_bytes("Hello world!", 0).unwrap();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     debug!("init()");
 }
 

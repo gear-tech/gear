@@ -236,7 +236,7 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let action: Action = msg::load().expect("Could not load Action");
 
     match action {
@@ -278,7 +278,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
     debug!("FUNGIBLE_TOKEN {:?}", config);
     FUNGIBLE_TOKEN.set_name(config.name);
