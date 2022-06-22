@@ -226,9 +226,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
 
         for entry in module
             .export_section()
-            .ok_or(anyhow::format_err!(
-                "WASM module does't contain export section"
-            ))?
+            .ok_or_else(|| anyhow::format_err!("WASM module does't contain export section"))?
             .entries()
             .iter()
         {

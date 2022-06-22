@@ -39,6 +39,11 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::OptimizerFailed => write!(f, "Optimizer failed"),
+            Self::ExportSectionNotFound => write!(f, "WASM module does't contain export section"),
+            Self::RequiredExportFnNotFound => write!(
+                f,
+                "WASM module doesn't contain required export funtion (init/handle)"
+            ),
             Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
             Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
             Self::InvalidSkip => write!(f, "Multiple skipping functional"),
