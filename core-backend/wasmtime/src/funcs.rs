@@ -27,7 +27,7 @@ use codec::Encode;
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
     funcs::*,
-    AsTerminationReason, IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
+    AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrierWithError},
@@ -208,12 +208,12 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.gas(val as _).map_err(FuncError::Core))
                 .map_err(|e| {
-                    if let Some(TerminationReasonKind::GasAllowanceExceeded) = e
+                    if let Some(TerminationReason::GasAllowanceExceeded) = e
                         .as_core()
                         .and_then(AsTerminationReason::as_termination_reason)
                     {
                         caller.data_mut().termination_reason =
-                            Some(TerminationReason::GasAllowanceExceeded);
+                            TerminationReason::GasAllowanceExceeded;
                     }
 
                     Trap::new(e)
@@ -236,19 +236,20 @@ where
             move |mut caller: Caller<'_, StoreData<E>>, program_id_ptr: i32| -> Result<(), Trap> {
                 let ext = caller.data().ext.clone();
 
-                if let Err(err) = ext.with_fallible(|ext| -> Result<_, FuncError<_>> {
-                    let value_dest: ProgramId = get_bytes32(
-                        &get_caller_memory(&mut caller, &mem),
-                        program_id_ptr as u32 as _,
-                    )?
-                    .into();
-                    ext.exit(value_dest).map_err(FuncError::Core)
-                }) {
-                    Err(Trap::new(err))
-                } else {
-                    // Intentionally return an error to break the execution
-                    Err(Trap::new(FuncError::<E::Error>::Exit))
-                }
+                let program_id = ext
+                    .with_fallible(|ext| -> Result<_, FuncError<_>> {
+                        let value_dest: ProgramId = get_bytes32(
+                            &get_caller_memory(&mut caller, &mem),
+                            program_id_ptr as u32 as _,
+                        )?
+                        .into();
+                        ext.exit().map_err(FuncError::Core)?;
+                        Ok(value_dest)
+                    })
+                    .map_err(Trap::new)?;
+
+                caller.data_mut().termination_reason = TerminationReason::Exit(program_id);
+                Err(Trap::new(FuncError::<E::Error>::Exit))
             };
         Func::wrap(store, func)
     }
@@ -774,7 +775,7 @@ where
                 if let Err(err) = ext.with_fallible(|ext| ext.leave().map_err(FuncError::Core)) {
                     Trap::new(err)
                 } else {
-                    caller.data_mut().termination_reason = Some(TerminationReason::Leave);
+                    caller.data_mut().termination_reason = TerminationReason::Leave;
                     Trap::new(FuncError::<E::Error>::Leave)
                 };
             // Intentionally return an error to break the execution
@@ -790,7 +791,7 @@ where
                 if let Err(err) = ext.with_fallible(|ext| ext.wait().map_err(FuncError::Core)) {
                     Trap::new(err)
                 } else {
-                    caller.data_mut().termination_reason = Some(TerminationReason::Wait);
+                    caller.data_mut().termination_reason = TerminationReason::Wait;
                     Trap::new(FuncError::<E::Error>::Wait)
                 };
             // Intentionally return an error to break the execution
@@ -829,12 +830,8 @@ where
 
     pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
-            caller.data_mut().termination_reason = Some(TerminationReason::Trap {
-                explanation: Some(TrapExplanation::Other(
-                    "Unable to call a forbidden function".into(),
-                )),
-                description: None,
-            });
+            caller.data_mut().termination_reason =
+                TerminationReason::Trap(TrapExplanation::ForbiddenFunction);
             Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
         };
         Func::wrap(store, func)

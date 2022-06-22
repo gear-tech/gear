@@ -2385,6 +2385,7 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -2825,6 +2826,7 @@ dependencies = [
  "colored",
  "derive_more",
  "env_logger",
+ "gear-backend-common",
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
