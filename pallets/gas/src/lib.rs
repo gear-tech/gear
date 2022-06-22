@@ -326,13 +326,16 @@ pub mod pallet {
                 GasTree::<T>::remove(node_id);
 
                 match node.inner {
-                    ValueType::External { id, value } | ValueType::ReservedLocal { id, value } => {
+                    ValueType::External { id, value } => {
                         return Ok(Some((NegativeImbalance::new(value), id)))
                     }
                     ValueType::SpecifiedLocal { parent, .. }
                     | ValueType::UnspecifiedLocal { parent } => {
                         node_id = parent;
                         node = Self::get_node(node_id).ok_or(Error::<T>::ParentIsLost)?;
+                    }
+                    ValueType::ReservedLocal { .. } => {
+                        unreachable!("node is guaranteed to be a parent, but reserved nodes have no children")
                     }
                 }
             }

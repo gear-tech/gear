@@ -47,7 +47,7 @@ fn simple_value_tree() {
 }
 
 #[test]
-fn can_cut_reserved_nodes() {
+fn can_cut_nodes() {
     new_test_ext().execute_with(|| {
         let (root, specified, unspecified, cut_a, cut_b, cut_c) = (
             H256::random(),
