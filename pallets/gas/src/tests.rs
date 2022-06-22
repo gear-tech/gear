@@ -22,7 +22,7 @@ use frame_support::{assert_noop, assert_ok};
 use primitive_types::H256;
 
 type Gas = <Pallet<Test> as common::ValueTreeProvider>::ValueTree;
-type GasTree = ValueTreeNodes::<Test>;
+type GasTree = ValueTreeNodes<Test>;
 
 #[test]
 fn simple_value_tree() {

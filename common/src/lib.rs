@@ -34,11 +34,9 @@ pub mod value_tree;
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use sp_runtime::traits::Zero;
-use storage::ValueStorage;
-use core::{fmt, marker::PhantomData};
+use core::fmt;
 use frame_support::{
-    dispatch::{DispatchError, DispatchResult},
+    dispatch::DispatchError,
     traits::Imbalance,
     weights::{IdentityFee, WeightToFee},
 };
@@ -55,6 +53,7 @@ use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
+use storage::ValueStorage;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -254,7 +253,6 @@ pub trait ValueTree {
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 pub trait ValueTreeProvider {
-
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
@@ -280,13 +278,15 @@ pub trait ValueTreeProvider {
     /// Error type
     type Error: From<Self::InternalError>;
 
-    type ValueTree: ValueTree<ExternalOrigin = Self::ExternalOrigin,
+    type ValueTree: ValueTree<
+        ExternalOrigin = Self::ExternalOrigin,
         Key = Self::Key,
         Balance = Self::Balance,
         PositiveImbalance = Self::PositiveImbalance,
         NegativeImbalance = Self::NegativeImbalance,
         InternalError = Self::InternalError,
-        Error = Self::Error>;
+        Error = Self::Error,
+    >;
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]

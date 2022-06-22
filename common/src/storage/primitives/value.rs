@@ -74,7 +74,7 @@ pub trait ValueStorage {
 #[macro_export]
 macro_rules! wrap_storage_value {
     (storage: $storage: ident, name: $name: ident, value: $val: ty) => {
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, Eq)]
         pub struct $name<T>(PhantomData<T>);
 
         impl<T: crate::Config> ValueStorage for $name<T> {

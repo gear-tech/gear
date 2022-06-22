@@ -19,8 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use self::imbalances::{NegativeImbalance, PositiveImbalance};
-use common::{Origin, ValueTree};
-use common::{storage::ValueStorage, storage::MapStorage};
+use common::{
+    storage::{MapStorage, ValueStorage},
+    Origin, ValueTree,
+};
 use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalance};
 pub use pallet::*;
 pub use primitive_types::H256;
@@ -296,8 +298,7 @@ pub mod pallet {
     pub type ValueNode2 = common::value_tree::ValueNode<ExternalOrigin, Key, Balance>;
 
     #[pallet::storage]
-    pub type ValueTreeNodes<T> =
-        StorageMap<_, Identity, H256, ValueNode2>;
+    pub type ValueTreeNodes<T> = StorageMap<_, Identity, H256, ValueNode2>;
 
     common::wrap_storage_map!(
         storage: ValueTreeNodes,
@@ -324,8 +325,10 @@ pub mod pallet {
         type ExternalOrigin = ExternalOrigin;
         type Key = Key;
         type Balance = Balance;
-        type PositiveImbalance = common::value_tree::PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
-        type NegativeImbalance = common::value_tree::NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type PositiveImbalance =
+            common::value_tree::PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type NegativeImbalance =
+            common::value_tree::NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
         type InternalError = Error<T>;
         type Error = DispatchError;
 
@@ -335,7 +338,7 @@ pub mod pallet {
             Self::Error,
             ExternalOrigin,
             ValueTreeNodesWrap<T>,
-            >;
+        >;
     }
 
     #[pallet::hooks]

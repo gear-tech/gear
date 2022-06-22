@@ -1,25 +1,28 @@
 use super::*;
 use frame_support::{
-    traits::{SameOrOther, TryDrop, Imbalance, tokens::Balance as BalanceTrait},
+    traits::{tokens::Balance as BalanceTrait, Imbalance, SameOrOther, TryDrop},
     RuntimeDebug,
 };
 use sp_runtime::traits::Zero;
 use sp_std::{marker::PhantomData, mem};
 
 mod error;
-mod positive_imbalance;
 mod negative_imbalance;
 mod node;
+mod positive_imbalance;
 
-pub use positive_imbalance::PositiveImbalance;
-pub use negative_imbalance::NegativeImbalance;
 pub use error::Error;
+pub use negative_imbalance::NegativeImbalance;
+pub use positive_imbalance::PositiveImbalance;
 
 pub use node::{ValueNode, ValueType};
 
-pub struct ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>(PhantomData<(TotalValue, InternalError, Error, ExternalId, StorageMap)>);
+pub struct ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>(
+    PhantomData<(TotalValue, InternalError, Error, ExternalId, StorageMap)>,
+);
 
-impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
+impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap>
+    ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
 where
     Balance: BalanceTrait,
     TotalValue: ValueStorage<Value = Balance>,
@@ -27,7 +30,8 @@ where
     Error: From<InternalError>,
     ExternalId: Default + Clone,
     MapKey: Copy,
-    StorageMap: super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
+    StorageMap:
+        super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
 {
     fn get_node(key: MapKey) -> Option<StorageMap::Value> {
         StorageMap::get(&key)
@@ -42,12 +46,14 @@ where
     /// - second value is the id of the ancestor.
     /// The latter value is of `Option` type. If it's `None`, it means, that the ancestor and `self`
     /// are the same.
-    fn node_with_value(node: StorageMap::Value) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
+    fn node_with_value(
+        node: StorageMap::Value,
+    ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
         while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
             ret_id = Some(parent);
-            ret_node = Self::get_node(parent).ok_or(InternalError::parent_is_lost())?;
+            ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
         }
 
         Ok((ret_node, ret_id))
@@ -63,7 +69,7 @@ where
         let mut ret_node = node;
         while let Some(parent) = ret_node.parent() {
             ret_id = Some(parent);
-            ret_node = Self::get_node(parent).ok_or(InternalError::parent_is_lost())?;
+            ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
         }
 
         Ok((ret_node, ret_id))
@@ -75,7 +81,7 @@ where
             None => return Ok(()),
         };
 
-        let mut parent = Self::get_node(id).ok_or(InternalError::parent_is_lost())?;
+        let mut parent = Self::get_node(id).ok_or_else(InternalError::parent_is_lost)?;
         if parent.refs() == 0 {
             return Err(InternalError::parent_has_no_children().into());
         }
@@ -120,8 +126,8 @@ where
                 // `parent` key is known to exist, hence there must be it's ancestor with value.
                 // If there isn't, the gas tree is considered corrupted (invalidated).
                 let (mut parents_ancestor, ancestor_id) = Self::node_with_value(
-                    Self::get_node(parent)
-                    .ok_or(InternalError::parent_is_lost())?)?;
+                    Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?,
+                )?;
 
                 // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
                 let val = parents_ancestor
@@ -139,9 +145,12 @@ where
         Ok(())
     }
 
-    fn check_consumed(key: MapKey) -> Result<crate::ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error> {
+    fn check_consumed(
+        key: MapKey,
+    ) -> Result<crate::ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error>
+    {
         let mut node_id = key;
-        let mut node = Self::get_node(node_id).ok_or(InternalError::node_not_found())?;
+        let mut node = Self::get_node(node_id).ok_or_else(InternalError::node_not_found)?;
         while node.consumed && node.refs() == 0 {
             Self::decrease_parents_ref(&node)?;
             Self::move_value_upstream(&mut node)?;
@@ -154,7 +163,7 @@ where
                 ValueType::SpecifiedLocal { parent, .. }
                 | ValueType::UnspecifiedLocal { parent } => {
                     node_id = parent;
-                    node = Self::get_node(node_id).ok_or(InternalError::parent_is_lost())?;
+                    node = Self::get_node(node_id).ok_or_else(InternalError::parent_is_lost)?;
                 }
             }
         }
@@ -163,7 +172,8 @@ where
     }
 }
 
-impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> ValueTree for ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
+impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> ValueTree
+    for ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
 where
     Balance: BalanceTrait,
     TotalValue: ValueStorage<Value = Balance>,
@@ -171,7 +181,8 @@ where
     Error: From<InternalError>,
     ExternalId: Default + Clone,
     MapKey: Copy,
-    StorageMap: super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
+    StorageMap:
+        super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
@@ -188,11 +199,10 @@ where
     }
 
     fn create(
-            origin: Self::ExternalOrigin,
-            key: Self::Key,
-            amount: Self::Balance,
-        ) -> Result<Self::PositiveImbalance, Self::Error>
-    {
+        origin: Self::ExternalOrigin,
+        key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<Self::PositiveImbalance, Self::Error> {
         if StorageMap::contains_key(&key) {
             return Err(InternalError::node_already_exists().into());
         }
@@ -251,10 +261,9 @@ where
     }
 
     fn consume(
-            key: Self::Key,
-        ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>
-    {
-        let mut node = Self::get_node(key).ok_or(InternalError::node_not_found())?;
+        key: Self::Key,
+    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error> {
+        let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         if node.consumed {
             return Err(InternalError::node_was_consumed().into());
         }
@@ -279,17 +288,18 @@ where
         })
     }
 
-    fn spend(key: Self::Key, amount: Self::Balance)
-            -> Result<Self::NegativeImbalance, Self::Error>
-    {
+    fn spend(
+        key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<Self::NegativeImbalance, Self::Error> {
         // Upstream node with a concrete value exist for any node.
         // If it doesn't, the tree is considered invalidated.
-        let (mut node, node_id) = Self::node_with_value(Self::get_node(key)
-            .ok_or(InternalError::node_not_found())?)?;
+        let (mut node, node_id) =
+            Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         if node.inner_value().expect("Querying node with value") < amount {
-            return Err(InternalError::insufficient_balance().into())
+            return Err(InternalError::insufficient_balance().into());
         }
 
         *node.inner_value_mut().expect("Querying node with value") -= amount;
@@ -303,12 +313,11 @@ where
     }
 
     fn split_with_value(
-            key: Self::Key,
-            new_key: Self::Key,
-            amount: Self::Balance,
-        ) -> Result<(), Self::Error>
-    {
-        let mut parent = Self::get_node(key).ok_or(InternalError::node_not_found())?;
+        key: Self::Key,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        let mut parent = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         if parent.consumed {
             return Err(InternalError::node_was_consumed().into());
         }
@@ -324,9 +333,9 @@ where
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         if ancestor_with_value
-                .inner_value()
-                .expect("Querying node with value")
-                < amount
+            .inner_value()
+            .expect("Querying node with value")
+            < amount
         {
             return Err(InternalError::insufficient_balance().into());
         }
@@ -366,7 +375,7 @@ where
     }
 
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
-        let mut node = Self::get_node(key).ok_or(InternalError::node_not_found())?;
+        let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         if node.consumed {
             return Err(InternalError::node_was_consumed().into());
         }

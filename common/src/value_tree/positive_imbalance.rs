@@ -3,28 +3,39 @@ use super::*;
 /// Opaque, move-only struct with private field to denote that value has been created
 /// without any equal and opposite accounting
 #[derive(RuntimeDebug, PartialEq, Eq)]
-pub struct PositiveImbalance<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>>(Balance, PhantomData<TotalValue>);
+pub struct PositiveImbalance<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>>(
+    Balance,
+    PhantomData<TotalValue>,
+);
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> PositiveImbalance<Balance, TotalValue> {
+impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>>
+    PositiveImbalance<Balance, TotalValue>
+{
     /// Create a new positive imbalance from value amount.
     pub fn new(amount: Balance) -> Self {
         PositiveImbalance(amount, PhantomData)
     }
 }
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> TryDrop for PositiveImbalance<Balance, TotalValue> {
+impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> TryDrop
+    for PositiveImbalance<Balance, TotalValue>
+{
     fn try_drop(self) -> Result<(), Self> {
         self.drop_zero()
     }
 }
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Default for PositiveImbalance<Balance, TotalValue> {
+impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Default
+    for PositiveImbalance<Balance, TotalValue>
+{
     fn default() -> Self {
         Self::zero()
     }
 }
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Imbalance<Balance> for PositiveImbalance<Balance, TotalValue> {
+impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Imbalance<Balance>
+    for PositiveImbalance<Balance, TotalValue>
+{
     type Opposite = NegativeImbalance<Balance, TotalValue>;
 
     fn zero() -> Self {
@@ -78,7 +89,9 @@ impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Imbalance
     }
 }
 
-impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Drop for PositiveImbalance<Balance, TotalValue> {
+impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Drop
+    for PositiveImbalance<Balance, TotalValue>
+{
     /// Basic drop handler will just square up the total issuance.
     fn drop(&mut self) {
         TotalValue::mutate(|v| {
