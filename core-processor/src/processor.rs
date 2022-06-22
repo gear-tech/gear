@@ -26,6 +26,7 @@ use crate::{
     ext::ProcessorExt,
 };
 use alloc::{collections::BTreeSet, string::ToString, vec::Vec};
+use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     costs::HostFnWeights,
@@ -126,7 +127,7 @@ fn process_error(
 
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), crate::ERR_EXIT_CODE);
-        let packet = ReplyPacket::system(crate::ERR_EXIT_CODE);
+        let packet = ReplyPacket::system(err.encode(), crate::ERR_EXIT_CODE);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {
@@ -386,7 +387,7 @@ fn process_non_executable(
     // Reply back to the message `source`
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), exit_code);
-        let packet = ReplyPacket::system(exit_code);
+        let packet = ReplyPacket::system(ExecutionErrorReason::NonExecutable.encode(), exit_code);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {

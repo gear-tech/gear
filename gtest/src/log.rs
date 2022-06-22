@@ -200,9 +200,11 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if let Some(payload) = &self.payload {
-            if payload != &other.payload {
-                return false;
+        if self.exit_code == 0 {
+            if let Some(payload) = &self.payload {
+                if payload != &other.payload {
+                    return false;
+                }
             }
         }
 

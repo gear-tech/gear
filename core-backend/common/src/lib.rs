@@ -25,12 +25,15 @@ extern crate alloc;
 pub mod error_processor;
 pub mod funcs;
 
+mod utils;
+
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
-use core::fmt;
+use codec::{Decode, Encode};
+use core::{fmt, ops::Deref};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -39,8 +42,39 @@ use gear_core::{
     message::{ContextStore, Dispatch, DispatchKind},
 };
 use gear_core_errors::{ExtError, MemoryError};
+use scale_info::TypeInfo;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+// Max amount of bytes allowed to be thrown as string explanation of the error.
+pub const TRIMMED_MAX_LEN: usize = 1024;
+
+/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
+#[derive(
+    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
+)]
+pub struct TrimmedString(String);
+
+impl TrimmedString {
+    pub(crate) fn new(mut string: String) -> Self {
+        utils::smart_truncate(&mut string, TRIMMED_MAX_LEN);
+        Self(string)
+    }
+}
+
+impl<T: Into<String>> From<T> for TrimmedString {
+    fn from(other: T) -> Self {
+        Self::new(other.into())
+    }
+}
+
+impl Deref for TrimmedString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
@@ -50,18 +84,21 @@ pub enum TerminationReason {
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, derive_more::Display, Eq, PartialEq)]
+#[derive(
+    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
+)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
     #[display(fmt = "{}", _0)]
-    Other(String),
+    Other(TrimmedString),
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
 
+#[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub allocations: BTreeSet<WasmPageNumber>,
@@ -100,9 +137,9 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     type Error: fmt::Display;
 
     /// Creates new external environment to execute wasm binary:
-    /// 1) instatiates wasm binary.
-    /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
-    /// 3) instatiate external funcs for wasm module.
+    /// 1) Instantiates wasm binary.
+    /// 2) Creates wasm memory with filled data (exception if lazy pages enabled).
+    /// 3) Instantiate external funcs for wasm module.
     fn new(
         ext: E,
         binary: &[u8],
