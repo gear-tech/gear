@@ -125,8 +125,6 @@ fn process_error(
         });
     }
 
-    let err_str = err.to_string();
-
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), crate::ERR_EXIT_CODE);
         let packet = ReplyPacket::system(err.encode(), crate::ERR_EXIT_CODE);
@@ -141,11 +139,11 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
-            reason: Some(err_str),
+            reason: err.to_string(),
         },
         _ => DispatchOutcome::MessageTrap {
             program_id,
-            trap: Some(err_str),
+            trap: err.to_string(),
         },
     };
 

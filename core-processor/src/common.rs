@@ -115,14 +115,14 @@ pub enum DispatchOutcome {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        reason: Option<String>,
+        reason: String,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: Option<String>,
+        trap: String,
     },
     /// Message was a success.
     Success,

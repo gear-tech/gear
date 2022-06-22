@@ -1181,13 +1181,13 @@ fn events_logging_works() {
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(ExecutionErrorReason::Ext(TrapExplanation::Unreachable)),
+                Some(ExecutionErrorReason::Ext(TrapExplanation::Unknown)),
                 Some(ExecutionErrorReason::NonExecutable),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ExecutionErrorReason::Ext(TrapExplanation::Unreachable)),
+                Some(ExecutionErrorReason::Ext(TrapExplanation::Unknown)),
             ),
         ];
 

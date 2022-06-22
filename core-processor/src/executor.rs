@@ -29,9 +29,7 @@ use alloc::{
     string::ToString,
     vec::Vec,
 };
-use gear_backend_common::{
-    BackendReport, Environment, IntoExtInfo, TerminationReason, TrapExplanation,
-};
+use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -293,7 +291,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         settings.block_info,
         settings.allocations_config,
         settings.existential_deposit,
-        None,
         context.origin,
         program_id,
         Default::default(),
@@ -359,16 +356,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let kind = match termination {
         TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
         TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
-        TerminationReason::Trap {
-            explanation,
-            description,
-        } => {
-            let explanation = explanation.unwrap_or(TrapExplanation::Unreachable);
+        TerminationReason::Trap(explanation) => {
             log::debug!(
-                "💥 Trap during execution of {}\n📔 Explanation: {}\n❓ Description: {}",
+                "💥 Trap during execution of {}\n📔 Explanation: {}",
                 program_id,
                 explanation,
-                description.unwrap_or_else(|| "None".into()),
             );
 
             DispatchResultKind::Trap(explanation)

@@ -23,13 +23,12 @@ use core::fmt;
 use crate::{funcs_tree, memory::MemoryWrapExternal};
 use alloc::{
     collections::BTreeSet,
-    format,
     string::{String, ToString},
     vec::Vec,
 };
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    ExtInfo, IntoExtInfo, TerminationReason,
+    ExtInfo, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
@@ -38,32 +37,30 @@ use gear_core::{
     message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
-use wasmtime::{
-    Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
-};
+use wasmtime::{Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store};
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
     pub ext: ClonedExtCarrier<E>,
-    pub termination_reason: Option<TerminationReason>,
+    pub termination_reason: TerminationReason,
 }
 
 #[derive(Debug, derive_more::Display)]
 pub enum WasmtimeEnvironmentError {
-    #[display(fmt = "Non-env imports are not supported")]
-    NonEnvImports,
-    #[display(fmt = "Missing import")]
-    MissingImport,
-    #[display(fmt = "Unable to create module")]
-    ModuleCreation,
-    #[display(fmt = "Unable to create instance")]
-    InstanceCreation,
+    #[display(fmt = "Function {:?} is not env", _0)]
+    NonEnvImport(Option<String>),
+    #[display(fmt = "Function {:?} definition wasn't found", _0)]
+    MissingImport(Option<String>),
+    #[display(fmt = "Unable to create module: {}", _0)]
+    ModuleCreation(anyhow::Error),
+    #[display(fmt = "Unable to create instance: {}", _0)]
+    InstanceCreation(anyhow::Error),
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "Failed to create env memory")]
-    CreateEnvMemory,
+    #[display(fmt = "Failed to create env memory: {}", _0)]
+    CreateEnvMemory(anyhow::Error),
     #[display(fmt = "{}", _0)]
     MemoryAccess(MemoryError),
     #[display(fmt = "{}", _0)]
@@ -96,7 +93,7 @@ where
         let engine = Engine::default();
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
-            termination_reason: None,
+            termination_reason: TerminationReason::Success,
         };
         let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
@@ -105,8 +102,7 @@ where
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::CreateEnvMemory,
-                    description: Some(e.to_string().into()),
+                    reason: WasmtimeEnvironmentError::CreateEnvMemory(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -117,8 +113,7 @@ where
             Ok(module) => module,
             Err(e) => {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::ModuleCreation,
-                    description: Some(e.to_string().into()),
+                    reason: WasmtimeEnvironmentError::ModuleCreation(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -128,10 +123,7 @@ where
         for import in module.imports() {
             if import.module() != "env" {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::NonEnvImports,
-                    description: import
-                        .name()
-                        .map(|v| format!("Function {:?} is not env", v).into()),
+                    reason: WasmtimeEnvironmentError::NonEnvImport(import.name().map(Into::into)),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 });
             }
@@ -154,9 +146,7 @@ where
                 externs.push(host_function);
             } else {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::MissingImport,
-                    description: name
-                        .map(|v| format!("Function {:?} definition wasn't found", v).into()),
+                    reason: WasmtimeEnvironmentError::MissingImport(name.map(Into::into)),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 });
             }
@@ -166,8 +156,7 @@ where
             Ok(instance) => instance,
             Err(e) => {
                 return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::InstanceCreation,
-                    description: Some(e.to_string().into()),
+                    reason: WasmtimeEnvironmentError::InstanceCreation(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -218,30 +207,42 @@ where
         F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
+        struct PreparedInfo<E: Ext> {
+            info: ExtInfo,
+            trap_explanation: Option<TrapExplanation>,
+            memory_wrap: MemoryWrapExternal<E>,
+        }
+
         let func = self
             .instance
             .get_func(&mut self.memory_wrap.store, entry_point.into_entry());
 
-        let prepare_info =
-            |this: Self| -> Result<(ExtInfo, MemoryWrapExternal<E>), BackendError<Self::Error>> {
-                let WasmtimeEnvironment {
-                    ext, memory_wrap, ..
-                } = this;
-                ext.into_inner()
-                    .into_ext_info(&memory_wrap)
-                    .map_err(|(reason, gas_amount)| BackendError {
-                        reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                        description: None,
-                        gas_amount,
-                    })
-                    .map(|info| (info, memory_wrap))
-            };
+        let prepare_info = |this: Self| -> Result<PreparedInfo<E>, BackendError<Self::Error>> {
+            let WasmtimeEnvironment {
+                ext, memory_wrap, ..
+            } = this;
+            ext.into_inner()
+                .into_ext_info(&memory_wrap)
+                .map_err(|(reason, gas_amount)| BackendError {
+                    reason: WasmtimeEnvironmentError::MemoryAccess(reason),
+                    gas_amount,
+                })
+                .map(|(info, trap_explanation)| PreparedInfo {
+                    info,
+                    trap_explanation,
+                    memory_wrap,
+                })
+        };
 
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
         } else {
-            let (info, memory_wrap) = prepare_info(self)?;
+            let PreparedInfo {
+                info,
+                trap_explanation: _,
+                memory_wrap,
+            } = prepare_info(self)?;
 
             // Entry function not found, so we mean this as empty function
             return match post_execution_handler(&memory_wrap) {
@@ -251,33 +252,33 @@ where
                 }),
                 Err(e) => Err(BackendError {
                     reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
-                    description: None,
                     gas_amount: info.gas_amount,
                 }),
             };
         };
 
         let res = entry_func.call(&mut self.memory_wrap.store, &[], &mut []);
+        log::debug!("execution res = {:?}", res);
 
         let termination_reason = self.memory_wrap.store.data().termination_reason.clone();
 
-        let (info, memory_wrap) = prepare_info(self)?;
+        let PreparedInfo {
+            info,
+            trap_explanation,
+            memory_wrap,
+        } = prepare_info(self)?;
 
-        let termination = if let Err(e) = &res {
-            let reason = if let Some(_trap) = e.downcast_ref::<Trap>() {
-                if let Some(value_dest) = info.exit_argument {
-                    Some(TerminationReason::Exit(value_dest))
-                } else {
-                    termination_reason
-                }
+        let termination = if res.is_err() {
+            let reason = trap_explanation
+                .map(TerminationReason::Trap)
+                .unwrap_or(termination_reason);
+
+            // success is unacceptable when there is error
+            if let TerminationReason::Success = reason {
+                TerminationReason::Trap(TrapExplanation::Unknown)
             } else {
-                None
-            };
-
-            reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation.clone(),
-                description: Some(e.to_string().into()),
-            })
+                reason
+            }
         } else {
             TerminationReason::Success
         };
@@ -286,7 +287,6 @@ where
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),
-                description: None,
                 gas_amount: info.gas_amount,
             }),
         }

@@ -21,7 +21,6 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
 use codec::{Decode, Encode};
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -775,11 +774,9 @@ pub mod pallet {
                             outcome: CoreDispatchOutcome::MessageTrap { trap, program_id },
                             ..
                         } if program_id == main_program_id || !allow_other_panics => {
-                            return Err(format!(
-                                "Program terminated with a trap: {}",
-                                trap.unwrap_or_else(|| "No reason".to_string())
-                            )
-                            .into_bytes());
+                            return Err(
+                                format!("Program terminated with a trap: {}", trap).into_bytes()
+                            );
                         }
 
                         _ => (),
