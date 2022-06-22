@@ -87,7 +87,7 @@ async fn main() {
                     })
             })
             .map(|signature| {
-                let pub_key = Public((<[u8; 32]>::from(unsafe { SIGNATORIES[i] })));
+                let pub_key = Public(<[u8; 32]>::from(unsafe { SIGNATORIES[i] }));
 
                 Sr25519Pair::verify(&signature, &message, &pub_key).into()
             })
