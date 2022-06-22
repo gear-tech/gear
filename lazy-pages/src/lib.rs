@@ -44,15 +44,15 @@ thread_local! {
 }
 
 pub fn save_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
-    let pages_keys: BTreeMap<LazyPage, Vec<u8>> = pages.into_iter()
-        .map(|p| {
+    LAZY_PAGES_INFO.with(|lazy_pages_info| {
+        let mut lazy_pages_info = lazy_pages_info.borrow_mut();
+        pages.into_iter().for_each(|p| {
             let mut key = Vec::with_capacity(prefix.len() + std::mem::size_of::<u32>());
             key.extend(prefix.clone());
             key.extend(p.to_le_bytes().to_vec());
-            (LazyPage(p), key)
+            lazy_pages_info.insert(LazyPage(p), key);
         })
-        .collect();
-    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow_mut().extend(pages_keys));
+    });
 }
 
 /// Returns vec of not-accessed wasm lazy pages
