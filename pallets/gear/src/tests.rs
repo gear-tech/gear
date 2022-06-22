@@ -2987,7 +2987,7 @@ fn gas_spent_vs_balance() {
 fn gas_spent_precalculated() {
     let wat = r#"
     (module
-        (import "env" "memory" (memory 0))
+        (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (func $add (; 0 ;) (param $0 i32) (param $1 i32)
             (local $2 i32)
@@ -3031,13 +3031,15 @@ fn gas_spent_precalculated() {
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
         let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
+        let load_page_cost = schedule.memory_weights.load_cost as u32;
 
         let total_cost = call_cost
             + const_i64_cost * 2
             + set_local_cost
             + get_local_cost * 2
             + add_cost
-            + gas_cost * 2;
+            + gas_cost * 2
+            + load_page_cost;
 
         assert_eq!(gas_spent_1, total_cost as u64);
 
