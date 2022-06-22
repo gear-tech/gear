@@ -191,6 +191,12 @@ pub trait GearRI {
         mprotect_pages_slice(wasm_mem_addr, &lazy_pages, protect)
     }
 
+    // TODO: deprecated, remove before release
+    fn save_page_lazy_info(page: u32, key: &[u8]) {
+        LazyPage::from(page).set_info(key);
+    }
+
+    #[version(2)]
     fn save_page_lazy_info(pages: Vec<u32>, prefix: Vec<u8>) {
         gear_lazy_pages::save_lazy_pages_info(pages, prefix);
     }
