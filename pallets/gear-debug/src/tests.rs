@@ -428,7 +428,7 @@ fn check_changed_pages_in_storage() {
             code.clone(),
             b"salt".to_vec(),
             Vec::new(),
-            100_000_000_u64,
+            5_000_000_000_u64,
             0_u128,
         ));
 
@@ -480,7 +480,7 @@ fn check_changed_pages_in_storage() {
             origin,
             program_id,
             vec![],
-            10_000_000_u64,
+            5_000_000_000_u64,
             0_u128
         ));
 
