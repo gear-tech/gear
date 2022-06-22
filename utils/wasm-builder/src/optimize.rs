@@ -1,6 +1,12 @@
 use anyhow::Result;
 use colored::Colorize;
-use std::{ffi::OsStr, fs::metadata, path::PathBuf, process::Command};
+use pwasm_utils::parity_wasm::elements::{Internal, Module};
+use std::{
+    ffi::OsStr,
+    fs::metadata,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 pub struct OptimizationResult {
     pub dest_wasm: PathBuf,
@@ -122,4 +128,23 @@ pub fn do_optimization(
         );
     }
     Ok(())
+}
+
+pub fn check_exports(module: &Module, path: &Path) -> Result<()> {
+    if module
+        .export_section()
+        .ok_or_else(|| {
+            crate::builder_error::BuilderError::ExportSectionNotFound(path.to_path_buf())
+        })?
+        .entries()
+        .iter()
+        .any(|entry| {
+            matches!(entry.field(), "init" | "handle")
+                && matches!(entry.internal(), Internal::Function(_))
+        })
+    {
+        Ok(())
+    } else {
+        Err(crate::builder_error::BuilderError::RequiredExportFnNotFound(path.to_path_buf()).into())
+    }
 }

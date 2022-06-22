@@ -17,14 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context, Result};
-use pwasm_utils::parity_wasm::{self, elements::Internal};
+use pwasm_utils::parity_wasm;
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
 
-use crate::{builder_error::BuilderError, crate_info::CrateInfo, insert_stack_end_export};
+use crate::{
+    builder_error::BuilderError, crate_info::CrateInfo, insert_stack_end_export,
+    optimize::check_exports,
+};
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -222,26 +225,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         pwasm_utils::optimize(&mut module, exports)
             .map_err(|_| BuilderError::UnableToOptimize(from.to_path_buf()))?;
 
-        let mut required_export_exist = false;
-
-        for entry in module
-            .export_section()
-            .ok_or_else(|| anyhow::format_err!("WASM module does't contain export section"))?
-            .entries()
-            .iter()
-        {
-            if let Internal::Function(_) = entry.internal() {
-                if entry.field() == "init" || entry.field() == "handle" {
-                    required_export_exist = true;
-                }
-            }
-        }
-
-        if !required_export_exist {
-            return Err(anyhow::format_err!(
-                "WASM module doesn't contain required export funtion (init/handle)"
-            ));
-        }
+        check_exports(&module, from)?;
 
         parity_wasm::serialize_to_file(to, module).context("unable to write the optimized WASM")
     }
