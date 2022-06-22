@@ -47,10 +47,57 @@ fn simple_value_tree() {
 }
 
 #[test]
+fn can_cut_reserved_nodes() {
+    new_test_ext().execute_with(|| {
+        let (root, specified, unspecified, cut_a, cut_b, cut_c) = (
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+        );
+        let (total_supply, specified_value, cut_a_value, cut_b_value, cut_c_value) =
+            (1000, 500, 300, 200, 100);
+
+        // create nodes
+        {
+            assert_ok!(Gas::create(ALICE.into_origin(), root, total_supply));
+            assert_ok!(Gas::cut(root, cut_a, cut_a_value));
+            assert_ok!(Gas::split_with_value(root, specified, specified_value));
+            assert_ok!(Gas::cut(specified, cut_b, cut_b_value));
+            assert_ok!(Gas::split(root, unspecified));
+            assert_ok!(Gas::cut(unspecified, cut_c, cut_c_value));
+        }
+
+        assert_eq!(Gas::total_supply(), total_supply);
+
+        // check values
+        {
+            assert_eq!(
+                Gas::get_limit(root),
+                Ok(Some(
+                    total_supply - specified_value - cut_a_value - cut_c_value
+                ))
+            );
+
+            assert_eq!(
+                Gas::get_limit(specified),
+                Ok(Some(specified_value - cut_b_value))
+            );
+
+            assert_eq!(Gas::get_limit(cut_a), Ok(Some(cut_a_value)));
+            assert_eq!(Gas::get_limit(cut_b), Ok(Some(cut_b_value)));
+            assert_eq!(Gas::get_limit(cut_c), Ok(Some(cut_c_value)));
+        }
+    })
+}
+
+#[test]
 fn value_tree_with_all_kinds_of_nodes() {
     new_test_ext().execute_with(|| {
         let total_supply = 1000;
-        let cut_value = 500;
+        let cut_value = 300;
         let specified_value = total_supply - cut_value;
         let (root, cut, specified, unspecfied) = (
             H256::random(),
@@ -71,10 +118,22 @@ fn value_tree_with_all_kinds_of_nodes() {
 
         // consume nodes
         {
-            assert_ok!(Gas::consume(unspecfied));
-            assert_ok!(Gas::consume(specified));
-            assert_ok!(Gas::consume(root));
-            assert_ok!(Gas::consume(cut));
+            assert_eq!(Gas::consume(unspecfied), Ok(None));
+            assert_eq!(Gas::consume(specified), Ok(None));
+            assert_eq!(
+                Gas::consume(root),
+                Ok(Some((
+                    NegativeImbalance::new(specified_value),
+                    ALICE.into_origin()
+                )))
+            );
+            assert_eq!(
+                Gas::consume(cut),
+                Ok(Some((
+                    NegativeImbalance::new(cut_value),
+                    ALICE.into_origin()
+                )))
+            );
         }
 
         assert_eq!(Gas::total_supply(), 0);
