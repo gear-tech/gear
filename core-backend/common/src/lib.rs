@@ -58,7 +58,7 @@ pub enum TrapExplanation {
     Other(String),
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
-    #[display(fmt = "Unknown reason")]
+    #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
 
