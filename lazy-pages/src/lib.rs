@@ -44,13 +44,12 @@ thread_local! {
 }
 
 pub fn save_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
-    let pages_keys: BTreeMap<LazyPage, Vec<u8>> = pages
-        .iter()
+    let pages_keys: BTreeMap<LazyPage, Vec<u8>> = pages.into_iter()
         .map(|p| {
             let mut key = Vec::with_capacity(prefix.len() + std::mem::size_of::<u32>());
             key.extend(prefix.clone());
             key.extend(p.to_le_bytes().to_vec());
-            (LazyPage(*p), key)
+            (LazyPage(p), key)
         })
         .collect();
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow_mut().extend(pages_keys));
