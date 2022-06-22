@@ -26,7 +26,6 @@ pub mod error_processor;
 pub mod funcs;
 
 use alloc::{
-    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
@@ -41,34 +40,26 @@ use gear_core::{
 };
 use gear_core_errors::{ExtError, MemoryError};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum TerminationReasonKind {
-    Exit,
-    Leave,
-    Wait,
-    GasAllowanceExceeded,
-    ForbiddenFunction,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
-    Trap {
-        explanation: Option<TrapExplanation>,
-        description: Option<Cow<'static, str>>,
-    },
+    Trap(TrapExplanation),
     Wait,
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone, derive_more::Display, Eq, PartialEq)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
     #[display(fmt = "{}", _0)]
     Other(String),
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
+    #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
+    Unknown,
 }
 
 pub struct ExtInfo {
@@ -79,12 +70,13 @@ pub struct ExtInfo {
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<TrapExplanation>,
-    pub exit_argument: Option<ProgramId>,
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(
+        self,
+        memory: &dyn Memory,
+    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
@@ -96,24 +88,11 @@ pub struct BackendReport {
     pub info: ExtInfo,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{}", reason)]
 pub struct BackendError<T> {
     pub gas_amount: GasAmount,
     pub reason: T,
-    pub description: Option<Cow<'static, str>>,
-}
-
-impl<T> fmt::Display for BackendError<T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(description) = &self.description {
-            write!(f, "{}: {}", self.reason, description)
-        } else {
-            write!(f, "{}", self.reason)
-        }
-    }
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
@@ -156,5 +135,5 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 }
 
 pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&TerminationReasonKind>;
+    fn as_termination_reason(&self) -> Option<&TerminationReason>;
 }

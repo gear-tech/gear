@@ -41,7 +41,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<TrapExplanation>),
+    Trap(TrapExplanation),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.
@@ -114,14 +114,14 @@ pub enum DispatchOutcome {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        reason: Option<String>,
+        reason: String,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: Option<String>,
+        trap: String,
     },
     /// Message was a success.
     Success,
@@ -290,7 +290,7 @@ pub enum ExecutionErrorReason {
     Backend(String),
     /// Ext error
     #[display(fmt = "{}", _0)]
-    Ext(String),
+    Ext(TrapExplanation),
     /// Program's max page is not last page in wasm page
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,

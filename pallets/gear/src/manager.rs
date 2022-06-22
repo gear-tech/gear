@@ -258,14 +258,11 @@ where
             }
             MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
-
-                if let Some(reason) = trap {
-                    log::info!(
-                        "🪤 Program {} terminated with a trap: {}",
-                        program_id.into_origin(),
-                        reason
-                    );
-                };
+                log::info!(
+                    "🪤 Program {} terminated with a trap: {}",
+                    program_id.into_origin(),
+                    trap
+                );
 
                 DispatchStatus::Failed
             }

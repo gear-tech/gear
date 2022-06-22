@@ -1,4 +1,5 @@
 use core_processor::{Ext, ProcessorExt};
+use gear_backend_common::TerminationReason;
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
     env::{Ext as ExtTrait, ExtCarrier},
@@ -32,7 +33,7 @@ impl WasmExecutor {
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
-            termination_reason: None,
+            termination_reason: TerminationReason::Success,
         };
 
         let config = Config::new();
@@ -109,7 +110,6 @@ impl WasmExecutor {
             Default::default(),
             Default::default(),
             0,
-            None,
             Default::default(),
             Default::default(),
             Default::default(),

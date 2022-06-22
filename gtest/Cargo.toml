@@ -7,6 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../core" }
+gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 core-processor = { package = "gear-core-processor", path = "../core-processor" }
 
