@@ -233,7 +233,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
             .iter()
         {
             if let Internal::Function(_) = entry.internal() {
-                if entry.field() != "init" || entry.field() != "handle" {
+                if entry.field() == "init" || entry.field() == "handle" {
                     required_export_exist = true;
                 }
             }

@@ -69,7 +69,7 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
         .iter()
     {
         if let Internal::Function(_) = entry.internal() {
-            if entry.field() != "init" || entry.field() != "handle" {
+            if entry.field() == "init" || entry.field() == "handle" {
                 required_export_exist = true;
             }
         }
