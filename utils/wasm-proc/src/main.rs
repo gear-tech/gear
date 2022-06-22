@@ -23,10 +23,13 @@ use pwasm_utils::{
     parity_wasm::{self, elements::Module},
 };
 use std::path::PathBuf;
+use utils::parity_wasm::elements::Internal;
 
 #[derive(Debug)]
 enum Error {
     OptimizerFailed,
+    ExportSectionNotFound,
+    RequiredExportFnNotFound,
     SerializationFailed(parity_wasm::elements::Error),
     UndefinedPaths,
     InvalidSkip,
@@ -56,6 +59,25 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
         vec!["handle", "handle_reply", "init", "__gear_stack_end"],
     )
     .map_err(|_| Error::OptimizerFailed)?;
+
+    let mut required_export_exist = false;
+
+    for entry in binary_module
+        .export_section()
+        .ok_or(Error::ExportSectionNotFound)?
+        .entries()
+        .iter()
+    {
+        if let Internal::Function(_) = entry.internal() {
+            if entry.field() != "init" || entry.field() != "handle" {
+                required_export_exist = true;
+            }
+        }
+    }
+
+    if !required_export_exist {
+        return Err(Box::new(Error::RequiredExportFnNotFound));
+    }
 
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
         .map_err(Error::SerializationFailed)?;

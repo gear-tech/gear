@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context, Result};
-use pwasm_utils::parity_wasm;
+use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -221,6 +221,30 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         let exports = vec!["init", "handle", "handle_reply", "__gear_stack_end"];
         pwasm_utils::optimize(&mut module, exports)
             .map_err(|_| BuilderError::UnableToOptimize(from.to_path_buf()))?;
+
+        let mut required_export_exist = false;
+
+        for entry in module
+            .export_section()
+            .ok_or(anyhow::format_err!(
+                "WASM module does't contain export section"
+            ))?
+            .entries()
+            .iter()
+        {
+            if let Internal::Function(_) = entry.internal() {
+                if entry.field() != "init" || entry.field() != "handle" {
+                    required_export_exist = true;
+                }
+            }
+        }
+
+        if !required_export_exist {
+            return Err(anyhow::format_err!(
+                "WASM module doesn't contain required export funtion (init/handle)"
+            ));
+        }
+
         parity_wasm::serialize_to_file(to, module).context("unable to write the optimized WASM")
     }
 
