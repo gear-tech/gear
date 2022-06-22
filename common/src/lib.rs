@@ -253,6 +253,42 @@ pub trait ValueTree {
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
+pub trait ValueTreeProvider {
+
+    /// Type representing the external owner of a value (gas) item.
+    type ExternalOrigin;
+
+    /// Type that identifies a particular value item.
+    type Key;
+
+    /// Type representing a quantity of value.
+    type Balance;
+
+    /// Types to denote a result of some unbalancing operation - that is operations that create
+    /// inequality between the underlying value supply and some hypothetical "collateral" asset.
+
+    /// `PositiveImbalance` indicates that some value has been created, which will eventually
+    /// lead to an increase in total supply.
+    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
+
+    /// `NegativeImbalance` indicates that some value has been removed from circulation
+    /// leading to a decrease in the total supply of the underlying value.
+    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
+
+    type InternalError: value_tree::Error;
+
+    /// Error type
+    type Error: From<Self::InternalError>;
+
+    type ValueTree: ValueTree<ExternalOrigin = Self::ExternalOrigin,
+        Key = Self::Key,
+        Balance = Self::Balance,
+        PositiveImbalance = Self::PositiveImbalance,
+        NegativeImbalance = Self::NegativeImbalance,
+        InternalError = Self::InternalError,
+        Error = Self::Error>;
+}
+
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),

@@ -15,7 +15,7 @@ pub use positive_imbalance::PositiveImbalance;
 pub use negative_imbalance::NegativeImbalance;
 pub use error::Error;
 
-use node::{ValueNode, ValueType};
+pub use node::{ValueNode, ValueType};
 
 pub struct ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>(PhantomData<(TotalValue, InternalError, Error, ExternalId, StorageMap)>);
 

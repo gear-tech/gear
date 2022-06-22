@@ -20,6 +20,7 @@
 
 pub use self::imbalances::{NegativeImbalance, PositiveImbalance};
 use common::{Origin, ValueTree};
+use common::{storage::ValueStorage, storage::MapStorage};
 use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalance};
 pub use pallet::*;
 pub use primitive_types::H256;
@@ -275,6 +276,38 @@ pub mod pallet {
         }
     }
 
+    pub type Balance = u64;
+
+    // ----
+
+    #[pallet::storage]
+    pub type TotalIssuanceNew<T> = StorageValue<_, Balance>;
+
+    common::wrap_storage_value!(
+        storage: TotalIssuanceNew,
+        name: TotalIssuanceWrap,
+        value: Balance
+    );
+
+    // ----
+
+    pub type Key = H256;
+    pub type ExternalOrigin = H256;
+    pub type ValueNode2 = common::value_tree::ValueNode<ExternalOrigin, Key, Balance>;
+
+    #[pallet::storage]
+    pub type ValueTreeNodes<T> =
+        StorageMap<_, Identity, H256, ValueNode2>;
+
+    common::wrap_storage_map!(
+        storage: ValueTreeNodes,
+        name: ValueTreeNodesWrap,
+        key: Key,
+        value: ValueNode2
+    );
+
+    // ----
+
     #[pallet::storage]
     #[pallet::getter(fn gas_allowance)]
     pub type Allowance<T> = StorageValue<_, u64, ValueQuery, <T as Config>::BlockGasLimit>;
@@ -286,6 +319,24 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn get_node)]
     pub type GasTree<T> = StorageMap<_, Identity, H256, ValueNode>;
+
+    impl<T: Config> common::ValueTreeProvider for Pallet<T> {
+        type ExternalOrigin = ExternalOrigin;
+        type Key = Key;
+        type Balance = Balance;
+        type PositiveImbalance = common::value_tree::PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type NegativeImbalance = common::value_tree::NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type InternalError = Error<T>;
+        type Error = DispatchError;
+
+        type ValueTree = common::value_tree::ValueTreeImpl<
+            TotalIssuanceWrap<T>,
+            Self::InternalError,
+            Self::Error,
+            ExternalOrigin,
+            ValueTreeNodesWrap<T>,
+            >;
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
