@@ -21,7 +21,8 @@ use crate::mock::*;
 use frame_support::{assert_noop, assert_ok};
 use primitive_types::H256;
 
-type Gas = Pallet<Test>;
+type Gas = <Pallet<Test> as common::ValueTreeProvider>::ValueTree;
+type GasTree = ValueTreeNodes::<Test>;
 
 #[test]
 fn simple_value_tree() {
@@ -86,14 +87,14 @@ fn test_consume_procedure() {
         assert_noop!(Gas::consume(H256::random()), Error::<Test>::NodeNotFound,);
 
         // Before consuming blockage `node_3`
-        assert!(Gas::get_node(root).is_some());
-        assert!(Gas::get_node(node_1).is_some());
-        assert!(Gas::get_node(node_2).is_some());
+        assert!(GasTree::get(root).is_some());
+        assert!(GasTree::get(node_1).is_some());
+        assert!(GasTree::get(node_2).is_some());
 
         assert!(matches!(Gas::consume(node_3).unwrap(), Some(_)));
 
         // After consuming blockage `node_3`
-        assert!(super::GasTree::<Test>::iter_keys().next().is_none());
+        assert!(GasTree::iter_keys().next().is_none());
     })
 }
 
@@ -273,13 +274,13 @@ fn all_keys_are_cleared() {
         assert_ok!(Gas::consume(root));
         for key in sub_keys.iter() {
             // here we have not yet consumed everything
-            assert!(GasTree::<Test>::contains_key(*key));
+            assert!(GasTree::contains_key(*key));
 
             assert_ok!(Gas::consume(*key));
         }
 
         // here we consumed everything
-        let key_count = GasTree::<Test>::iter_keys().fold(0, |k, _| k + 1);
+        let key_count = GasTree::iter_keys().fold(0, |k, _| k + 1);
         assert_eq!(key_count, 0);
     });
 }
@@ -460,7 +461,7 @@ fn subtree_gas_limit_remains_intact() {
         // Consume node_2
         assert!(matches!(Gas::consume(node_2).unwrap(), None));
         // Marked as consumed
-        assert!(Gas::get_node(node_2).map(|node| node.consumed).unwrap());
+        assert!(GasTree::get(node_2).map(|node| node.consumed).unwrap());
         // Expect gas limit of the node_4 to remain unchanged
         assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
 
