@@ -34,7 +34,7 @@ use wasm_instrument::gas_metering::ConstantCostRules;
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
-        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
         let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
@@ -115,7 +115,7 @@ fn pause_program_works() {
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
         let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
@@ -148,7 +148,7 @@ fn pause_program_twice_fails() {
 #[test]
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
-        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
         let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
@@ -413,7 +413,7 @@ mod utils {
     pub fn create_uninitialized_program_messages(
         wasm_static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
-        let raw_code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
         let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 

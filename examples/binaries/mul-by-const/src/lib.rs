@@ -69,14 +69,14 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle() {
+    unsafe extern "C" fn handle() {
         let x: u64 = msg::load().expect("Expecting a u64 number");
 
         msg::reply(STATE.unchecked_mul(x), 0).unwrap();
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         let val: u64 = msg::load().expect("Expecting a u64 number");
         STATE = State::new(val);
         DEBUG = DebugInfo {

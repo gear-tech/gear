@@ -27,6 +27,7 @@ use crate::{
 };
 use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
@@ -36,6 +37,7 @@ use frame_support::{
     assert_noop, assert_ok, dispatch::Dispatchable, sp_runtime::traits::Zero, traits::Currency,
 };
 use frame_system::Pallet as SystemPallet;
+use gear_backend_common::TrapExplanation;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
@@ -985,7 +987,12 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  | 3 |
         // | 3 |        |   |
 
-        assert_failed(msg1, ExtError::Message(MessageError::NotEnoughGas));
+        assert_failed(
+            msg1,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::NotEnoughGas,
+            ))),
+        );
         assert_last_dequeued(1);
 
         // Equals 0 due to trying execution of msg2.
@@ -1054,7 +1061,9 @@ fn init_message_logging_works() {
             // Will fail, because tests use default gas limit, which is very low for successful greedy init
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ExtError::Execution(ExecutionError::GasLimitExceeded)),
+                Some(ExecutionErrorReason::Ext(TrapExplanation::Core(
+                    ExtError::Execution(ExecutionError::GasLimitExceeded),
+                ))),
             ),
         ];
 
@@ -1160,24 +1169,25 @@ fn events_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
 
-        // TODO: replace this unknown errors (`ExtError::Some`) with real ones.
         let tests = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, None),
             (
                 ProgramCodeKind::GreedyInit,
-                Some(ExtError::Execution(ExecutionError::GasLimitExceeded)),
-                Some(ExtError::Some),
+                Some(ExecutionErrorReason::Ext(TrapExplanation::Core(
+                    ExtError::Execution(ExecutionError::GasLimitExceeded),
+                ))),
+                Some(ExecutionErrorReason::NonExecutable),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
-                Some(ExtError::Some),
-                Some(ExtError::Some),
+                Some(ExecutionErrorReason::Ext(TrapExplanation::Unknown)),
+                Some(ExecutionErrorReason::NonExecutable),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_handle),
                 None,
-                Some(ExtError::Some),
+                Some(ExecutionErrorReason::Ext(TrapExplanation::Unknown)),
             ),
         ];
 
@@ -3236,10 +3246,12 @@ fn test_create_program_with_value_lt_ed() {
 
         assert_failed(
             msg_id,
-            ExtError::Message(MessageError::InsufficientValue {
-                message_value: 499,
-                existential_deposit: 500,
-            }),
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::InsufficientValue {
+                    message_value: 499,
+                    existential_deposit: 500,
+                },
+            ))),
         );
     })
 }
@@ -3320,10 +3332,12 @@ fn test_create_program_with_exceeding_value() {
 
         assert_failed(
             origin_msg_id,
-            ExtError::Message(MessageError::NotEnoughValue {
-                message_value: 1001,
-                value_left: 1000,
-            }),
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::NotEnoughValue {
+                    message_value: 1001,
+                    value_left: 1000,
+                },
+            ))),
         );
     })
 }
@@ -3684,14 +3698,17 @@ mod utils {
     };
     use codec::Decode;
     use common::{event::*, storage::IterableByKeyMap, Origin as _};
+    use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::currency::Currency,
     };
+    use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::StoredMessage,
     };
+    use gear_core_errors::ExtError;
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
@@ -3911,38 +3928,41 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
-    pub(super) fn assert_failed<D>(message_id: MessageId, _error: D)
-    where
-        D: Decode + Debug + PartialEq,
-    {
+    pub(super) fn assert_failed(message_id: MessageId, error: ExecutionErrorReason) {
         let status =
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::Failed);
 
-        // TODO: uncomment code below, once issue #970 resolved.
+        let mut actual_error = None;
 
-        // let mut actual_error = None;
+        SystemPallet::<Test>::events().into_iter().for_each(|e| {
+            if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                if let Some((id, exit_code)) = message.reply() {
+                    if id == message_id {
+                        assert_ne!(exit_code, 0);
+                        actual_error = Some(
+                            String::from_utf8(message.payload().to_vec())
+                                .expect("Unable to decode string from error reply"),
+                        );
+                    }
+                }
+            }
+        });
 
-        // SystemPallet::<Test>::events().iter().for_each(|e| {
-        //     if let MockEvent::Gear(Event::UserMessageSent {
-        //         message,
-        //         ..
-        //     }) = e.event
-        //     {
-        //         if let Some((id, exit_code)) = message.reply() {
-        //             if id == message_id {
-        //                 assert_ne!(exit_code, 0);
-        //                 actual_error = Some(D::decode(&mut message.payload())
-        //                     .expect("Unable to decode bytes from error reply"));
-        //             }
-        //         }
-        //     }
-        // });
+        let mut actual_error =
+            actual_error.expect("Error message not found in any `Event::UserMessageSent`");
+        let mut expectations = error.to_string();
 
-        // let actual_error = actual_error.expect("Error message not found in any `Event::UserMessageSent`");
+        // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
+        // This check handles display of the error inside.
+        if actual_error.starts_with('\'') {
+            let j = actual_error.rfind('\'').expect("Checked above");
+            actual_error = String::from(&actual_error[..(j + 1)]);
+            expectations = format!("'{}'", expectations);
+        }
 
-        // assert_eq!(error, actual_error)
+        assert_eq!(expectations, actual_error)
     }
 
     pub(super) fn assert_not_executed(message_id: MessageId) {

@@ -9,8 +9,8 @@ repository = "https://github.com/gear-tech/gear"
 readme = "README.md"
 
 [dependencies]
-anyhow = "1.0.57"
-cargo_metadata = "0.14.2"
+anyhow = "1.0.58"
+cargo_metadata = "0.15.0"
 pwasm-utils = "0.19.0"
 toml = "0.5.9"
 thiserror = "1.0.31"

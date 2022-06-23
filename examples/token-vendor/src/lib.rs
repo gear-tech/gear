@@ -198,7 +198,7 @@ async fn main() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
 
     debug!("Got InitConfig: {:?}", config);

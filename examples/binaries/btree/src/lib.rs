@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![no_std]
-#![allow(clippy::missing_safety_doc)]
 
 #[cfg(feature = "std")]
 mod code {
@@ -58,7 +57,7 @@ mod wasm {
     static mut STATE: Option<BTreeMap<u32, u32>> = None;
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle() {
+    unsafe extern "C" fn handle() {
         let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
@@ -89,7 +88,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         STATE = Some(BTreeMap::new());
         msg::reply((), 0).unwrap();
     }

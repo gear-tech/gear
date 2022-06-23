@@ -47,6 +47,100 @@ fn simple_value_tree() {
 }
 
 #[test]
+fn can_cut_nodes() {
+    new_test_ext().execute_with(|| {
+        let (root, specified, unspecified, cut_a, cut_b, cut_c) = (
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+        );
+        let (total_supply, specified_value, cut_a_value, cut_b_value, cut_c_value) =
+            (1000, 500, 300, 200, 100);
+
+        // create nodes
+        {
+            assert_ok!(Gas::create(ALICE.into_origin(), root, total_supply));
+            assert_ok!(Gas::cut(root, cut_a, cut_a_value));
+            assert_ok!(Gas::split_with_value(root, specified, specified_value));
+            assert_ok!(Gas::cut(specified, cut_b, cut_b_value));
+            assert_ok!(Gas::split(root, unspecified));
+            assert_ok!(Gas::cut(unspecified, cut_c, cut_c_value));
+        }
+
+        assert_eq!(Gas::total_supply(), total_supply);
+
+        // check values
+        {
+            assert_eq!(
+                Gas::get_limit(root),
+                Ok(Some(
+                    total_supply - specified_value - cut_a_value - cut_c_value
+                ))
+            );
+
+            assert_eq!(
+                Gas::get_limit(specified),
+                Ok(Some(specified_value - cut_b_value))
+            );
+
+            assert_eq!(Gas::get_limit(cut_a), Ok(Some(cut_a_value)));
+            assert_eq!(Gas::get_limit(cut_b), Ok(Some(cut_b_value)));
+            assert_eq!(Gas::get_limit(cut_c), Ok(Some(cut_c_value)));
+        }
+    })
+}
+
+#[test]
+fn value_tree_with_all_kinds_of_nodes() {
+    new_test_ext().execute_with(|| {
+        let total_supply = 1000;
+        let cut_value = 300;
+        let specified_value = total_supply - cut_value;
+        let (root, cut, specified, unspecfied) = (
+            H256::random(),
+            H256::random(),
+            H256::random(),
+            H256::random(),
+        );
+
+        // create nodes
+        {
+            assert_ok!(Gas::create(ALICE.into_origin(), root, total_supply));
+            assert_ok!(Gas::cut(root, cut, cut_value));
+            assert_ok!(Gas::split_with_value(root, specified, specified_value));
+            assert_ok!(Gas::split(root, unspecfied));
+        }
+
+        assert_eq!(Gas::total_supply(), total_supply);
+
+        // consume nodes
+        {
+            assert_eq!(Gas::consume(unspecfied), Ok(None));
+            assert_eq!(Gas::consume(specified), Ok(None));
+            assert_eq!(
+                Gas::consume(root),
+                Ok(Some((
+                    NegativeImbalance::new(specified_value),
+                    ALICE.into_origin()
+                )))
+            );
+            assert_eq!(
+                Gas::consume(cut),
+                Ok(Some((
+                    NegativeImbalance::new(cut_value),
+                    ALICE.into_origin()
+                )))
+            );
+        }
+
+        assert_eq!(Gas::total_supply(), 0);
+    })
+}
+
+#[test]
 fn test_consume_procedure() {
     new_test_ext().execute_with(|| {
         let origin = H256::random();
@@ -159,6 +253,7 @@ fn sub_nodes_tree() {
 
         assert_ok!(Gas::split_with_value(new_root, split_1, 500));
         assert_ok!(Gas::split_with_value(new_root, split_2, 500));
+
         // No new value created - total supply not affected
         assert_eq!(pos_imb.peek(), 1000);
 
@@ -166,12 +261,12 @@ fn sub_nodes_tree() {
         drop(pos_imb);
         assert_eq!(Gas::total_supply(), 1000);
 
-        assert!(matches!(Gas::consume(new_root).unwrap(), None));
-        assert!(matches!(Gas::consume(split_1).unwrap(), None));
+        assert!(matches!(Gas::consume(new_root), Ok(None)));
+        assert!(matches!(Gas::consume(split_1), Ok(None)));
 
         let consume_result = Gas::consume(split_2).unwrap();
-        assert!(consume_result.is_some());
-        assert_eq!(consume_result.unwrap().0.peek(), 1000);
+        assert_eq!(consume_result.map(|r| r.0.peek()), Some(1000));
+
         // Negative imbalance moved and dropped above - total supply decreased
         assert_eq!(Gas::total_supply(), 0);
     });
@@ -184,10 +279,15 @@ fn value_tree_known_errors() {
         let origin = H256::random();
         let split_1 = H256::random();
         let split_2 = H256::random();
+        let cut = H256::random();
+        let cut_1 = H256::random();
 
         {
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
             assert_eq!(pos_imb.peek(), 1000);
+
+            // Cut a reserved node
+            assert_ok!(Gas::cut(new_root, cut, 100));
 
             // Attempt to re-create an existing node
             assert_noop!(
@@ -206,6 +306,18 @@ fn value_tree_known_errors() {
                 Gas::split_with_value(new_root, split_1, 5000),
                 Error::<Test>::InsufficientBalance
             );
+
+            // Try to split the reserved node
+            assert_noop!(Gas::split(cut, split_1), Error::<Test>::Forbidden);
+
+            // Try to split the reserved node with value
+            assert_noop!(
+                Gas::split_with_value(cut, split_1, 50),
+                Error::<Test>::Forbidden
+            );
+
+            // Try to cut the reserved node
+            assert_noop!(Gas::cut(cut, cut_1, 50), Error::<Test>::Forbidden);
 
             // Total supply not affected so far - imbalance is not yet dropped
             assert_eq!(pos_imb.peek(), 1000);
@@ -358,40 +470,46 @@ fn limit_vs_origin() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
         let origin = H256::random();
         let root_node = H256::random();
+        let cut = H256::random();
         let split_1 = H256::random();
         let split_2 = H256::random();
         let split_1_1 = H256::random();
         let split_1_2 = H256::random();
         let split_1_1_1 = H256::random();
 
-        assert_ok!(Gas::create(origin, root_node, 1000));
+        assert_ok!(Gas::create(origin, root_node, 1100));
 
+        assert_ok!(Gas::cut(root_node, cut, 300));
         assert_ok!(Gas::split(root_node, split_1));
         assert_ok!(Gas::split(root_node, split_2));
         assert_ok!(Gas::split_with_value(split_1, split_1_1, 600));
         assert_ok!(Gas::split(split_1, split_1_2));
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
-        // Original 1000 less 600 that were `split_with_value`
-        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(400));
+        // Original 1100 less 200 that were `cut` and `split_with_value`
+        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(200));
 
-        // Parent's 400
-        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(400));
+        // 300 cut from the root node
+        assert_eq!(Gas::get_limit(cut).unwrap(), Some(300));
 
-        // Parent's 400
-        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(400));
+        // Parent's 200
+        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(200));
+
+        // Parent's 200
+        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(200));
 
         // Propriatery 600
         assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some(600));
 
-        // Grand-parent's 400
-        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(400));
+        // Grand-parent's 200
+        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(200));
 
         // Parent's 600
         assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some(600));
 
         // All nodes origin is `origin`
         assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
+        assert_eq!(Gas::get_origin(cut).unwrap(), Some(origin));
         assert_eq!(Gas::get_origin(split_1).unwrap(), Some(origin));
         assert_eq!(Gas::get_origin(split_2).unwrap(), Some(origin));
         assert_eq!(Gas::get_origin(split_1_1).unwrap(), Some(origin));

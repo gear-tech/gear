@@ -30,7 +30,7 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("(sum) New msg: {:?}", new_msg));
     debug!("sum gas_available: {}", exec::gas_available());
@@ -45,7 +45,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     let send_to = ActorId::from_slice(
         &decode_hex(&input).expect("INITIALIZATION FAILED: INVALID PROGRAM ID"),
