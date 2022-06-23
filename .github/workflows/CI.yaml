@@ -358,7 +358,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p gear-node
+          args: -p gear-node --features=lazy-pages
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
