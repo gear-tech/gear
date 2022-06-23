@@ -22,6 +22,7 @@ use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 use gear_runtime::{Gas, Gear, GearMessenger, Runtime, System};
 use pallet_gear_debug::DebugData;
+use pallet_gear::BlockGasLimitOf;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
 pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;
@@ -65,7 +66,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Runtime> {
         balances: vec![(
             AccountId32::unchecked_from(1000001.into_origin()),
-            (<Runtime as pallet_gas::Config>::BlockGasLimit::get() * 10) as u128,
+            (BlockGasLimitOf::<Runtime>::get() * 10) as u128,
         )],
     }
     .assimilate_storage(&mut t)
@@ -85,7 +86,7 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
         let remaining_weight =
-            remaining_weight.unwrap_or_else(<Runtime as pallet_gas::Config>::BlockGasLimit::get);
+            remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }

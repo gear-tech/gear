@@ -78,6 +78,7 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub type GasHandlerOf<T> = <<T as Config>::ValueTreeProvider as common::ValueTreeProvider>::ValueTree;
+pub type BlockGasLimitOf<T> = <T as pallet_gas::Config>::BlockGasLimit;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
 
@@ -524,7 +525,7 @@ pub mod pallet {
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                initial_gas.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get),
+                initial_gas.unwrap_or_else(BlockGasLimitOf::<T>::get),
                 payload,
                 value,
                 allow_other_panics,
@@ -540,7 +541,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
-                let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+                let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
                     source,
                     kind.clone(),
@@ -1269,7 +1270,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1403,7 +1404,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1505,7 +1506,7 @@ pub mod pallet {
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 

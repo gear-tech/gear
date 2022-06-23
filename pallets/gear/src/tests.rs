@@ -23,7 +23,7 @@ use crate::{
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
-    WaitlistOf, GasHandlerOf,
+    WaitlistOf, GasHandlerOf, BlockGasLimitOf,
 };
 use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
@@ -52,7 +52,7 @@ fn unstoppable_block_execution_works() {
         let executions_amount = 10;
         let balance_for_each_execution = user_balance / executions_amount;
 
-        assert!(balance_for_each_execution < <Test as pallet_gas::Config>::BlockGasLimit::get());
+        assert!(balance_for_each_execution < BlockGasLimitOf::<Test>::get());
 
         let program_id = {
             let res = submit_program_default(USER_2, ProgramCodeKind::Default);
@@ -126,7 +126,7 @@ fn submit_program_expected_failure() {
         );
 
         // Gas limit is too high
-        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
             GearPallet::<Test>::submit_program(
                 Origin::signed(USER_1),
@@ -284,7 +284,7 @@ fn send_message_expected_failure() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         // Gas limit too high
-        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
             GearPallet::<Test>::send_message(
                 Origin::signed(USER_1),
@@ -336,7 +336,7 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
-            <Test as pallet_gas::Config>::BlockGasLimit::get()
+            BlockGasLimitOf::<Test>::get()
                 - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert_eq!(
@@ -383,7 +383,7 @@ fn unused_gas_released_back_works() {
 
         run_to_block(2, None);
         let user1_actual_msgs_spends = GasPrice::gas_price(
-            <Test as pallet_gas::Config>::BlockGasLimit::get()
+            BlockGasLimitOf::<Test>::get()
                 - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);

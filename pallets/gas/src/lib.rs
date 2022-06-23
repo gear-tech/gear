@@ -200,6 +200,7 @@ impl ValueNode {
 }
 
 pub type ConsumeOutput<T> = Option<(NegativeImbalance<T>, H256)>;
+type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -311,7 +312,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn gas_allowance)]
-    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, <T as Config>::BlockGasLimit>;
+    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, BlockGasLimitOf::<T>>;
 
     #[pallet::storage]
     #[pallet::getter(fn total_issuance)]
@@ -346,7 +347,7 @@ pub mod pallet {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Reset block gas allowance
-            Allowance::<T>::put(T::BlockGasLimit::get());
+            Allowance::<T>::put(BlockGasLimitOf::<T>::get());
 
             T::DbWeight::get().writes(1)
         }

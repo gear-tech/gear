@@ -201,7 +201,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
         let remaining_weight =
-            remaining_weight.unwrap_or(<Test as pallet_gas::Config>::BlockGasLimit::get());
+            remaining_weight.unwrap_or(pallet_gear::BlockGasLimitOf::<Test>::get());
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }

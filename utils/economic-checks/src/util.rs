@@ -33,6 +33,7 @@ use gear_runtime::{
     Runtime, Signature, SudoConfig, System, TransactionPayment, TransactionPaymentConfig,
     UncheckedExtrinsic, Usage,
 };
+use pallet_gear::BlockGasLimitOf;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
 use sp_consensus_aura::{sr25519::AuthorityId as AuraId, Slot, AURA_ENGINE_ID};
@@ -180,7 +181,7 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
     while System::block_number() < n {
         // Run on_idle hook that processes the queue
         let remaining_weight =
-            remaining_weight.unwrap_or_else(<Runtime as pallet_gas::Config>::BlockGasLimit::get);
+            remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
         Gear::on_idle(System::block_number(), remaining_weight);
 
         // Run on_finalize hooks in pallets reverse order (as they appear in AllPalletsWithSystem)
@@ -229,7 +230,7 @@ pub(crate) fn run_to_block_with_ocw(
         process_tx_pool(pool);
         log::debug!("✅ Done processing transaction pool at block {}", i);
         let remaining_weight =
-            remaining_weight.unwrap_or_else(<Runtime as pallet_gas::Config>::BlockGasLimit::get);
+            remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
 
         // Processing message queue
         Gear::on_idle(i, remaining_weight);
