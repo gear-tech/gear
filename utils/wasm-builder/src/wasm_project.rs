@@ -24,7 +24,10 @@ use std::{
 };
 use toml::value::Table;
 
-use crate::{builder_error::BuilderError, crate_info::CrateInfo, insert_stack_end_export};
+use crate::{
+    builder_error::BuilderError, crate_info::CrateInfo, insert_stack_end_export,
+    optimize::check_exports,
+};
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -221,6 +224,9 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         let exports = vec!["init", "handle", "handle_reply", "__gear_stack_end"];
         pwasm_utils::optimize(&mut module, exports)
             .map_err(|_| BuilderError::UnableToOptimize(from.to_path_buf()))?;
+
+        check_exports(&module, from)?;
+
         parity_wasm::serialize_to_file(to, module).context("unable to write the optimized WASM")
     }
 

@@ -5,6 +5,7 @@ use super::*;
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub enum ValueType<ExternalId, Id, Balance> {
     External { id: ExternalId, value: Balance },
+    ReservedLocal { id: ExternalId, value: Balance },
     SpecifiedLocal { parent: Id, value: Balance },
     UnspecifiedLocal { parent: Id },
 }
@@ -41,6 +42,7 @@ impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy
     pub fn inner_value(&self) -> Option<Balance> {
         match self.inner {
             ValueType::External { value, .. } => Some(value),
+            ValueType::ReservedLocal { value, .. } => Some(value),
             ValueType::SpecifiedLocal { value, .. } => Some(value),
             ValueType::UnspecifiedLocal { .. } => None,
         }
@@ -49,6 +51,7 @@ impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy
     pub fn inner_value_mut(&mut self) -> Option<&mut Balance> {
         match self.inner {
             ValueType::External { ref mut value, .. } => Some(value),
+            ValueType::ReservedLocal { ref mut value, .. } => Some(value),
             ValueType::SpecifiedLocal { ref mut value, .. } => Some(value),
             ValueType::UnspecifiedLocal { .. } => None,
         }
@@ -56,9 +59,10 @@ impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy
 
     pub fn parent(&self) -> Option<Id> {
         match self.inner {
-            ValueType::External { .. } => None,
-            ValueType::SpecifiedLocal { parent, .. } => Some(parent),
-            ValueType::UnspecifiedLocal { parent } => Some(parent),
+            ValueType::External { .. } | ValueType::ReservedLocal { .. } => None,
+            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
+                Some(parent)
+            }
         }
     }
 

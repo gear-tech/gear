@@ -46,6 +46,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 pub mod pallet {
     use super::{offchain::PayeeInfo, *};
     use common::{storage::*, GasPrice, Origin, PaymentProvider, ValueTree};
+    use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -388,7 +389,7 @@ pub mod pallet {
 
                             // Generate trap reply
                             let trap_message_id = MessageId::generate_reply(msg_id, core_processor::ERR_EXIT_CODE);
-                            let packet = ReplyPacket::system(core_processor::ERR_EXIT_CODE);
+                            let packet = ReplyPacket::system(ExecutionErrorReason::OutOfRent.encode(), core_processor::ERR_EXIT_CODE);
                             let message = ReplyMessage::from_packet(trap_message_id, packet);
                             let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
@@ -407,7 +408,19 @@ pub mod pallet {
 
                                 QueueOf::<T>::queue(dispatch)
                                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                            } else if MailboxOf::<T>::insert(dispatch.into_parts().1).is_err() {
+                            } else {
+                                let message = match dispatch.exit_code() {
+                                    Some(0) | None => dispatch.into_parts().1,
+                                    _ => {
+                                        let message = dispatch.into_parts().1;
+                                        message
+                                            .clone()
+                                            .with_string_payload::<ExecutionErrorReason>()
+                                            .unwrap_or(message)
+                                    }
+                                };
+
+                                if MailboxOf::<T>::insert(message).is_err() {
                                     // TODO: update logic of insertion into mailbox following new
                                     // flow and deposit appropriate event (issue #1010).
 
@@ -415,6 +428,7 @@ pub mod pallet {
                                     // instead of silent insertion.
                                     log::debug!("Duplicate mailbox message");
                                 }
+                            }
 
                             // Consume the corresponding node
                             match GasHandlerOf::<T>::consume(msg_id.into_origin()) {

@@ -689,6 +689,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_metadata"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3abb7553d5b9b8421c6de7cb02606ff15e0c6eea7d8eadd75ef013fd636bec36"
+dependencies = [
+ "camino",
+ "cargo-platform",
+ "semver 1.0.9",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2365,6 +2378,8 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "log",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -2466,8 +2481,10 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "hex",
  "log",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -2662,7 +2679,7 @@ name = "gear-wasm-builder"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "cargo_metadata",
+ "cargo_metadata 0.15.0",
  "colored",
  "log",
  "pathdiff",
@@ -8399,7 +8416,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#677f
 dependencies = [
  "ansi_term",
  "build-helper",
- "cargo_metadata",
+ "cargo_metadata 0.14.2",
  "sp-maybe-compressed-blob",
  "strum",
  "tempfile",

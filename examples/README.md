@@ -48,16 +48,16 @@ Here is a minimal program for a classic ping-pong contract:
 use gstd::{ext, msg};
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     if &new_msg == "PING" {
-        msg::send(msg::source(), b"PONG", 10_000_000);
+        msg::send_bytes(msg::source(), b"PONG", 0);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {}
+unsafe extern "C" fn init() {}
 ```
 
 It will just send `PONG` back to the original sender (this can be you!)

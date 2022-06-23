@@ -14,7 +14,7 @@ fn make_fib(n: usize) -> Vec<i32> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
     debug!("fib gas_available: {}", exec::gas_available());

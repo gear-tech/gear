@@ -248,6 +248,14 @@ pub trait ValueTree {
     /// If `key` does not identify any value an error is returned.
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error>;
+
+    /// Cut underlying value to a reserved node.
+    ///
+    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
+    /// an error is returned.
+    ///
+    /// This can't create imbalance as no value is burned or created.
+    fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 }
 
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;

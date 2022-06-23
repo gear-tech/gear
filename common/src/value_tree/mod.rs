@@ -93,6 +93,9 @@ where
             ValueType::UnspecifiedLocal { .. } => {
                 parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
             }
+            ValueType::ReservedLocal { .. } => {
+                unreachable!("node is guaranteed to have a parent, so can't be an reserved one")
+            }
             ValueType::External { .. } => {
                 unreachable!("node is guaranteed to have a parent, so can't be an external one")
             }
@@ -114,33 +117,35 @@ where
     /// # Note
     /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
     fn move_value_upstream(node: &mut StorageMap::Value) -> Result<(), Error> {
+        if node.unspec_refs != 0 {
+            return Ok(());
+        }
+
         if let ValueType::SpecifiedLocal {
             value: self_value,
             parent,
         } = node.inner
         {
-            if node.unspec_refs == 0 {
-                // This is specified, so it needs to get to the first specified parent also
-                // going up until external or specified parent is found
+            // This is specified, so it needs to get to the first specified parent also
+            // going up until external or specified parent is found
 
-                // `parent` key is known to exist, hence there must be it's ancestor with value.
-                // If there isn't, the gas tree is considered corrupted (invalidated).
-                let (mut parents_ancestor, ancestor_id) = Self::node_with_value(
-                    Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?,
-                )?;
+            // `parent` key is known to exist, hence there must be it's ancestor with value.
+            // If there isn't, the gas tree is considered corrupted (invalidated).
+            let (mut parents_ancestor, ancestor_id) = Self::node_with_value(
+                Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?,
+            )?;
 
-                // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
-                let val = parents_ancestor
-                    .inner_value_mut()
-                    .expect("Querying parent with value");
-                *val = val.saturating_add(self_value);
-                *node
-                    .inner_value_mut()
-                    .expect("self is a type with a specified value") = Zero::zero();
+            // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
+            let val = parents_ancestor
+                .inner_value_mut()
+                .expect("Querying parent with value");
+            *val = val.saturating_add(self_value);
+            *node
+                .inner_value_mut()
+                .expect("self is a type with a specified value") = Zero::zero();
 
-                // GasTree::<T>::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
-                StorageMap::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
-            }
+            // GasTree::<T>::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
+            StorageMap::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
         }
         Ok(())
     }
@@ -165,10 +170,91 @@ where
                     node_id = parent;
                     node = Self::get_node(node_id).ok_or_else(InternalError::parent_is_lost)?;
                 }
+                ValueType::ReservedLocal { .. } => {
+                    unreachable!("node is guaranteed to be a parent, but reserved nodes have no children")
+                }
             }
         }
 
         Ok(None)
+    }
+
+    /// Create ValueNode from node key with value
+    ///
+    /// if `reserve`, create ValueType::ReservedLocal
+    /// else, create ValueType::SpecifiedLocal
+    fn create_from_with_value(
+        key: MapKey,
+        new_node_key: MapKey,
+        amount: Balance,
+        reserve: bool,
+    ) -> Result<(), Error> {
+        let mut parent = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        // Check if the parent node is reserved
+        if let ValueType::ReservedLocal { .. } = parent.inner {
+            return Err(InternalError::forbidden().into());
+        }
+
+        if parent.consumed {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        // This also checks if key == new_node_key
+        if StorageMap::contains_key(&new_node_key) {
+            return Err(InternalError::node_already_exists().into());
+        }
+
+        // Detect inner from `reserve`.
+        let inner = if reserve {
+            let id = Self::get_origin(key)?.ok_or_else(InternalError::parent_is_lost)?;
+            ValueType::ReservedLocal { id, value: amount }
+        } else {
+            parent.spec_refs = parent.spec_refs.saturating_add(1);
+
+            ValueType::SpecifiedLocal {
+                value: amount,
+                parent: key,
+            }
+        };
+
+        // Upstream node with a concrete value exist for any node.
+        // If it doesn't, the tree is considered invalidated.
+        let (mut ancestor_with_value, ancestor_id) = Self::node_with_value(parent.clone())?;
+
+        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+        if ancestor_with_value
+                .inner_value()
+                .expect("Querying node with value")
+                < amount
+        {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        let new_node = ValueNode {
+            inner,
+            spec_refs: 0,
+            unspec_refs: 0,
+            consumed: false,
+        };
+
+        // Save new node
+        StorageMap::insert(new_node_key, new_node);
+
+        if let Some(ancestor_id) = ancestor_id {
+            // Update current node
+            StorageMap::insert(key, parent);
+            *ancestor_with_value
+                .inner_value_mut()
+                .expect("Querying node with value") -= amount;
+            StorageMap::insert(ancestor_id, ancestor_with_value);
+        } else {
+            // parent and ancestor nodes are the same
+            *parent.inner_value_mut().expect("Querying node with value") -= amount;
+            StorageMap::insert(key, parent);
+        }
+
+        Ok(())
     }
 }
 
@@ -220,14 +306,9 @@ where
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
             let (root, _) = Self::root(node)?;
-            if let ValueNode {
-                inner: ValueType::External { id, .. },
-                ..
-            } = root
-            {
-                Some(id)
-            } else {
-                unreachable!("Guaranteed by ValueNode::root method");
+            match root.inner {
+                ValueType::External { id, .. } | ValueType::ReservedLocal { id, .. } => Some(id),
+                _ => unreachable!("Guaranteed by ValueNode::root method"),
             }
         } else {
             // key unknown - legitimate result
@@ -278,7 +359,9 @@ where
             match node.inner {
                 ValueType::UnspecifiedLocal { parent }
                 | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
-                ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
+                ValueType::ReservedLocal { id, value } | ValueType::External { id, value } => {
+                    Some((NegativeImbalance::new(value), id))
+                }
             }
         } else {
             // Save current node
@@ -317,65 +400,16 @@ where
         new_key: Self::Key,
         amount: Self::Balance,
     ) -> Result<(), Self::Error> {
-        let mut parent = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
-        if parent.consumed {
-            return Err(InternalError::node_was_consumed().into());
-        }
-
-        // This also checks if key == new_node_key
-        if StorageMap::contains_key(&new_key) {
-            return Err(InternalError::node_already_exists().into());
-        }
-
-        // Upstream node with a concrete value exist for any node.
-        // If it doesn't, the tree is considered invalidated.
-        let (mut ancestor_with_value, ancestor_id) = Self::node_with_value(parent.clone())?;
-
-        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-        if ancestor_with_value
-            .inner_value()
-            .expect("Querying node with value")
-            < amount
-        {
-            return Err(InternalError::insufficient_balance().into());
-        }
-
-        let new_node = ValueNode {
-            inner: ValueType::SpecifiedLocal {
-                value: amount,
-                parent: key,
-            },
-            spec_refs: 0,
-            unspec_refs: 0,
-            consumed: false,
-        };
-
-        // Save new node
-        // GasTree::<T>::insert(new_node_key, new_node);
-        StorageMap::insert(new_key, new_node);
-
-        parent.spec_refs = parent.spec_refs.saturating_add(1);
-        if let Some(ancestor_id) = ancestor_id {
-            // Update current node
-            // GasTree::<T>::insert(key, parent);
-            StorageMap::insert(key, parent);
-            *ancestor_with_value
-                .inner_value_mut()
-                .expect("Querying node with value") -= amount;
-            // GasTree::<T>::insert(ancestor_id, ancestor_with_value);
-            StorageMap::insert(ancestor_id, ancestor_with_value);
-        } else {
-            // parent and ancestor nodes are the same
-            *parent.inner_value_mut().expect("Querying node with value") -= amount;
-            // GasTree::<T>::insert(key, parent);
-            StorageMap::insert(key, parent);
-        }
-
-        Ok(())
+        Self::create_from_with_value(key, new_key, amount, false)
     }
 
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+        // Check if the value node is reserved
+        if let ValueType::ReservedLocal { .. } = node.inner {
+            return Err(InternalError::forbidden().into());
+        }
+
         if node.consumed {
             return Err(InternalError::node_was_consumed().into());
         }
@@ -402,5 +436,9 @@ where
         StorageMap::insert(key, node);
 
         Ok(())
+    }
+
+    fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        Self::create_from_with_value(key, new_key, amount, true)
     }
 }

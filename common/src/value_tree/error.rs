@@ -10,4 +10,6 @@ pub trait Error {
     fn node_was_consumed() -> Self;
 
     fn insufficient_balance() -> Self;
+
+    fn forbidden() -> Self;
 }
