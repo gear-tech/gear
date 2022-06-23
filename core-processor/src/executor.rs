@@ -296,6 +296,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Default::default(),
         settings.host_fn_weights,
         settings.forbidden_funcs,
+        settings.mailbox_threshold,
     );
 
     let mut env = E::new(

@@ -451,6 +451,7 @@ impl ExtManager {
             OUTGOING_LIMIT,
             Default::default(),
             Default::default(),
+            Default::default(),
         );
 
         core_processor::handle_journal(journal, self);

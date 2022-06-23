@@ -726,6 +726,7 @@ pub mod pallet {
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
                         ["gr_gas_available"].into(),
+                        T::MailboxThreshold::get(),
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -740,6 +741,7 @@ pub mod pallet {
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
                         ["gr_gas_available"].into(),
+                        T::MailboxThreshold::get(),
                     )
                 };
 
@@ -1062,6 +1064,7 @@ pub mod pallet {
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
+                            T::MailboxThreshold::get(),
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -1076,6 +1079,7 @@ pub mod pallet {
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
+                            T::MailboxThreshold::get(),
                         )
                     };
 

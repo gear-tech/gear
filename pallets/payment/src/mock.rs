@@ -172,7 +172,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
-    type MessageRent = ConstU64<0>;
+    type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
 }
 

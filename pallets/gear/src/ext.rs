@@ -165,6 +165,7 @@ impl ProcessorExt for LazyPagesExt {
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self {
         assert!(cfg!(feature = "lazy-pages"));
         Self {
@@ -183,6 +184,7 @@ impl ProcessorExt for LazyPagesExt {
                 program_candidates_data,
                 host_fn_weights,
                 forbidden_funcs,
+                mailbox_threshold,
             },
             fresh_allocations: Default::default(),
         }
