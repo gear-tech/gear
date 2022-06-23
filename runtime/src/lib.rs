@@ -354,7 +354,7 @@ impl pallet_gear::Config for Runtime {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
-    type MessageRent = ConstU64<0>;
+    type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
 }
 

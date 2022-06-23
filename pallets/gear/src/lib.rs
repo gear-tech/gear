@@ -190,7 +190,7 @@ pub mod pallet {
         ///
         /// Messages with gas limit less than that minimum will not be added in mailbox,
         /// but will be seen in logs.
-        type MessageRent: Get<u64>;
+        type MailboxThreshold: Get<u64>;
 
         type Messenger: Messenger<
             BlockNumber = Self::BlockNumber,
@@ -1457,7 +1457,7 @@ pub mod pallet {
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
-                if gas_limit >= T::MessageRent::get() {
+                if gas_limit >= T::MailboxThreshold::get() {
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
@@ -1571,7 +1571,7 @@ pub mod pallet {
                     original_message.id(),
                 );
 
-                if gas_limit >= T::MessageRent::get() {
+                if gas_limit >= T::MailboxThreshold::get() {
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
