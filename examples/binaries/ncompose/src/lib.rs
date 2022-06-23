@@ -160,7 +160,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         let (actor, max_iter): (ActorId, u16) =
             msg::load().expect("Malformed input: expecting a program ID and a number");
         STATE = State::new(max_iter, actor);

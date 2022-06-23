@@ -4,7 +4,7 @@ use core::time::Duration;
 use gstd::{debug, exec, msg, prelude::*};
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let payload = String::from_utf8(msg::load_bytes()).expect("Invalid message");
 
     let bt = Duration::from_millis(exec::block_timestamp());

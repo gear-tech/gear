@@ -44,7 +44,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         let dest: ActorId = msg::load().expect("Expecting a contract address");
         DESTINATION = dest;
         msg::reply((), 0);

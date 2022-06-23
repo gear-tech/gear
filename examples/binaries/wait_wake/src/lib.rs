@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::missing_safety_doc)]
 
 extern crate alloc;
 
@@ -55,12 +54,12 @@ fn process_request(request: Request) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     msg::reply((), 0).unwrap();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     if let Some(reply) = ECHOES.get_or_insert_with(BTreeMap::new).remove(&msg::id()) {
         msg::reply(reply, 0).unwrap();
     } else {
@@ -69,7 +68,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle_reply() {}
+unsafe extern "C" fn handle_reply() {}
 
 #[cfg(test)]
 mod tests {

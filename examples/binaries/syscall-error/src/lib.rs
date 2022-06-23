@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::missing_safety_doc)]
 
 use gstd::{msg, prelude::*, ActorId};
 
@@ -31,7 +30,7 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 use gstd::errors::{ContractError, ExtError, MessageError};
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let res = msg::send(ActorId::default(), "dummy", 250);
     assert_eq!(
         res,

@@ -159,7 +159,7 @@ gstd::metadata! {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let reply = &HANDLER_MAP
         .get_mut(&msg::load_bytes())
         .and_then(|i| i.next());
@@ -169,7 +169,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let maybe_handlers: Result<Vec<Handler>, _> = msg::load();
 
     maybe_handlers

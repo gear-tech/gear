@@ -30,7 +30,7 @@ impl State {
 static mut STATE: State = State { name: "" };
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     bot(msg::load().expect("Failed to decode incoming message"));
 }
 
@@ -59,7 +59,7 @@ fn bot(message: MemberMessage) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     let split = input.split(' ').collect::<Vec<_>>();

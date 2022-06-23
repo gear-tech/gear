@@ -26,6 +26,7 @@ use crate::{
     ext::ProcessorExt,
 };
 use alloc::{collections::BTreeSet, string::ToString, vec::Vec};
+use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     costs::HostFnWeights,
@@ -95,7 +96,7 @@ fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
-    err: Option<ExecutionErrorReason>,
+    err: ExecutionErrorReason,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -126,7 +127,7 @@ fn process_error(
 
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), crate::ERR_EXIT_CODE);
-        let packet = ReplyPacket::system(crate::ERR_EXIT_CODE);
+        let packet = ReplyPacket::system(err.encode(), crate::ERR_EXIT_CODE);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {
@@ -138,11 +139,11 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
-            reason: err.map(|e| e.to_string()),
+            reason: err.to_string(),
         },
         _ => DispatchOutcome::MessageTrap {
             program_id,
-            trap: err.map(|e| e.to_string()),
+            trap: err.to_string(),
         },
     };
 
@@ -320,7 +321,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
-                reason.map(|e| e.to_string()).map(ExecutionErrorReason::Ext),
+                ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
             DispatchResultKind::Wait => process_success(Wait, res),
@@ -337,7 +338,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
             | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
             }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
         },
     }
 }
@@ -386,7 +387,7 @@ fn process_non_executable(
     // Reply back to the message `source`
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), exit_code);
-        let packet = ReplyPacket::system(exit_code);
+        let packet = ReplyPacket::system(ExecutionErrorReason::NonExecutable.encode(), exit_code);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {

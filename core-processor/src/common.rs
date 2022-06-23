@@ -34,6 +34,7 @@ use gear_core::{
     program::Program,
 };
 use gear_core_errors::MemoryError;
+use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -41,7 +42,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<TrapExplanation>),
+    Trap(TrapExplanation),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.
@@ -114,14 +115,14 @@ pub enum DispatchOutcome {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        reason: Option<String>,
+        reason: String,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: Option<String>,
+        trap: String,
     },
     /// Message was a success.
     Success,
@@ -280,7 +281,7 @@ pub struct ExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Debug, derive_more::Display)]
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
     /// Memory error
     #[display(fmt = "{}", _0)]
@@ -290,7 +291,10 @@ pub enum ExecutionErrorReason {
     Backend(String),
     /// Ext error
     #[display(fmt = "{}", _0)]
-    Ext(String),
+    Ext(TrapExplanation),
+    /// Not executable actor.
+    #[display(fmt = "Not executable actor")]
+    NonExecutable,
     /// Program's max page is not last page in wasm page
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,
@@ -328,8 +332,11 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
     InitialMemoryReadFailed(PageNumber, MemoryError),
     /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write intial data for {:?}: {}", _0, _1)]
+    #[display(fmt = "Cannot write initial data for {:?}: {}", _0, _1)]
     InitialDataWriteFailed(PageNumber, MemoryError),
+    /// Message killed from storage as out of rent.
+    #[display(fmt = "Out of rent")]
+    OutOfRent,
 }
 
 /// Executable actor.

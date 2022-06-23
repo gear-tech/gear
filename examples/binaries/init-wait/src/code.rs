@@ -12,7 +12,7 @@ static mut INIT_MESSAGE: MessageId = MessageId::new([0; 32]);
 static mut TEST_DYNAMIC_MEMORY: BTreeMap<u32, ()> = BTreeMap::new();
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     if STATE != State::Inited {
         panic!("not initialized");
     }
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     match STATE {
         State::NotInited => {
             for k in 0..20 {
@@ -48,7 +48,7 @@ pub unsafe extern "C" fn init() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
+unsafe extern "C" fn handle_reply() {
     if STATE == State::WaitForReply {
         for k in 20..40 {
             TEST_DYNAMIC_MEMORY.insert(k, ());

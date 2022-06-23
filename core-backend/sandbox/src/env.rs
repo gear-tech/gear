@@ -24,19 +24,18 @@ use crate::{
 };
 use alloc::{
     collections::BTreeSet,
-    format,
     string::{String, ToString},
-    vec::Vec,
 };
 use core::fmt;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TerminationReasonKind, TrapExplanation,
+    IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
     memory::{Memory, WasmPageNumber},
+    message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
 use sp_sandbox::{
@@ -46,16 +45,16 @@ use sp_sandbox::{
 
 #[derive(Debug, derive_more::Display)]
 pub enum SandboxEnvironmentError {
-    #[display(fmt = "Unable to instantiate module")]
-    ModuleInstantiation,
-    #[display(fmt = "Unable to get wasm module exports")]
-    GetWasmExports,
+    #[display(fmt = "Unable to instantiate module: {:?}", _0)]
+    ModuleInstantiation(sp_sandbox::Error),
+    #[display(fmt = "Unable to get wasm module exports: {}", _0)]
+    GetWasmExports(String),
     #[display(fmt = "Unable to set module memory data")]
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "Failed to create env memory")]
-    CreateEnvMemory,
+    #[display(fmt = "Failed to create env memory: {:?}", _0)]
+    CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "{}", _0)]
@@ -66,14 +65,13 @@ pub enum SandboxEnvironmentError {
 pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
     runtime: Runtime<E>,
     instance: Instance<Runtime<E>>,
-    entries: Vec<String>,
+    entries: BTreeSet<DispatchKind>,
 }
 
 pub(crate) struct Runtime<E: Ext> {
     pub ext: ExtCarrier<E>,
     pub memory: MemoryWrap,
-    pub trap: Option<FuncError<E::Error>>,
-    pub termination_reason: Option<TerminationReasonKind>,
+    pub err: FuncError<E::Error>,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
@@ -103,17 +101,6 @@ impl<E: Ext> From<EnvBuilder<'_, E>> for EnvironmentDefinitionBuilder<Runtime<E>
     }
 }
 
-fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
-    Ok(parity_wasm::elements::Module::from_bytes(binary)
-        .map_err(|e| format!("Unable to create wasm module: {}", e))?
-        .export_section()
-        .ok_or_else(|| String::from("Unable to get wasm module section"))?
-        .entries()
-        .iter()
-        .map(|v| String::from(v.field()))
-        .collect())
-}
-
 impl<E> Environment<E> for SandboxEnvironment<E>
 where
     E: Ext + IntoExtInfo + 'static,
@@ -124,6 +111,7 @@ where
     fn new(
         ext: E,
         binary: &[u8],
+        entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>> {
         let mut builder = EnvBuilder::<E> {
@@ -171,8 +159,7 @@ where
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
-                    reason: SandboxEnvironmentError::CreateEnvMemory,
-                    description: Some(format!("{:?}", e).into()),
+                    reason: SandboxEnvironmentError::CreateEnvMemory(e),
                     gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
@@ -186,27 +173,14 @@ where
         let mut runtime = Runtime {
             ext: ext_carrier,
             memory: MemoryWrap::new(mem),
-            trap: None,
-            termination_reason: None,
+            err: FuncError::Terminated(TerminationReason::Success),
         };
 
         let instance = match Instance::new(binary, &env_builder, &mut runtime) {
             Ok(inst) => inst,
             Err(e) => {
                 return Err(BackendError {
-                    reason: SandboxEnvironmentError::ModuleInstantiation,
-                    description: Some(format!("{:?}", e).into()),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
-                })
-            }
-        };
-
-        let entries = match get_module_exports(binary) {
-            Ok(entries) => entries,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: SandboxEnvironmentError::GetWasmExports,
-                    description: Some(format!("{:?}", e).into()),
+                    reason: SandboxEnvironmentError::ModuleInstantiation(e),
                     gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
@@ -243,15 +217,16 @@ where
 
     fn execute<F, T>(
         mut self,
-        entry_point: &str,
+        entry_point: &DispatchKind,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
         F: FnOnce(&dyn Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let res = if self.entries.contains(&String::from(entry_point)) {
-            self.instance.invoke(entry_point, &[], &mut self.runtime)
+        let res = if self.entries.contains(entry_point) {
+            self.instance
+                .invoke(entry_point.into_entry(), &[], &mut self.runtime)
         } else {
             Ok(ReturnValue::Unit)
         };
@@ -259,44 +234,30 @@ where
         let Runtime {
             ext,
             memory,
-            trap,
-            termination_reason,
+            err: trap,
         } = self.runtime;
 
         log::debug!("execution res = {:?}", res);
 
-        let info = ext
-            .into_inner()
-            .into_ext_info(&memory)
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason: SandboxEnvironmentError::Memory(reason),
-                description: None,
-                gas_amount,
-            })?;
+        let (info, trap_explanation) =
+            ext.into_inner()
+                .into_ext_info(&memory)
+                .map_err(|(reason, gas_amount)| BackendError {
+                    reason: SandboxEnvironmentError::Memory(reason),
+                    gas_amount,
+                })?;
 
         let termination = if res.is_err() {
-            let reason = match termination_reason {
-                Some(TerminationReasonKind::Exit) => {
-                    info.exit_argument.map(TerminationReason::Exit)
-                }
-                Some(TerminationReasonKind::Wait) => Some(TerminationReason::Wait),
-                Some(TerminationReasonKind::Leave) => Some(TerminationReason::Leave),
-                Some(TerminationReasonKind::GasAllowanceExceeded) => {
-                    Some(TerminationReason::GasAllowanceExceeded)
-                }
-                Some(TerminationReasonKind::ForbiddenFunction) => Some(TerminationReason::Trap {
-                    explanation: Some(TrapExplanation::Other(
-                        "Unable to call a forbidden function".into(),
-                    )),
-                    description: None,
-                }),
-                None => None,
-            };
+            let reason = trap_explanation
+                .map(TerminationReason::Trap)
+                .unwrap_or_else(|| trap.into_termination_reason());
 
-            reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: info.trap_explanation.clone(),
-                description: trap.map(|e| e.to_string()).map(Into::into),
-            })
+            // success is unacceptable when there is error
+            if let TerminationReason::Success = reason {
+                TerminationReason::Trap(TrapExplanation::Unknown)
+            } else {
+                reason
+            }
         } else {
             TerminationReason::Success
         };
@@ -305,7 +266,6 @@ where
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
-                description: None,
                 gas_amount: info.gas_amount,
             }),
         }

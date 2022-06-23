@@ -56,7 +56,7 @@ mod wasm {
         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a");
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         let data: gstd::Vec<SendMessage> = msg::load().expect("provided invalid payload");
         let init = |wgas: bool, value: u128| {
             let submitted_code = CHILD_CODE_HASH.into();

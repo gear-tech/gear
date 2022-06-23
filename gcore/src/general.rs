@@ -43,7 +43,7 @@
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 /// }
@@ -64,7 +64,7 @@ pub struct MessageHandle(pub u32);
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 /// }
 /// ```
@@ -108,7 +108,7 @@ impl MessageId {
 /// ```
 /// use gcore::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let program_id = msg::source();
 /// }
 /// ```
