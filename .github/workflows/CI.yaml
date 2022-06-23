@@ -336,6 +336,12 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - name: Clean space
+        run: >-
+          Remove-Item "$Env:Programfiles\Unity" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$Env:Programfiles\Boost" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$Env:Programfiles\dotnet" -Recurse -Force -ErrorAction SilentlyContinue
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
