@@ -1,3 +1,4 @@
+use crate::builder_error::BuilderError;
 use anyhow::Result;
 use colored::Colorize;
 use pwasm_utils::parity_wasm::elements::{Internal, Module};
@@ -133,9 +134,7 @@ pub fn do_optimization(
 pub fn check_exports(module: &Module, path: &Path) -> Result<()> {
     if module
         .export_section()
-        .ok_or_else(|| {
-            crate::builder_error::BuilderError::ExportSectionNotFound(path.to_path_buf())
-        })?
+        .ok_or_else(|| BuilderError::ExportSectionNotFound(path.to_path_buf()))?
         .entries()
         .iter()
         .any(|entry| {
@@ -145,6 +144,6 @@ pub fn check_exports(module: &Module, path: &Path) -> Result<()> {
     {
         Ok(())
     } else {
-        Err(crate::builder_error::BuilderError::RequiredExportFnNotFound(path.to_path_buf()).into())
+        Err(BuilderError::RequiredExportFnNotFound(path.to_path_buf()).into())
     }
 }
