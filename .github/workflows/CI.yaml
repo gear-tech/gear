@@ -328,6 +328,7 @@ jobs:
           path: artifact
   
   build-win:
+    needs: spec_version
     runs-on: windows-latest
     steps:
       - name: Cancel Previous Runs
