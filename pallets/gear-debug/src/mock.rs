@@ -133,7 +133,6 @@ impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = Gas;
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
@@ -141,6 +140,7 @@ impl pallet_gear::Config for Test {
     type Schedule = ();
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
+    type ValueTreeProvider = Gas;
 }
 
 impl pallet_gear_messenger::Config for Test {

@@ -27,6 +27,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use pallet_gear::GasHandlerOf;
 use pallet_gear_program::Pallet as ProgramPallet;
 use sp_runtime::{
     offchain::{
@@ -80,7 +81,7 @@ where
             ),
             blk_num,
         );
-        let _ = <Test as pallet_gear::Config>::GasHandler::create(
+        let _ = GasHandlerOf::<Test>::create(
             user_id.into_origin(),
             msg_id.into_origin(),
             gas_limit,
@@ -106,12 +107,12 @@ where
             blk_num,
         );
         if let Some(last_msg_id) = last_msg_id {
-            let _ = <Test as pallet_gear::Config>::GasHandler::split(
+            let _ = GasHandlerOf::<Test>::split(
                 last_msg_id.into_origin(),
                 msg_id.into_origin(),
             );
         } else {
-            let _ = <Test as pallet_gear::Config>::GasHandler::create(
+            let _ = GasHandlerOf::<Test>::create(
                 user_id.into_origin(),
                 msg_id.into_origin(),
                 gas_limit,
@@ -635,7 +636,7 @@ fn trap_reply_message_is_sent() {
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
+            GasHandlerOf::<Test>::get_limit(message.id().into_origin())
                 .unwrap()
                 .unwrap(),
             1000
@@ -654,7 +655,7 @@ fn trap_reply_message_is_sent() {
         );
 
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
+            GasHandlerOf::<Test>::get_limit(message.id().into_origin())
                 .unwrap()
                 .unwrap(),
             500
@@ -790,7 +791,7 @@ fn gas_properly_handled_for_trap_replies() {
 
         // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
+            GasHandlerOf::<Test>::total_supply(),
             0
         );
 

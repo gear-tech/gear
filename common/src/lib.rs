@@ -37,7 +37,7 @@ use codec::{Decode, Encode};
 use core::fmt;
 use frame_support::{
     dispatch::DispatchError,
-    traits::Imbalance,
+    traits::{Get, Imbalance},
     weights::{IdentityFee, WeightToFee},
 };
 use gear_core::{
@@ -253,6 +253,9 @@ pub trait ValueTree {
 type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 pub trait ValueTreeProvider {
+    /// The maximum amount of gas that can be used within a single block.
+    type BlockGasLimit: Get<u64>;
+
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 

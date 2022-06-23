@@ -58,6 +58,7 @@ use gear_core::{
     program::Program as NativeProgram,
 };
 use pallet_gas::Pallet as GasPallet;
+use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -78,9 +79,7 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub type GasHandlerOf<T> = <<T as Config>::ValueTreeProvider as common::ValueTreeProvider>::ValueTree;
-pub type BlockGasLimitOf<T> = <T as pallet_gas::Config>::BlockGasLimit;
-
-use pallet_gear_program::Pallet as GearProgramPallet;
+pub type BlockGasLimitOf<T> = <<T as Config>::ValueTreeProvider as common::ValueTreeProvider>::BlockGasLimit;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);

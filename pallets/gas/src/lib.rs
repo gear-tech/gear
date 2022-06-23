@@ -323,6 +323,7 @@ pub mod pallet {
     pub type GasTree<T> = StorageMap<_, Identity, H256, ValueNode>;
 
     impl<T: Config> common::ValueTreeProvider for Pallet<T> {
+        type BlockGasLimit = BlockGasLimitOf<T>;
         type ExternalOrigin = ExternalOrigin;
         type Key = Key;
         type Balance = Balance;

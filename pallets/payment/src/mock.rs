@@ -165,7 +165,6 @@ impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = Gas;
     type WeightInfo = ();
     type Schedule = MySchedule;
     type OutgoingLimit = OutgoingLimit;
@@ -173,6 +172,7 @@ impl pallet_gear::Config for Test {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
+    type ValueTreeProvider = Gas;
 }
 
 impl pallet_gear_program::Config for Test {
