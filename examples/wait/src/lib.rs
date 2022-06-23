@@ -10,7 +10,7 @@ static mut MSG_ID_1: MessageId = MessageId([0; 32]);
 static mut MSG_ID_2: MessageId = MessageId([0; 32]);
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     gstd::debug!(STATE);
     match STATE {
         0 => {

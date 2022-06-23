@@ -3,7 +3,7 @@
 use gstd::{msg, prelude::*};
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let new_msg =
         String::from_utf8(gstd::msg::load_bytes()).expect("Invalid message: should be utf-8");
 
