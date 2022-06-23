@@ -139,8 +139,8 @@ pub fn check_exports(module: &Module, path: &Path) -> Result<()> {
         .entries()
         .iter()
         .any(|entry| {
-            matches!(entry.field(), "init" | "handle")
-                && matches!(entry.internal(), Internal::Function(_))
+            matches!(entry.internal(), Internal::Function(_))
+                && matches!(entry.field(), "init" | "handle")
         })
     {
         Ok(())
