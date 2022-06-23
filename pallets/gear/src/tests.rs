@@ -23,7 +23,7 @@ use crate::{
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
-    WaitlistOf,
+    WaitlistOf, GasHandlerOf,
 };
 use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
@@ -164,7 +164,7 @@ fn send_message_works() {
         let user2_initial_balance = BalancesPallet::<Test>::free_balance(USER_2);
 
         // No gas has been created initially
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Default);
@@ -233,7 +233,7 @@ fn send_message_works() {
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }
 
@@ -354,7 +354,7 @@ fn unused_gas_released_back_works() {
         let huge_send_message_gas_limit = 50_000;
 
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Default);
@@ -393,7 +393,7 @@ fn unused_gas_released_back_works() {
         );
 
         // All created gas cancels out
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     })
 }
 
@@ -1019,7 +1019,7 @@ fn mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
@@ -1039,7 +1039,7 @@ fn mailbox_works() {
         assert_eq!(mailbox_message.value(), 1000);
 
         // Gas is not passed to mailboxed messages and should have been all spent by now
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     })
 }
 
@@ -1518,7 +1518,7 @@ fn distributor_distribute() {
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
 
@@ -1551,7 +1551,7 @@ fn distributor_distribute() {
         assert_eq!(initial_balance, final_balance);
 
         // All gas cancelled out in the end
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }
 
@@ -2533,7 +2533,7 @@ fn no_redundant_gas_value_after_exiting() {
         ));
 
         let msg_id = get_last_message_id().into_origin();
-        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
         assert_eq!(maybe_limit, Some(gas_spent));
 
         // before execution
@@ -2544,7 +2544,7 @@ fn no_redundant_gas_value_after_exiting() {
         run_to_block(3, None);
 
         // gas_limit has been recovered
-        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
         assert_eq!(maybe_limit, None);
 
         // the (reserved_after_send - gas_spent) has been unreserved
@@ -3062,7 +3062,7 @@ fn test_two_contracts_composition_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
         let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
@@ -3112,7 +3112,7 @@ fn test_two_contracts_composition_works() {
         run_to_block(4, None);
 
         // Gas total issuance should have gone back to 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }
 

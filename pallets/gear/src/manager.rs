@@ -44,7 +44,7 @@
 //! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
 
 use crate::{
-    Authorship, Config, Event, GearProgramPallet, MailboxOf, Pallet, QueueOf, SentOf, WaitlistOf,
+    Authorship, Config, Event, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet, QueueOf, SentOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -326,9 +326,9 @@ where
 
         GasPallet::<T>::decrease_gas_allowance(amount);
 
-        match T::GasHandler::spend(message_id, amount) {
+        match GasHandlerOf::<T>::spend(message_id, amount) {
             Ok(_) => {
-                match T::GasHandler::get_origin(message_id) {
+                match GasHandlerOf::<T>::get_origin(message_id) {
                     Ok(maybe_origin) => {
                         if let Some(origin) = maybe_origin {
                             let charge = T::GasPrice::gas_price(amount);
@@ -416,7 +416,7 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
-        match T::GasHandler::consume(message_id) {
+        match GasHandlerOf::<T>::consume(message_id) {
             Err(_e) => {
                 // We only can get an error here if the gas tree is invalidated
                 // TODO: handle appropriately
@@ -466,13 +466,13 @@ where
 
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
-                let _ = T::GasHandler::split_with_value(
+                let _ = GasHandlerOf::<T>::split_with_value(
                     message_id,
                     dispatch.id().into_origin(),
                     gas_limit,
                 );
             } else {
-                let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
+                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id().into_origin());
             }
 
             QueueOf::<T>::queue(dispatch)
@@ -505,7 +505,7 @@ where
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
         let origin = if let Some(origin) =
-            GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
+            GasHandlerOf::<T>::get_origin_key(dispatch.id().into_origin())
                 .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
                 .map(MessageId::from_origin)
         {
@@ -541,9 +541,9 @@ where
                 .saturating_sub(bn.saturated_into::<u32>());
             let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-            match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
+            match GasHandlerOf::<T>::spend(message_id.into_origin(), chargeable_amount) {
                 Ok(_) => {
-                    match T::GasHandler::get_origin(message_id.into_origin()) {
+                    match GasHandlerOf::<T>::get_origin(message_id.into_origin()) {
                         Ok(maybe_origin) => {
                             if let Some(origin) = maybe_origin {
                                 let charge = T::GasPrice::gas_price(chargeable_amount);

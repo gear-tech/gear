@@ -66,6 +66,7 @@ pub mod pallet {
         Perbill,
     };
     use sp_std::{convert::TryInto, prelude::*};
+    use pallet_gear::GasHandlerOf;
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
     pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
@@ -277,7 +278,7 @@ pub mod pallet {
                             let chargeable_amount =
                                 <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
+                            match GasHandlerOf::<T>::get_limit(dispatch.id().into_origin()) {
                                 Ok(maybe_limit) => {
                                     match maybe_limit {
                                         Some(msg_gas_balance) => {
@@ -309,7 +310,7 @@ pub mod pallet {
                 )
                 .for_each(|(fee, dispatch, msg_gas_balance)| {
                     let msg_id = dispatch.id();
-                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id.into_origin(), fee) {
+                    if let Err(e) = GasHandlerOf::<T>::spend(msg_id.into_origin(), fee) {
                         log::debug!(
                             target: "essential",
                             "Error spending {:?} gas from {:?}: {:?}",
@@ -318,7 +319,7 @@ pub mod pallet {
                         return;
                     };
                     let total_reward = T::GasPrice::gas_price(fee);
-                    let origin = match <T as pallet_gear::Config>::GasHandler::get_origin(msg_id.into_origin()) {
+                    let origin = match GasHandlerOf::<T>::get_origin(msg_id.into_origin()) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given the gas tree is valid, the node with this id is guaranteed to have an origin
@@ -393,7 +394,7 @@ pub mod pallet {
 
                             if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination()) {
                                 // Enqueue the trap reply message
-                                if let Err(e) = <T as pallet_gear::Config>::GasHandler::split(
+                                if let Err(e) = GasHandlerOf::<T>::split(
                                     msg_id.into_origin(),
                                     trap_message_id.into_origin(),
                                 ) {
@@ -416,7 +417,7 @@ pub mod pallet {
                                 }
 
                             // Consume the corresponding node
-                            match T::GasHandler::consume(msg_id.into_origin()) {
+                            match GasHandlerOf::<T>::consume(msg_id.into_origin()) {
                                 Err(e) => {
                                     // We only can get an error here if the gas tree is invalidated
                                     // TODO: throwing a panic is not appropriate here; decide, what to do

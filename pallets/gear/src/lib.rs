@@ -77,6 +77,7 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
+pub type GasHandlerOf<T> = <<T as Config>::ValueTreeProvider as common::ValueTreeProvider>::ValueTree;
 
 use pallet_gear_program::Pallet as GearProgramPallet;
 
@@ -156,14 +157,6 @@ pub mod pallet {
         /// Gas to Currency converter
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
 
-        /// Implementation of a ledger to account for gas creation and consumption
-        type GasHandler: ValueTree<
-            ExternalOrigin = H256,
-            Key = H256,
-            Balance = u64,
-            Error = DispatchError,
-        >;
-
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
@@ -195,6 +188,14 @@ pub mod pallet {
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
         >;
+
+        /// Implementation of a ledger to account for gas creation and consumption
+        type ValueTreeProvider: common::ValueTreeProvider<
+            ExternalOrigin = H256,
+            Key = H256,
+            Balance = u64,
+            Error = DispatchError,
+            >;
     }
 
     #[pallet::pallet]
@@ -488,7 +489,7 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = T::GasHandler::create(
+            let _ = GasHandlerOf::<T>::create(
                 origin,
                 message_id.into_origin(),
                 packet.gas_limit().expect("Can't fail"),
@@ -697,7 +698,7 @@ pub mod pallet {
                 };
 
                 let dispatch_id = queued_dispatch.id().into_origin();
-                let gas_limit = T::GasHandler::get_limit(dispatch_id)
+                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .ok()
                     .flatten()
                     .ok_or_else(|| {
@@ -738,10 +739,10 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some(remaining_gas) = T::GasHandler::get_origin_key(dispatch_id)
+                    if let Some(remaining_gas) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
                         .and_then(|root_dispatch_id| {
-                            T::GasHandler::get_limit(root_dispatch_id)
+                            GasHandlerOf::<T>::get_limit(root_dispatch_id)
                                 .map_err(|_| {
                                     b"Internal error: unable to get gas limit after execution"
                                         .to_vec()
@@ -847,7 +848,7 @@ pub mod pallet {
                 {
                     let msg_id = dispatch.id().into_origin();
                     let gas_limit: u64;
-                    match T::GasHandler::get_limit(msg_id) {
+                    match GasHandlerOf::<T>::get_limit(msg_id) {
                         Ok(maybe_limit) => {
                             if let Some(limit) = maybe_limit {
                                 gas_limit = limit;
@@ -939,7 +940,7 @@ pub mod pallet {
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
                             {
                                 let origin = if let Some(origin) =
-                                    GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
+                                    GasHandlerOf::<T>::get_origin_key(dispatch.id().into_origin())
                                         .unwrap_or_else(|e| {
                                             unreachable!("ValueTree corrupted: {:?}!", e)
                                         })
@@ -1025,7 +1026,7 @@ pub mod pallet {
                         None
                     };
 
-                    let origin = match <T as Config>::GasHandler::get_origin(msg_id) {
+                    let origin = match GasHandlerOf::<T>::get_origin(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given gas tree is valid, a node with such id exists and has origin
@@ -1345,7 +1346,7 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = T::GasHandler::create(
+            let _ = GasHandlerOf::<T>::create(
                 origin,
                 message_id.into_origin(),
                 packet.gas_limit().expect("Can't fail"),
@@ -1442,7 +1443,7 @@ pub mod pallet {
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let origin = who.clone().into_origin();
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                let _ = GasHandlerOf::<T>::create(origin, message_id.into_origin(), gas_limit);
 
                 let event = Event::MessageEnqueued {
                     id: message.id(),
@@ -1542,7 +1543,7 @@ pub mod pallet {
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let origin = who.clone().into_origin();
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                let _ = GasHandlerOf::<T>::create(origin, message_id.into_origin(), gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
