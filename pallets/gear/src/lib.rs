@@ -1464,7 +1464,7 @@ pub mod pallet {
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
                     let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
-                } else {
+
                     // TODO
                     //
                     // cut reserved node from ...?
@@ -1584,7 +1584,7 @@ pub mod pallet {
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
                     let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
-                } else {
+
                     // TODO
                     //
                     // cut reserved node from ...?
