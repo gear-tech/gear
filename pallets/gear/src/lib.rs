@@ -1455,13 +1455,19 @@ pub mod pallet {
 
                 Self::deposit_event(event);
             } else {
+                let mut expiration = None;
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
                 if gas_limit >= T::MailboxThreshold::get() {
+                    expiration = Some(T::BlockNumber::zero());
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
                     let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                } else {
+                    // TODO
+                    //
+                    // cut reserved node from ...?
                 }
 
                 // TODO: replace this temporary (zero) value for expiration
@@ -1469,7 +1475,7 @@ pub mod pallet {
                 // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    expiration: Some(T::BlockNumber::zero()),
+                    expiration,
                 });
             }
 
@@ -1565,6 +1571,7 @@ pub mod pallet {
 
                 Self::deposit_event(event);
             } else {
+                let mut expiration = None;
                 let message = message.into_stored(
                     ProgramId::from_origin(origin),
                     destination,
@@ -1572,10 +1579,15 @@ pub mod pallet {
                 );
 
                 if gas_limit >= T::MailboxThreshold::get() {
+                    expiration = Some(T::BlockNumber::zero());
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
                     let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                } else {
+                    // TODO
+                    //
+                    // cut reserved node from ...?
                 }
 
                 // TODO: replace this temporary (zero) value for expiration
@@ -1583,7 +1595,7 @@ pub mod pallet {
                 // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    expiration: Some(T::BlockNumber::zero()),
+                    expiration,
                 });
             }
 

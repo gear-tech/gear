@@ -20,7 +20,8 @@ use crate::{
     manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, run_to_next_block, Event as MockEvent, Gear, GearProgram,
-        MessageRent, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
+        USER_3,
     },
     pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
     WaitlistOf,
@@ -243,12 +244,12 @@ fn send_message_works() {
 }
 
 #[test]
-fn message_rent_works_for_mailbox() {
+fn mailbox_threshold_works_for_mailbox() {
     init_logger();
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        let rent = MessageRent::get();
+        let rent = MailboxThreshold::get();
         let check_result = |sufficient: bool| -> (AccountId, MessageId) {
             let message =
                 if let MockEvent::Gear(Event::<Test>::UserMessageSent { message, .. }) =
@@ -266,7 +267,7 @@ fn message_rent_works_for_mailbox() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_eq!(<Test as Config>::GasHandler::get_limit(message_id.into_origin()), Ok(Some(rent)));
+                assert_eq!(<Test as Config>::GasHandler::get_limit(message_id.into_origin()), Ok(Some(1000)));
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
