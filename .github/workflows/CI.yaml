@@ -2,11 +2,11 @@ name: CI
 
 on:
   schedule:
-   - cron: "0 3 * * *"
+    - cron: "0 3 * * *"
   push:
-    branches: [master]
+    branches: [ master ]
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,7 +14,7 @@ env:
 
 jobs:
   spec_version:
-    runs-on: [self-hosted, cachepot]
+    runs-on: [ self-hosted, cachepot ]
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -30,7 +30,7 @@ jobs:
 
   check:
     needs: spec_version
-    runs-on: [self-hosted, cachepot]
+    runs-on: [ self-hosted, cachepot ]
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -92,7 +92,7 @@ jobs:
 
   build:
     needs: spec_version
-    runs-on: [self-hosted, cachepot]
+    runs-on: [ self-hosted, cachepot ]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
     steps:
@@ -326,7 +326,46 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: artifact
+  
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
 
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+
+      - name: "Install: cargo-nextest"
+        uses: taiki-e/install-action@nextest
+
+      - name: "Build: Node"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p gear-node
+
+      - name: "Test: Lazy pages"
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: >- 
+            run
+            -p pallet-gear 
+            -p pallet-gear-debug
+            -p pallet-gear-payment
+            -p pallet-usage
+            -p gear-lazy-pages
+            -p gear-runtime-interface
+            --features=lazy-pages
+  
   upload:
     if: github.event_name == 'push'
     runs-on: self-hosted
