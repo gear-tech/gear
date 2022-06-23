@@ -57,6 +57,8 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
     )
     .map_err(|_| Error::OptimizerFailed)?;
 
+    gear_wasm_builder::check_exports(&binary_module, &binary_file_name)?;
+
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
         .map_err(Error::SerializationFailed)?;
 
