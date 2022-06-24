@@ -43,6 +43,8 @@ use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 
+const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
+
 /// Program (actor) identifier.
 ///
 /// Gear allows users and programs to interact with other users and programs via
@@ -61,11 +63,21 @@ impl ActorId {
         Self(arr)
     }
 
+    pub const fn zero() -> Self {
+        Self::new([0; 32])
+    }
+
     pub fn from_bs58(address: String) -> Result<Self> {
-        bs58::decode(address)
+        let decoded = bs58::decode(address)
             .into_vec()
-            .map(|v| Self::from_slice(&v[1..v.len() - 2]))
-            .map_err(|_| ContractError::Convert("Unable to decode bs58 address"))?
+            .map_err(|_| ContractError::Convert("Unable to decode bs58 address"))?;
+
+        let len = decoded.len();
+        if len < BS58_MIN_LEN {
+            Err(ContractError::Convert("Wrong address len"))
+        } else {
+            Self::from_slice(&decoded[len - 34..len - 2])
+        }
     }
 
     pub fn from_slice(slice: &[u8]) -> Result<Self> {

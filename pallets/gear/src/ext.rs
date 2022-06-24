@@ -100,14 +100,8 @@ impl IntoExtInfo for LazyPagesExt {
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         // Accessed pages are all pages except current lazy pages
         let allocations = self.inner.allocations_context.allocations().clone();
-        let mut accessed_pages: BTreeSet<PageNumber> = allocations
-            .iter()
-            .flat_map(|p| p.to_gear_pages_iter())
-            .collect();
-        let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
-        lazy_pages_numbers.into_iter().for_each(|p| {
-            accessed_pages.remove(&p);
-        });
+        let mut accessed_pages = lazy_pages::get_released_pages();
+        accessed_pages.retain(|p| allocations.contains(&p.to_wasm_page()));
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
@@ -200,7 +194,7 @@ impl ProcessorExt for LazyPagesExt {
 
     fn lazy_pages_protect_and_init_info(
         mem: &dyn Memory,
-        memory_pages: &BTreeSet<PageNumber>,
+        memory_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
         lazy_pages::protect_pages_and_init_info(mem, memory_pages, prog_id)
@@ -267,10 +261,7 @@ impl EnvExt for LazyPagesExt {
                 continue;
             }
             self.fresh_allocations.insert(wasm_page);
-            wasm_page.to_gear_pages_iter().for_each(|page| {
-                log::trace!("add {:?} to lazy pages", page);
-                save_page_lazy_info(id, page);
-            });
+            save_page_lazy_info(id, wasm_page.to_gear_pages_iter());
         }
 
         // Protect all lazy pages including new allocations
