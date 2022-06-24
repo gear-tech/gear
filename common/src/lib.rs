@@ -418,10 +418,7 @@ pub fn get_program_page_data(
 }
 
 /// Save page data key in storage
-pub fn save_page_lazy_info<I>(id: H256, page_nums: I)
-where
-    I: Iterator<Item = PageNumber>,
-{
+pub fn save_page_lazy_info(id: H256, page_nums: impl Iterator<Item = PageNumber>) {
     let prefix = pages_prefix(id);
     let pages = page_nums.map(|p| p.0).collect();
     log::trace!("lazy pages = {:?}", &pages);

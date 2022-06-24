@@ -190,14 +190,11 @@ impl ProcessorExt for LazyPagesExt {
         lazy_pages::is_lazy_pages_enabled()
     }
 
-    fn lazy_pages_protect_and_init_info<I>(
+    fn lazy_pages_protect_and_init_info(
         mem: &dyn Memory,
-        memory_pages: I,
+        memory_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
-    ) -> Result<(), Self::Error>
-    where
-        I: Iterator<Item = PageNumber>,
-    {
+    ) -> Result<(), Self::Error> {
         lazy_pages::protect_pages_and_init_info(mem, memory_pages, prog_id)
             .map_err(Error::LazyPages)
     }

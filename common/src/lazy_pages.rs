@@ -76,14 +76,11 @@ pub fn is_lazy_pages_enabled() -> bool {
 }
 
 /// Protect and save storage keys for pages which has no data
-pub fn protect_pages_and_init_info<I>(
+pub fn protect_pages_and_init_info(
     mem: &dyn Memory,
-    lazy_pages: I,
+    lazy_pages: impl Iterator<Item = PageNumber>,
     prog_id: ProgramId,
-) -> Result<(), Error>
-where
-    I: Iterator<Item = PageNumber>,
-{
+) -> Result<(), Error> {
     let prog_id_hash = prog_id.into_origin();
     let mut lay_pages_peekable = lazy_pages.peekable();
 
@@ -174,7 +171,7 @@ pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
 /// Returns list of realeased pages numbers
 pub fn get_released_pages() -> Vec<PageNumber> {
     gear_ri::get_released_pages()
-        .iter()
-        .map(|p| PageNumber(*p))
+        .into_iter()
+        .map(PageNumber)
         .collect()
 }
