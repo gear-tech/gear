@@ -489,9 +489,9 @@ where
                 }
             };
 
-            let (mut expiration, gas_limit, mailbox_threshold) =
-                (None, gas_limit.unwrap_or(0), T::MailboxThreshold::get());
-            if gas_limit > mailbox_threshold {
+            let (mut expiration, mailbox_threshold) = (None, T::MailboxThreshold::get());
+
+            let mut append_message_to_mailbox = |gas_limit: u64| {
                 // Being placed into a user's mailbox means the end of a message life cycle.
                 // There can be no further processing whatsoever, hence any gas attempted to be
                 // passed along must be returned (i.e. remain in the parent message's value tree).
@@ -503,14 +503,22 @@ where
                     // block number with properly calculated one
                     // (issues #646 and #969).
                     expiration = Some(T::BlockNumber::zero());
-                    let _ = T::GasHandler::cut(
-                        message_id,
-                        message.id().into_origin(),
-                        mailbox_threshold,
-                    );
-                } else {
-                    log::error!("Error occurred in mailbox insertion");
-                    return;
+
+                    let _ = T::GasHandler::cut(message_id, message.id().into_origin(), gas_limit);
+                }
+            };
+
+            if let Some(gas_limit) = gas_limit {
+                if gas_limit > mailbox_threshold {
+                    append_message_to_mailbox(gas_limit);
+                }
+            } else {
+                let gas_limit = T::GasHandler::get_limit(message_id)
+                    .unwrap_or(None)
+                    .unwrap_or(0);
+
+                if gas_limit > mailbox_threshold {
+                    append_message_to_mailbox(mailbox_threshold);
                 }
             }
 
