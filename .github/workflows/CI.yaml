@@ -346,15 +346,6 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
-      - name: "Install: Nightly toolchain"
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-
-      - name: "Install: cargo-nextest"
-        uses: taiki-e/install-action@nextest
-
       - name: "Build: Node"
         uses: actions-rs/cargo@v1
         with:
