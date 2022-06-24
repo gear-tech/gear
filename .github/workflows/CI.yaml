@@ -353,6 +353,8 @@ jobs:
           Invoke-WebRequest https://win.rustup.rs/ -OutFile rustup-init.exe
           .\rustup-init.exe -y --default-host=x86_64-pc-windows-msvc --default-toolchain=nightly
           del rustup-init.exe
+          Invoke-Command { & "powershell.exe" } -NoNewScope
+          cargo -V
           
       - name: "Build: Node"
         run: cargo build -p gear-node --features=lazy-pages
