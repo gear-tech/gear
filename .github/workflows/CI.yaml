@@ -347,10 +347,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: "Build: Node"
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: -p gear-node --features=lazy-pages
+        run: cargo build -p gear-node --features=lazy-pages
 
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
