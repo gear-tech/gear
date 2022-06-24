@@ -360,6 +360,8 @@ jobs:
       - name: Install Rustup
         run: |
           $env:Path += ';C:\msys64\mingw64\bin'
+          rustup target install stable-x86_64-pc-windows-gnu
+          $env:CC = 'C:\msys64\mingw64\bin'
           $env:path
           gcc -v
         
