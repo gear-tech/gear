@@ -346,29 +346,11 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
         
-        
-      - name: echo
-        run: |
-          $env:Path += ';C:\Users\Administrator\.cargo\bin'
-          $env:path -split ";"
-          C:\Users\Administrator\.cargo\bin\cargo.exe -V
-
-      - name: "Build: Node"
-        run: cargo build -p gear-node --features=lazy-pages
-
-      - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
         with:
-          command: nextest
-          args: >- 
-            run
-            -p pallet-gear 
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p pallet-usage
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
+          toolchain: nightly
+          target: wasm32-unknown-unknown
   
   upload:
     if: github.event_name == 'push'
