@@ -43,6 +43,18 @@ thread_local! {
     static RELEASED_LAZY_PAGES: RefCell<BTreeMap<LazyPage, Option<PageBuf>>> = RefCell::new(BTreeMap::new());
 }
 
+pub fn save_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
+    LAZY_PAGES_INFO.with(|lazy_pages_info| {
+        let mut lazy_pages_info = lazy_pages_info.borrow_mut();
+        pages.into_iter().for_each(|p| {
+            let mut key = Vec::with_capacity(prefix.len() + std::mem::size_of::<u32>());
+            key.extend(prefix.clone());
+            key.extend(p.to_le_bytes().to_vec());
+            lazy_pages_info.insert(LazyPage(p), key);
+        })
+    });
+}
+
 /// Returns vec of not-accessed wasm lazy pages
 pub fn available_pages() -> Vec<LazyPage> {
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().keys().copied().collect())
@@ -56,8 +68,8 @@ pub fn set_wasm_mem_begin_addr(wasm_mem_begin: HostPointer) {
 /// Reset lazy pages info
 pub fn reset_info() {
     LAZY_PAGES_INFO.with(|x| x.replace(BTreeMap::new()));
-    RELEASED_LAZY_PAGES.with(|x| x.replace(BTreeMap::new()));
-    WASM_MEM_BEGIN.with(|x| x.replace(0));
+    RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().clear());
+    WASM_MEM_BEGIN.with(|x| *x.borrow_mut() = 0);
 }
 
 /// Returns vec of lazy pages which has been accessed
@@ -136,12 +148,6 @@ impl LazyPage {
     pub fn set_info(self, key: &[u8]) {
         LAZY_PAGES_INFO
             .with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(self, key.to_vec()));
-    }
-
-    fn take_info(self) -> Result<Vec<u8>, LazyPageError> {
-        LAZY_PAGES_INFO
-            .with(|info| info.borrow_mut().remove(&self))
-            .ok_or(LazyPageError::UnknownInfo(self))
     }
 
     /// Returns data of released page which page has in storage before execution

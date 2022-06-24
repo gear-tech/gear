@@ -107,7 +107,7 @@ impl pallet_authorship::Config for Test {
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
     pub const OutgoingLimit: u32 = 1024;
-    pub const BlockGasLimit: u64 = 10_000_000_000;
+    pub const BlockGasLimit: u64 = 100_000_000_000;
 }
 
 impl pallet_timestamp::Config for Test {
