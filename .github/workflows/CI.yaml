@@ -340,14 +340,14 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
         
-      #- name: Install Rustup
-        #run: |
+      - name: Install Rustup
+        run: |
           # Disable the download progress bar which can cause perf issues
-          #$ProgressPreference = "SilentlyContinue"
-          #Invoke-WebRequest https://win.rustup.rs/ -OutFile rustup-init.exe
-          #.\rustup-init.exe -y --default-host=x86_64-pc-windows-msvc --default-toolchain=nightly
-          #del rustup-init.exe
-          #rustup default stable-x86_64-pc-windows-gnu
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest https://win.rustup.rs/ -OutFile rustup-init.exe
+          .\rustup-init.exe -y --default-host=x86_64-pc-windows-msvc --default-toolchain=nightly
+          del rustup-init.exe
+          #rustup default stable-x86_64-pc-windows-msvc
           
       #- name: Install cargo-nextest
         #run: |
@@ -357,13 +357,13 @@ jobs:
           #$tmp | Expand-Archive -DestinationPath $outputDir -Force
           #$tmp | Remove-Item
           
-      - name: Install Rustup
-        run: |
-          $env:Path += ';C:\msys64\mingw64\bin'
-          rustup target install stable-x86_64-pc-windows-gnu
-          $env:CC = 'C:\msys64\mingw64\bin'
-          $env:path
-          gcc -v
+      #- name: Install Rustup
+        #run: |
+          #$env:Path += ';C:\msys64\mingw64\bin'
+          #rustup target install x86_64-pc-windows-msvc
+          #$env:CC = 'C:\msys64\mingw64\bin'
+          #$env:path
+          #gcc -v
         
       - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
