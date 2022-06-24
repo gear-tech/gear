@@ -18,8 +18,9 @@
 
 use super::*;
 use crate::mock::*;
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::Imbalance};
 use primitive_types::H256;
+use common::ValueTree;
 
 type Gas = <Pallet<Test> as common::ValueTreeProvider>::ValueTree;
 type GasTree = ValueTreeNodes<Test>;
