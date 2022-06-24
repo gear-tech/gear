@@ -342,16 +342,20 @@ jobs:
         
       - name: Install Rustup
         run: |
-          whoami
-          # show env
-          $env:USERPROFILE
           # Disable the download progress bar which can cause perf issues
           $ProgressPreference = "SilentlyContinue"
           Invoke-WebRequest https://win.rustup.rs/ -OutFile rustup-init.exe
           .\rustup-init.exe -y --default-host=x86_64-pc-windows-msvc --default-toolchain=nightly
           del rustup-init.exe
-          $env:path -split ";"
           
+      - name: Install cargo-nextest
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+
       - name: "Build: Node"
         run: cargo build -p gear-node --features=lazy-pages
   
