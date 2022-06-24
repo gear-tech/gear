@@ -358,7 +358,9 @@ jobs:
           #$tmp | Remove-Item
           
       - name: Install Rustup
-        run: $env:path
+        run: |
+          $env:Path += ';C:\msys64\mingw64\bin'
+          $env:path
         
       - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
