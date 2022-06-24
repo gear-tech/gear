@@ -342,6 +342,7 @@ jobs:
         
       - name: Install Rustup
         run: |
+          whoami
           $env:USERPROFILE
           # Disable the download progress bar which can cause perf issues
           $ProgressPreference = "SilentlyContinue"
