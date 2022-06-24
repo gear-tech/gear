@@ -349,7 +349,7 @@ jobs:
         
       - name: echo
         run: |
-          $env:Path += 'C:\Users\Administrator\.cargo\bin'
+          $env:Path += ';C:\Users\Administrator\.cargo\bin'
           $env:path -split ";"
 
       - name: "Build: Node"
