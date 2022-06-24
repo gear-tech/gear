@@ -337,12 +337,6 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-      - name: Clean space
-        run: |
-          Remove-Item "$Env:Programfiles\Unity" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$Env:Programfiles\Boost" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$Env:Programfiles\dotnet" -Recurse -Force -ErrorAction SilentlyContinue
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
         
@@ -353,8 +347,9 @@ jobs:
           Invoke-WebRequest https://win.rustup.rs/ -OutFile rustup-init.exe
           .\rustup-init.exe -y --default-host=x86_64-pc-windows-msvc --default-toolchain=nightly
           del rustup-init.exe
+          $env:path -split ";"
           Invoke-Command { & "powershell.exe" } -NoNewScope
-          cargo -V
+          $env:path -split ";"
           
       - name: "Build: Node"
         run: cargo build -p gear-node --features=lazy-pages
