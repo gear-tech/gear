@@ -357,7 +357,7 @@ jobs:
           #$tmp | Expand-Archive -DestinationPath $outputDir -Force
           #$tmp | Remove-Item
 
-      - name: "Build: Node"
+      - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
   
   upload:
