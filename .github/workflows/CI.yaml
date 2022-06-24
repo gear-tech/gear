@@ -356,7 +356,10 @@ jobs:
           #$outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           #$tmp | Expand-Archive -DestinationPath $outputDir -Force
           #$tmp | Remove-Item
-
+          
+      - name: Install Rustup
+        run: $env:path
+        
       - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
   
