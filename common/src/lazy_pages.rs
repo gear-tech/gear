@@ -165,7 +165,7 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
 
 /// Returns list of current lazy pages numbers
 pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
-    gear_ri::get_wasm_lazy_pages_numbers()
+    gear_ri::get_lazy_pages_numbers()
         .iter()
         .map(|p| PageNumber(*p))
         .collect()

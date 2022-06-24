@@ -19,6 +19,7 @@
 //! Runtime interface for gear node
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(useless_deprecated, deprecated)]
 
 use codec::{Decode, Encode};
 use core::ops::RangeInclusive;
@@ -149,6 +150,7 @@ fn mprotect_pages_slice(
 #[runtime_interface]
 pub trait GearRI {
     // TODO: deprecated, remove before release
+    #[deprecated]
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
@@ -163,6 +165,7 @@ pub trait GearRI {
 
     // TODO: deprecated, remove before release.
     #[version(2)]
+    #[deprecated]
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
@@ -174,6 +177,7 @@ pub trait GearRI {
     }
 
     // TODO: deprecated, remove before release
+    #[deprecated]
     fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
         let lazy_pages = gear_lazy_pages::available_pages();
         mprotect_pages_slice(wasm_mem_addr, &lazy_pages, protect).map_err(|err| match err {
@@ -192,6 +196,7 @@ pub trait GearRI {
     }
 
     // TODO: deprecated, remove before release
+    #[deprecated]
     fn save_page_lazy_info(page: u32, key: &[u8]) {
         LazyPage::from(page).set_info(key);
     }
@@ -202,6 +207,7 @@ pub trait GearRI {
     }
 
     // TODO: deprecated, remove before release
+    #[deprecated]
     fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::available_pages()
             .into_iter()
@@ -229,6 +235,7 @@ pub trait GearRI {
     }
 
     // TODO: deprecated, remove before release
+    #[deprecated]
     fn set_wasm_mem_begin_addr(addr: u64) {
         gear_lazy_pages::set_wasm_mem_begin_addr(addr);
     }
@@ -255,6 +262,7 @@ pub trait GearRI {
     }
 
     // TODO: deprecated, remove before release
+    #[deprecated]
     fn get_released_page_old_data(page: u32) -> Vec<u8> {
         LazyPage::from(page)
             .take_data()
@@ -264,6 +272,7 @@ pub trait GearRI {
 
     // TODO: deprecated, remove before release
     #[version(2)]
+    #[deprecated]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
         LazyPage::from(page)
             .take_data()
@@ -273,6 +282,7 @@ pub trait GearRI {
 
     // TODO: deprecated, remove before release
     #[version(3)]
+    #[deprecated]
     fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
         LazyPage::from(page).take_data().ok_or(GetReleasedPageError)
     }

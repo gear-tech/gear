@@ -752,7 +752,7 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_wasm_lazy_pages_numbers()
+        let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_lazy_pages_numbers()
             .iter()
             .map(|p| PageNumber(*p))
             .collect();
