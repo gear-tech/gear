@@ -345,6 +345,10 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
+        
+        
+      - name: echo
+        run: $env:path -split ";"
 
       - name: "Build: Node"
         run: cargo build -p gear-node --features=lazy-pages
