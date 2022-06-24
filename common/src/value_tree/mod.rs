@@ -11,6 +11,9 @@ mod negative_imbalance;
 mod node;
 mod positive_imbalance;
 
+#[cfg(test)]
+mod property_tests;
+
 pub use error::Error;
 pub use negative_imbalance::NegativeImbalance;
 pub use positive_imbalance::PositiveImbalance;

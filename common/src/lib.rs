@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![feature(thread_local)]
+#![feature(const_btree_new)]
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
