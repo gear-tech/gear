@@ -489,23 +489,35 @@ where
                 }
             };
 
-            // Being placed into a user's mailbox means the end of a message life cycle.
-            // There can be no further processing whatsoever, hence any gas attempted to be
-            // passed along must be returned (i.e. remain in the parent message's value tree).
+            let (mut expiration, gas_limit, mailbox_threshold) =
+                (None, gas_limit.unwrap_or(0), T::MailboxThreshold::get());
+            if gas_limit > mailbox_threshold {
+                // Being placed into a user's mailbox means the end of a message life cycle.
+                // There can be no further processing whatsoever, hence any gas attempted to be
+                // passed along must be returned (i.e. remain in the parent message's value tree).
 
-            // TODO: update logic of insertion into mailbox following new
-            // flow and deposit appropriate event (issue #1010).
-            if MailboxOf::<T>::insert(message.clone()).is_ok() {
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                });
-            } else {
-                log::error!("Error occurred in mailbox insertion")
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
+                if MailboxOf::<T>::insert(message.clone()).is_ok() {
+                    // TODO: replace this temporary (zero) value for expiration
+                    // block number with properly calculated one
+                    // (issues #646 and #969).
+                    expiration = Some(T::BlockNumber::zero());
+                    let _ = T::GasHandler::cut(
+                        message_id,
+                        message.id().into_origin(),
+                        mailbox_threshold,
+                    );
+                } else {
+                    log::error!("Error occurred in mailbox insertion");
+                    return;
+                }
             }
+
+            Pallet::<T>::deposit_event(Event::UserMessageSent {
+                message,
+                expiration,
+            });
         }
     }
 
