@@ -361,6 +361,7 @@ jobs:
         run: |
           $env:Path += ';C:\msys64\mingw64\bin'
           $env:path
+          gcc -v
         
       - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
