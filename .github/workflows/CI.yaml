@@ -348,7 +348,9 @@ jobs:
         
         
       - name: echo
-        run: $env:path -split ";"
+        run: |
+          $env:Path += 'C:\Users\Administrator\.cargo\bin'
+          $env:path -split ";"
 
       - name: "Build: Node"
         run: cargo build -p gear-node --features=lazy-pages
