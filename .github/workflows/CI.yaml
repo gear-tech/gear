@@ -347,6 +347,7 @@ jobs:
           Invoke-WebRequest https://win.rustup.rs/ -OutFile rustup-init.exe
           .\rustup-init.exe -y --default-host=x86_64-pc-windows-msvc --default-toolchain=nightly
           del rustup-init.exe
+          rustup target add wasm32-unknown-unknown
           $env:path
           #rustup default stable-x86_64-pc-windows-msvc
           
