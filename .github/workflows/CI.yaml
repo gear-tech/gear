@@ -351,6 +351,7 @@ jobs:
         run: |
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           $env:path -split ";"
+          C:\Users\Administrator\.cargo\bin\cargo.exe -V
 
       - name: "Build: Node"
         run: cargo build -p gear-node --features=lazy-pages
