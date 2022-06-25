@@ -349,15 +349,7 @@ jobs:
           del rustup-init.exe
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           rustup target add wasm32-unknown-unknown
-          
-      - name: Install cargo-nextest
-        run: |
-          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
-          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
-          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
-          $tmp | Expand-Archive -DestinationPath $outputDir -Force
-          $tmp | Remove-Item
-              
+                        
       - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
         
