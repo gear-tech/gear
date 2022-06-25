@@ -349,6 +349,7 @@ jobs:
           del rustup-init.exe
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           rustup target add wasm32-unknown-unknown
+          $env:Path
                         
       - name: "Build Node"
         run: cargo build -p gear-node --features=lazy-pages
