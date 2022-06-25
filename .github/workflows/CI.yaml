@@ -349,7 +349,6 @@ jobs:
           del rustup-init.exe
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           rustup target add wasm32-unknown-unknown
-          $env:Path
           
       - name: Install cargo-nextest
         run: |
@@ -367,7 +366,7 @@ jobs:
       - name: "Test: Lazy pages"
         run: |
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
-          cargo nextest run -p pallet-gear --features=lazy-pages
+          cargo nextest run -p pallet-gear -p pallet-gear-debug -p pallet-gear-payment -p pallet-usage -p gear-lazy-pages -p gear-runtime-interface --features=lazy-pages
   
   upload:
     if: github.event_name == 'push'
