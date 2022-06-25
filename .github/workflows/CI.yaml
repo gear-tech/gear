@@ -350,6 +350,9 @@ jobs:
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           rustup target add wasm32-unknown-unknown
           $env:Path
+          
+      - name: "Install: cargo-nextest"
+        uses: taiki-e/install-action@nextest
                         
       - name: "Build Node"
         run: |
