@@ -113,7 +113,7 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub const MailboxThreshold: u64 = 1_000;
+    pub const MailboxThreshold: u64 = 3_000;
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub const WaitListFeePerBlock: u64 = 1_000;

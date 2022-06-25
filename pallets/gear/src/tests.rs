@@ -267,7 +267,7 @@ fn mailbox_threshold_works_for_mailbox() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_eq!(<Test as Config>::GasHandler::get_limit(message_id.into_origin()), Ok(Some(1000)));
+                assert_eq!(<Test as Config>::GasHandler::get_limit(message_id.into_origin()), Ok(Some(<Test as Config>::MailboxThreshold::get())));
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
@@ -361,7 +361,7 @@ fn send_message_expected_failure() {
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
-            1000,
+            <Test as Config>::MailboxThreshold::get(),
             1000
         ));
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
@@ -470,13 +470,20 @@ fn unused_gas_released_back_works() {
                 - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
+
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user1_initial_balance - user1_actual_msgs_spends
+            user1_initial_balance - user1_actual_msgs_spends - mailbox_threshold_reserved
         );
 
         // All created gas cancels out
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            <Test as Config>::MailboxThreshold::get()
+        );
     })
 }
 
@@ -1112,8 +1119,9 @@ fn mailbox_works() {
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
-        // Ensure that all the gas has been returned to the sender upon messages processing
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        // this 10000000 is from the gas_limit parameter of the send instruction
+        // inside `ProgramCodeKind::OutgoingWithValueInHandle`
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 10000000);
 
         let mailbox_message = {
             let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
@@ -1126,8 +1134,11 @@ fn mailbox_works() {
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
 
-        // Gas is not passed to mailboxed messages and should have been all spent by now
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        // Gas is passed into mailboxed messages with reserved value 10000000
+        //
+        // this 10000000 is from the gas_limit parameter of the send instruction
+        // inside `ProgramCodeKind::OutgoingWithValueInHandle`
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 10000000);
     })
 }
 
@@ -1468,6 +1479,8 @@ fn send_reply_value_claiming_works() {
             (1_000_000, 1000),
             (20_000_000, 2000),
         ];
+
+        let mut reserved_balance_in_process = 0;
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
             let reply_to_id =
                 populate_mailbox_from_program(prog_id, USER_1, next_block, 2_000_000_000, 0);
@@ -1477,7 +1490,16 @@ fn send_reply_value_claiming_works() {
             assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
-            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+            // add the new reserved balance from `populate_mailbox_from_program`
+            //
+            // this 10000000 is from the gas_limit parameter of the send instruction
+            // inside `ProgramCodeKind::OutgoingWithValueInHandle`
+            reserved_balance_in_process += 10000000;
+            assert_eq!(
+                BalancesPallet::<Test>::reserved_balance(USER_1),
+                reserved_balance_in_process
+            );
 
             assert_ok!(GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
@@ -1495,10 +1517,20 @@ fn send_reply_value_claiming_works() {
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_expected_balance
             );
+
+            // this 10000000 is from the gas_limit parameter of the send instruction
+            // inside `ProgramCodeKind::OutgoingWithValueInHandle`
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
-                GasPrice::gas_price(gas_limit_to_reply) + value_to_reply
+                GasPrice::gas_price(gas_limit_to_reply)
+                    + value_to_reply
+                    + reserved_balance_in_process
             );
+
+            // This add-up is from send_reply
+            //
+            // prepare for the next loop
+            reserved_balance_in_process += <Test as Config>::MailboxThreshold::get() as u128;
         }
     })
 }
@@ -1597,7 +1629,9 @@ fn distributor_initialize() {
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_eq!(initial_balance, final_balance);
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
     });
 }
 
@@ -1639,10 +1673,16 @@ fn distributor_distribute() {
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_eq!(initial_balance, final_balance);
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get() * 2;
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
+        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
 
         // All gas cancelled out in the end
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            mailbox_threshold_gas_limit
+        );
     });
 }
 
@@ -2019,8 +2059,14 @@ fn test_message_processing_for_non_existing_destination() {
         // system reply message
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
-        assert_eq!(user_balance_before, user_balance_after);
+        assert_eq!(
+            user_balance_before - mailbox_threshold_reserved,
+            user_balance_after
+        );
 
         assert_not_executed(skipped_message_id);
 
@@ -2798,7 +2844,12 @@ fn messages_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_3));
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+        assert_eq!(
+            before_balance - mailbox_threshold_reserved,
+            BalancesPallet::<Test>::free_balance(USER_3)
+        );
     })
 }
 
@@ -2845,7 +2896,13 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(4, None);
 
-        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_1));
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
+        assert_eq!(
+            before_balance - mailbox_threshold_reserved,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
     })
 }
 
@@ -3205,7 +3262,10 @@ fn test_two_contracts_composition_works() {
         run_to_block(4, None);
 
         // Gas total issuance should have gone back to 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            <Test as Config>::MailboxThreshold::get() * 4
+        );
     });
 }
 
@@ -3575,10 +3635,17 @@ fn cascading_messages_with_value_do_not_overcharge() {
         // Expected outcome: the sender's balance has decreased by the
         // (`gas_to_spend` + `value`).
 
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get() * 2;
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
+
         let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         assert_eq!(user_balance_before_calculating, user_initial_balance);
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            mailbox_threshold_reserved
+        );
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
@@ -3599,12 +3666,15 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(
             BalancesPallet::<Test>::reserved_balance(USER_1),
-            reserved_balance
+            reserved_balance + mailbox_threshold_reserved
         );
 
         run_to_block(5, None);
 
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            mailbox_threshold_reserved
+        );
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
