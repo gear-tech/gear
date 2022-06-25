@@ -352,7 +352,9 @@ jobs:
           $env:Path
                         
       - name: "Build Node"
-        run: cargo build -p gear-node --features=lazy-pages
+        run: |
+          $env:Path += ';C:\Users\Administrator\.cargo\bin'
+          cargo build -p gear-node --features=lazy-pages
         
       - name: "Test: Lazy pages"
         uses: actions-rs/cargo@v1
