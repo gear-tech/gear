@@ -351,8 +351,13 @@ jobs:
           rustup target add wasm32-unknown-unknown
           $env:Path
           
-      - name: "Install: cargo-nextest"
-        uses: taiki-e/install-action@nextest
+      - name: Install cargo-nextest
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
                         
       - name: "Build Node"
         run: |
@@ -360,18 +365,9 @@ jobs:
           cargo build -p gear-node --features=lazy-pages
         
       - name: "Test: Lazy pages"
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          args: >- 
-            run
-            -p pallet-gear 
-            -p pallet-gear-debug
-            -p pallet-gear-payment
-            -p pallet-usage
-            -p gear-lazy-pages
-            -p gear-runtime-interface
-            --features=lazy-pages
+        run: |
+          $env:Path += ';C:\Users\Administrator\.cargo\bin'
+          cargo nextest run -p pallet-gear --features=lazy-pages
   
   upload:
     if: github.event_name == 'push'
