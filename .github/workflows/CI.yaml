@@ -350,6 +350,7 @@ jobs:
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           rustup target add wasm32-unknown-unknown
           $env:Path += ';C:\Program Files\CMake\bin'
+          cmake --version
           $env:Path
           
       - name: Install cargo-nextest
