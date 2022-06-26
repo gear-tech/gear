@@ -9256,11 +9256,20 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
+ "gear-wasm-builder",
+ "log",
+ "pwasm-utils",
+]
+
+[[package]]
+name = "wasm-proc-cli"
+version = "0.1.0"
+dependencies = [
  "clap",
  "env_logger",
  "gear-wasm-builder",
  "log",
- "pwasm-utils",
+ "wasm-proc",
 ]
 
 [[package]]
