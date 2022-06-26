@@ -100,8 +100,8 @@ impl Actor {
 
     fn code_id(&self) -> Option<CodeId> {
         match self {
-            Actor::Initialized(Program::Genuine(_, code_id, _)) => Some(code_id.clone()),
-            Actor::Uninitialized(_, Some(Program::Genuine(_, code_id, _))) => Some(code_id.clone()),
+            Actor::Initialized(Program::Genuine(_, code_id, _)) => Some(*code_id),
+            Actor::Uninitialized(_, Some(Program::Genuine(_, code_id, _))) => Some(*code_id),
             _ => None,
         }
     }
