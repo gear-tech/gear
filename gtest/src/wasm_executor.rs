@@ -281,20 +281,4 @@ mod meta_tests {
             .borrow_mut()
             .call_meta(&program.id, None, unknown_function_name);
     }
-
-    #[test]
-    #[should_panic(expected = "Failed call: expected 0 results, got 1")]
-    fn test_failing_with_void_function() {
-        let void_function_name = "init";
-        let system = System::default();
-        let program = Program::from_file(
-            &system,
-            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
-        );
-
-        system
-            .0
-            .borrow_mut()
-            .call_meta(&program.id, None, void_function_name);
-    }
 }
