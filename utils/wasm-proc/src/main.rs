@@ -22,85 +22,25 @@ use pwasm_utils::{
     self as utils,
     parity_wasm::{self, elements::Module},
 };
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
+use wasm_proc::Optimizer;
 
 #[derive(Debug)]
-enum Error {
-    OptimizerFailed,
-    SerializationFailed(parity_wasm::elements::Error),
+enum CliError {
     UndefinedPaths,
     InvalidSkip,
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for CliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OptimizerFailed => write!(f, "Optimizer failed"),
-            Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
             Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
             Self::InvalidSkip => write!(f, "Multiple skipping functional"),
         }
     }
 }
 
-impl std::error::Error for Error {}
-
-/// Calls chain optimizer
-fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::error::Error>> {
-    debug!("*** Processing chain optimization: {}", path);
-
-    let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
-
-    utils::optimize(
-        &mut binary_module,
-        vec!["handle", "handle_reply", "init", "__gear_stack_end"],
-    )
-    .map_err(|_| Error::OptimizerFailed)?;
-
-    gear_wasm_builder::check_exports(&binary_module, &binary_file_name)?;
-
-    parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
-        .map_err(Error::SerializationFailed)?;
-
-    debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
-    Ok(())
-}
-
-/// Calls metadata optimizer
-fn optimize_meta(
-    path: &str,
-    mut metadata_module: Module,
-) -> Result<(), Box<dyn std::error::Error>> {
-    debug!("*** Processing metadata optimization: {}", path);
-
-    let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
-
-    utils::optimize(
-        &mut metadata_module,
-        vec![
-            "meta_init_input",
-            "meta_init_output",
-            "meta_async_init_input",
-            "meta_async_init_output",
-            "meta_handle_input",
-            "meta_handle_output",
-            "meta_async_handle_input",
-            "meta_async_handle_output",
-            "meta_registry",
-            "meta_title",
-            "meta_state",
-            "meta_state_input",
-            "meta_state_output",
-        ],
-    )
-    .map_err(|_| Error::OptimizerFailed)?;
-
-    parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
-        .map_err(Error::SerializationFailed)?;
-
-    debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
-    Ok(())
-}
+impl std::error::Error for CliError {}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = Arg::new("path")
@@ -144,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let wasm_files: Vec<String> = matches
         .get_many("path")
-        .ok_or(Error::UndefinedPaths)?
+        .ok_or(CliError::UndefinedPaths)?
         .cloned()
         .collect();
 
@@ -153,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let skip_opt = matches.contains_id("skip-opt");
 
     if skip_meta && skip_opt {
-        return Err(Box::new(Error::InvalidSkip));
+        return Err(Box::new(CliError::InvalidSkip));
     }
 
     for file in &wasm_files {
@@ -161,7 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let res = gear_wasm_builder::optimize::optimize_wasm(PathBuf::from(file), "s", true)?;
+        let file = PathBuf::from(file);
+        let res = gear_wasm_builder::optimize::optimize_wasm(file.clone(), "s", true)?;
 
         log::info!(
             "wasm-opt: {} {} Kb -> {} Kb",
@@ -170,18 +111,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             res.optimized_size
         );
 
-        let mut module = parity_wasm::deserialize_file(file)?;
+        let mut optimizer = Optimizer::new(file)?;
 
         if !skip_stack_end {
-            let _ = gear_wasm_builder::insert_stack_end_export(&mut module)
-                .map_err(|s| log::debug!("{}", s));
+            optimizer.insert_stack_and_export();
         }
 
         if !skip_opt {
-            optimize(file, module.clone())?;
+            let code = optimizer.optimize()?;
+            let path = optimizer.optimized_file_name();
+            fs::write(path, code)?;
         }
+
         if !skip_meta {
-            optimize_meta(file, module.clone())?;
+            let code = optimizer.metadata()?;
+            let path = optimizer.metadata_file_name();
+            fs::write(path, code)?;
         }
     }
 

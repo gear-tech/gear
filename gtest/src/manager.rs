@@ -67,7 +67,7 @@ impl Actor {
             let mut prog = maybe_prog
                 .take()
                 .expect("actor storage contains only `Some` values by contract");
-            if let Program::Genuine(p, _) = &mut prog {
+            if let Program::Genuine(p, _, _) = &mut prog {
                 p.set_initialized();
             }
             *self = Actor::Initialized(prog);
@@ -84,7 +84,7 @@ impl Actor {
 
     fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
         match self {
-            Actor::Initialized(Program::Genuine(_, pages_data)) => Some(pages_data),
+            Actor::Initialized(Program::Genuine(_, _, pages_data)) => Some(pages_data),
             _ => None,
         }
     }
@@ -98,13 +98,21 @@ impl Actor {
         }
     }
 
+    fn code_id(&self) -> Option<CodeId> {
+        match self {
+            Actor::Initialized(Program::Genuine(_, code_id, _)) => Some(code_id.clone()),
+            Actor::Uninitialized(_, Some(Program::Genuine(_, code_id, _))) => Some(code_id.clone()),
+            _ => None,
+        }
+    }
+
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor(&self, balance: Balance) -> Option<ExecutableActor> {
         let (program, pages_data) = match self {
-            Actor::Initialized(Program::Genuine(program, pages_data)) => {
+            Actor::Initialized(Program::Genuine(program, _, pages_data)) => {
                 (program.clone(), pages_data.clone())
             }
-            Actor::Uninitialized(_, Some(Program::Genuine(program, pages_data))) => {
+            Actor::Uninitialized(_, Some(Program::Genuine(program, _, pages_data))) => {
                 (program.clone(), pages_data.clone())
             }
             _ => return None,
@@ -119,14 +127,18 @@ impl Actor {
 
 #[derive(Debug)]
 pub(crate) enum Program {
-    Genuine(CoreProgram, BTreeMap<PageNumber, PageBuf>),
+    Genuine(CoreProgram, CodeId, BTreeMap<PageNumber, PageBuf>),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
 
 impl Program {
-    pub(crate) fn new(prog: CoreProgram, pages_data: BTreeMap<PageNumber, PageBuf>) -> Self {
-        Program::Genuine(prog, pages_data)
+    pub(crate) fn new(
+        prog: CoreProgram,
+        code_id: CodeId,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
+    ) -> Self {
+        Program::Genuine(prog, code_id, pages_data)
     }
 
     pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
@@ -146,6 +158,7 @@ pub(crate) struct ExtManager {
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) codes: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
@@ -184,7 +197,7 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<(Actor, Balance)> {
-        if let Program::Genuine(program, _) = &program {
+        if let Program::Genuine(program, _, _) = &program {
             self.store_new_code(program.raw_code());
         }
         self.actors
@@ -474,6 +487,7 @@ impl ExtManager {
             .get_mut(program_id)
             .expect("No program with such id");
 
+        let code_id = actor.code_id();
         let actor = actor
             .get_executable_actor(*balance)
             .expect("Wrong actor type");
@@ -482,8 +496,11 @@ impl ExtManager {
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
             .collect();
+        let meta_binary = code_id
+            .and_then(|code_id| self.meta_binaries.get(&code_id))
+            .map(Vec::as_slice);
 
-        WasmExecutor::new(&actor.program, &pages_initial_data, payload)
+        WasmExecutor::new(&actor.program, meta_binary, &pages_initial_data, payload)
     }
 }
 
@@ -582,7 +599,7 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Actor::Initialized(Program::Genuine(program, pages_data)) = actor {
+        if let Actor::Initialized(Program::Genuine(program, _, pages_data)) = actor {
             for page in program
                 .get_allocations()
                 .difference(&allocations)
@@ -621,11 +638,11 @@ impl JournalHandler for ExtManager {
 
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_hash).into();
-                    let (code, _) = code_and_id.into_parts();
+                    let (code, code_id) = code_and_id.into_parts();
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::new(candidate, Default::default()),
+                        Program::new(candidate, code_id, Default::default()),
                         Some(init_message_id),
                     );
                 } else {

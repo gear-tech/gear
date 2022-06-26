@@ -2852,6 +2852,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "wasm-instrument",
+ "wasm-proc",
  "wasmtime",
 ]
 
