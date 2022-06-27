@@ -27,7 +27,7 @@ impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap>
 where
     Balance: BalanceTrait,
     TotalValue: ValueStorage<Value = Balance>,
-    InternalError: error::Error,
+    InternalError: super::Error,
     Error: From<InternalError>,
     ExternalId: Default + Clone,
     MapKey: Copy,
@@ -105,7 +105,6 @@ where
         }
 
         // Update parent node
-        // GasTree::<T>::insert(id, parent);
         StorageMap::insert(id, parent);
 
         Ok(())
@@ -147,7 +146,6 @@ where
                 .inner_value_mut()
                 .expect("self is a type with a specified value") = Zero::zero();
 
-            // GasTree::<T>::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
             StorageMap::insert(ancestor_id.unwrap_or(parent), parents_ancestor);
         }
         Ok(())
@@ -267,7 +265,7 @@ impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> 
 where
     Balance: BalanceTrait,
     TotalValue: ValueStorage<Value = Balance>,
-    InternalError: error::Error,
+    InternalError: super::Error,
     Error: From<InternalError>,
     ExternalId: Default + Clone,
     MapKey: Copy,
@@ -300,7 +298,6 @@ where
         let node = ValueNode::new(origin, amount);
 
         // Save value node to storage
-        // GasTree::<T>::insert(key, node);
         StorageMap::insert(key, node);
 
         Ok(PositiveImbalance::new(amount))
@@ -358,7 +355,6 @@ where
 
         Ok(if node.refs() == 0 {
             Self::decrease_parents_ref(&node)?;
-            // GasTree::<T>::remove(key);
             StorageMap::remove(key);
             match node.inner {
                 ValueType::UnspecifiedLocal { parent }
@@ -369,7 +365,6 @@ where
             }
         } else {
             // Save current node
-            // GasTree::<T>::insert(key, node);
             StorageMap::insert(key, node);
             None
         })
@@ -393,7 +388,6 @@ where
         log::debug!("Spent {:?} of gas", amount);
 
         // Save node that delivers limit
-        // GasTree::<T>::insert(node_id.unwrap_or(key), node);
         StorageMap::insert(node_id.unwrap_or(key), node);
 
         Ok(NegativeImbalance::new(amount))
@@ -433,10 +427,8 @@ where
         };
 
         // Save new node
-        // GasTree::<T>::insert(new_node_key, new_node);
         StorageMap::insert(new_key, new_node);
         // Update current node
-        // GasTree::<T>::insert(key, node);
         StorageMap::insert(key, node);
 
         Ok(())
