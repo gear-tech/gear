@@ -28,8 +28,8 @@ enum Error {
 
 #[derive(Debug, clap::Parser)]
 struct Args {
-    #[clap(short, long, value_parser)]
-    path: Vec<PathBuf>,
+    #[clap(value_parser)]
+    path: Vec<String>,
     #[clap(long)]
     skip_meta: bool,
     #[clap(long)]
