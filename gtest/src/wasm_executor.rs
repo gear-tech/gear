@@ -26,7 +26,7 @@ impl WasmExecutor {
     /// Also uses provided memory pages for future execution
     pub(crate) fn new(
         program: &Program,
-        meta_binary: Option<&[u8]>,
+        meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
     ) -> Self {
@@ -41,8 +41,7 @@ impl WasmExecutor {
         let engine = Engine::new(&config).expect("Failed to create engine");
         let mut store = Store::<StoreData<Ext>>::new(&engine, store_data);
 
-        let code = meta_binary.unwrap_or_else(|| program.code().code());
-        let module = Module::new(&engine, code).expect("Failed to create module");
+        let module = Module::new(&engine, meta_binary).expect("Failed to create module");
 
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
