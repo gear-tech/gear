@@ -36,7 +36,7 @@ pub fn get_dispatch_queue() -> Vec<StoredDispatch> {
 
 pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMessage>) {
     while !QueueOf::<Runtime>::is_empty() {
-        run_to_block(System::block_number() + 1, None);
+        run_to_block(System::block_number() + 1, None, false);
         // Parse data from events
         for event in System::events() {
             if let gear_runtime::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
@@ -77,7 +77,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext
 }
 
-pub fn run_to_block(n: u32, remaining_weight: Option<u64>) {
+pub fn run_to_block(n: u32, remaining_weight: Option<u64>, skip_process_queue: bool) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
@@ -85,7 +85,12 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         Gas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
-        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
-        Gear::on_idle(System::block_number(), remaining_weight);
+        let remaining_weight =
+            remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
+        if skip_process_queue {
+            Gas::update_gas_allowance(remaining_weight);
+        } else {
+            Gear::on_idle(System::block_number(), remaining_weight);
+        }
     }
 }
