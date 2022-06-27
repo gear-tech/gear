@@ -67,8 +67,8 @@ impl Actor {
             let mut prog = maybe_prog
                 .take()
                 .expect("actor storage contains only `Some` values by contract");
-            if let Program::Genuine(p, _, _) = &mut prog {
-                p.set_initialized();
+            if let Program::Genuine { program, .. } = &mut prog {
+                program.set_initialized();
             }
             *self = Actor::Initialized(prog);
         }
@@ -84,7 +84,7 @@ impl Actor {
 
     fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
         match self {
-            Actor::Initialized(Program::Genuine(_, _, pages_data)) => Some(pages_data),
+            Actor::Initialized(Program::Genuine { pages_data, .. }) => Some(pages_data),
             _ => None,
         }
     }
@@ -92,16 +92,16 @@ impl Actor {
     // Takes ownership over mock program, putting `None` value instead of it.
     fn take_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
         match self {
-            Actor::Initialized(Program::Mock(mock)) => mock.take(),
-            Actor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
+            Actor::Initialized(Program::Mock(mock))
+            | Actor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
             _ => None,
         }
     }
 
     fn code_id(&self) -> Option<CodeId> {
         match self {
-            Actor::Initialized(Program::Genuine(_, code_id, _)) => Some(*code_id),
-            Actor::Uninitialized(_, Some(Program::Genuine(_, code_id, _))) => Some(*code_id),
+            Actor::Initialized(Program::Genuine { code_id, .. })
+            | Actor::Uninitialized(_, Some(Program::Genuine { code_id, .. })) => Some(*code_id),
             _ => None,
         }
     }
@@ -109,12 +109,19 @@ impl Actor {
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor(&self, balance: Balance) -> Option<ExecutableActor> {
         let (program, pages_data) = match self {
-            Actor::Initialized(Program::Genuine(program, _, pages_data)) => {
-                (program.clone(), pages_data.clone())
-            }
-            Actor::Uninitialized(_, Some(Program::Genuine(program, _, pages_data))) => {
-                (program.clone(), pages_data.clone())
-            }
+            Actor::Initialized(Program::Genuine {
+                program,
+                pages_data,
+                ..
+            })
+            | Actor::Uninitialized(
+                _,
+                Some(Program::Genuine {
+                    program,
+                    pages_data,
+                    ..
+                }),
+            ) => (program.clone(), pages_data.clone()),
             _ => return None,
         };
         Some(ExecutableActor {
@@ -127,18 +134,26 @@ impl Actor {
 
 #[derive(Debug)]
 pub(crate) enum Program {
-    Genuine(CoreProgram, CodeId, BTreeMap<PageNumber, PageBuf>),
+    Genuine {
+        program: CoreProgram,
+        code_id: CodeId,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
+    },
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
 
 impl Program {
     pub(crate) fn new(
-        prog: CoreProgram,
+        program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
     ) -> Self {
-        Program::Genuine(prog, code_id, pages_data)
+        Program::Genuine {
+            program,
+            code_id,
+            pages_data,
+        }
     }
 
     pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
@@ -197,7 +212,7 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<(Actor, Balance)> {
-        if let Program::Genuine(program, _, _) = &program {
+        if let Program::Genuine { program, .. } = &program {
             self.store_new_code(program.raw_code());
         }
         self.actors
@@ -599,7 +614,12 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Actor::Initialized(Program::Genuine(program, _, pages_data)) = actor {
+        if let Actor::Initialized(Program::Genuine {
+            program,
+            pages_data,
+            ..
+        }) = actor
+        {
             for page in program
                 .get_allocations()
                 .difference(&allocations)
