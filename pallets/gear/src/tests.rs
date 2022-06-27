@@ -480,6 +480,10 @@ fn unused_gas_released_back_works() {
         );
 
         // All created gas cancels out
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
         assert_eq!(
             <Test as Config>::GasHandler::total_supply(),
             <Test as Config>::MailboxThreshold::get()
@@ -1136,6 +1140,10 @@ fn mailbox_works() {
         assert_eq!(mailbox_message.value(), 1000);
 
         // Gas is passed into mailboxed messages with reserved value `OUTGOING_WITH_VALUE_IN_HANDLE_VALUE`
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
         assert_eq!(
             <Test as Config>::GasPrice::gas_price(<Test as Config>::GasHandler::total_supply()),
             OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
@@ -1675,6 +1683,10 @@ fn distributor_distribute() {
         assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
 
         // All gas cancelled out in the end
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
         assert_eq!(
             <Test as Config>::GasHandler::total_supply(),
             mailbox_threshold_gas_limit
@@ -3257,7 +3269,11 @@ fn test_two_contracts_composition_works() {
 
         run_to_block(4, None);
 
-        // Gas total issuance should have gone back to 0
+        // Gas total issuance should have gone back to 4 * MAILBOX_THRESHOLD
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
         assert_eq!(
             <Test as Config>::GasHandler::total_supply(),
             <Test as Config>::MailboxThreshold::get() * 4
