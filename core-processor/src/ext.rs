@@ -323,9 +323,13 @@ impl Ext {
 
     fn charge_message_gas(&mut self, gas_limit: Option<GasLimit>) -> Result<(), ProcessorError> {
         let gas_limit = gas_limit.unwrap_or(0);
-        if (gas_limit != 0 && gas_limit < self.mailbox_threshold)
-            || self.gas_counter.reduce(gas_limit) != ChargeResult::Enough
-        {
+
+        if gas_limit != 0 && gas_limit < self.mailbox_threshold {
+            self.return_and_store_err(Err(MessageError::InsufficientGasLimit {
+                message_gas_limit: gas_limit,
+                mailbox_threshold: self.mailbox_threshold,
+            }))
+        } else if self.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughGas))
         } else {
             Ok(())
