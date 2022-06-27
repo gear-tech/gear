@@ -72,7 +72,7 @@ pub trait ProcessorExt {
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_protect_and_init_info(
         mem: &dyn Memory,
-        lazy_pages: &BTreeSet<PageNumber>,
+        lazy_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error>;
 
@@ -234,7 +234,7 @@ impl ProcessorExt for Ext {
 
     fn lazy_pages_protect_and_init_info(
         _mem: &dyn Memory,
-        _memory_pages: &BTreeSet<PageNumber>,
+        _memory_pages: impl Iterator<Item = PageNumber>,
         _prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
         unreachable!()
@@ -423,7 +423,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Reply(buffer.len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
         let result = self.message_context.reply_push(buffer);
 
         self.return_and_store_err(result)
@@ -440,7 +440,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
         self.charge_expiring_resources(&msg)?;
 
@@ -574,7 +574,7 @@ impl EnvExt for Ext {
     }
 
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
+        self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
 
         self.charge_expiring_resources(&packet)?;
 

@@ -448,7 +448,7 @@ mod tests {
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 100_u64.encode(),
-                2_500_000_000,
+                25_000_000_000,
                 0,
             ));
 
@@ -457,7 +457,7 @@ mod tests {
                 NCOMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
                 (<[u8; 32]>::from(mul_id), 8_u16).encode(), // 8 iterations
-                2_500_000_000,
+                25_000_000_000,
                 0,
             ));
 
