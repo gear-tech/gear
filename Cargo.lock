@@ -4827,7 +4827,6 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "primitive-types",
- "proptest",
  "scale-info",
  "serde",
  "sp-io",
