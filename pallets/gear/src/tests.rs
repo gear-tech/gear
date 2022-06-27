@@ -1119,9 +1119,10 @@ fn mailbox_works() {
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
-        // this 10000000 is from the gas_limit parameter of the send instruction
-        // inside `ProgramCodeKind::OutgoingWithValueInHandle`
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 10000000);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+        );
 
         let mailbox_message = {
             let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
@@ -1134,11 +1135,11 @@ fn mailbox_works() {
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
 
-        // Gas is passed into mailboxed messages with reserved value 10000000
-        //
-        // this 10000000 is from the gas_limit parameter of the send instruction
-        // inside `ProgramCodeKind::OutgoingWithValueInHandle`
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 10000000);
+        // Gas is passed into mailboxed messages with reserved value `OUTGOING_WITH_VALUE_IN_HANDLE_VALUE`
+        assert_eq!(
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::GasHandler::total_supply()),
+            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+        );
     })
 }
 
@@ -1492,10 +1493,7 @@ fn send_reply_value_claiming_works() {
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
             // add the new reserved balance from `populate_mailbox_from_program`
-            //
-            // this 10000000 is from the gas_limit parameter of the send instruction
-            // inside `ProgramCodeKind::OutgoingWithValueInHandle`
-            reserved_balance_in_process += 10000000;
+            reserved_balance_in_process += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE;
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
                 reserved_balance_in_process
@@ -1518,8 +1516,6 @@ fn send_reply_value_claiming_works() {
                 user_expected_balance
             );
 
-            // this 10000000 is from the gas_limit parameter of the send instruction
-            // inside `ProgramCodeKind::OutgoingWithValueInHandle`
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
                 GasPrice::gas_price(gas_limit_to_reply)
@@ -3813,6 +3809,7 @@ mod utils {
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 100_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
+    pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE: u128 = 10000000;
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
@@ -4047,6 +4044,7 @@ mod utils {
         let mut actual_error =
             actual_error.expect("Error message not found in any `Event::UserMessageSent`");
         let mut expectations = error.to_string();
+        log::debug!("{:?}", actual_error);
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
         // This check handles display of the error inside.
@@ -4206,7 +4204,7 @@ mod utils {
                         (func $init)
                     )"#
                 }
-                ProgramCodeKind::Custom(code) => code,
+                ProgramCodeKind::Custom(code) => code.into(),
             };
 
             wabt::Wat2Wasm::new()
