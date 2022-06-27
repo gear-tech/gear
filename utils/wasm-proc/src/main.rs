@@ -49,11 +49,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         verbose,
     } = Args::parse();
 
+    let mut env = env_logger::Env::default();
     if verbose {
-        env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).init();
-    } else {
-        env_logger::Builder::from_default_env();
+        env = env.default_filter_or("debug");
     }
+    env_logger::Builder::from_env(env).init();
 
     if skip_meta && skip_opt {
         return Err(Box::new(Error::InvalidSkip));
