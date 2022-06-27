@@ -520,7 +520,10 @@ where
                 }
             } else {
                 let gas_limit = T::GasHandler::get_limit(message_id)
-                    .unwrap_or(None)
+                    .unwrap_or_else(|e| {
+                        log::error!("{:?}", e);
+                        None
+                    })
                     .unwrap_or(0);
 
                 if gas_limit >= mailbox_threshold {
