@@ -10,4 +10,4 @@ pub use program::{calculate_program_id, Gas, Program, WasmProgram};
 pub use system::System;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
-pub const MAILBOX_THRESHOLD: u64 = 500;
+pub const MAILBOX_THRESHOLD: u64 = 3000;

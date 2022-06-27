@@ -14,6 +14,8 @@ use wasmtime::{
     Val,
 };
 
+use crate::MAILBOX_THRESHOLD;
+
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor {
     instance: Instance,
@@ -115,7 +117,7 @@ impl WasmExecutor {
             Default::default(),
             Default::default(),
             Default::default(),
-            Default::default(),
+            MAILBOX_THRESHOLD,
         )
     }
 

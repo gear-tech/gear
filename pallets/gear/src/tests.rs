@@ -244,7 +244,7 @@ fn send_message_works() {
 }
 
 #[test]
-fn mailbox_threshold_works_for_mailbox() {
+fn mailbox_threshold_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         System::reset_events();
@@ -4220,7 +4220,7 @@ mod utils {
                         (func $init)
                     )"#
                 }
-                ProgramCodeKind::Custom(code) => code.into(),
+                ProgramCodeKind::Custom(code) => code,
             };
 
             wabt::Wat2Wasm::new()
