@@ -515,7 +515,7 @@ where
             };
 
             if let Some(gas_limit) = gas_limit {
-                if gas_limit > mailbox_threshold {
+                if gas_limit >= mailbox_threshold {
                     append_message_to_mailbox(gas_limit);
                 }
             } else {
@@ -523,7 +523,7 @@ where
                     .unwrap_or(None)
                     .unwrap_or(0);
 
-                if gas_limit > mailbox_threshold {
+                if gas_limit >= mailbox_threshold {
                     append_message_to_mailbox(mailbox_threshold);
                 }
             }
