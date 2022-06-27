@@ -40,7 +40,7 @@ node_build() {
 }
 
 wasm_proc_build() {
-  cargo build -p wasm-proc-cli --release
+  cargo build -p wasm-proc --release
 }
 
 # $1 = TARGET DIR

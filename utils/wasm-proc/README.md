@@ -5,7 +5,7 @@
 To install, checkout current repository and:
 
 ```
-cd utils/wasm-proc/cli
+cd utils/wasm-proc
 cargo install --path ./
 ```
 

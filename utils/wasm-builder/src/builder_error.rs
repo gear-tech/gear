@@ -34,12 +34,6 @@ pub enum BuilderError {
     #[error("unable to find the root package in cargo metadata")]
     RootPackageNotFound,
 
-    #[error("unable to optimize the WASM file `{0}`")]
-    UnableToOptimize(PathBuf),
-
-    #[error("unable to generate the metadata WASM file from `{0}`")]
-    UnableToGenerateMeta(PathBuf),
-
     #[error("WASM module does't contain export section `{0}`")]
     ExportSectionNotFound(PathBuf),
 

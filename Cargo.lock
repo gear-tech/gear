@@ -2847,12 +2847,12 @@ dependencies = [
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
+ "gear-wasm-builder",
  "hex",
  "log",
  "parity-scale-codec",
  "path-clean",
  "wasm-instrument",
- "wasm-proc",
  "wasmtime",
 ]
 
@@ -9256,20 +9256,10 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
- "log",
- "pwasm-utils",
-]
-
-[[package]]
-name = "wasm-proc-cli"
-version = "0.1.0"
-dependencies = [
  "clap",
  "env_logger",
  "gear-wasm-builder",
  "log",
- "wasm-proc",
 ]
 
 [[package]]

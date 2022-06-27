@@ -10,6 +10,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };
+use gear_wasm_builder::optimize::Optimizer;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -218,8 +219,7 @@ impl<'a> Program<'a> {
         let is_opt = filename.ends_with(".opt.wasm");
 
         let (opt_code, meta_code) = if !is_opt {
-            let mut optimizer =
-                wasm_proc::Optimizer::new(path).expect("Failed to create optimizer");
+            let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
             optimizer.insert_stack_and_export();
             let opt_code = optimizer
                 .optimize()

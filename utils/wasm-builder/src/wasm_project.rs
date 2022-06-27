@@ -17,17 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context, Result};
-use pwasm_utils::parity_wasm;
 use std::{
     env, fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
 
-use crate::{
-    builder_error::BuilderError, crate_info::CrateInfo, insert_stack_end_export,
-    optimize::check_exports,
-};
+use crate::{crate_info::CrateInfo, optimize::Optimizer};
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -178,12 +174,12 @@ impl WasmProject {
 
         let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
 
-        Self::generate_opt(&from_path, &to_opt_path)?;
+        Self::generate_opt(from_path.clone(), &to_opt_path)?;
 
         let to_meta_path = self
             .target_dir
             .join(format!("{}.meta.wasm", &file_base_name));
-        Self::generate_meta(&from_path, &to_meta_path)?;
+        Self::generate_meta(from_path, &to_meta_path)?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
 
@@ -217,40 +213,20 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         Ok(())
     }
 
-    fn generate_opt(from: &Path, to: &Path) -> Result<()> {
-        let mut module =
-            parity_wasm::deserialize_file(from).context("unable to read the original WASM")?;
-        let _ = insert_stack_end_export(&mut module);
-        let exports = vec!["init", "handle", "handle_reply", "__gear_stack_end"];
-        pwasm_utils::optimize(&mut module, exports)
-            .map_err(|_| BuilderError::UnableToOptimize(from.to_path_buf()))?;
-
-        check_exports(&module, from)?;
-
-        parity_wasm::serialize_to_file(to, module).context("unable to write the optimized WASM")
+    fn generate_opt(from: PathBuf, to: &Path) -> Result<()> {
+        let mut optimizer = Optimizer::new(from)?;
+        optimizer.insert_stack_and_export();
+        let code = optimizer.optimize()?;
+        fs::write(to, code)?;
+        Ok(())
     }
 
-    fn generate_meta(from: &Path, to: &Path) -> Result<()> {
-        let mut module =
-            parity_wasm::deserialize_file(from).context("unable to read the original WASM")?;
-        let exports = vec![
-            "meta_async_handle_input",
-            "meta_async_handle_output",
-            "meta_async_init_input",
-            "meta_async_init_output",
-            "meta_handle_input",
-            "meta_handle_output",
-            "meta_init_input",
-            "meta_init_output",
-            "meta_registry",
-            "meta_state",
-            "meta_state_input",
-            "meta_state_output",
-            "meta_title",
-        ];
-        pwasm_utils::optimize(&mut module, exports)
-            .map_err(|_| BuilderError::UnableToGenerateMeta(from.to_path_buf()))?;
-        parity_wasm::serialize_to_file(to, module).context("unable to write the metadata WASM")
+    fn generate_meta(from: PathBuf, to: &Path) -> Result<()> {
+        let mut optimizer = Optimizer::new(from)?;
+        optimizer.insert_stack_and_export();
+        let code = optimizer.metadata()?;
+        fs::write(to, code)?;
+        Ok(())
     }
 }
 

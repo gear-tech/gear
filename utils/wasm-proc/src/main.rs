@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{Arg, Command};
+use gear_wasm_builder::optimize::Optimizer;
 use std::{fs, path::PathBuf};
-use wasm_proc::Optimizer;
 
 #[derive(Debug)]
 enum CliError {

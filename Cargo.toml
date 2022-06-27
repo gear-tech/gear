@@ -37,7 +37,6 @@ members = [
     "utils/regression-analysis",
     "utils/junit-common",
     "utils/wasm-proc",
-    "utils/wasm-proc/cli",
     "utils/wasm-builder",
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
