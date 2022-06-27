@@ -54,38 +54,12 @@ pub mod pallet {
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        /// Forbidden operation for the value node
         Forbidden,
-
-        /// Gas (gas tree) has already been created for the provided key.
         NodeAlreadyExists,
-
-        /// Account doesn't have enough funds to complete operation.
         InsufficientBalance,
-
-        /// Value node doesn't exist for a key
         NodeNotFound,
-
-        /// Creating node with existing id
-        KeyAlreadyExists,
-
-        /// Procedure can't be called on consumed node
         NodeWasConsumed,
-
-        /// Errors stating that gas tree has been invalidated
-
-        /// Parent must be in the tree, but not found
-        ///
-        /// This differs from `Error::<T>::NodeNotFound`, because parent
-        /// node for local node types must be found, but was not. Thus,
-        /// tree is invalidated.
         ParentIsLost,
-
-        /// Parent node must have children, but they weren't found
-        ///
-        /// If node is a parent to some other node it must have at least
-        /// one child, otherwise it's id can't be used as a parent for
-        /// local nodes in the tree.
         ParentHasNoChildren,
     }
 
