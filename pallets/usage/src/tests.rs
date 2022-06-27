@@ -638,6 +638,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             GasHandlerOf::<Test>::get_limit(message.id().into_origin())
                 .unwrap()
+                .map(|(g, _)| g)
                 .unwrap(),
             1000
         );
@@ -657,6 +658,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(
             GasHandlerOf::<Test>::get_limit(message.id().into_origin())
                 .unwrap()
+                .map(|(g, _)| g)
                 .unwrap(),
             500
         );

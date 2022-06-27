@@ -725,7 +725,7 @@ pub mod pallet {
                 };
 
                 let dispatch_id = queued_dispatch.id().into_origin();
-                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
+                let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .ok()
                     .flatten()
                     .ok_or_else(|| {
@@ -766,7 +766,7 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some(remaining_gas) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
+                    if let Some((remaining_gas, _)) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
                         .and_then(|root_dispatch_id| {
                             GasHandlerOf::<T>::get_limit(root_dispatch_id)
@@ -869,7 +869,7 @@ pub mod pallet {
                     let gas_limit: u64;
                     match GasHandlerOf::<T>::get_limit(msg_id) {
                         Ok(maybe_limit) => {
-                            if let Some(limit) = maybe_limit {
+                            if let Some((limit, _)) = maybe_limit {
                                 gas_limit = limit;
                             } else {
                                 log::debug!(

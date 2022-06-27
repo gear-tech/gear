@@ -282,7 +282,7 @@ pub mod pallet {
                             match GasHandlerOf::<T>::get_limit(dispatch.id().into_origin()) {
                                 Ok(maybe_limit) => {
                                     match maybe_limit {
-                                        Some(msg_gas_balance) => {
+                                        Some((msg_gas_balance, _)) => {
                                             let usable_gas = msg_gas_balance
                                                 .saturating_sub(T::TrapReplyExistentialGasLimit::get());
 

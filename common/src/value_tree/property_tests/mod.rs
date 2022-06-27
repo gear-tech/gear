@@ -246,7 +246,7 @@ proptest! {
                 }
                 GasTreeAction::Spend(from, amount) => {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
-                    let limit = Gas::get_limit(from).unwrap().unwrap();
+                    let limit = Gas::get_limit(from).unwrap().map(|(g, _)| g).unwrap();
                     let res = Gas::spend(from, amount);
 
                     if limit < amount {

@@ -329,15 +329,15 @@ where
         })
     }
 
-    fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error> {
+    fn get_limit(key: Self::Key) -> Result<Option<(Self::Balance, Self::Key)>, Self::Error> {
         if let Some(node) = Self::get_node(key) {
             Ok({
-                let (node_with_value, _) = Self::node_with_value(node)?;
+                let (node_with_value, maybe_key) = Self::node_with_value(node)?;
                 // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
                 let v = node_with_value
                     .inner_value()
                     .expect("The node here is either external or specified, hence the inner value");
-                Some(v)
+                Some((v, maybe_key.unwrap_or(key)))
             })
         } else {
             Ok(None)

@@ -2544,7 +2544,7 @@ fn no_redundant_gas_value_after_exiting() {
 
         let msg_id = get_last_message_id().into_origin();
         let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, Some(gas_spent));
+        assert_eq!(maybe_limit.map(|(g, _)| g), Some(gas_spent));
 
         // before execution
         let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);

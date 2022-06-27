@@ -74,24 +74,26 @@ fn can_cut_nodes() {
 
         assert_eq!(Gas::total_supply(), total_supply);
 
-        // check values
-        {
-            assert_eq!(
-                Gas::get_limit(root),
-                Ok(Some(
-                    total_supply - specified_value - cut_a_value - cut_c_value
-                ))
-            );
+        assert_eq!(
+            Gas::get_limit(root)
+                .map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(
+                total_supply - specified_value - cut_a_value - cut_c_value
+            ))
+        );
 
-            assert_eq!(
-                Gas::get_limit(specified),
-                Ok(Some(specified_value - cut_b_value))
-            );
+        assert_eq!(
+            Gas::get_limit(specified)
+                .map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(specified_value - cut_b_value))
+        );
 
-            assert_eq!(Gas::get_limit(cut_a), Ok(Some(cut_a_value)));
-            assert_eq!(Gas::get_limit(cut_b), Ok(Some(cut_b_value)));
-            assert_eq!(Gas::get_limit(cut_c), Ok(Some(cut_c_value)));
-        }
+        assert_eq!(Gas::get_limit(cut_a)
+            .map(|gas_limit| gas_limit.map(|(g, _)| g)), Ok(Some(cut_a_value)));
+        assert_eq!(Gas::get_limit(cut_b)
+            .map(|gas_limit| gas_limit.map(|(g, _)| g)), Ok(Some(cut_b_value)));
+        assert_eq!(Gas::get_limit(cut_c)
+            .map(|gas_limit| gas_limit.map(|(g, _)| g)), Ok(Some(cut_c_value)));
     })
 }
 
@@ -159,21 +161,21 @@ fn test_consume_procedure() {
 
         assert_eq!(Gas::consume(root).unwrap(), None);
         // Consumed root still has a balance. Root is not deleted.
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(100));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some((100, root)));
 
         assert_eq!(Gas::consume(node_1).unwrap(), None);
         // Consumed node without unspec refs moves value up
-        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(0));
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some((0, node_1)));
         // Check value moved up to the root
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some((200, root)));
 
         assert_eq!(Gas::consume(node_2).unwrap(), None);
         // Consumed node with unspec refs doesn't moves value up
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((100, node_2)));
 
         // Check that spending from unspec `node_3` actually decreases balance from the ancestor with value - `node_2`.
         assert_ok!(Gas::spend(node_3, 100));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(0));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((0, node_2)));
 
         // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.
         assert_noop!(Gas::consume(node_2), Error::<Test>::NodeWasConsumed,);
@@ -489,25 +491,25 @@ fn limit_vs_origin() {
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
         // Original 1100 less 200 that were `cut` and `split_with_value`
-        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(root_node).unwrap(), Some((200, root_node)));
 
         // 300 cut from the root node
-        assert_eq!(Gas::get_limit(cut).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(cut).unwrap(), Some((300, cut)));
 
         // Parent's 200
-        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(split_1).unwrap(), Some((200, root_node)));
 
         // Parent's 200
-        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(split_2).unwrap(), Some((200, root_node)));
 
         // Propriatery 600
-        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some(600));
+        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some((600, split_1_1)));
 
         // Grand-parent's 200
-        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some((200, root_node)));
 
         // Parent's 600
-        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some(600));
+        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some((600, split_1_1)));
 
         // All nodes origin is `origin`
         assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
@@ -565,39 +567,41 @@ fn subtree_gas_limit_remains_intact() {
         assert_ok!(Gas::split_with_value(node_2, node_5, 250));
 
         // Check gas limits in the beginning
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
-        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(300));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(250));
-        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300)); // defined by parent
-        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250)); // defined by parent
-        assert_eq!(Gas::get_limit(node_5).unwrap(), Some(250));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some((200, root)));
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some((300, node_1)));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((250, node_2)));
+        // defined by parent
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some((300, node_1)));
+        // defined by parent
+        assert_eq!(Gas::get_limit(node_4).unwrap(), Some((250, node_2)));
+        assert_eq!(Gas::get_limit(node_5).unwrap(), Some((250, node_5)));
 
         // Consume node_1
         assert!(matches!(Gas::consume(node_1).unwrap(), None));
         // Expect gas limit of the node_3 to remain unchanged
-        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(node_3).unwrap().map(|(g, _)| g), Some(300));
 
         // Consume node_2
         assert!(matches!(Gas::consume(node_2).unwrap(), None));
         // Marked as consumed
         assert!(GasTree::get(node_2).map(|node| node.consumed).unwrap());
         // Expect gas limit of the node_4 to remain unchanged
-        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
+        assert_eq!(Gas::get_limit(node_4).unwrap().map(|(g, _)| g), Some(250));
 
         // Consume node 5
         assert!(matches!(Gas::consume(node_5).unwrap(), None));
         // node_5 was removed
         assert_eq!(Gas::get_limit(node_5).unwrap(), None);
         // Expect gas limit from node_5 sent to upstream node with a value (node_2, which is consumed)
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(500));
+        assert_eq!(Gas::get_limit(node_2).unwrap().map(|(g, _)| g), Some(500));
 
         // Spend from unspecified node_4, which actually spends gas from node_2 (ancestor with value)
         assert_ok!(Gas::spend(node_4, 200));
         // Expect gas limit of consumed node_2 to decrease by 200 (thus checking we can spend from consumed node)
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(node_2).unwrap().map(|(g, _)| g), Some(300));
         // Or explicitly spend from consumed node_2 by calling "spend"
         assert_ok!(Gas::spend(node_2, 200));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
+        assert_eq!(Gas::get_limit(node_2).unwrap().map(|(g, _)| g), Some(100));
     });
 }
 
