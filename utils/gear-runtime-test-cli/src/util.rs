@@ -18,10 +18,10 @@
 
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
-use gear_common::{storage::*, Origin};
+use gear_common::{storage::*, GasAllowance, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 use gear_runtime::{Gas, Gear, GearMessenger, Runtime, System};
-use pallet_gear::BlockGasLimitOf;
+use pallet_gear::{BlockGasLimitOf, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
@@ -85,10 +85,9 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>, skip_process_queue: b
         Gas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
-        let remaining_weight =
-            remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
+        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
         if skip_process_queue {
-            Gas::update_gas_allowance(remaining_weight);
+            GasAllowanceOf::<Runtime>::update(remaining_weight);
         } else {
             Gear::on_idle(System::block_number(), remaining_weight);
         }

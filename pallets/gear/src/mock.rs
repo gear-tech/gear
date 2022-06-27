@@ -130,7 +130,7 @@ impl pallet_gear::Config for Test {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
-    type ValueTreeProvider = Gas;
+    type GasProvider = Gas;
 }
 
 impl pallet_gas::Config for Test {

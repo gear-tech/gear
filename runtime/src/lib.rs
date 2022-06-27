@@ -354,7 +354,7 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
-    type ValueTreeProvider = Gas;
+    type GasProvider = Gas;
 }
 
 #[cfg(feature = "debug-mode")]

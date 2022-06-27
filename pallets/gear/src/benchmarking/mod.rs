@@ -37,7 +37,7 @@ use crate::{
     MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasTree, Origin};
 use core_processor::{
     common::ExecutableActor,
     configs::{AllocationsConfig, BlockInfo},

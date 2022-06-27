@@ -171,9 +171,27 @@ impl super::Error for Error {
     }
 }
 
-struct ValueTreeProvider;
+struct GasAllowance;
 
-impl super::ValueTreeProvider for ValueTreeProvider {
+impl super::Allowance for GasAllowance {
+    type Balance = Balance;
+
+    fn get() -> Self::Balance {
+        0
+    }
+
+    fn update(_gas: Self::Balance) {
+        unimplemented!()
+    }
+
+    fn decrease(_gas: Self::Balance) {
+        unimplemented!()
+    }
+}
+
+struct GasProvider;
+
+impl super::Provider for GasProvider {
     type BlockGasLimit = ConstU64<1_000>;
     type ExternalOrigin = ExternalOrigin;
     type Key = Key;
@@ -183,16 +201,18 @@ impl super::ValueTreeProvider for ValueTreeProvider {
     type InternalError = Error;
     type Error = Error;
 
-    type ValueTree = ValueTreeImpl<
+    type GasTree = TreeImpl<
         TotalIssuanceWrap,
         Self::InternalError,
         Self::Error,
         ExternalOrigin,
         ValueTreeNodesWrap,
     >;
+
+    type GasAllowance = GasAllowance;
 }
 
-type Gas = <ValueTreeProvider as super::ValueTreeProvider>::ValueTree;
+type Gas = <GasProvider as super::Provider>::GasTree;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(600))]

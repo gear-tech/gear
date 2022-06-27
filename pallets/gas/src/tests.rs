@@ -18,11 +18,11 @@
 
 use super::*;
 use crate::mock::*;
-use common::ValueTree;
+use common::{GasTree as _, Origin};
 use frame_support::{assert_noop, assert_ok, traits::Imbalance};
 use primitive_types::H256;
 
-type Gas = <Pallet<Test> as common::ValueTreeProvider>::ValueTree;
+type Gas = <Pallet<Test> as common::GasProvider>::GasTree;
 type GasTree = ValueTreeNodes<Test>;
 
 #[test]
@@ -131,14 +131,14 @@ fn value_tree_with_all_kinds_of_nodes() {
             assert_eq!(
                 Gas::consume(root),
                 Ok(Some((
-                    common::value_tree::NegativeImbalance::new(specified_value),
+                    common::gas_provider::NegativeImbalance::new(specified_value),
                     ALICE.into_origin()
                 )))
             );
             assert_eq!(
                 Gas::consume(cut),
                 Ok(Some((
-                    common::value_tree::NegativeImbalance::new(cut_value),
+                    common::gas_provider::NegativeImbalance::new(cut_value),
                     ALICE.into_origin()
                 )))
             );

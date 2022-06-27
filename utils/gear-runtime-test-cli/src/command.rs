@@ -23,7 +23,7 @@ use crate::{
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
+use gear_common::{storage::*, CodeStorage, GasAllowance, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
@@ -38,8 +38,7 @@ use gear_test::{
     proc::*,
     sample::{self, ChainProgram, PayloadVariant},
 };
-use pallet_gas::Pallet as GasPallet;
-use pallet_gear::{GasHandlerOf, Pallet as GearPallet};
+use pallet_gear::{GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
 use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
@@ -297,7 +296,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
         let gas_limit = message
             .gas_limit
-            .unwrap_or_else(GasPallet::<Runtime>::gas_allowance);
+            .unwrap_or_else(GasAllowanceOf::<Runtime>::get);
 
         let value = message.value.unwrap_or(0);
 

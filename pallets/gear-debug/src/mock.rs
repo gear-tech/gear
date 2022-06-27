@@ -140,7 +140,7 @@ impl pallet_gear::Config for Test {
     type Schedule = ();
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
-    type ValueTreeProvider = Gas;
+    type GasProvider = Gas;
 }
 
 impl pallet_gear_messenger::Config for Test {

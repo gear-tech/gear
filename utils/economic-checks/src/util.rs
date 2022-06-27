@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use common::{
     storage::{IterableMap, Messenger},
-    Origin as _, ValueTree,
+    GasTree, Origin as _,
 };
 use frame_support::{
     assert_ok,
@@ -53,8 +53,8 @@ use sp_runtime::{
 use sp_std::collections::btree_map::BTreeMap;
 use std::sync::Arc;
 
-type GasNodeKeyOf<T> = <GasHandlerOf<T> as ValueTree>::Key;
-type GasBalanceOf<T> = <GasHandlerOf<T> as ValueTree>::Balance;
+type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
+type GasBalanceOf<T> = <GasHandlerOf<T> as GasTree>::Balance;
 
 pub(crate) type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
 

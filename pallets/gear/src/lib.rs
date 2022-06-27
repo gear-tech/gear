@@ -57,7 +57,6 @@ use gear_core::{
     message::*,
     program::Program as NativeProgram,
 };
-use pallet_gas::Pallet as GasPallet;
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
@@ -78,10 +77,9 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-pub type GasHandlerOf<T> =
-    <<T as Config>::ValueTreeProvider as common::ValueTreeProvider>::ValueTree;
-pub type BlockGasLimitOf<T> =
-    <<T as Config>::ValueTreeProvider as common::ValueTreeProvider>::BlockGasLimit;
+pub type GasAllowanceOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasAllowance;
+pub type GasHandlerOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasTree;
+pub type BlockGasLimitOf<T> = <<T as Config>::GasProvider as common::GasProvider>::BlockGasLimit;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -127,8 +125,8 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState,
-        ValueTree,
+        self, event::*, lazy_pages, CodeMetadata, GasAllowance, GasPrice, GasTree, Origin, Program,
+        ProgramState,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -148,7 +146,6 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_timestamp::Config
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
-        + pallet_gas::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -192,7 +189,7 @@ pub mod pallet {
         >;
 
         /// Implementation of a ledger to account for gas creation and consumption
-        type ValueTreeProvider: common::ValueTreeProvider<
+        type GasProvider: common::GasProvider<
             ExternalOrigin = H256,
             Key = H256,
             Balance = u64,
@@ -408,7 +405,7 @@ pub mod pallet {
             //
             // This field already was affected by gas pallet within the block,
             // so we don't need to include that db write.
-            GasPallet::<T>::update_gas_allowance(remaining_weight);
+            GasAllowanceOf::<T>::update(remaining_weight);
 
             Self::process_queue()
         }
@@ -849,7 +846,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let weight = GasPallet::<T>::gas_allowance() as Weight;
+            let weight = GasAllowanceOf::<T>::get() as Weight;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -891,9 +888,9 @@ pub mod pallet {
                                 let consumed =
                                     T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
 
-                                GasPallet::<T>::decrease_gas_allowance(consumed);
+                                GasAllowanceOf::<T>::decrease(consumed);
 
-                                if GasPallet::<T>::gas_allowance() < consumed {
+                                if GasAllowanceOf::<T>::get() < consumed {
                                     break;
                                 }
 
@@ -912,7 +909,7 @@ pub mod pallet {
                         dispatch.id(),
                         dispatch.destination(),
                         gas_limit,
-                        GasPallet::<T>::gas_allowance(),
+                        GasAllowanceOf::<T>::get(),
                     );
 
                     let schedule = T::Schedule::get();
@@ -1079,7 +1076,7 @@ pub mod pallet {
                             existential_deposit,
                             ProgramId::from_origin(origin),
                             program_id,
-                            GasPallet::<T>::gas_allowance(),
+                            GasAllowanceOf::<T>::get(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
@@ -1093,7 +1090,7 @@ pub mod pallet {
                             existential_deposit,
                             ProgramId::from_origin(origin),
                             program_id,
-                            GasPallet::<T>::gas_allowance(),
+                            GasAllowanceOf::<T>::get(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
@@ -1125,7 +1122,7 @@ pub mod pallet {
                 });
             }
 
-            weight.saturating_sub(GasPallet::<T>::gas_allowance())
+            weight.saturating_sub(GasAllowanceOf::<T>::get())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.

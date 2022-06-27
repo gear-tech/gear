@@ -20,7 +20,7 @@
 
 use common::{
     storage::{MapStorage, ValueStorage},
-    Origin,
+    GasProvider,
 };
 use frame_support::{dispatch::DispatchError, pallet_prelude::*};
 pub use pallet::*;
@@ -89,7 +89,7 @@ pub mod pallet {
         ParentHasNoChildren,
     }
 
-    impl<T: Config> common::value_tree::Error for Error<T> {
+    impl<T: Config> common::gas_provider::Error for Error<T> {
         fn node_already_exists() -> Self {
             Self::NodeAlreadyExists
         }
@@ -136,7 +136,7 @@ pub mod pallet {
 
     pub type Key = H256;
     pub type ExternalOrigin = H256;
-    pub type ValueNode = common::value_tree::ValueNode<ExternalOrigin, Key, Balance>;
+    pub type ValueNode = common::gas_provider::ValueNode<ExternalOrigin, Key, Balance>;
 
     #[pallet::storage]
     pub type ValueTreeNodes<T> = StorageMap<_, Identity, H256, ValueNode>;
@@ -151,28 +151,47 @@ pub mod pallet {
     // ----
 
     #[pallet::storage]
-    #[pallet::getter(fn gas_allowance)]
-    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, BlockGasLimitOf<T>>;
+    pub type Allowance<T> = StorageValue<_, Balance, ValueQuery, BlockGasLimitOf<T>>;
 
-    impl<T: Config> common::ValueTreeProvider for Pallet<T> {
+    pub struct GasAllowance<T: Config>(PhantomData<T>);
+
+    impl<T: Config> common::GasAllowance for GasAllowance<T> {
+        type Balance = Balance;
+
+        fn get() -> Self::Balance {
+            Allowance::<T>::get()
+        }
+
+        fn update(gas: Self::Balance) {
+            Allowance::<T>::put(gas);
+        }
+
+        fn decrease(gas: Self::Balance) {
+            Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
+        }
+    }
+
+    impl<T: Config> GasProvider for Pallet<T> {
         type BlockGasLimit = BlockGasLimitOf<T>;
         type ExternalOrigin = ExternalOrigin;
         type Key = Key;
         type Balance = Balance;
         type PositiveImbalance =
-            common::value_tree::PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+            common::gas_provider::PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
         type NegativeImbalance =
-            common::value_tree::NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+            common::gas_provider::NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
         type InternalError = Error<T>;
         type Error = DispatchError;
 
-        type ValueTree = common::value_tree::ValueTreeImpl<
+        type GasTree = common::gas_provider::TreeImpl<
             TotalIssuanceWrap<T>,
             Self::InternalError,
             Self::Error,
             ExternalOrigin,
             ValueTreeNodesWrap<T>,
         >;
+
+        type GasAllowance = GasAllowance<T>;
     }
 
     #[pallet::hooks]
@@ -187,18 +206,5 @@ pub mod pallet {
 
         /// Finalization
         fn on_finalize(_bn: BlockNumberFor<T>) {}
-    }
-
-    impl<T: Config> Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        pub fn update_gas_allowance(gas: u64) {
-            Allowance::<T>::put(gas);
-        }
-
-        pub fn decrease_gas_allowance(gas: u64) {
-            Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
-        }
     }
 }

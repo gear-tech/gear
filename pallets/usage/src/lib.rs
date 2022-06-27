@@ -45,7 +45,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 #[frame_support::pallet]
 pub mod pallet {
     use super::{offchain::PayeeInfo, *};
-    use common::{storage::*, GasPrice, Origin, PaymentProvider, ValueTree};
+    use common::{storage::*, GasPrice, GasTree, Origin, PaymentProvider};
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},

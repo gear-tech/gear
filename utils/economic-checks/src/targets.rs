@@ -19,7 +19,7 @@
 use crate::{util::*, Params, MAX_QUEUE_LEN};
 use arbitrary::Unstructured;
 use codec::Encode;
-use common::ValueTree;
+use common::GasTree;
 use demo_contract_template::WASM_BINARY as GENERAL_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_ncompose::WASM_BINARY as NCOMPOSE_WASM_BINARY;

@@ -1,31 +1,11 @@
 use super::*;
-use frame_support::{
-    traits::{tokens::Balance as BalanceTrait, Imbalance, SameOrOther, TryDrop},
-    RuntimeDebug,
-};
-use sp_runtime::traits::Zero;
-use sp_std::{marker::PhantomData, mem};
 
-mod error;
-mod negative_imbalance;
-mod node;
-mod positive_imbalance;
-
-#[cfg(test)]
-mod property_tests;
-
-pub use error::Error;
-pub use negative_imbalance::NegativeImbalance;
-pub use positive_imbalance::PositiveImbalance;
-
-pub use node::{ValueNode, ValueType};
-
-pub struct ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>(
+pub struct TreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>(
     PhantomData<(TotalValue, InternalError, Error, ExternalId, StorageMap)>,
 );
 
 impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap>
-    ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
+    TreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
 where
     Balance: BalanceTrait,
     TotalValue: ValueStorage<Value = Balance>,
@@ -36,7 +16,7 @@ where
     StorageMap:
         super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
 {
-    fn get_node(key: MapKey) -> Option<StorageMap::Value> {
+    pub(super) fn get_node(key: MapKey) -> Option<StorageMap::Value> {
         StorageMap::get(&key)
     }
 
@@ -49,7 +29,7 @@ where
     /// - second value is the id of the ancestor.
     /// The latter value is of `Option` type. If it's `None`, it means, that the ancestor and `self`
     /// are the same.
-    fn node_with_value(
+    pub(super) fn node_with_value(
         node: StorageMap::Value,
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
@@ -67,7 +47,9 @@ where
     ///
     /// As in [`ValueNode::node_with_value`], root's id is of `Option` type. It is equal to `None` in case
     /// `self` is a root node.
-    pub fn root(node: StorageMap::Value) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
+    pub(super) fn root(
+        node: StorageMap::Value,
+    ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_id = None;
         let mut ret_node = node;
         while let Some(parent) = ret_node.parent() {
@@ -78,7 +60,7 @@ where
         Ok((ret_node, ret_id))
     }
 
-    fn decrease_parents_ref(node: &StorageMap::Value) -> Result<(), Error> {
+    pub(super) fn decrease_parents_ref(node: &StorageMap::Value) -> Result<(), Error> {
         let id = match node.parent() {
             Some(id) => id,
             None => return Ok(()),
@@ -119,7 +101,7 @@ where
     ///
     /// # Note
     /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
-    fn move_value_upstream(node: &mut StorageMap::Value) -> Result<(), Error> {
+    pub(super) fn move_value_upstream(node: &mut StorageMap::Value) -> Result<(), Error> {
         if node.unspec_refs != 0 {
             return Ok(());
         }
@@ -153,10 +135,9 @@ where
         Ok(())
     }
 
-    fn check_consumed(
+    pub(super) fn check_consumed(
         key: MapKey,
-    ) -> Result<crate::ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error>
-    {
+    ) -> Result<ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error> {
         let mut node_id = key;
         let mut node = Self::get_node(node_id).ok_or_else(InternalError::node_not_found)?;
         while node.consumed && node.refs() == 0 {
@@ -188,7 +169,7 @@ where
     ///
     /// if `reserve`, create ValueType::ReservedLocal
     /// else, create ValueType::SpecifiedLocal
-    fn create_from_with_value(
+    pub(super) fn create_from_with_value(
         key: MapKey,
         new_node_key: MapKey,
         amount: Balance,
@@ -263,8 +244,8 @@ where
     }
 }
 
-impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> ValueTree
-    for ValueTreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
+impl<TotalValue, Balance, InternalError, Error, MapKey, ExternalId, StorageMap> Tree
+    for TreeImpl<TotalValue, InternalError, Error, ExternalId, StorageMap>
 where
     Balance: BalanceTrait,
     TotalValue: ValueStorage<Value = Balance>,

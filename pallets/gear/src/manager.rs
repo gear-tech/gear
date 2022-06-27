@@ -44,13 +44,13 @@
 //! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
 
 use crate::{
-    Authorship, Config, Event, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet, QueueOf, SentOf,
-    WaitlistOf,
+    Authorship, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet,
+    QueueOf, SentOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState,
-    ValueTree,
+    event::*, storage::*, ActiveProgram, CodeStorage, GasAllowance, GasPrice, GasTree, Origin,
+    Program, ProgramState,
 };
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, ExecutionErrorReason, JournalHandler,
@@ -64,7 +64,6 @@ use gear_core::{
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
-use pallet_gas::Pallet as GasPallet;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
@@ -325,7 +324,7 @@ where
 
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
-        GasPallet::<T>::decrease_gas_allowance(amount);
+        GasAllowanceOf::<T>::decrease(amount);
 
         match GasHandlerOf::<T>::spend(message_id, amount) {
             Ok(_) => {
@@ -773,12 +772,12 @@ where
         log::debug!(
             "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
-            GasPallet::<T>::gas_allowance(),
+            GasAllowanceOf::<T>::get(),
             gas_burned,
         );
 
         SentOf::<T>::increase();
-        GasPallet::<T>::decrease_gas_allowance(gas_burned);
+        GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }

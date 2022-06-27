@@ -22,11 +22,13 @@ use crate::{
         new_test_ext, run_to_block, run_to_next_block, Event as MockEvent, Gear, GearProgram,
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, Error, Event, GasHandlerOf, GasInfo, GearProgramPallet,
-    MailboxOf, Pallet as GearPallet, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
+    GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
-use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use common::{
+    event::*, storage::*, CodeStorage, GasAllowance, GasPrice as _, GasTree, Origin as _,
+};
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
@@ -96,7 +98,7 @@ fn unstoppable_block_execution_works() {
 
         assert_last_dequeued(executions_amount as u32);
 
-        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1) as u64,
@@ -231,7 +233,7 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - pallet_gas::Pallet::<Test>::gas_allowance();
+        let actual_gas_burned = remaining_weight - GasAllowanceOf::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
@@ -337,9 +339,8 @@ fn spent_gas_to_reward_block_author_works() {
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
-        let gas_spent = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get() - pallet_gas::Pallet::<Test>::gas_allowance(),
-        );
+        let gas_spent =
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
         assert_eq!(
             BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
             block_author_initial_balance + gas_spent
@@ -383,9 +384,8 @@ fn unused_gas_released_back_works() {
         );
 
         run_to_block(2, None);
-        let user1_actual_msgs_spends = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get() - pallet_gas::Pallet::<Test>::gas_allowance(),
-        );
+        let user1_actual_msgs_spends =
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
@@ -994,7 +994,7 @@ fn block_gas_limit_works() {
         assert_last_dequeued(1);
 
         // Equals 0 due to trying execution of msg2.
-        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         let real_gas_to_burn = expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2;
         let last_block_allowance = real_gas_to_burn + 1;
@@ -1013,7 +1013,7 @@ fn block_gas_limit_works() {
 
         assert_last_dequeued(2);
         assert_eq!(
-            pallet_gas::Pallet::<Test>::gas_allowance(),
+            GasAllowanceOf::<Test>::get(),
             last_block_allowance - real_gas_to_burn
         );
     });
