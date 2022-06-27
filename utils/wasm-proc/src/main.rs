@@ -16,79 +16,47 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use clap::{Arg, Command};
+use clap::Parser;
 use gear_wasm_builder::optimize::Optimizer;
 use std::{fs, path::PathBuf};
 
-#[derive(Debug)]
-enum CliError {
-    UndefinedPaths,
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("Multiple skipping functional")]
     InvalidSkip,
 }
 
-impl std::fmt::Display for CliError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
-            Self::InvalidSkip => write!(f, "Multiple skipping functional"),
-        }
-    }
+#[derive(Debug, clap::Parser)]
+struct Args {
+    #[clap(short, long, value_parser)]
+    path: Vec<PathBuf>,
+    #[clap(long)]
+    skip_meta: bool,
+    #[clap(long)]
+    skip_opt: bool,
+    #[clap(long)]
+    skip_stack_end: bool,
+    #[clap(short, long)]
+    verbose: bool,
 }
 
-impl std::error::Error for CliError {}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = Arg::new("path")
-        .short('p')
-        .long("path")
-        .required(true)
-        .takes_value(true)
-        .multiple_values(true)
-        .help("Specifies path to .wasm file(-s)");
+    let Args {
+        path: wasm_files,
+        skip_meta,
+        skip_opt,
+        skip_stack_end,
+        verbose,
+    } = Args::parse();
 
-    let skip_meta = Arg::new("skip-meta")
-        .long("skip-meta")
-        .takes_value(false)
-        .help("Skips metadata optimization");
-
-    let skip_opt = Arg::new("skip-opt")
-        .long("skip-opt")
-        .takes_value(false)
-        .help("Skips chain optimization");
-
-    let verbose = Arg::new("verbose")
-        .short('v')
-        .long("verbose")
-        .takes_value(false)
-        .help("Provides debug logging info");
-
-    let skip_stack_end = Arg::new("skip-stack-end")
-        .long("skip-stack-end")
-        .takes_value(false)
-        .help("Skips creating of global export with stack end addr");
-
-    let app = Command::new("wasm-proc").args(&[path, skip_meta, skip_opt, skip_stack_end, verbose]);
-
-    let matches = app.get_matches();
-
-    if matches.contains_id("verbose") {
+    if verbose {
         env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).init();
     } else {
         env_logger::Builder::from_default_env();
     }
 
-    let wasm_files: Vec<String> = matches
-        .get_many("path")
-        .ok_or(CliError::UndefinedPaths)?
-        .cloned()
-        .collect();
-
-    let skip_stack_end = matches.contains_id("skip-stack-end");
-    let skip_meta = matches.contains_id("skip-meta");
-    let skip_opt = matches.contains_id("skip-opt");
-
     if skip_meta && skip_opt {
-        return Err(Box::new(CliError::InvalidSkip));
+        return Err(Box::new(Error::InvalidSkip));
     }
 
     for file in &wasm_files {

@@ -9260,6 +9260,7 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "log",
+ "thiserror",
 ]
 
 [[package]]
