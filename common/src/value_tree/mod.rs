@@ -174,7 +174,9 @@ where
                     node = Self::get_node(node_id).ok_or_else(InternalError::parent_is_lost)?;
                 }
                 ValueType::ReservedLocal { .. } => {
-                    unreachable!("node is guaranteed to be a parent, but reserved nodes have no children")
+                    unreachable!(
+                        "node is guaranteed to be a parent, but reserved nodes have no children"
+                    )
                 }
             }
         }
@@ -227,9 +229,9 @@ where
 
         // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
         if ancestor_with_value
-                .inner_value()
-                .expect("Querying node with value")
-                < amount
+            .inner_value()
+            .expect("Querying node with value")
+            < amount
         {
             return Err(InternalError::insufficient_balance().into());
         }

@@ -39,7 +39,7 @@ use gear_test::{
     sample::{self, ChainProgram, PayloadVariant},
 };
 use pallet_gas::Pallet as GasPallet;
-use pallet_gear::{Pallet as GearPallet, GasHandlerOf};
+use pallet_gear::{GasHandlerOf, Pallet as GearPallet};
 use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
@@ -306,11 +306,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             let source = H256::from_slice(source.to_program_id().as_ref());
             let id = GearPallet::<Runtime>::next_message_id(source);
 
-            let _ = GasHandlerOf::<Runtime>::create(
-                source,
-                id.into_origin(),
-                gas_limit,
-            );
+            let _ = GasHandlerOf::<Runtime>::create(source, id.into_origin(), gas_limit);
 
             let msg = StoredMessage::new(
                 id,

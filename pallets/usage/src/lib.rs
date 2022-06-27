@@ -57,6 +57,7 @@ pub mod pallet {
         ids::{MessageId, ProgramId},
         message::{ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     };
+    use pallet_gear::GasHandlerOf;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -67,7 +68,6 @@ pub mod pallet {
         Perbill,
     };
     use sp_std::{convert::TryInto, prelude::*};
-    use pallet_gear::GasHandlerOf;
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
     pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;

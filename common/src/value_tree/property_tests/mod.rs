@@ -29,11 +29,10 @@
 //! 7. Spec refs counter for the current node is incremented only after `ValueTree::split_with_value`, which creates a node with `ValueType::SpecifiedLocal` type is.
 
 use super::*;
-use frame_support::assert_ok;
-use frame_support::traits::ConstU64;
+use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
+use frame_support::{assert_ok, traits::ConstU64};
 use primitive_types::H256;
 use proptest::prelude::*;
-use core::{cell::RefCell, ops::DerefMut, iter::FromIterator};
 use strategies::GasTreeAction;
 use utils::RingGet;
 
@@ -179,10 +178,8 @@ impl super::ValueTreeProvider for ValueTreeProvider {
     type ExternalOrigin = ExternalOrigin;
     type Key = Key;
     type Balance = Balance;
-    type PositiveImbalance =
-        PositiveImbalance<Self::Balance, TotalIssuanceWrap>;
-    type NegativeImbalance =
-        NegativeImbalance<Self::Balance, TotalIssuanceWrap>;
+    type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap>;
+    type NegativeImbalance = NegativeImbalance<Self::Balance, TotalIssuanceWrap>;
     type InternalError = Error;
     type Error = Error;
 
@@ -250,7 +247,7 @@ proptest! {
                     let res = Gas::spend(from, amount);
 
                     if limit < amount {
-                        assert_eq!(res, Err(Error::InsufficientBalance.into()));
+                        assert_eq!(res, Err(Error::InsufficientBalance));
                     } else {
                         assert_ok!(res);
                         spent += amount;
@@ -277,7 +274,7 @@ proptest! {
                         Err(e) => {
                             // double consume has happened
                             assert!(marked_consumed.contains(&consuming));
-                            assert_eq!(e, Error::NodeWasConsumed.into());
+                            assert_eq!(e, Error::NodeWasConsumed);
                         }
                     }
                 }
@@ -307,10 +304,10 @@ proptest! {
 
             // Check property: specified local nodes are created only with `split_with_value` call
             if matches!(node.inner, ValueType::SpecifiedLocal { .. }) {
-                assert!(spec_ref_nodes.contains(&node_id));
+                assert!(spec_ref_nodes.contains(node_id));
             } else if matches!(node.inner, ValueType::UnspecifiedLocal { .. }) {
                 // Check property: unspecified local nodes are created only with `split` call
-                assert!(unspec_ref_nodes.contains(&node_id));
+                assert!(unspec_ref_nodes.contains(node_id));
             }
 
             // Check property: for all the consumed nodes currently existing in the tree...
@@ -318,10 +315,10 @@ proptest! {
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
                 assert!(node.refs() != 0);
                 // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
-                assert!(marked_consumed.contains(&node_id));
+                assert!(marked_consumed.contains(node_id));
             } else {
                 // If is not consumed, then no consume calls should have been called on it
-                assert!(!marked_consumed.contains(&node_id));
+                assert!(!marked_consumed.contains(node_id));
             }
 
             // Check property: all nodes have ancestor (node is a self-ancestor too) with value

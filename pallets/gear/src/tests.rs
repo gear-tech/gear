@@ -22,8 +22,8 @@ use crate::{
         new_test_ext, run_to_block, run_to_next_block, Event as MockEvent, Gear, GearProgram,
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
-    WaitlistOf, GasHandlerOf, BlockGasLimitOf,
+    pallet, BlockGasLimitOf, Config, Error, Event, GasHandlerOf, GasInfo, GearProgramPallet,
+    MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
@@ -338,8 +338,7 @@ fn spent_gas_to_reward_block_author_works() {
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         let gas_spent = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get()
-                - pallet_gas::Pallet::<Test>::gas_allowance(),
+            BlockGasLimitOf::<Test>::get() - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert_eq!(
             BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
@@ -385,8 +384,7 @@ fn unused_gas_released_back_works() {
 
         run_to_block(2, None);
         let user1_actual_msgs_spends = GasPrice::gas_price(
-            BlockGasLimitOf::<Test>::get()
-                - pallet_gas::Pallet::<Test>::gas_allowance(),
+            BlockGasLimitOf::<Test>::get() - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
         assert_eq!(

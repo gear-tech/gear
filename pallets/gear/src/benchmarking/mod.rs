@@ -218,8 +218,8 @@ where
         }
     };
 
-    let initial_gas = T::BlockGasLimit::get();
-    T::GasHandler::create(
+    let initial_gas = BlockGasLimitOf::<T>::get();
+    GasHandlerOf::<T>::create(
         source.into_origin(),
         root_message_id.into_origin(),
         initial_gas,

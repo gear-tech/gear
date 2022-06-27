@@ -33,9 +33,15 @@ impl<T> RingGet<T> for Vec<T> {
 
 /// Consumes node with `consuming` id and returns a map of removed nodes
 pub(super) fn consume_node(consuming: Key) -> Result<BTreeMap<Key, ValueNode>, super::Error> {
-    let nodes_before_consume = BTreeMap::from_iter(VALUE_TREE_NODES.borrow().iter().map(|(k, v)| (*k, v.clone())));
+    let nodes_before_consume = BTreeMap::from_iter(
+        VALUE_TREE_NODES
+            .borrow()
+            .iter()
+            .map(|(k, v)| (*k, v.clone())),
+    );
     Gas::consume(consuming).map(|_| {
-        let nodes_after_consume = BTreeSet::from_iter(VALUE_TREE_NODES.borrow().iter().map(|(k, _)| *k));
+        let nodes_after_consume =
+            BTreeSet::from_iter(VALUE_TREE_NODES.borrow().iter().map(|(k, _)| *k));
         let mut removed_nodes = BTreeMap::new();
         for (id, node) in nodes_before_consume {
             if !nodes_after_consume.contains(&id) {

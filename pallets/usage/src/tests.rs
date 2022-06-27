@@ -81,11 +81,8 @@ where
             ),
             blk_num,
         );
-        let _ = GasHandlerOf::<Test>::create(
-            user_id.into_origin(),
-            msg_id.into_origin(),
-            gas_limit,
-        );
+        let _ =
+            GasHandlerOf::<Test>::create(user_id.into_origin(), msg_id.into_origin(), gas_limit);
     }
 }
 
@@ -107,10 +104,7 @@ where
             blk_num,
         );
         if let Some(last_msg_id) = last_msg_id {
-            let _ = GasHandlerOf::<Test>::split(
-                last_msg_id.into_origin(),
-                msg_id.into_origin(),
-            );
+            let _ = GasHandlerOf::<Test>::split(last_msg_id.into_origin(), msg_id.into_origin());
         } else {
             let _ = GasHandlerOf::<Test>::create(
                 user_id.into_origin(),
@@ -792,10 +786,7 @@ fn gas_properly_handled_for_trap_replies() {
         assert!(!ProgramPallet::<Test>::program_exists(4.into()));
 
         // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
-        assert_eq!(
-            GasHandlerOf::<Test>::total_supply(),
-            0
-        );
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         // Ensure the message sender has the funds unreserved
         assert_eq!(Balances::reserved_balance(&3), 0);

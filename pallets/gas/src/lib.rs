@@ -152,7 +152,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn gas_allowance)]
-    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, BlockGasLimitOf::<T>>;
+    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, BlockGasLimitOf<T>>;
 
     impl<T: Config> common::ValueTreeProvider for Pallet<T> {
         type BlockGasLimit = BlockGasLimitOf<T>;

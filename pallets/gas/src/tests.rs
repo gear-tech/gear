@@ -18,9 +18,9 @@
 
 use super::*;
 use crate::mock::*;
+use common::ValueTree;
 use frame_support::{assert_noop, assert_ok, traits::Imbalance};
 use primitive_types::H256;
-use common::ValueTree;
 
 type Gas = <Pallet<Test> as common::ValueTreeProvider>::ValueTree;
 type GasTree = ValueTreeNodes<Test>;
@@ -75,25 +75,29 @@ fn can_cut_nodes() {
         assert_eq!(Gas::total_supply(), total_supply);
 
         assert_eq!(
-            Gas::get_limit(root)
-                .map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Gas::get_limit(root).map(|gas_limit| gas_limit.map(|(g, _)| g)),
             Ok(Some(
                 total_supply - specified_value - cut_a_value - cut_c_value
             ))
         );
 
         assert_eq!(
-            Gas::get_limit(specified)
-                .map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Gas::get_limit(specified).map(|gas_limit| gas_limit.map(|(g, _)| g)),
             Ok(Some(specified_value - cut_b_value))
         );
 
-        assert_eq!(Gas::get_limit(cut_a)
-            .map(|gas_limit| gas_limit.map(|(g, _)| g)), Ok(Some(cut_a_value)));
-        assert_eq!(Gas::get_limit(cut_b)
-            .map(|gas_limit| gas_limit.map(|(g, _)| g)), Ok(Some(cut_b_value)));
-        assert_eq!(Gas::get_limit(cut_c)
-            .map(|gas_limit| gas_limit.map(|(g, _)| g)), Ok(Some(cut_c_value)));
+        assert_eq!(
+            Gas::get_limit(cut_a).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(cut_a_value))
+        );
+        assert_eq!(
+            Gas::get_limit(cut_b).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(cut_b_value))
+        );
+        assert_eq!(
+            Gas::get_limit(cut_c).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(cut_c_value))
+        );
     })
 }
 

@@ -18,7 +18,6 @@
 
 #![feature(thread_local)]
 #![feature(const_btree_new)]
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
@@ -213,6 +212,7 @@ pub trait ValueTree {
     ///
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
     /// the `key` belongs to a subtree originating at such "orphan" node.
+    #[allow(clippy::type_complexity)]
     fn get_limit(key: Self::Key) -> Result<Option<(Self::Balance, Self::Key)>, Self::Error>;
 
     /// Consume underlying value.
