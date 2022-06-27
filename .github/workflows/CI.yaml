@@ -352,6 +352,7 @@ jobs:
           $env:Path += ';C:\Program Files\CMake\bin'
           cmake --version
           $env:Path
+          $env:USERPROFILE
           
       - name: Install cargo-nextest
         run: |
