@@ -172,7 +172,7 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
-    pub(crate) codes: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
@@ -221,7 +221,7 @@ impl ExtManager {
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
         let code_hash = CodeId::generate(code);
-        self.codes.insert(code_hash, code.to_vec());
+        self.opt_binaries.insert(code_hash, code.to_vec());
         code_hash
     }
 
@@ -650,7 +650,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.codes.get(&code_hash).cloned() {
+        if let Some(code) = self.opt_binaries.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
                     let code = Code::try_new(code.clone(), 1, |_| ConstantCostRules::default())
