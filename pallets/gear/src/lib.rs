@@ -183,13 +183,14 @@ pub mod pallet {
 
         type CodeStorage: CodeStorage;
 
-        /// The minimal gas count for message to be inserted in mailbox.
+        /// The minimal gas amount for message to be inserted in mailbox.
         ///
         /// This gas will be consuming as rent for storing and message will be available
-        /// for reply, once gas ends, message removes.
+        /// for reply or claim, once gas ends, message removes.
         ///
         /// Messages with gas limit less than that minimum will not be added in mailbox,
-        /// but will be seen in logs.
+        /// but will be seen in events.
+        #[pallet::constant]
         type MailboxThreshold: Get<u64>;
 
         type Messenger: Messenger<

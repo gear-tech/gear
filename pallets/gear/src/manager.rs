@@ -498,13 +498,19 @@ where
 
                 // TODO: update logic of insertion into mailbox following new
                 // flow and deposit appropriate event (issue #1010).
-                if MailboxOf::<T>::insert(message.clone()).is_ok() {
-                    // TODO: replace this temporary (zero) value for expiration
-                    // block number with properly calculated one
-                    // (issues #646 and #969).
-                    expiration = Some(T::BlockNumber::zero());
+                match MailboxOf::<T>::insert(message.clone()) {
+                    Ok(_) => {
+                        // TODO: replace this temporary (zero) value for expiration
+                        // block number with properly calculated one
+                        // (issues #646 and #969).
+                        expiration = Some(T::BlockNumber::zero());
 
-                    let _ = T::GasHandler::cut(message_id, message.id().into_origin(), gas_limit);
+                        let _ =
+                            T::GasHandler::cut(message_id, message.id().into_origin(), gas_limit);
+                    }
+                    Err(e) => {
+                        log::error!("{:?}", e);
+                    }
                 }
             };
 
