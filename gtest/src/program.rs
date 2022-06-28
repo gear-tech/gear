@@ -212,7 +212,7 @@ impl<'a> Program<'a> {
 
         let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
         assert!(
-            !filename.ends_with(".wasm"),
+            filename.ends_with(".wasm"),
             "File must have `.wasm` extension"
         );
         assert!(
