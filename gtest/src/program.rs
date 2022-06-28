@@ -212,6 +212,10 @@ impl<'a> Program<'a> {
 
         let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
         assert!(
+            !filename.ends_with(".wasm"),
+            "File must have `.wasm` extension"
+        );
+        assert!(
             !filename.ends_with(".meta.wasm"),
             "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
             Use Program::from_opt_and_meta() instead"
