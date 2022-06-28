@@ -346,7 +346,12 @@ jobs:
           target: wasm32-unknown-unknown
 
       - name: "Install: cargo-nextest"
-        uses: taiki-e/install-action@nextest
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
 
       - name: "Build: Node"
         uses: actions-rs/cargo@v1
