@@ -1419,6 +1419,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-with-gas"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -4852,6 +4862,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
+ "demo-proxy-with-gas",
  "demo-waiting-proxy",
  "env_logger",
  "frame-benchmarking",

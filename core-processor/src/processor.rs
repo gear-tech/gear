@@ -58,6 +58,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     outgoing_limit: u32,
     host_fn_weights: HostFnWeights,
     forbidden_funcs: BTreeSet<&'static str>,
+    mailbox_threshold: u64,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -72,6 +73,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             outgoing_limit,
             host_fn_weights,
             forbidden_funcs,
+            mailbox_threshold,
         ),
     }
 }
@@ -285,6 +287,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     outgoing_limit: u32,
     host_fn_weights: HostFnWeights,
     forbidden_funcs: BTreeSet<&'static str>,
+    mailbox_threshold: u64,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
@@ -294,6 +297,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         allocations_config,
         host_fn_weights,
         forbidden_funcs,
+        mailbox_threshold,
     );
     let execution_context = ExecutionContext {
         origin,
