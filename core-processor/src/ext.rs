@@ -60,6 +60,7 @@ pub trait ProcessorExt {
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self;
 
     /// Returns whether this extension works with lazy pages
@@ -185,6 +186,8 @@ pub struct Ext {
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<&'static str>,
+    /// Mailbox threshold
+    pub mailbox_threshold: u64,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -205,6 +208,7 @@ impl ProcessorExt for Ext {
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self {
         Self {
             gas_counter,
@@ -221,6 +225,7 @@ impl ProcessorExt for Ext {
             program_candidates_data,
             host_fn_weights,
             forbidden_funcs,
+            mailbox_threshold,
         }
     }
 
@@ -317,7 +322,14 @@ impl Ext {
     }
 
     fn charge_message_gas(&mut self, gas_limit: Option<GasLimit>) -> Result<(), ProcessorError> {
-        if self.gas_counter.reduce(gas_limit.unwrap_or(0)) != ChargeResult::Enough {
+        let gas_limit = gas_limit.unwrap_or(0);
+
+        if gas_limit != 0 && gas_limit < self.mailbox_threshold {
+            self.return_and_store_err(Err(MessageError::InsufficientGasLimit {
+                message_gas_limit: gas_limit,
+                mailbox_threshold: self.mailbox_threshold,
+            }))
+        } else if self.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughGas))
         } else {
             Ok(())

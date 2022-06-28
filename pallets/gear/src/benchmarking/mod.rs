@@ -135,6 +135,7 @@ struct Exec<T: Config> {
     program_id: ProgramId,
     gas_allowance: u64,
     outgoing_limit: u32,
+    mailbox_threshold: u64,
 }
 
 fn prepare<T>(
@@ -238,6 +239,7 @@ where
     };
 
     let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+    let mailbox_threshold = <T as Config>::MailboxThreshold::get();
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
         let actor_id = queued_dispatch.destination();
@@ -255,6 +257,7 @@ where
             program_id: actor_id,
             gas_allowance: u64::MAX,
             outgoing_limit: 2048,
+            mailbox_threshold,
         })
     } else {
         Err("Dispatch not found")
@@ -424,6 +427,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -447,6 +451,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold,
                 );
     }
 
@@ -510,6 +515,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -533,6 +539,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold,
                 );
     }
 
@@ -563,6 +570,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -586,6 +594,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold,
                 );
     }
 
@@ -604,6 +613,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -627,6 +637,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold,
                 );
     }
 
@@ -645,6 +656,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -668,6 +680,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -686,6 +699,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -709,6 +723,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -728,6 +743,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
 
     }: {
@@ -752,6 +768,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -770,6 +787,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -793,6 +811,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -811,6 +830,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -834,6 +854,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -864,6 +885,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -887,6 +909,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -928,6 +951,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -951,6 +975,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -996,6 +1021,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -1019,6 +1045,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -1049,6 +1076,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -1072,6 +1100,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -1102,6 +1131,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
@@ -1125,6 +1155,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -1156,6 +1187,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1179,6 +1211,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+            Default::default(),
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1222,6 +1255,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1245,6 +1279,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1288,6 +1323,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1311,6 +1347,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1365,6 +1402,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
 
@@ -1389,6 +1427,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1444,6 +1483,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1467,6 +1507,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1512,6 +1553,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1535,6 +1577,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1578,6 +1621,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1601,6 +1645,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1645,6 +1690,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
@@ -1668,6 +1714,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -1708,6 +1755,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
@@ -1731,6 +1779,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
     }
 
@@ -1764,6 +1813,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1787,6 +1837,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1820,6 +1871,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1843,6 +1895,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1878,6 +1931,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1901,6 +1955,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
 
         core_processor::handle_journal(journal, &mut ext_manager);
@@ -1943,6 +1998,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -1966,6 +2022,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1998,6 +2055,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -2021,6 +2079,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -2053,6 +2112,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -2076,6 +2136,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -2123,6 +2184,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -2146,6 +2208,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -2211,6 +2274,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -2234,6 +2298,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
 
@@ -2300,6 +2365,7 @@ benchmarks! {
             program_id,
             gas_allowance,
             outgoing_limit,
+            mailbox_threshold,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
@@ -2323,6 +2389,7 @@ benchmarks! {
                     outgoing_limit,
                     Default::default(),
                     Default::default(),
+                    mailbox_threshold
                 );
         core_processor::handle_journal(journal, &mut ext_manager);
 

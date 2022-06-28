@@ -82,6 +82,22 @@ pub enum MessageError {
         existential_deposit: u128,
     },
 
+    /// Everything less than mailbox threshold but greater than 0 is not considered as available gas limit and
+    /// not inserted in mailbox.
+    ///
+    /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
+    #[display(
+        fmt = "In case of non-zero message gas limit {}, it must be greater than mailbox threshold {}",
+        message_gas_limit,
+        mailbox_threshold
+    )]
+    InsufficientGasLimit {
+        /// Message's gas limit.
+        message_gas_limit: u64,
+        /// Minimal amount of gas limit on a message that can be inserted in mailbox.
+        mailbox_threshold: u64,
+    },
+
     /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
         fmt = "Existing value {} is not enough to send a message with value {}",

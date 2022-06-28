@@ -479,6 +479,7 @@ impl ExtManager {
             OUTGOING_LIMIT,
             Default::default(),
             Default::default(),
+            crate::MAILBOX_THRESHOLD,
         );
 
         core_processor::handle_journal(journal, self);
