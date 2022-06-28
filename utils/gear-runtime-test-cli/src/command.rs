@@ -19,7 +19,7 @@
 #![allow(unused_must_use)]
 
 use crate::{
-    util::{get_dispatch_queue, new_test_ext, process_queue, MailboxOf, QueueOf},
+    util::{get_dispatch_queue, new_test_ext, process_queue, run_to_block, MailboxOf, QueueOf},
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
@@ -31,7 +31,7 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_processor::common::ExecutableActor;
-use gear_runtime::{Origin, Runtime};
+use gear_runtime::{Origin, Runtime, System};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -297,7 +297,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
         let gas_limit = message
             .gas_limit
-            .unwrap_or(GasPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64);
+            .unwrap_or_else(GasPallet::<Runtime>::gas_allowance);
 
         let value = message.value.unwrap_or(0);
 
@@ -332,10 +332,11 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 value,
             );
         }
-
-        // After initialization the last snapshot is empty, so we get MQ after sending messages
-        snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
+        run_to_block(System::block_number() + 1, None, true);
     }
+
+    // After initialization the last snapshot is empty, so we get MQ after sending messages
+    snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
 
     process_queue(&mut snapshots, &mut mailbox);
 

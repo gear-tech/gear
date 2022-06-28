@@ -26,6 +26,7 @@ impl WasmExecutor {
     /// Also uses provided memory pages for future execution
     pub(crate) fn new(
         program: &Program,
+        meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
     ) -> Self {
@@ -40,7 +41,7 @@ impl WasmExecutor {
         let engine = Engine::new(&config).expect("Failed to create engine");
         let mut store = Store::<StoreData<Ext>>::new(&engine, store_data);
 
-        let module = Module::new(&engine, program.code().code()).expect("Failed to create module");
+        let module = Module::new(&engine, meta_binary).expect("Failed to create module");
 
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
@@ -278,21 +279,5 @@ mod meta_tests {
             .0
             .borrow_mut()
             .call_meta(&program.id, None, unknown_function_name);
-    }
-
-    #[test]
-    #[should_panic(expected = "Failed call: expected 0 results, got 1")]
-    fn test_failing_with_void_function() {
-        let void_function_name = "init";
-        let system = System::default();
-        let program = Program::from_file(
-            &system,
-            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
-        );
-
-        system
-            .0
-            .borrow_mut()
-            .call_meta(&program.id, None, void_function_name);
     }
 }
