@@ -66,12 +66,6 @@ jobs:
           tar -xf /tmp/check_cargo_registry.tar -C /
           tar -xf /tmp/check_target.tar
 
-      - name: "Fix libssl"
-        run: |
-          ln -s /usr/local/lib/libssl.so.3 /usr/lib/libssl.so.3
-          ln -s /usr/local/lib/libcrypto.so.3 /usr/lib/libcrypto.so.3
-          sudo ldconfig
-
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
@@ -158,12 +152,6 @@ jobs:
           tar -xf /tmp/build_cache.tar -C /
           tar -xf /tmp/build_cargo_registry.tar -C /
           tar -xf /tmp/build_target.tar
-
-      - name: "Fix libssl"
-        run: |
-          ln -s /usr/local/lib/libssl.so.3 /usr/lib/libssl.so.3
-          ln -s /usr/local/lib/libcrypto.so.3 /usr/lib/libcrypto.so.3
-          sudo ldconfig
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
