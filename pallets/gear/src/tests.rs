@@ -3703,7 +3703,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved * 1
+            user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved
         );
     });
 }
