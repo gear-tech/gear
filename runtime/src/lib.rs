@@ -66,7 +66,7 @@ pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
-pub use pallet_gas;
+pub use pallet_gear_gas;
 pub use pallet_gear;
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
@@ -354,7 +354,7 @@ impl pallet_gear::Config for Runtime {
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
-    type GasProvider = Gas;
+    type GasProvider = GearGas;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -377,7 +377,7 @@ impl pallet_usage::Config for Runtime {
     type Messenger = GearMessenger;
 }
 
-impl pallet_gas::Config for Runtime {
+impl pallet_gear_gas::Config for Runtime {
     type BlockGasLimit = BlockGasLimit;
 }
 
@@ -450,7 +450,7 @@ construct_runtime!(
         GearMessenger: pallet_gear_messenger,
         Gear: pallet_gear,
         Usage: pallet_usage,
-        Gas: pallet_gas,
+        GearGas: pallet_gear_gas,
         GearPayment: pallet_gear_payment,
 
         // Only available with "debug-mode" feature on
@@ -478,7 +478,7 @@ construct_runtime!(
         GearMessenger: pallet_gear_messenger,
         Gear: pallet_gear,
         Usage: pallet_usage,
-        Gas: pallet_gas,
+        GearGas: pallet_gear_gas,
         GearPayment: pallet_gear_payment,
     }
 );

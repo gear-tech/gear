@@ -2538,7 +2538,7 @@ fn no_redundant_gas_value_after_exiting() {
             0,
         ));
 
-        let msg_id = get_last_message_id().into_origin();
+        let msg_id = get_last_message_id();
         let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
         assert_eq!(maybe_limit.map(|(g, _)| g), Some(gas_spent));
 

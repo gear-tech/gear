@@ -189,8 +189,8 @@ pub mod pallet {
 
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: common::GasProvider<
-            ExternalOrigin = H256,
-            Key = H256,
+            ExternalOrigin = Self::AccountId,
+            Key = MessageId,
             Balance = u64,
             Error = DispatchError,
         >;
@@ -722,7 +722,7 @@ pub mod pallet {
                     load_page_cost: schedule.memory_weights.load_cost,
                 };
 
-                let dispatch_id = queued_dispatch.id().into_origin();
+                let dispatch_id = queued_dispatch.id();
                 let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .ok()
                     .flatten()
@@ -863,7 +863,7 @@ pub mod pallet {
                 if let Some(dispatch) = QueueOf::<T>::dequeue()
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
-                    let msg_id = dispatch.id().into_origin();
+                    let msg_id = dispatch.id();
                     let gas_limit: u64;
                     match GasHandlerOf::<T>::get_limit(msg_id) {
                         Ok(maybe_limit) => {
@@ -957,11 +957,10 @@ pub mod pallet {
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
                             {
                                 let origin = if let Some(origin) =
-                                    GasHandlerOf::<T>::get_origin_key(dispatch.id().into_origin())
+                                    GasHandlerOf::<T>::get_origin_key(dispatch.id())
                                         .unwrap_or_else(|e| {
                                             unreachable!("ValueTree corrupted: {:?}!", e)
                                         })
-                                        .map(MessageId::from_origin)
                                 {
                                     if origin == dispatch.id() {
                                         None
@@ -1073,7 +1072,7 @@ pub mod pallet {
                             block_info,
                             allocations_config,
                             existential_deposit,
-                            ProgramId::from_origin(origin),
+                            ProgramId::from_origin(origin.into_origin()),
                             program_id,
                             GasAllowanceOf::<T>::get(),
                             T::OutgoingLimit::get(),
@@ -1087,7 +1086,7 @@ pub mod pallet {
                             block_info,
                             allocations_config,
                             existential_deposit,
-                            ProgramId::from_origin(origin),
+                            ProgramId::from_origin(origin.into_origin()),
                             program_id,
                             GasAllowanceOf::<T>::get(),
                             T::OutgoingLimit::get(),
@@ -1364,8 +1363,8 @@ pub mod pallet {
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
             let _ = GasHandlerOf::<T>::create(
-                origin,
-                message_id.into_origin(),
+                who.clone(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -1459,8 +1458,8 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.clone().into_origin();
-                let _ = GasHandlerOf::<T>::create(origin, message_id.into_origin(), gas_limit);
+                let origin = who.clone();
+                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
                 let event = Event::MessageEnqueued {
                     id: message.id(),
@@ -1469,7 +1468,7 @@ pub mod pallet {
                     entry: Entry::Handle,
                 };
 
-                QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin)))
+                QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())))
                     .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(event);
@@ -1559,8 +1558,8 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.clone().into_origin();
-                let _ = GasHandlerOf::<T>::create(origin, message_id.into_origin(), gas_limit);
+                let origin = who.clone();
+                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
@@ -1575,7 +1574,7 @@ pub mod pallet {
                 };
 
                 QueueOf::<T>::queue(message.into_stored_dispatch(
-                    ProgramId::from_origin(origin),
+                    ProgramId::from_origin(origin.into_origin()),
                     destination,
                     original_message.id(),
                 ))

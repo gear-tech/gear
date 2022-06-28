@@ -27,24 +27,15 @@ pub enum GasNodeType<ExternalId, Id, Balance> {
     UnspecifiedLocal { parent: Id },
 }
 
-impl<ExternalId: Default, Id, Balance: Zero> Default for GasNodeType<ExternalId, Id, Balance> {
-    fn default() -> Self {
-        GasNodeType::External {
-            id: Default::default(),
-            value: Zero::zero(),
-        }
-    }
-}
-
-#[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub struct GasNode<ExternalId: Default + Clone, Id: Clone, Balance: Zero + Clone> {
+#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
+pub struct GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     pub spec_refs: u32,
     pub unspec_refs: u32,
     pub inner: GasNodeType<ExternalId, Id, Balance>,
     pub consumed: bool,
 }
 
-impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
+impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     GasNode<ExternalId, Id, Balance>
 {
     pub fn new(origin: ExternalId, value: Balance) -> Self {

@@ -29,7 +29,7 @@ where
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: super::Error,
     Error: From<InternalError>,
-    ExternalId: Default + Clone,
+    ExternalId: Clone,
     MapKey: Copy,
     StorageMap:
         super::storage::MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
@@ -267,7 +267,7 @@ where
     TotalValue: ValueStorage<Value = Balance>,
     InternalError: super::Error,
     Error: From<InternalError>,
-    ExternalId: Default + Clone,
+    ExternalId: Clone,
     MapKey: Copy,
     StorageMap:
         super::storage::MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,

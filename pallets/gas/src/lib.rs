@@ -34,11 +34,14 @@ mod mock;
 mod tests;
 
 type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
+type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::gas_provider::{GasNode, PositiveImbalance, NegativeImbalance, Error as GasError, TreeImpl};
     use frame_system::pallet_prelude::*;
+    use gear_core::ids::MessageId;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -63,7 +66,7 @@ pub mod pallet {
         ParentHasNoChildren,
     }
 
-    impl<T: Config> common::gas_provider::Error for Error<T> {
+    impl<T: Config> GasError for Error<T> {
         fn node_already_exists() -> Self {
             Self::NodeAlreadyExists
         }
@@ -108,18 +111,18 @@ pub mod pallet {
 
     // ----
 
-    pub type Key = H256;
-    pub type ExternalOrigin = H256;
-    pub type ValueNode = common::gas_provider::GasNode<ExternalOrigin, Key, Balance>;
+    pub type Key = MessageId;
+    pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
 
     #[pallet::storage]
-    pub type ValueTreeNodes<T> = StorageMap<_, Identity, H256, ValueNode>;
+    #[pallet::unbounded]
+    pub type GasNodes<T> = StorageMap<_, Identity, Key, NodeOf<T>>;
 
     common::wrap_storage_map!(
-        storage: ValueTreeNodes,
-        name: ValueTreeNodesWrap,
+        storage: GasNodes,
+        name: GasNodesWrap,
         key: Key,
-        value: ValueNode
+        value: NodeOf<T>
     );
 
     // ----
@@ -147,22 +150,22 @@ pub mod pallet {
 
     impl<T: Config> GasProvider for Pallet<T> {
         type BlockGasLimit = BlockGasLimitOf<T>;
-        type ExternalOrigin = ExternalOrigin;
+        type ExternalOrigin = AccountIdOf<T>;
         type Key = Key;
         type Balance = Balance;
         type PositiveImbalance =
-            common::gas_provider::PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+            PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
         type NegativeImbalance =
-            common::gas_provider::NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+            NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
         type InternalError = Error<T>;
         type Error = DispatchError;
 
-        type GasTree = common::gas_provider::TreeImpl<
+        type GasTree = TreeImpl<
             TotalIssuanceWrap<T>,
             Self::InternalError,
             Self::Error,
-            ExternalOrigin,
-            ValueTreeNodesWrap<T>,
+            Self::ExternalOrigin,
+            GasNodesWrap<T>,
         >;
 
         type GasAllowance = GasAllowance<T>;

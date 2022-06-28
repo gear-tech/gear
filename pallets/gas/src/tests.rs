@@ -20,18 +20,19 @@ use super::*;
 use crate::mock::*;
 use common::{GasTree as _, Origin};
 use frame_support::{assert_noop, assert_ok, traits::Imbalance};
+use gear_core::ids::MessageId;
 use primitive_types::H256;
 
 type Gas = <Pallet<Test> as common::GasProvider>::GasTree;
-type GasTree = ValueTreeNodes<Test>;
+type GasTree = GasNodes<Test>;
 
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
-        let new_root = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
 
         {
-            let pos = Gas::create(ALICE.into_origin(), new_root, 1000).unwrap();
+            let pos = Gas::create(ALICE, new_root, 1000).unwrap();
 
             assert_eq!(pos.peek(), 1000);
         }
@@ -41,7 +42,7 @@ fn simple_value_tree() {
         {
             let (_neg, owner) = Gas::consume(new_root).unwrap().unwrap();
 
-            assert_eq!(owner, ALICE.into_origin());
+            assert_eq!(owner, ALICE);
         }
         // Total supply back to original value
         assert_eq!(Gas::total_supply(), 0);
@@ -52,19 +53,19 @@ fn simple_value_tree() {
 fn can_cut_nodes() {
     new_test_ext().execute_with(|| {
         let (root, specified, unspecified, cut_a, cut_b, cut_c) = (
-            H256::random(),
-            H256::random(),
-            H256::random(),
-            H256::random(),
-            H256::random(),
-            H256::random(),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
         );
         let (total_supply, specified_value, cut_a_value, cut_b_value, cut_c_value) =
             (1000, 500, 300, 200, 100);
 
         // create nodes
         {
-            assert_ok!(Gas::create(ALICE.into_origin(), root, total_supply));
+            assert_ok!(Gas::create(ALICE, root, total_supply));
             assert_ok!(Gas::cut(root, cut_a, cut_a_value));
             assert_ok!(Gas::split_with_value(root, specified, specified_value));
             assert_ok!(Gas::cut(specified, cut_b, cut_b_value));
@@ -108,15 +109,15 @@ fn value_tree_with_all_kinds_of_nodes() {
         let cut_value = 300;
         let specified_value = total_supply - cut_value;
         let (root, cut, specified, unspecfied) = (
-            H256::random(),
-            H256::random(),
-            H256::random(),
-            H256::random(),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
         );
 
         // create nodes
         {
-            assert_ok!(Gas::create(ALICE.into_origin(), root, total_supply));
+            assert_ok!(Gas::create(ALICE, root, total_supply));
             assert_ok!(Gas::cut(root, cut, cut_value));
             assert_ok!(Gas::split_with_value(root, specified, specified_value));
             assert_ok!(Gas::split(root, unspecfied));
@@ -132,14 +133,14 @@ fn value_tree_with_all_kinds_of_nodes() {
                 Gas::consume(root),
                 Ok(Some((
                     common::gas_provider::NegativeImbalance::new(specified_value),
-                    ALICE.into_origin()
+                    ALICE
                 )))
             );
             assert_eq!(
                 Gas::consume(cut),
                 Ok(Some((
                     common::gas_provider::NegativeImbalance::new(cut_value),
-                    ALICE.into_origin()
+                    ALICE
                 )))
             );
         }
@@ -151,11 +152,11 @@ fn value_tree_with_all_kinds_of_nodes() {
 #[test]
 fn test_consume_procedure() {
     new_test_ext().execute_with(|| {
-        let origin = H256::random();
-        let root = H256::random();
-        let node_1 = H256::random();
-        let node_2 = H256::random();
-        let node_3 = H256::random();
+        let origin = ALICE;
+        let root = MessageId::from_origin(H256::random());
+        let node_1 = MessageId::from_origin(H256::random());
+        let node_2 = MessageId::from_origin(H256::random());
+        let node_3 = MessageId::from_origin(H256::random());
 
         // Chain of nodes, that form more likely a path rather then a tree
         assert_ok!(Gas::create(origin, root, 300));
@@ -185,7 +186,7 @@ fn test_consume_procedure() {
         assert_noop!(Gas::consume(node_2), Error::<Test>::NodeWasConsumed,);
 
         // Impossible to consume non-existing node.
-        assert_noop!(Gas::consume(H256::random()), Error::<Test>::NodeNotFound,);
+        assert_noop!(Gas::consume(MessageId::from_origin(H256::random())), Error::<Test>::NodeNotFound,);
 
         // Before consuming blockage `node_3`
         assert!(GasTree::get(root).is_some());
@@ -215,11 +216,11 @@ fn splits_fail() {
     //            (specified: 250)    (unspecified)
     //
     new_test_ext().execute_with(|| {
-        let origin = H256::random();
-        let root = H256::random();
-        let node_1 = H256::random();
-        let node_2 = H256::random();
-        let node_3 = H256::random();
+        let origin = ALICE;
+        let root = MessageId::from_origin(H256::random());
+        let node_1 = MessageId::from_origin(H256::random());
+        let node_2 = MessageId::from_origin(H256::random());
+        let node_3 = MessageId::from_origin(H256::random());
 
         // Prepare the initial configuration
         assert_ok!(Gas::create(origin, root, 1000));
@@ -230,11 +231,11 @@ fn splits_fail() {
         assert_eq!(Gas::consume(node_1).unwrap(), None);
         // Can't split consumed node with/without value.
         assert_noop!(
-            Gas::split(node_1, H256::random()),
+            Gas::split(node_1, MessageId::from_origin(H256::random())),
             Error::<Test>::NodeWasConsumed,
         );
         assert_noop!(
-            Gas::split_with_value(node_1, H256::random(), 100),
+            Gas::split_with_value(node_1, MessageId::from_origin(H256::random()), 100),
             Error::<Test>::NodeWasConsumed,
         );
 
@@ -243,7 +244,7 @@ fn splits_fail() {
         // Special case is when provided 2 existing equal ids
         assert_noop!(Gas::split(node_2, node_2), Error::<Test>::NodeAlreadyExists,);
         // Not equal ids can be caught as well
-        let node_4 = H256::random();
+        let node_4 = MessageId::from_origin(H256::random());
         assert_noop!(Gas::split(node_4, node_4), Error::<Test>::NodeNotFound,);
     })
 }
@@ -251,10 +252,10 @@ fn splits_fail() {
 #[test]
 fn sub_nodes_tree() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
         assert_eq!(pos_imb.peek(), 1000);
@@ -283,12 +284,12 @@ fn sub_nodes_tree() {
 #[test]
 fn value_tree_known_errors() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
-        let cut = H256::random();
-        let cut_1 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
+        let cut = MessageId::from_origin(H256::random());
+        let cut_1 = MessageId::from_origin(H256::random());
 
         {
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
@@ -348,10 +349,10 @@ fn value_tree_known_errors() {
 #[test]
 fn sub_nodes_tree_with_spends() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
 
@@ -381,9 +382,9 @@ fn sub_nodes_tree_with_spends() {
 #[test]
 fn all_keys_are_cleared() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let root = H256::random();
-        let origin = H256::random();
-        let sub_keys = (0..5).map(|_| H256::random()).collect::<Vec<_>>();
+        let root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let sub_keys = (0..5).map(|_| MessageId::from_origin(H256::random())).collect::<Vec<_>>();
 
         Gas::create(origin, root, 2000).unwrap();
         for key in sub_keys.iter() {
@@ -407,11 +408,11 @@ fn all_keys_are_cleared() {
 #[test]
 fn split_with_no_value() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
-        let split_1_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
+        let split_1_2 = MessageId::from_origin(H256::random());
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
 
@@ -440,12 +441,12 @@ fn split_with_no_value() {
 #[test]
 fn long_chain() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let root = H256::random();
-        let m1 = H256::random();
-        let m2 = H256::random();
-        let m3 = H256::random();
-        let m4 = H256::random();
-        let origin = H256::random();
+        let root = MessageId::from_origin(H256::random());
+        let m1 = MessageId::from_origin(H256::random());
+        let m2 = MessageId::from_origin(H256::random());
+        let m3 = MessageId::from_origin(H256::random());
+        let m4 = MessageId::from_origin(H256::random());
+        let origin = ALICE;
 
         assert_ok!(Gas::create(origin, root, 2000));
 
@@ -476,14 +477,14 @@ fn long_chain() {
 #[test]
 fn limit_vs_origin() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let origin = H256::random();
-        let root_node = H256::random();
-        let cut = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
-        let split_1_1 = H256::random();
-        let split_1_2 = H256::random();
-        let split_1_1_1 = H256::random();
+        let origin = BOB;
+        let root_node = MessageId::from_origin(H256::random());
+        let cut = MessageId::from_origin(H256::random());
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
+        let split_1_1 = MessageId::from_origin(H256::random());
+        let split_1_2 = MessageId::from_origin(H256::random());
+        let split_1_1_1 = MessageId::from_origin(H256::random());
 
         assert_ok!(Gas::create(origin, root_node, 1100));
 
@@ -554,13 +555,13 @@ fn subtree_gas_limit_remains_intact() {
     // In the test scenario node_1 is consumed first, and then node_2 is consumed.
     // Also an ability to spend value by "unspec" child from "spec" parent will be tested.
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let origin = H256::random();
-        let root = H256::random();
-        let node_1 = H256::random();
-        let node_2 = H256::random();
-        let node_3 = H256::random();
-        let node_4 = H256::random();
-        let node_5 = H256::random();
+        let origin = BOB;
+        let root = MessageId::from_origin(H256::random());
+        let node_1 = MessageId::from_origin(H256::random());
+        let node_2 = MessageId::from_origin(H256::random());
+        let node_3 = MessageId::from_origin(H256::random());
+        let node_4 = MessageId::from_origin(H256::random());
+        let node_5 = MessageId::from_origin(H256::random());
 
         // Prepare the initial configuration
         assert_ok!(Gas::create(origin, root, 1000));
@@ -612,8 +613,8 @@ fn subtree_gas_limit_remains_intact() {
 #[test]
 fn gas_free_after_consumed() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let origin = H256::random();
-        let root_msg_id = H256::random();
+        let origin = BOB;
+        let root_msg_id = MessageId::from_origin(H256::random());
 
         assert_ok!(Gas::create(origin, root_msg_id, 1000));
         assert_ok!(Gas::spend(root_msg_id, 300));

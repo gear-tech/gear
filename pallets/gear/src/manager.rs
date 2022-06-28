@@ -320,8 +320,6 @@ where
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        let message_id = message_id.into_origin();
-
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
         GasAllowanceOf::<T>::decrease(amount);
@@ -334,7 +332,7 @@ where
                             let charge = T::GasPrice::gas_price(amount);
                             if let Some(author) = Authorship::<T>::author() {
                                 match <T as Config>::Currency::repatriate_reserved(
-                                    &<T::AccountId as Origin>::from_origin(origin),
+                                    &origin,
                                     &author,
                                     charge,
                                     BalanceStatus::Free,
@@ -414,8 +412,6 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        let message_id = message_id.into_origin();
-
         match GasHandlerOf::<T>::consume(message_id) {
             Err(_e) => {
                 // We only can get an error here if the gas tree is invalidated
@@ -436,7 +432,7 @@ where
                         let refund = T::GasPrice::gas_price(gas_left);
 
                         let _ = <T as Config>::Currency::unreserve(
-                            &<T::AccountId as Origin>::from_origin(external),
+                            &external,
                             refund,
                         );
                     }
@@ -446,7 +442,6 @@ where
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        let message_id = message_id.into_origin();
         let gas_limit = dispatch.gas_limit();
         let dispatch = dispatch.into_stored();
 
@@ -468,11 +463,11 @@ where
             if let Some(gas_limit) = gas_limit {
                 let _ = GasHandlerOf::<T>::split_with_value(
                     message_id,
-                    dispatch.id().into_origin(),
+                    dispatch.id(),
                     gas_limit,
                 );
             } else {
-                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id().into_origin());
+                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id());
             }
 
             QueueOf::<T>::queue(dispatch)
@@ -513,15 +508,14 @@ where
         WaitlistOf::<T>::insert(dispatch.clone())
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
-        let origin = if let Some(origin) =
-            GasHandlerOf::<T>::get_origin_key(dispatch.id().into_origin())
+        let origin_key = if let Some(key) =
+            GasHandlerOf::<T>::get_origin_key(dispatch.id())
                 .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
-                .map(MessageId::from_origin)
         {
-            if origin == dispatch.id() {
+            if key == dispatch.id() {
                 None
             } else {
-                Some(origin)
+                Some(key)
             }
         } else {
             unreachable!("ValueTree corrupted!")
@@ -532,7 +526,7 @@ where
         // calculated one (issues #646 and #969).
         Pallet::<T>::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
-            origin,
+            origin: origin_key,
             reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
             expiration: T::BlockNumber::zero(),
         });
@@ -550,15 +544,15 @@ where
                 .saturating_sub(bn.saturated_into::<u32>());
             let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-            match GasHandlerOf::<T>::spend(message_id.into_origin(), chargeable_amount) {
+            match GasHandlerOf::<T>::spend(message_id, chargeable_amount) {
                 Ok(_) => {
-                    match GasHandlerOf::<T>::get_external(message_id.into_origin()) {
+                    match GasHandlerOf::<T>::get_external(message_id) {
                         Ok(maybe_origin) => {
                             if let Some(origin) = maybe_origin {
                                 let charge = T::GasPrice::gas_price(chargeable_amount);
                                 if let Some(author) = Authorship::<T>::author() {
                                     match <T as Config>::Currency::repatriate_reserved(
-                                        &<T::AccountId as Origin>::from_origin(origin),
+                                        &origin,
                                         &author,
                                         charge,
                                         BalanceStatus::Free,

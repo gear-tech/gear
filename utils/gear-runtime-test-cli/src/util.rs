@@ -20,7 +20,7 @@ use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
-use gear_runtime::{Gas, Gear, GearMessenger, Runtime, System};
+use gear_runtime::{GearGas, Gear, GearMessenger, Runtime, System};
 use pallet_gear::{BlockGasLimitOf, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
@@ -82,7 +82,7 @@ pub fn run_to_block(n: u32, remaining_weight: Option<u64>, skip_process_queue: b
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
-        Gas::on_initialize(System::block_number());
+        GearGas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);

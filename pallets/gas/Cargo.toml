@@ -1,5 +1,5 @@
 [package]
-name = "pallet-gas"
+name = "pallet-gear-gas"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2018'
@@ -21,6 +21,7 @@ primitive-types = { version = "0.11.1", default-features = false, features = ["s
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
+gear-core = { path = "../../core" }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }

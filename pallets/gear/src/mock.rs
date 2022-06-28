@@ -48,7 +48,7 @@ construct_runtime!(
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Gas: pallet_gas::{Pallet, Storage},
+        GearGas: pallet_gear_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
@@ -130,10 +130,10 @@ impl pallet_gear::Config for Test {
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
     type Messenger = GearMessenger;
-    type GasProvider = Gas;
+    type GasProvider = GearGas;
 }
 
-impl pallet_gas::Config for Test {
+impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
 }
 
@@ -198,7 +198,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
-        Gas::on_initialize(System::block_number());
+        GearGas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
 

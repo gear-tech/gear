@@ -40,7 +40,7 @@ gear-core = { path = "../../core" }
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear = { path = "../gear" }
-pallet-gas = { path = "../gas" }
+pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-program = { path = "../gear-program" }
 

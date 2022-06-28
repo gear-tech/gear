@@ -31,7 +31,7 @@ mod junit_tree;
 mod output;
 
 const PALLET_NAMES: [&str; 7] = [
-    "pallet-gas",
+    "pallet-gear-gas",
     "pallet-gear",
     "pallet-gear-debug",
     "pallet-gear-messenger",

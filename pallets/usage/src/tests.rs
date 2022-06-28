@@ -81,8 +81,10 @@ where
             ),
             blk_num,
         );
+
+        let origin = <u64 as common::Origin>::from_origin(user_id.into_origin());
         let _ =
-            GasHandlerOf::<Test>::create(user_id.into_origin(), msg_id.into_origin(), gas_limit);
+            GasHandlerOf::<Test>::create(origin, msg_id, gas_limit);
     }
 }
 
@@ -104,11 +106,12 @@ where
             blk_num,
         );
         if let Some(last_msg_id) = last_msg_id {
-            let _ = GasHandlerOf::<Test>::split(last_msg_id.into_origin(), msg_id.into_origin());
+            let _ = GasHandlerOf::<Test>::split(last_msg_id, msg_id);
         } else {
+            let origin = <u64 as common::Origin>::from_origin(user_id.into_origin());
             let _ = GasHandlerOf::<Test>::create(
-                user_id.into_origin(),
-                msg_id.into_origin(),
+                origin,
+                msg_id,
                 gas_limit,
             );
         }
@@ -630,7 +633,7 @@ fn trap_reply_message_is_sent() {
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            GasHandlerOf::<Test>::get_limit(message.id().into_origin())
+            GasHandlerOf::<Test>::get_limit(message.id())
                 .unwrap()
                 .map(|(g, _)| g)
                 .unwrap(),
@@ -650,7 +653,7 @@ fn trap_reply_message_is_sent() {
         );
 
         assert_eq!(
-            GasHandlerOf::<Test>::get_limit(message.id().into_origin())
+            GasHandlerOf::<Test>::get_limit(message.id())
                 .unwrap()
                 .map(|(g, _)| g)
                 .unwrap(),
