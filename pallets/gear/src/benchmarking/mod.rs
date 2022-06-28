@@ -219,12 +219,9 @@ where
     };
 
     let initial_gas = BlockGasLimitOf::<T>::get();
-    GasHandlerOf::<T>::create(
-        source.into_origin(),
-        root_message_id.into_origin(),
-        initial_gas,
-    )
-    .map_err(|_| "Internal error: unable to create gas handler")?;
+    let origin = <T::AccountId as Origin>::from_origin(source);
+    GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
+        .map_err(|_| "Internal error: unable to create gas handler")?;
 
     let dispatch = dispatch.into_stored();
 

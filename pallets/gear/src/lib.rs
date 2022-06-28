@@ -489,8 +489,8 @@ pub mod pallet {
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
             let _ = GasHandlerOf::<T>::create(
-                origin,
-                message_id.into_origin(),
+                who.clone(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -957,11 +957,9 @@ pub mod pallet {
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
                             {
                                 let origin = if let Some(origin) =
-                                    GasHandlerOf::<T>::get_origin_key(dispatch.id())
-                                        .unwrap_or_else(|e| {
-                                            unreachable!("ValueTree corrupted: {:?}!", e)
-                                        })
-                                {
+                                    GasHandlerOf::<T>::get_origin_key(dispatch.id()).unwrap_or_else(
+                                        |e| unreachable!("ValueTree corrupted: {:?}!", e),
+                                    ) {
                                     if origin == dispatch.id() {
                                         None
                                     } else {
@@ -1468,8 +1466,10 @@ pub mod pallet {
                     entry: Entry::Handle,
                 };
 
-                QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())))
-                    .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+                QueueOf::<T>::queue(
+                    message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())),
+                )
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(event);
             } else {

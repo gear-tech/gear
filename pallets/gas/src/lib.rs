@@ -39,7 +39,9 @@ type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::gas_provider::{GasNode, PositiveImbalance, NegativeImbalance, Error as GasError, TreeImpl};
+    use common::gas_provider::{
+        Error as GasError, GasNode, NegativeImbalance, PositiveImbalance, TreeImpl,
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::ids::MessageId;
 
@@ -153,10 +155,8 @@ pub mod pallet {
         type ExternalOrigin = AccountIdOf<T>;
         type Key = Key;
         type Balance = Balance;
-        type PositiveImbalance =
-            PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
-        type NegativeImbalance =
-            NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type NegativeImbalance = NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
         type InternalError = Error<T>;
         type Error = DispatchError;
 

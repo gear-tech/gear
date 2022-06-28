@@ -66,10 +66,10 @@ pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
-pub use pallet_gear_gas;
 pub use pallet_gear;
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
+pub use pallet_gear_gas;
 pub use pallet_gear_payment;
 pub use pallet_usage;
 

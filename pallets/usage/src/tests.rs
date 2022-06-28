@@ -83,8 +83,7 @@ where
         );
 
         let origin = <u64 as common::Origin>::from_origin(user_id.into_origin());
-        let _ =
-            GasHandlerOf::<Test>::create(origin, msg_id, gas_limit);
+        let _ = GasHandlerOf::<Test>::create(origin, msg_id, gas_limit);
     }
 }
 
@@ -109,11 +108,7 @@ where
             let _ = GasHandlerOf::<Test>::split(last_msg_id, msg_id);
         } else {
             let origin = <u64 as common::Origin>::from_origin(user_id.into_origin());
-            let _ = GasHandlerOf::<Test>::create(
-                origin,
-                msg_id,
-                gas_limit,
-            );
+            let _ = GasHandlerOf::<Test>::create(origin, msg_id, gas_limit);
         }
         last_msg_id = Some(msg_id);
     }

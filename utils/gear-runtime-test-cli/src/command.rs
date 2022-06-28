@@ -303,9 +303,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         // Force push to MQ if msg.source.is_some()
         if let Some(source) = &message.source {
             let source = H256::from_slice(source.to_program_id().as_ref());
+            let origin = <AccountId32 as gear_common::Origin>::from_origin(source);
             let id = GearPallet::<Runtime>::next_message_id(source);
 
-            let _ = GasHandlerOf::<Runtime>::create(source, id.into_origin(), gas_limit);
+            let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit);
 
             let msg = StoredMessage::new(
                 id,

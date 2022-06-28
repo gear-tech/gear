@@ -341,7 +341,7 @@ where
                                         if leftover > TOL.unique_saturated_into() {
                                             log::debug!(
                                                 target: "essential",
-                                                "Reserved funds not fully repatriated from {} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                                "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
                                                 origin,
                                                 author,
                                                 charge,
@@ -352,7 +352,7 @@ where
                                     Err(e) => {
                                         log::debug!(
                                             target: "essential",
-                                            "Failure to repatriate reserves of {:?} from {} to 0x{:?}: {:?}",
+                                            "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
                                             charge,
                                             origin,
                                             author,
@@ -424,17 +424,14 @@ where
 
                     if gas_left > 0 {
                         log::debug!(
-                            "Unreserve balance on message processed: {} to {}",
+                            "Unreserve balance on message processed: {} to {:?}",
                             gas_left,
                             external
                         );
 
                         let refund = T::GasPrice::gas_price(gas_left);
 
-                        let _ = <T as Config>::Currency::unreserve(
-                            &external,
-                            refund,
-                        );
+                        let _ = <T as Config>::Currency::unreserve(&external, refund);
                     }
                 }
             }
@@ -461,11 +458,7 @@ where
 
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
-                let _ = GasHandlerOf::<T>::split_with_value(
-                    message_id,
-                    dispatch.id(),
-                    gas_limit,
-                );
+                let _ = GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit);
             } else {
                 let _ = GasHandlerOf::<T>::split(message_id, dispatch.id());
             }
@@ -508,9 +501,8 @@ where
         WaitlistOf::<T>::insert(dispatch.clone())
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
-        let origin_key = if let Some(key) =
-            GasHandlerOf::<T>::get_origin_key(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
+        let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
         {
             if key == dispatch.id() {
                 None
@@ -561,7 +553,7 @@ where
                                             if leftover > TOL.unique_saturated_into() {
                                                 log::debug!(
                                                     target: "essential",
-                                                    "Reserved funds not fully repatriated from {} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                                    "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
                                                     origin,
                                                     author,
                                                     charge,
@@ -572,7 +564,7 @@ where
                                         Err(e) => {
                                             log::debug!(
                                                 target: "essential",
-                                                "Failure to repatriate reserves of {:?} from {} to 0x{:?}: {:?}",
+                                                "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
                                                 charge,
                                                 origin,
                                                 author,

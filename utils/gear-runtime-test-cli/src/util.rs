@@ -20,7 +20,7 @@ use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
-use gear_runtime::{GearGas, Gear, GearMessenger, Runtime, System};
+use gear_runtime::{Gear, GearGas, GearMessenger, Runtime, System};
 use pallet_gear::{BlockGasLimitOf, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};

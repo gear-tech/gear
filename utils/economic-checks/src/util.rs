@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use common::{
     storage::{IterableMap, Messenger},
-    GasTree, Origin as _,
+    GasTree,
 };
 use frame_support::{
     assert_ok,
@@ -29,9 +29,9 @@ use frame_support::{
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
 use gear_runtime::{
-    AuraConfig, Balances, Call, Gas, Gear, GearMessenger, GearPayment, GearProgram, GrandpaConfig,
-    Runtime, Signature, SudoConfig, System, TransactionPayment, TransactionPaymentConfig,
-    UncheckedExtrinsic, Usage,
+    AuraConfig, Balances, Call, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
+    GrandpaConfig, Runtime, Signature, SudoConfig, System, TransactionPayment,
+    TransactionPaymentConfig, UncheckedExtrinsic, Usage,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use parking_lot::RwLock;
@@ -186,7 +186,7 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         // Run on_finalize hooks in pallets reverse order (as they appear in AllPalletsWithSystem)
         let current_blk = System::block_number();
         GearPayment::on_finalize(current_blk);
-        Gas::on_finalize(current_blk);
+        GearGas::on_finalize(current_blk);
         Usage::on_finalize(current_blk);
         Gear::on_finalize(current_blk);
         GearMessenger::on_finalize(current_blk);
@@ -207,7 +207,7 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         GearMessenger::on_initialize(new_block_number);
         Gear::on_initialize(new_block_number);
         Usage::on_initialize(new_block_number);
-        Gas::on_initialize(new_block_number);
+        GearGas::on_initialize(new_block_number);
         GearPayment::on_finalize(new_block_number);
     }
 }
@@ -239,7 +239,7 @@ pub(crate) fn run_to_block_with_ocw(
 
         // on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
         GearPayment::on_finalize(i);
-        Gas::on_finalize(i);
+        GearGas::on_finalize(i);
         Usage::on_finalize(i);
         Gear::on_finalize(i);
         GearMessenger::on_finalize(i);
@@ -261,7 +261,7 @@ pub(crate) fn run_to_block_with_ocw(
         GearMessenger::on_initialize(new_blk);
         Gear::on_initialize(new_blk);
         Usage::on_initialize(new_blk);
-        Gas::on_initialize(new_blk);
+        GearGas::on_initialize(new_blk);
         GearPayment::on_finalize(new_blk);
     }
 }
@@ -306,7 +306,7 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
         WaitlistOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
-                let node_id = dispatch.id().into_origin();
+                let node_id = dispatch.id();
                 let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit(node_id)
                     .expect("There is always a value node for a valid dispatch ID")
                     .expect("There is always a node with concrete value for a node");

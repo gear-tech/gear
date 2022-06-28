@@ -186,7 +186,10 @@ fn test_consume_procedure() {
         assert_noop!(Gas::consume(node_2), Error::<Test>::NodeWasConsumed,);
 
         // Impossible to consume non-existing node.
-        assert_noop!(Gas::consume(MessageId::from_origin(H256::random())), Error::<Test>::NodeNotFound,);
+        assert_noop!(
+            Gas::consume(MessageId::from_origin(H256::random())),
+            Error::<Test>::NodeNotFound,
+        );
 
         // Before consuming blockage `node_3`
         assert!(GasTree::get(root).is_some());
@@ -384,7 +387,9 @@ fn all_keys_are_cleared() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
         let root = MessageId::from_origin(H256::random());
         let origin = ALICE;
-        let sub_keys = (0..5).map(|_| MessageId::from_origin(H256::random())).collect::<Vec<_>>();
+        let sub_keys = (0..5)
+            .map(|_| MessageId::from_origin(H256::random()))
+            .collect::<Vec<_>>();
 
         Gas::create(origin, root, 2000).unwrap();
         for key in sub_keys.iter() {
