@@ -350,7 +350,6 @@ jobs:
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           rustup target add wasm32-unknown-unknown
           $env:Path += ';C:\Program Files\CMake\bin'
-          $env:RUST_LOG = 'debug'
           cmake --version
           $env:Path
           $env:USERPROFILE
@@ -372,8 +371,7 @@ jobs:
         run: |
           $env:Path += ';C:\Users\Administrator\.cargo\bin'
           $env:Path += ';C:\Program Files\CMake\bin'
-          $env:RUST_LOG = 'debug'
-          cargo nextest run -p pallet-gear -p pallet-gear-debug -p pallet-gear-payment -p pallet-usage -p gear-lazy-pages -p gear-runtime-interface --features=lazy-pages --nocapture
+          cargo nextest run -p pallet-gear -p pallet-gear-debug -p pallet-gear-payment -p pallet-usage -p gear-lazy-pages -p gear-runtime-interface --features=lazy-pages
   
   upload:
     if: github.event_name == 'push'
