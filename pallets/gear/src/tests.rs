@@ -3661,16 +3661,15 @@ fn cascading_messages_with_value_do_not_overcharge() {
         // Expected outcome: the sender's balance has decreased by the
         // (`gas_to_spend` + `value`).
 
-        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get() * 2;
-        let mailbox_threshold_reserved =
-            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-
         let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
 
         assert_eq!(user_balance_before_calculating, user_initial_balance);
         assert_eq!(
             BalancesPallet::<Test>::reserved_balance(USER_1),
-            mailbox_threshold_reserved
+            mailbox_threshold_reserved * 2
         );
 
         assert_ok!(Gear::send_message(
@@ -3692,19 +3691,19 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(
             BalancesPallet::<Test>::reserved_balance(USER_1),
-            reserved_balance + mailbox_threshold_reserved
+            reserved_balance + mailbox_threshold_reserved * 2
         );
 
         run_to_block(5, None);
 
         assert_eq!(
             BalancesPallet::<Test>::reserved_balance(USER_1),
-            mailbox_threshold_reserved
+            mailbox_threshold_reserved * 3
         );
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - gas_to_spend - value
+            user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved * 1
         );
     });
 }
