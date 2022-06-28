@@ -23,7 +23,7 @@ use crate::{
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{storage::*, CodeStorage, GasAllowance, GasTree, Origin as _};
+use gear_common::{storage::*, CodeStorage, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,

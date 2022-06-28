@@ -36,7 +36,7 @@ mod property_tests;
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use negative_imbalance::NegativeImbalance;
-pub use node::{ValueNode, ValueType};
+pub use node::{GasNode, GasNodeType};
 pub use positive_imbalance::PositiveImbalance;
 
 /// Abstraction for a chain of value items each piece of which has an attributed owner and
@@ -82,17 +82,27 @@ pub trait Tree {
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error>;
 
-    /// The external origin for a key, if the latter exists, `None` otherwise.
+    /// The id of node and external origin for a key, if they exist, `None` otherwise.
     ///
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
     /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
+    fn get_origin(
+        key: Self::Key,
+    ) -> Result<OriginResult<Self::Key, Self::ExternalOrigin>, Self::Error>;
+
+    /// The external origin for a key, if the latter exists, `None` otherwise.
+    ///
+    /// Check [`get_origin`] for more details.
+    fn get_external(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error> {
+        Self::get_origin(key).map(|result| result.map(|(_, external)| external))
+    }
 
     /// The id of external node for a key, if the latter exists, `None` otherwise.
     ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error>;
+    /// Check [`get_origin`] for more details.
+    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error> {
+        Self::get_origin(key).map(|result| result.map(|(key, _)| key))
+    }
 
     /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
     ///
@@ -146,16 +156,9 @@ pub trait Tree {
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 }
 
-type GasBalanceKey<Balance, Key> = Option<(Balance, Key)>;
-type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
-
-pub trait Allowance {
-    type Balance;
-
-    fn get() -> Self::Balance;
-    fn update(gas: Self::Balance);
-    fn decrease(gas: Self::Balance);
-}
+pub type GasBalanceKey<Balance, Key> = Option<(Balance, Key)>;
+pub type OriginResult<Key, ExternalOrigin> = Option<(Key, ExternalOrigin)>;
+pub type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 /// Represents logic of centralized GasTree-algorithm.
 pub trait Provider {
@@ -199,5 +202,5 @@ pub trait Provider {
     >;
 
     /// Type manages a gas that is available for the moment of call.
-    type GasAllowance: Allowance<Balance = Self::Balance>;
+    type GasAllowance: storage::Limiter<Value = Self::Balance>;
 }

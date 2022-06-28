@@ -125,8 +125,7 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, CodeMetadata, GasAllowance, GasPrice, GasTree, Origin, Program,
-        ProgramState,
+        self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -405,7 +404,7 @@ pub mod pallet {
             //
             // This field already was affected by gas pallet within the block,
             // so we don't need to include that db write.
-            GasAllowanceOf::<T>::update(remaining_weight);
+            GasAllowanceOf::<T>::put(remaining_weight);
 
             Self::process_queue()
         }
@@ -1044,7 +1043,7 @@ pub mod pallet {
                         None
                     };
 
-                    let origin = match GasHandlerOf::<T>::get_origin(msg_id) {
+                    let origin = match GasHandlerOf::<T>::get_external(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given gas tree is valid, a node with such id exists and has origin

@@ -86,27 +86,27 @@ impl ValueStorage for TotalIssuanceWrap {
 
 type Key = H256;
 type ExternalOrigin = H256;
-type ValueNode = super::ValueNode<ExternalOrigin, Key, Balance>;
+type GasNode = super::GasNode<ExternalOrigin, Key, Balance>;
 
 #[thread_local]
-static VALUE_TREE_NODES: RefCell<BTreeMap<Key, ValueNode>> = RefCell::new(BTreeMap::new());
+static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = RefCell::new(BTreeMap::new());
 
-struct ValueTreeNodesWrap;
+struct GasTreeNodesWrap;
 
-impl storage::MapStorage for ValueTreeNodesWrap {
+impl storage::MapStorage for GasTreeNodesWrap {
     type Key = Key;
-    type Value = ValueNode;
+    type Value = GasNode;
 
     fn contains_key(key: &Self::Key) -> bool {
-        VALUE_TREE_NODES.borrow().contains_key(key)
+        GAS_TREE_NODES.borrow().contains_key(key)
     }
 
     fn get(key: &Self::Key) -> Option<Self::Value> {
-        VALUE_TREE_NODES.borrow().get(key).map(Clone::clone)
+        GAS_TREE_NODES.borrow().get(key).map(Clone::clone)
     }
 
     fn insert(key: Self::Key, value: Self::Value) {
-        VALUE_TREE_NODES.borrow_mut().insert(key, value);
+        GAS_TREE_NODES.borrow_mut().insert(key, value);
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(_key: Self::Key, _f: F) -> R {
@@ -118,15 +118,15 @@ impl storage::MapStorage for ValueTreeNodesWrap {
     }
 
     fn remove(key: Self::Key) {
-        VALUE_TREE_NODES.borrow_mut().remove(&key);
+        GAS_TREE_NODES.borrow_mut().remove(&key);
     }
 
     fn clear() {
-        VALUE_TREE_NODES.borrow_mut().clear()
+        GAS_TREE_NODES.borrow_mut().clear()
     }
 
     fn take(key: Self::Key) -> Option<Self::Value> {
-        VALUE_TREE_NODES.borrow_mut().remove(&key)
+        GAS_TREE_NODES.borrow_mut().remove(&key)
     }
 }
 
@@ -173,18 +173,18 @@ impl super::Error for Error {
 
 struct GasAllowance;
 
-impl super::Allowance for GasAllowance {
-    type Balance = Balance;
+impl super::storage::Limiter for GasAllowance {
+    type Value = Balance;
 
-    fn get() -> Self::Balance {
+    fn get() -> Self::Value {
         0
     }
 
-    fn update(_gas: Self::Balance) {
+    fn put(_gas: Self::Value) {
         unimplemented!()
     }
 
-    fn decrease(_gas: Self::Balance) {
+    fn decrease(_gas: Self::Value) {
         unimplemented!()
     }
 }
@@ -206,7 +206,7 @@ impl super::Provider for GasProvider {
         Self::InternalError,
         Self::Error,
         ExternalOrigin,
-        ValueTreeNodesWrap,
+        GasTreeNodesWrap,
     >;
 
     type GasAllowance = GasAllowance;
@@ -220,7 +220,7 @@ proptest! {
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
         TotalIssuanceWrap::kill();
-        <ValueTreeNodesWrap as storage::MapStorage>::clear();
+        <GasTreeNodesWrap as storage::MapStorage>::clear();
 
         // `actions` can consist only from tree splits. Then it's length will
         // represent a potential amount of nodes in the tree.
@@ -306,13 +306,13 @@ proptest! {
             }
         }
 
-        let gas_tree_ids = BTreeSet::from_iter(VALUE_TREE_NODES.borrow().iter().map(|(k, _)| *k));
+        let gas_tree_ids = BTreeSet::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, _)| *k));
 
         // Self check, that in-memory view on gas tree ids is the same as persistent view.
         assert_eq!(gas_tree_ids, BTreeSet::from_iter(node_ids));
 
         let mut rest_value = 0;
-        for (node_id, node) in VALUE_TREE_NODES.borrow().iter() {
+        for (node_id, node) in GAS_TREE_NODES.borrow().iter() {
             if let Some(value) = node.inner_value() {
                 rest_value += value;
             }
@@ -323,9 +323,9 @@ proptest! {
             }
 
             // Check property: specified local nodes are created only with `split_with_value` call
-            if matches!(node.inner, ValueType::SpecifiedLocal { .. }) {
+            if matches!(node.inner, GasNodeType::SpecifiedLocal { .. }) {
                 assert!(spec_ref_nodes.contains(node_id));
-            } else if matches!(node.inner, ValueType::UnspecifiedLocal { .. }) {
+            } else if matches!(node.inner, GasNodeType::UnspecifiedLocal { .. }) {
                 // Check property: unspecified local nodes are created only with `split` call
                 assert!(unspec_ref_nodes.contains(node_id));
             }
@@ -355,7 +355,7 @@ proptest! {
     #[test]
     fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
         TotalIssuanceWrap::kill();
-        <ValueTreeNodesWrap as storage::MapStorage>::clear();
+        <GasTreeNodesWrap as storage::MapStorage>::clear();
 
         // Tree can be created only with external root
 
@@ -384,6 +384,6 @@ proptest! {
             }
         }
 
-        assert!(VALUE_TREE_NODES.borrow().iter().count() == 0);
+        assert!(GAS_TREE_NODES.borrow().iter().count() == 0);
     }
 }

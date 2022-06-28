@@ -110,7 +110,7 @@ pub mod pallet {
 
     pub type Key = H256;
     pub type ExternalOrigin = H256;
-    pub type ValueNode = common::gas_provider::ValueNode<ExternalOrigin, Key, Balance>;
+    pub type ValueNode = common::gas_provider::GasNode<ExternalOrigin, Key, Balance>;
 
     #[pallet::storage]
     pub type ValueTreeNodes<T> = StorageMap<_, Identity, H256, ValueNode>;
@@ -129,18 +129,18 @@ pub mod pallet {
 
     pub struct GasAllowance<T: Config>(PhantomData<T>);
 
-    impl<T: Config> common::GasAllowance for GasAllowance<T> {
-        type Balance = Balance;
+    impl<T: Config> common::storage::Limiter for GasAllowance<T> {
+        type Value = Balance;
 
-        fn get() -> Self::Balance {
+        fn get() -> Self::Value {
             Allowance::<T>::get()
         }
 
-        fn update(gas: Self::Balance) {
+        fn put(gas: Self::Value) {
             Allowance::<T>::put(gas);
         }
 
-        fn decrease(gas: Self::Balance) {
+        fn decrease(gas: Self::Value) {
             Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
         }
     }

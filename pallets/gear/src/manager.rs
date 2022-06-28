@@ -49,8 +49,8 @@ use crate::{
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, storage::*, ActiveProgram, CodeStorage, GasAllowance, GasPrice, GasTree, Origin,
-    Program, ProgramState,
+    event::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin, Program,
+    ProgramState,
 };
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, ExecutionErrorReason, JournalHandler,
@@ -328,7 +328,7 @@ where
 
         match GasHandlerOf::<T>::spend(message_id, amount) {
             Ok(_) => {
-                match GasHandlerOf::<T>::get_origin(message_id) {
+                match GasHandlerOf::<T>::get_external(message_id) {
                     Ok(maybe_origin) => {
                         if let Some(origin) = maybe_origin {
                             let charge = T::GasPrice::gas_price(amount);
@@ -552,7 +552,7 @@ where
 
             match GasHandlerOf::<T>::spend(message_id.into_origin(), chargeable_amount) {
                 Ok(_) => {
-                    match GasHandlerOf::<T>::get_origin(message_id.into_origin()) {
+                    match GasHandlerOf::<T>::get_external(message_id.into_origin()) {
                         Ok(maybe_origin) => {
                             if let Some(origin) = maybe_origin {
                                 let charge = T::GasPrice::gas_price(chargeable_amount);

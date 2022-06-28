@@ -57,7 +57,7 @@ use sp_std::{
 };
 use storage::ValueStorage;
 
-pub use gas_provider::{Allowance as GasAllowance, Provider as GasProvider, Tree as GasTree};
+pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";

@@ -26,9 +26,7 @@ use crate::{
     GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
-use common::{
-    event::*, storage::*, CodeStorage, GasAllowance, GasPrice as _, GasTree, Origin as _,
-};
+use common::{event::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _};
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};

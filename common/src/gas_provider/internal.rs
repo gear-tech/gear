@@ -32,7 +32,7 @@ where
     ExternalId: Default + Clone,
     MapKey: Copy,
     StorageMap:
-        super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
+        super::storage::MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
 {
     pub(super) fn get_node(key: MapKey) -> Option<StorageMap::Value> {
         StorageMap::get(&key)
@@ -52,7 +52,7 @@ where
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
-        while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
+        while let GasNodeType::UnspecifiedLocal { parent } = ret_node.inner {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
         }
@@ -90,16 +90,16 @@ where
         }
 
         match node.inner {
-            ValueType::SpecifiedLocal { .. } => {
+            GasNodeType::SpecifiedLocal { .. } => {
                 parent.spec_refs = parent.spec_refs.saturating_sub(1)
             }
-            ValueType::UnspecifiedLocal { .. } => {
+            GasNodeType::UnspecifiedLocal { .. } => {
                 parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
             }
-            ValueType::ReservedLocal { .. } => {
+            GasNodeType::ReservedLocal { .. } => {
                 unreachable!("node is guaranteed to have a parent, so can't be an reserved one")
             }
-            ValueType::External { .. } => {
+            GasNodeType::External { .. } => {
                 unreachable!("node is guaranteed to have a parent, so can't be an external one")
             }
         }
@@ -123,7 +123,7 @@ where
             return Ok(());
         }
 
-        if let ValueType::SpecifiedLocal {
+        if let GasNodeType::SpecifiedLocal {
             value: self_value,
             parent,
         } = node.inner
@@ -162,15 +162,15 @@ where
             StorageMap::remove(node_id);
 
             match node.inner {
-                ValueType::External { id, value } => {
+                GasNodeType::External { id, value } => {
                     return Ok(Some((NegativeImbalance::new(value), id)))
                 }
-                ValueType::SpecifiedLocal { parent, .. }
-                | ValueType::UnspecifiedLocal { parent } => {
+                GasNodeType::SpecifiedLocal { parent, .. }
+                | GasNodeType::UnspecifiedLocal { parent } => {
                     node_id = parent;
                     node = Self::get_node(node_id).ok_or_else(InternalError::parent_is_lost)?;
                 }
-                ValueType::ReservedLocal { .. } => {
+                GasNodeType::ReservedLocal { .. } => {
                     unreachable!(
                         "node is guaranteed to be a parent, but reserved nodes have no children"
                     )
@@ -194,7 +194,7 @@ where
         let mut parent = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Check if the parent node is reserved
-        if let ValueType::ReservedLocal { .. } = parent.inner {
+        if let GasNodeType::ReservedLocal { .. } = parent.inner {
             return Err(InternalError::forbidden().into());
         }
 
@@ -209,12 +209,12 @@ where
 
         // Detect inner from `reserve`.
         let inner = if reserve {
-            let id = Self::get_origin(key)?.ok_or_else(InternalError::parent_is_lost)?;
-            ValueType::ReservedLocal { id, value: amount }
+            let id = Self::get_external(key)?.ok_or_else(InternalError::parent_is_lost)?;
+            GasNodeType::ReservedLocal { id, value: amount }
         } else {
             parent.spec_refs = parent.spec_refs.saturating_add(1);
 
-            ValueType::SpecifiedLocal {
+            GasNodeType::SpecifiedLocal {
                 value: amount,
                 parent: key,
             }
@@ -233,7 +233,7 @@ where
             return Err(InternalError::insufficient_balance().into());
         }
 
-        let new_node = ValueNode {
+        let new_node = GasNode {
             inner,
             spec_refs: 0,
             unspec_refs: 0,
@@ -270,7 +270,7 @@ where
     ExternalId: Default + Clone,
     MapKey: Copy,
     StorageMap:
-        super::storage::MapStorage<Key = MapKey, Value = ValueNode<ExternalId, MapKey, Balance>>,
+        super::storage::MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
@@ -295,7 +295,7 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        let node = ValueNode::new(origin, amount);
+        let node = GasNode::new(origin, amount);
 
         // Save value node to storage
         StorageMap::insert(key, node);
@@ -303,24 +303,18 @@ where
         Ok(PositiveImbalance::new(amount))
     }
 
-    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error> {
+    fn get_origin(
+        key: Self::Key,
+    ) -> Result<OriginResult<Self::Key, Self::ExternalOrigin>, Self::Error> {
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
-            let (root, _) = Self::root(node)?;
+            let (root, maybe_key) = Self::root(node)?;
             match root.inner {
-                ValueType::External { id, .. } | ValueType::ReservedLocal { id, .. } => Some(id),
+                GasNodeType::External { id, .. } | GasNodeType::ReservedLocal { id, .. } => {
+                    Some((maybe_key.unwrap_or(key), id))
+                }
                 _ => unreachable!("Guaranteed by ValueNode::root method"),
             }
-        } else {
-            // key unknown - legitimate result
-            None
-        })
-    }
-
-    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error> {
-        Ok(if let Some(node) = Self::get_node(key) {
-            // key known, must return the origin, unless corrupted
-            Self::root(node).map(|(_, id)| Some(id.unwrap_or(key)))?
         } else {
             // key unknown - legitimate result
             None
@@ -357,9 +351,9 @@ where
             Self::decrease_parents_ref(&node)?;
             StorageMap::remove(key);
             match node.inner {
-                ValueType::UnspecifiedLocal { parent }
-                | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
-                ValueType::ReservedLocal { id, value } | ValueType::External { id, value } => {
+                GasNodeType::UnspecifiedLocal { parent }
+                | GasNodeType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
+                GasNodeType::ReservedLocal { id, value } | GasNodeType::External { id, value } => {
                     Some((NegativeImbalance::new(value), id))
                 }
             }
@@ -404,7 +398,7 @@ where
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         // Check if the value node is reserved
-        if let ValueType::ReservedLocal { .. } = node.inner {
+        if let GasNodeType::ReservedLocal { .. } = node.inner {
             return Err(InternalError::forbidden().into());
         }
 
@@ -419,8 +413,8 @@ where
 
         node.unspec_refs = node.unspec_refs.saturating_add(1);
 
-        let new_node = ValueNode {
-            inner: ValueType::UnspecifiedLocal { parent: key },
+        let new_node = GasNode {
+            inner: GasNodeType::UnspecifiedLocal { parent: key },
             spec_refs: 0,
             unspec_refs: 0,
             consumed: false,

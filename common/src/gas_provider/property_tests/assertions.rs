@@ -23,7 +23,7 @@ use super::*;
 /// Check that removed nodes invariants are met
 pub(super) fn assert_removed_nodes_props(
     consumed: Key,
-    removed_nodes: BTreeMap<Key, ValueNode>,
+    removed_nodes: BTreeMap<Key, GasNode>,
     remaining_ids: &BTreeSet<Key>,
     marked_consumed_nodes: &BTreeSet<Key>,
 ) {
@@ -48,7 +48,7 @@ pub(super) fn assert_removed_nodes_props(
 fn assert_removed_nodes_are_consumed(
     consumed: Key,
     marked_consumed_nodes: &BTreeSet<Key>,
-    removed_nodes: &BTreeMap<Key, ValueNode>,
+    removed_nodes: &BTreeMap<Key, GasNode>,
 ) {
     for (id, node) in removed_nodes {
         if *id != consumed {
@@ -67,7 +67,7 @@ fn assert_removed_nodes_are_consumed(
 fn assert_removed_nodes_form_path(
     consumed: Key,
     remaining_ids: &BTreeSet<Key>,
-    removed_nodes: BTreeMap<Key, ValueNode>,
+    removed_nodes: BTreeMap<Key, GasNode>,
 ) {
     let mut not_checked_parents_count = removed_nodes.len();
     let mut node = removed_nodes

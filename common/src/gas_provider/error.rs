@@ -16,38 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// Trait represents possible errors of Tree.
+/// Errors stating that gas tree has been invalidated.
 ///
 /// Contains constructors for all existing errors.
 pub trait Error {
     /// Gas (gas tree) has already been created for the provided key.
     fn node_already_exists() -> Self;
 
-    /// Errors stating that gas tree has been invalidated
-
-    /// Parent must be in the tree, but not found
+    /// Parent must be in the tree, but not found.
     ///
     /// This differs from `node_not_found`, because parent
     /// node for local node types must be found, but was not. Thus,
     /// tree is invalidated.
     fn parent_is_lost() -> Self;
 
-    /// Parent node must have children, but they weren't found
+    /// Parent node must have children, but they weren't found.
     ///
     /// If node is a parent to some other node it must have at least
     /// one child, otherwise it's id can't be used as a parent for
     /// local nodes in the tree.
     fn parent_has_no_children() -> Self;
 
-    /// Value node doesn't exist for a key
+    /// Value node doesn't exist for a key.
     fn node_not_found() -> Self;
 
-    /// Procedure can't be called on consumed node
+    /// Procedure can't be called on consumed node.
     fn node_was_consumed() -> Self;
 
     /// Account doesn't have enough funds to complete operation.
     fn insufficient_balance() -> Self;
 
-    /// Forbidden operation for the value node
+    /// Forbidden operation for the value node.
     fn forbidden() -> Self;
 }

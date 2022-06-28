@@ -20,16 +20,16 @@ use super::*;
 use codec::MaxEncodedLen;
 
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub enum ValueType<ExternalId, Id, Balance> {
+pub enum GasNodeType<ExternalId, Id, Balance> {
     External { id: ExternalId, value: Balance },
     ReservedLocal { id: ExternalId, value: Balance },
     SpecifiedLocal { parent: Id, value: Balance },
     UnspecifiedLocal { parent: Id },
 }
 
-impl<ExternalId: Default, Id, Balance: Zero> Default for ValueType<ExternalId, Id, Balance> {
+impl<ExternalId: Default, Id, Balance: Zero> Default for GasNodeType<ExternalId, Id, Balance> {
     fn default() -> Self {
-        ValueType::External {
+        GasNodeType::External {
             id: Default::default(),
             value: Zero::zero(),
         }
@@ -37,19 +37,19 @@ impl<ExternalId: Default, Id, Balance: Zero> Default for ValueType<ExternalId, I
 }
 
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub struct ValueNode<ExternalId: Default + Clone, Id: Clone, Balance: Zero + Clone> {
+pub struct GasNode<ExternalId: Default + Clone, Id: Clone, Balance: Zero + Clone> {
     pub spec_refs: u32,
     pub unspec_refs: u32,
-    pub inner: ValueType<ExternalId, Id, Balance>,
+    pub inner: GasNodeType<ExternalId, Id, Balance>,
     pub consumed: bool,
 }
 
 impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
-    ValueNode<ExternalId, Id, Balance>
+    GasNode<ExternalId, Id, Balance>
 {
     pub fn new(origin: ExternalId, value: Balance) -> Self {
         Self {
-            inner: ValueType::External { id: origin, value },
+            inner: GasNodeType::External { id: origin, value },
             spec_refs: 0,
             unspec_refs: 0,
             consumed: false,
@@ -58,28 +58,27 @@ impl<ExternalId: Default + Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy
 
     pub fn inner_value(&self) -> Option<Balance> {
         match self.inner {
-            ValueType::External { value, .. } => Some(value),
-            ValueType::ReservedLocal { value, .. } => Some(value),
-            ValueType::SpecifiedLocal { value, .. } => Some(value),
-            ValueType::UnspecifiedLocal { .. } => None,
+            GasNodeType::External { value, .. } => Some(value),
+            GasNodeType::ReservedLocal { value, .. } => Some(value),
+            GasNodeType::SpecifiedLocal { value, .. } => Some(value),
+            GasNodeType::UnspecifiedLocal { .. } => None,
         }
     }
 
     pub fn inner_value_mut(&mut self) -> Option<&mut Balance> {
         match self.inner {
-            ValueType::External { ref mut value, .. } => Some(value),
-            ValueType::ReservedLocal { ref mut value, .. } => Some(value),
-            ValueType::SpecifiedLocal { ref mut value, .. } => Some(value),
-            ValueType::UnspecifiedLocal { .. } => None,
+            GasNodeType::External { ref mut value, .. } => Some(value),
+            GasNodeType::ReservedLocal { ref mut value, .. } => Some(value),
+            GasNodeType::SpecifiedLocal { ref mut value, .. } => Some(value),
+            GasNodeType::UnspecifiedLocal { .. } => None,
         }
     }
 
     pub fn parent(&self) -> Option<Id> {
         match self.inner {
-            ValueType::External { .. } | ValueType::ReservedLocal { .. } => None,
-            ValueType::SpecifiedLocal { parent, .. } | ValueType::UnspecifiedLocal { parent } => {
-                Some(parent)
-            }
+            GasNodeType::External { .. } | GasNodeType::ReservedLocal { .. } => None,
+            GasNodeType::SpecifiedLocal { parent, .. }
+            | GasNodeType::UnspecifiedLocal { parent } => Some(parent),
         }
     }
 

@@ -320,7 +320,7 @@ pub mod pallet {
                         return;
                     };
                     let total_reward = T::GasPrice::gas_price(fee);
-                    let origin = match GasHandlerOf::<T>::get_origin(msg_id.into_origin()) {
+                    let origin = match GasHandlerOf::<T>::get_external(msg_id.into_origin()) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given the gas tree is valid, the node with this id is guaranteed to have an origin

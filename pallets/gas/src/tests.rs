@@ -516,13 +516,13 @@ fn limit_vs_origin() {
         assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some((600, split_1_1)));
 
         // All nodes origin is `origin`
-        assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(cut).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_2).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_1).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_2).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_1_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(root_node).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(cut).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_2).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1_2).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1_1_1).unwrap(), Some(origin));
     });
 }
 

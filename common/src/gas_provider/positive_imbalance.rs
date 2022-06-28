@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use core::cmp::Ordering;
 
 /// Opaque, move-only struct with private field to denote that value has been created
 /// without any equal and opposite accounting
@@ -88,17 +89,14 @@ impl<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>> Imbalance
         mem::forget(other);
     }
 
-    #[allow(clippy::comparison_chain)]
     fn offset(self, other: Self::Opposite) -> SameOrOther<Self, Self::Opposite> {
         let (a, b) = (self.0, other.peek());
         mem::forget((self, other));
 
-        if a > b {
-            SameOrOther::Same(Self(a - b, PhantomData))
-        } else if b > a {
-            SameOrOther::Other(NegativeImbalance::new(b - a))
-        } else {
-            SameOrOther::None
+        match a.cmp(&b) {
+            Ordering::Greater => SameOrOther::Same(Self(a - b, PhantomData)),
+            Ordering::Equal => SameOrOther::None,
+            Ordering::Less => SameOrOther::Other(NegativeImbalance::new(b - a)),
         }
     }
 
