@@ -2847,6 +2847,7 @@ dependencies = [
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
+ "gear-wasm-builder",
  "hex",
  "log",
  "parity-scale-codec",
@@ -9259,7 +9260,7 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "log",
- "pwasm-utils",
+ "thiserror",
 ]
 
 [[package]]
