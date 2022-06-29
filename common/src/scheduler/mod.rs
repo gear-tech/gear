@@ -26,7 +26,7 @@ mod task;
 pub use scope::*;
 pub use task::*;
 
-use crate::storage::ValueStorage;
+use crate::storage::{CountedByKey, KeyIterableByKeyMap, ValueStorage};
 use core::fmt::Debug;
 
 /// Represents scheduler's logic of centralized delayed tasks management logic.
@@ -57,11 +57,12 @@ pub trait Scheduler {
     ///
     /// Tasks scope contains tasks with block number when they should be done.
     type TasksScope: TasksScope<
-        BlockNumber = Self::BlockNumber,
-        Task = Self::Task,
-        Error = Self::Error,
-        OutputError = Self::OutputError,
-    >;
+            BlockNumber = Self::BlockNumber,
+            Task = Self::Task,
+            Error = Self::Error,
+            OutputError = Self::OutputError,
+        > + CountedByKey<Key = Self::BlockNumber, Length = usize>
+        + KeyIterableByKeyMap;
 
     /// Resets all related to messenger storages.
     ///
