@@ -76,6 +76,8 @@ pub struct ExecutionSettings {
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<&'static str>,
+    /// Threshold for inserting into mailbox
+    pub mailbox_threshold: u64,
 }
 
 impl ExecutionSettings {
@@ -86,6 +88,7 @@ impl ExecutionSettings {
         allocations_config: AllocationsConfig,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self {
         Self {
             block_info,
@@ -93,6 +96,7 @@ impl ExecutionSettings {
             allocations_config,
             host_fn_weights,
             forbidden_funcs,
+            mailbox_threshold,
         }
     }
 
