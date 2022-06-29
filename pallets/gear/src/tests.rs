@@ -27,7 +27,9 @@ use crate::{
     WaitlistOf,
 };
 use codec::{Decode, Encode};
-use common::{event::*, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree};
+use common::{
+    event::*, program_exists, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree,
+};
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
@@ -3712,38 +3714,59 @@ fn cascading_messages_with_value_do_not_overcharge() {
 fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        // use demo_pow::{Package, WASM_BINARY};
-        // let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
-        //
-        // // deploy program
-        // assert_ok!(Gear::submit_program(
-        //     Origin::signed(USER_1),
-        //     WASM_BINARY.to_vec(),
-        //     DEFAULT_SALT.to_vec(),
-        //     EMPTY_PAYLOAD.encode(),
-        //     block_gas_limit,
-        //     0,
-        // ));
-        // let prog_id = get_last_program_id();
-        //
-        // // start calculating
-        // run_to_block(2, None);
-        // assert_ok!(Gear::send_message(
-        //     Origin::signed(USER_1),
-        //     prog_id,
-        //     Package {
-        //         base: 2,
-        //         exponent: 7,
-        //         ptr: 0,
-        //         result: 1,
-        //     }
-        //     .encode(),
-        //     block_gas_limit,
-        //     block_gas_limit.into(),
-        // ));
-        //
+        use demo_pow_aggregator::{Method, WASM_BINARY};
+        use demo_pow_calculator::{Package, WASM_BINARY as CALC_WASM_BINARY};
+        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
+        let threshold = <Test as Config>::MailboxThreshold::get();
+
+        // deply calculator
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            CALC_WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.encode(),
+            block_gas_limit,
+            0,
+        ));
+        let calculator = get_last_program_id();
+
+        // deploy aggregator
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            (threshold, calculator).encode(),
+            block_gas_limit,
+            0,
+        ));
+        let aggregator = get_last_program_id();
+
+        program_exists(calculator.into_origin());
+        program_exists(aggregator.into_origin());
+
+        // start calculation
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            aggregator,
+            Method::<Vec<u8>, MessageId>::Start(
+                Package {
+                    base: 2,
+                    exponent: 7,
+                    ptr: 0,
+                    result: 1,
+                }
+                .encode()
+            )
+            .encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        run_to_block(2, None);
+        assert_eq!(maybe_last_mail(USER_1), None);
+
         // run_to_block(3, Some(500_000));
-        // assert_eq!(get_last_mail(USER_1), None);
+
         //
         // run_to_block(4, Some(500_000));
         // assert_eq!(get_last_mail(USER_1), None);
@@ -4082,9 +4105,6 @@ mod utils {
         )
     }
 
-    pub(super) fn get_last_mail(account: AccountId) -> Option<StoredMessage> {
-        MailboxOf::<Test>::iter_key(account).last()
-    }
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
         SystemPallet::<Test>::events().iter().for_each(|e| {
@@ -4198,6 +4218,10 @@ mod utils {
                 _ => None,
             })
             .expect("can't find message send event")
+    }
+
+    pub(super) fn maybe_last_mail(account: AccountId) -> Option<StoredMessage> {
+        MailboxOf::<Test>::iter_key(account).last()
     }
 
     pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {

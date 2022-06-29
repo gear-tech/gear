@@ -4,32 +4,29 @@ use traits::{ReplyGetter, ToReply};
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
+    gstd::debug!("init");
     (state::THRESHOLD, state::CALCULATOR) =
         msg::load::<(u64, ActorId)>().expect("invalid calculator address");
 }
 
 #[gstd::async_main]
 async fn main() {
+    gstd::debug!("handle");
     let method = msg::load::<types::PowMethod>().expect("Invalid contract method");
 
     match method {
         Method::Start(mut pkg) => unsafe {
             loop {
                 let gas_available = exec::gas_available();
-                if gas_available <= state::THRESHOLD {
+                if gas_available < state::THRESHOLD {
                     exec::wait();
                 }
 
-                let reply = msg::send_with_gas_for_reply(
-                    state::CALCULATOR,
-                    pkg.to_vec(),
-                    0,
-                    (gas_available - state::THRESHOLD).into(),
-                )
-                .expect("send message failed")
-                .await
-                .expect("get reply failed")
-                .to_reply();
+                let reply = msg::send_for_reply(state::CALCULATOR, pkg.to_vec(), 0)
+                    .expect("send message failed")
+                    .await
+                    .expect("get reply failed")
+                    .to_reply();
 
                 if reply.completed() {
                     msg::reply(reply.result(), 0).expect("send reply failed");

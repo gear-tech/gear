@@ -34,26 +34,46 @@ use codec::{Decode, Encode};
 
 /// Gas meter of pow.
 pub struct GasMeter {
-    ptr: u64,
-    multiplier: u128,
+    /// Base number of POW.
+    pub base: u128,
+    /// Gas spent in last calculation.
+    pub gas_spent: u64,
+    /// Gas limit.
+    pub ptr: u64,
 }
 
 impl GasMeter {
     /// New gas meter.
-    pub fn new(ptr: u64, multiplier: u128) -> Self {
-        Self { ptr, multiplier }
+    pub fn new(ptr: u64) -> Self {
+        Self {
+            base: 0,
+            gas_spent: 0,
+            ptr,
+        }
+    }
+
+    /// Load base number.
+    pub fn load(&mut self, base: u128) {
+        self.base = base;
+    }
+
+    /// Update last gas spent and current ptr
+    pub fn update(&mut self, gas_spent: u64, ptr: u64) {
+        self.gas_spent = gas_spent;
+        self.ptr = ptr;
     }
 
     /// Update the gas avaiable and gas spent.
     pub fn spin(&mut self, ptr: u64) -> bool {
-        let gas_spent = self.ptr - ptr;
-
-        *self = Self {
-            ptr,
-            multiplier: self.multiplier,
+        let gas_spent = if ptr > self.ptr {
+            // happens when the calculator is waken from the last calcuation.
+            self.gas_spent
+        } else {
+            self.ptr - ptr
         };
 
-        if ptr as u128 > gas_spent as u128 * self.multiplier {
+        if ptr as u128 > gas_spent as u128 * self.base {
+            self.update(gas_spent, ptr);
             true
         } else {
             false

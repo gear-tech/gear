@@ -1,21 +1,37 @@
 use crate::{GasMeter, Package};
-use gstd::{exec, msg, Decode, Encode, ToString};
+use core::default::Default;
+use gstd::{exec, msg, Encode};
+
+static mut GAS_METER: GasMeter = GasMeter {
+    base: 0,
+    gas_spent: 0,
+    ptr: 0,
+};
+
+#[gstd::async_init]
+async unsafe fn init() {
+    GAS_METER = GasMeter::new(exec::gas_available());
+}
 
 #[gstd::async_main]
-async unsafe fn main() {
+async fn main() {
     let mut pkg: Package = msg::load().expect("invalid pow args");
-    let mut gas_meter = GasMeter::new(exec::gas_available(), pkg.base);
 
-    loop {
-        if !gas_meter.spin(exec::gas_available()) {
-            break;
-        }
+    unsafe {
+        GAS_METER.load(pkg.base);
 
-        pkg.calc();
+        loop {
+            if !GAS_METER.spin(exec::gas_available()) {
+                break;
+            }
 
-        if pkg.finished() {
-            msg::reply((true, pkg.result, pkg).encode(), 0).expect("send reply failed");
-            return;
+            gstd::debug!("hello");
+            pkg.calc();
+
+            if pkg.finished() {
+                msg::reply((true, pkg.result, pkg).encode(), 0).expect("send reply failed");
+                return;
+            }
         }
     }
 
