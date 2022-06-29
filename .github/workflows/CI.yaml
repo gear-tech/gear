@@ -333,6 +333,7 @@ jobs:
     runs-on: ci-win
     env:
       RUSTC_WRAPPER: "cachepot"
+      CARGO_INCREMENTAL: 0
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
