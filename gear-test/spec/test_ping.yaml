@@ -47,9 +47,9 @@ fixtures:
           payload:
             kind: utf-8
             value: pong reply with gas message
-          gas_limit: 1
+          gas_limit: 3001
         - destination: 1000001
           payload:
             kind: utf-8
             value: pong Part 1 pong Part 2
-          gas_limit: 1
+          gas_limit: 3001

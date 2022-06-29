@@ -477,23 +477,52 @@ where
                 }
             };
 
-            // Being placed into a user's mailbox means the end of a message life cycle.
-            // There can be no further processing whatsoever, hence any gas attempted to be
-            // passed along must be returned (i.e. remain in the parent message's value tree).
+            let (mut expiration, mailbox_threshold) = (None, T::MailboxThreshold::get());
 
-            // TODO: update logic of insertion into mailbox following new
-            // flow and deposit appropriate event (issue #1010).
-            if MailboxOf::<T>::insert(message.clone()).is_ok() {
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                });
+            let mut append_message_to_mailbox = |gas_limit: u64| {
+                // Being placed into a user's mailbox means the end of a message life cycle.
+                // There can be no further processing whatsoever, hence any gas attempted to be
+                // passed along must be returned (i.e. remain in the parent message's value tree).
+
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
+                match MailboxOf::<T>::insert(message.clone()) {
+                    Ok(_) => {
+                        // TODO: replace this temporary (zero) value for expiration
+                        // block number with properly calculated one
+                        // (issues #646 and #969).
+                        expiration = Some(T::BlockNumber::zero());
+
+                        let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
+                    }
+                    Err(e) => {
+                        log::error!("{:?}", e);
+                    }
+                }
+            };
+
+            if let Some(gas_limit) = gas_limit {
+                if gas_limit >= mailbox_threshold {
+                    append_message_to_mailbox(gas_limit);
+                }
             } else {
-                log::error!("Error occurred in mailbox insertion")
+                let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
+                    .unwrap_or_else(|e| {
+                        log::error!("{:?}", e);
+                        None
+                    })
+                    .map(|(g, _)| g)
+                    .unwrap_or(0);
+
+                if gas_limit >= mailbox_threshold {
+                    append_message_to_mailbox(mailbox_threshold);
+                }
             }
+
+            Pallet::<T>::deposit_event(Event::UserMessageSent {
+                message,
+                expiration,
+            });
         }
     }
 
