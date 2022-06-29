@@ -329,6 +329,7 @@ jobs:
           path: artifact
   
   build-win:
+    if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: ci-win
     env:
