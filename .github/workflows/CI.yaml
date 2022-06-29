@@ -331,6 +331,8 @@ jobs:
   build-win:
     needs: spec_version
     runs-on: ci-win
+    env:
+      RUSTC_WRAPPER: "cachepot"
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
