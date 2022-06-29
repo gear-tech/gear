@@ -16,6 +16,112 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Gear Gas Pallet
+//!
+//! The Gear Gas Pallet provides functionality for handling messages'
+//! execution resources.
+//!
+//! - [`Config`]
+//! - [`Pallet`]
+//!
+//! ## Overview
+//!
+//! The Gear Gas Pallet's main aim is to separate message's associated gas tree nodes storages out
+//! of Gear's execution logic and provide soft functionality to manage them.
+//!
+//! The Gear Gas Pallet provides functions for:
+//! - Obtaining maximum gas amount available within one block of execution.
+//! - Managing number of remaining gas, i.e. gas allowance.
+//! - Managing gas tree: create, split, cut, etc new nodes determining
+//! execution resources of messages.
+//!
+//! ## Interface
+//!
+//! The Gear Gas Pallet implements `gear_common::GasProvider` trait
+//! and shouldn't contain any other functionality, except this trait declares.
+//!
+//! ## Usage
+//!
+//! How to use the gas functionality from the Gear Gas Pallet:
+//!
+//! 1. Implement its `Config` for your runtime with specified `BlockGasLimit` type.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl pallet_gear_gas::Config for Runtime {
+//!     type BlockGasLimit = .. ;
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 2. Provide associated type for your pallet's `Config`, which implements
+//! `gear_common::GasProvider` trait, specifying associated types if needed.
+//!
+//! ```ignore
+//! // `some_pallet/src/lib.rs`
+//! // ... //
+//!
+//! use gear_common::GasProvider;
+//!
+//! #[pallet::config]
+//! pub trait Config: frame_system::Config {
+//!     // .. //
+//!
+//!     type GasProvider: GasProvider<Balance = u64, ...>;
+//!
+//!     // .. //
+//! }
+//! ```
+//!
+//! 3. Declare Gear Gas Pallet in your `construct_runtime!` macro.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! construct_runtime!(
+//!     pub enum Runtime
+//!         where // ... //
+//!     {
+//!         // ... //
+//!
+//!         GearGas: pallet_gear_gas,
+//!
+//!         // ... //
+//!     }
+//! );
+//!
+//! // ... //
+//! ```
+//! `GearGas: pallet_gear_gas,`
+//!
+//! 4. Set `GearGas` as your pallet `Config`'s `GasProvider` type.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl some_pallet::Config for Runtime {
+//!     // ... //
+//!
+//!     type GasProvider = GearGas;
+//!
+//!     // ... //
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 5. Work with Gear Gas Pallet in your pallet with provided
+//! associated type interface.
+//!
+//! ## Genesis config
+//!
+//! The Gear Gas Pallet doesn't depend on the `GenesisConfig`.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use common::{
@@ -102,9 +208,11 @@ pub mod pallet {
 
     // ----
 
+    // Private storage for total issuance of gas.
     #[pallet::storage]
     pub type TotalIssuance<T> = StorageValue<_, Balance>;
 
+    // Public wrap of the total issuance of gas.
     common::wrap_storage_value!(
         storage: TotalIssuance,
         name: TotalIssuanceWrap,
@@ -116,10 +224,12 @@ pub mod pallet {
     pub type Key = MessageId;
     pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
 
+    // Private storage for nodes of the gas tree.
     #[pallet::storage]
     #[pallet::unbounded]
     pub type GasNodes<T> = StorageMap<_, Identity, Key, NodeOf<T>>;
 
+    // Public wrap of the nodes of the gas tree.
     common::wrap_storage_map!(
         storage: GasNodes,
         name: GasNodesWrap,
