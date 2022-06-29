@@ -41,6 +41,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
+      - name: "Install: Set rustup path"
+        run: echo "/tmp/rustup/bin" >> $GITHUB_PATH
+
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
@@ -104,6 +107,9 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
+
+      - name: "Install: Set rustup path"
+        run: echo "/tmp/rustup/bin" >> $GITHUB_PATH
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
