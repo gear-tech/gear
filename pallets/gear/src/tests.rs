@@ -20,7 +20,8 @@ use crate::{
     manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, run_to_next_block, Event as MockEvent, Gear, GearProgram,
-        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
+        USER_3,
     },
     pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
     WaitlistOf,
@@ -235,8 +236,102 @@ fn send_message_works() {
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            DEFAULT_GAS_LIMIT
+        );
     });
+}
+
+#[test]
+fn mailbox_threshold_works() {
+    use demo_proxy_with_gas::{InputArgs, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            InputArgs {
+                destination: USER_1.into_origin().into(),
+            }
+            .encode(),
+            50_000_000_000u64,
+            0u128
+        ));
+
+        let proxy = utils::get_last_program_id();
+        let rent = MailboxThreshold::get();
+        let check_result = |sufficient: bool| -> MessageId {
+            run_to_next_block(None);
+
+            let mailbox_key = AccountId::from_origin(USER_1.into_origin());
+            let message_id = get_last_message_id();
+
+            if sufficient {
+                // * message has been inserted into the mailbox.
+                // * the ValueNode has been created.
+                assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
+                assert_eq!(
+                    <Test as Config>::GasHandler::get_limit(message_id.into_origin()),
+                    Ok(Some(rent))
+                );
+            } else {
+                // * message has not been inserted into the mailbox.
+                // * the ValueNode has not been created.
+                assert!(!MailboxOf::<Test>::contains(&mailbox_key, &message_id));
+                assert_eq!(
+                    <Test as Config>::GasHandler::get_limit(message_id.into_origin()),
+                    Ok(None)
+                );
+            }
+
+            message_id
+        };
+
+        // send message with insufficient message rent
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            proxy,
+            (rent - 1).encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+        check_result(false);
+
+        // // send message with enough gas_limit
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            proxy,
+            (rent).encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+        let message_id = check_result(true);
+
+        // send reply with enough gas_limit
+        assert_ok!(Gear::send_reply(
+            Origin::signed(USER_1),
+            message_id,
+            rent.encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+        let message_id = check_result(true);
+
+        // send reply with insufficient message rent
+        assert_ok!(Gear::send_reply(
+            Origin::signed(USER_1),
+            message_id,
+            (rent - 1).encode(),
+            DEFAULT_GAS_LIMIT * 10,
+            0,
+        ));
+        check_result(false);
+    })
 }
 
 #[test]
@@ -280,7 +375,7 @@ fn send_message_expected_failure() {
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
-            1000,
+            <Test as Config>::MailboxThreshold::get(),
             1000
         ));
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
@@ -389,13 +484,24 @@ fn unused_gas_released_back_works() {
                 - pallet_gas::Pallet::<Test>::gas_allowance(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
+
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user1_initial_balance - user1_actual_msgs_spends
+            user1_initial_balance - user1_actual_msgs_spends - mailbox_threshold_reserved
         );
 
         // All created gas cancels out
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            <Test as Config>::MailboxThreshold::get()
+        );
     })
 }
 
@@ -626,13 +732,13 @@ fn memory_access_cases() {
             code,
             salt,
             EMPTY_PAYLOAD.to_vec(),
-            500_000_000,
+            50_000_000_000,
             0,
         )
         .map(|_| prog_id);
         let pid = res.expect("submit result is not ok");
 
-        run_to_block(2, Some(1_000_000_000));
+        run_to_block(2, None);
         assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -641,12 +747,12 @@ fn memory_access_cases() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            10_000_000_000,
             0,
         );
         assert_ok!(res);
 
-        run_to_block(3, Some(1_000_000_000));
+        run_to_block(3, None);
         assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -655,12 +761,12 @@ fn memory_access_cases() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            10_000_000_000,
             0,
         );
         assert_ok!(res);
 
-        run_to_block(4, Some(1_000_000_000));
+        run_to_block(4, None);
         assert_last_dequeued(1);
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
     });
@@ -725,7 +831,7 @@ fn lazy_pages() {
                 code,
                 salt,
                 EMPTY_PAYLOAD.to_vec(),
-                500_000_000,
+                10_000_000_000,
                 0,
             )
             .map(|_| prog_id);
@@ -733,7 +839,7 @@ fn lazy_pages() {
             res.expect("submit result was asserted")
         };
 
-        run_to_block(2, Some(1_000_000_000));
+        run_to_block(2, None);
         log::debug!("submit done {:?}", pid);
         assert_last_dequeued(1);
 
@@ -741,18 +847,18 @@ fn lazy_pages() {
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            100_000_000,
+            10_000_000_000,
             1000,
         );
         log::debug!("res = {:?}", res);
         assert_ok!(res);
 
-        run_to_block(3, Some(1_000_000_000));
+        run_to_block(3, None);
 
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_wasm_lazy_pages_numbers()
+        let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_lazy_pages_numbers()
             .iter()
             .map(|p| PageNumber(*p))
             .collect();
@@ -878,7 +984,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 791822425 + 6228060 - 1; // calc gas pid1 + pid2 - 1
+        let remaining_weight = 1080476846 + 41640740 - 1; // calc gas pid1 + pid2 - 1
 
         // Submit programs and get their ids
         let pid1 = {
@@ -1031,8 +1137,10 @@ fn mailbox_works() {
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
-        // Ensure that all the gas has been returned to the sender upon messages processing
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+        );
 
         let mailbox_message = {
             let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
@@ -1045,8 +1153,15 @@ fn mailbox_works() {
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.value(), 1000);
 
-        // Gas is not passed to mailboxed messages and should have been all spent by now
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        // Gas is passed into mailboxed messages with reserved value `OUTGOING_WITH_VALUE_IN_HANDLE_VALUE`
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
+        assert_eq!(
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::GasHandler::total_supply()),
+            OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+        );
     })
 }
 
@@ -1387,6 +1502,8 @@ fn send_reply_value_claiming_works() {
             (1_000_000, 1000),
             (20_000_000, 2000),
         ];
+
+        let mut reserved_balance_in_process = 0;
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
             let reply_to_id =
                 populate_mailbox_from_program(prog_id, USER_1, next_block, 2_000_000_000, 0);
@@ -1396,7 +1513,13 @@ fn send_reply_value_claiming_works() {
             assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
-            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+            // add the new reserved balance from `populate_mailbox_from_program`
+            reserved_balance_in_process += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE;
+            assert_eq!(
+                BalancesPallet::<Test>::reserved_balance(USER_1),
+                reserved_balance_in_process
+            );
 
             assert_ok!(GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
@@ -1414,10 +1537,18 @@ fn send_reply_value_claiming_works() {
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_expected_balance
             );
+
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
-                GasPrice::gas_price(gas_limit_to_reply) + value_to_reply
+                GasPrice::gas_price(gas_limit_to_reply)
+                    + value_to_reply
+                    + reserved_balance_in_process
             );
+
+            // This add-up is from send_reply
+            //
+            // prepare for the next loop
+            reserved_balance_in_process += <Test as Config>::MailboxThreshold::get() as u128;
         }
     })
 }
@@ -1435,7 +1566,7 @@ fn claim_value_from_mailbox_works() {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
         let claimer_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let gas_sent = 1_000_000_000;
+        let gas_sent = 10_000_000_000;
         let value_sent = 1000;
 
         let prog_id = {
@@ -1516,7 +1647,9 @@ fn distributor_initialize() {
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_eq!(initial_balance, final_balance);
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
     });
 }
 
@@ -1558,10 +1691,20 @@ fn distributor_distribute() {
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_eq!(initial_balance, final_balance);
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get() * 2;
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
+        assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
 
         // All gas cancelled out in the end
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            mailbox_threshold_gas_limit
+        );
     });
 }
 
@@ -1722,7 +1865,7 @@ fn messages_to_uninitialized_program_wait() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -1763,7 +1906,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1785,7 +1928,7 @@ fn uninitialized_program_should_accept_replies() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0,
         ));
 
@@ -1808,7 +1951,7 @@ fn defer_program_initialization() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1825,7 +1968,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0,
         ));
 
@@ -1835,7 +1978,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1),
             program_id,
             vec![],
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1866,7 +2009,7 @@ fn wake_messages_after_program_inited() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -1882,7 +2025,7 @@ fn wake_messages_after_program_inited() {
                 Origin::signed(USER_3),
                 program_id,
                 vec![],
-                2_000_000_000u64,
+                5_000_000_000u64,
                 0u128
             ));
         }
@@ -1938,8 +2081,14 @@ fn test_message_processing_for_non_existing_destination() {
         // system reply message
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
-        assert_eq!(user_balance_before, user_balance_after);
+        assert_eq!(
+            user_balance_before - mailbox_threshold_reserved,
+            user_balance_after
+        );
 
         assert_not_executed(skipped_message_id);
 
@@ -2013,7 +2162,7 @@ fn test_create_program_no_code_hash() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2022,7 +2171,7 @@ fn test_create_program_no_code_hash() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -2041,12 +2190,12 @@ fn test_create_program_no_code_hash() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (valid_code_hash, b"salt1".to_vec(), 2_000_000_000),
-                (valid_code_hash, b"salt2".to_vec(), 2_000_000_000),
-                (valid_code_hash, b"salt3".to_vec(), 2_000_000_000),
+                (valid_code_hash, b"salt1".to_vec(), 5_000_000_000),
+                (valid_code_hash, b"salt2".to_vec(), 5_000_000_000),
+                (valid_code_hash, b"salt3".to_vec(), 5_000_000_000),
             ])
             .encode(),
-            20_000_000_000,
+            100_000_000_000,
             0,
         ));
         run_to_block(3, None);
@@ -2071,12 +2220,12 @@ fn test_create_program_no_code_hash() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (invalid_prog_code_hash, b"salt1".to_vec(), 2_000_000_000),
-                (invalid_prog_code_hash, b"salt2".to_vec(), 2_000_000_000),
-                (invalid_prog_code_hash, b"salt3".to_vec(), 2_000_000_000),
+                (invalid_prog_code_hash, b"salt1".to_vec(), 5_000_000_000),
+                (invalid_prog_code_hash, b"salt2".to_vec(), 5_000_000_000),
+                (invalid_prog_code_hash, b"salt3".to_vec(), 5_000_000_000),
             ])
             .encode(),
-            20_000_000_000,
+            100_000_000_000,
             0,
         ));
 
@@ -2109,7 +2258,7 @@ fn test_create_program_simple() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(2, None);
@@ -2119,7 +2268,7 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(3, None);
@@ -2132,7 +2281,7 @@ fn test_create_program_simple() {
                 vec![(child_code_hash, b"some_data".to_vec(), 300_000)] // too little gas
             )
             .encode(),
-            4_000_000_000,
+            10_000_000_000,
             0,
         ));
         run_to_block(4, None);
@@ -2149,11 +2298,11 @@ fn test_create_program_simple() {
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt1".to_vec(), 1_000_000),
-                (child_code_hash, b"salt2".to_vec(), 1_000_000),
+                (child_code_hash, b"salt1".to_vec(), 100_000_000),
+                (child_code_hash, b"salt2".to_vec(), 100_000_000),
             ])
             .encode(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(5, None);
@@ -2167,7 +2316,7 @@ fn test_create_program_simple() {
                 (child_code_hash, b"salt4".to_vec(), 300_000), // too little gas
             ])
             .encode(),
-            4_000_000_000,
+            50_000_000_000,
             0,
         ));
         run_to_block(6, None);
@@ -2384,7 +2533,7 @@ fn test_create_program_miscellaneous() {
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2395,13 +2544,13 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child1_code_hash, b"salt1".to_vec(), 1_000_000),
+                (child1_code_hash, b"salt1".to_vec(), 100_000_000),
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child1_code_hash, b"salt2".to_vec(), 100_000),
             ])
             .encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2415,10 +2564,10 @@ fn test_create_program_miscellaneous() {
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 300_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt2".to_vec(), 1_000_000),
+                (child2_code_hash, b"salt2".to_vec(), 100_000_000),
             ])
             .encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2429,12 +2578,12 @@ fn test_create_program_miscellaneous() {
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 1_000_000),
+                (child2_code_hash, b"salt1".to_vec(), 100_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
-                (child2_code_hash, b"salt3".to_vec(), 1_000_000),
+                (child2_code_hash, b"salt3".to_vec(), 100_000_000),
             ])
             .encode(),
-            5_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2460,7 +2609,7 @@ fn exit_handle() {
             code.clone(),
             vec![],
             Vec::new(),
-            400_000_000u64,
+            10_000_000_000u64,
             0u128
         ));
 
@@ -2517,7 +2666,7 @@ fn no_redundant_gas_value_after_exiting() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            10_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -2583,7 +2732,7 @@ fn init_wait_reply_exit_cleaned_storage() {
             WASM_BINARY.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
         let pid = get_last_program_id();
@@ -2654,7 +2803,7 @@ fn paused_program_keeps_id() {
             code.clone(),
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2695,7 +2844,7 @@ fn messages_to_paused_program_skipped() {
             code,
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2717,7 +2866,12 @@ fn messages_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_3));
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+        assert_eq!(
+            before_balance - mailbox_threshold_reserved,
+            BalancesPallet::<Test>::free_balance(USER_3)
+        );
     })
 }
 
@@ -2735,7 +2889,7 @@ fn replies_to_paused_program_skipped() {
             code,
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2764,7 +2918,13 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(4, None);
 
-        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_1));
+        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
+        assert_eq!(
+            before_balance - mailbox_threshold_reserved,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
     })
 }
 
@@ -2783,7 +2943,7 @@ fn program_messages_to_paused_program_skipped() {
             code,
             vec![],
             Vec::new(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2798,7 +2958,7 @@ fn program_messages_to_paused_program_skipped() {
                 destination: paused_program_id.into_origin().into()
             }
             .encode(),
-            2_000_000_000u64,
+            50_000_000_000u64,
             1_000u128
         ));
 
@@ -2814,7 +2974,7 @@ fn program_messages_to_paused_program_skipped() {
             Origin::signed(USER_3),
             program_id,
             vec![],
-            2_000_000_000u64,
+            20_000_000_000u64,
             1_000u128
         ));
 
@@ -2843,7 +3003,7 @@ fn resume_program_works() {
             code,
             vec![],
             Vec::new(),
-            5_000_000_000u64,
+            50_000_000_000u64,
             0u128
         ));
 
@@ -2860,7 +3020,7 @@ fn resume_program_works() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
-            2_000_000_000u64,
+            20_000_000_000u64,
             1_000u128,
         ));
 
@@ -2921,7 +3081,7 @@ fn gas_spent_vs_balance() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000_000,
+            50_000_000_000,
             0,
         ));
 
@@ -2936,7 +3096,7 @@ fn gas_spent_vs_balance() {
             Origin::signed(USER_1),
             prog_id,
             request.clone(),
-            100_000_000,
+            1_000_000_000,
             0
         ));
 
@@ -2997,7 +3157,7 @@ fn gas_spent_vs_balance() {
 fn gas_spent_precalculated() {
     let wat = r#"
     (module
-        (import "env" "memory" (memory 0))
+        (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (func $add (; 0 ;) (param $0 i32) (param $1 i32)
             (local $2 i32)
@@ -3041,13 +3201,15 @@ fn gas_spent_precalculated() {
         let get_local_cost = schedule.instruction_weights.local_get;
         let add_cost = schedule.instruction_weights.i64add;
         let gas_cost = schedule.host_fn_weights.gas as u32; // gas call in handle and "add" func
+        let load_page_cost = schedule.memory_weights.load_cost as u32;
 
         let total_cost = call_cost
             + const_i64_cost * 2
             + set_local_cost
             + get_local_cost * 2
             + add_cost
-            + gas_cost * 2;
+            + gas_cost * 2
+            + load_page_cost;
 
         assert_eq!(gas_spent_1, total_cost as u64);
 
@@ -3083,7 +3245,7 @@ fn test_two_contracts_composition_works() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract_a".to_vec(),
             50_u64.encode(),
-            400_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -3092,7 +3254,7 @@ fn test_two_contracts_composition_works() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract_b".to_vec(),
             75_u64.encode(),
-            400_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -3105,7 +3267,7 @@ fn test_two_contracts_composition_works() {
                 <[u8; 32]>::from(contract_b_id)
             )
                 .encode(),
-            400_000_000,
+            10_000_000_000,
             0,
         ));
 
@@ -3121,8 +3283,15 @@ fn test_two_contracts_composition_works() {
 
         run_to_block(4, None);
 
-        // Gas total issuance should have gone back to 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        // Gas total issuance should have gone back to 4 * MAILBOX_THRESHOLD
+        //
+        // # TODO
+        //
+        // `total_supply` must be rechecked in #1010
+        assert_eq!(
+            <Test as Config>::GasHandler::total_supply(),
+            <Test as Config>::MailboxThreshold::get() * 4
+        );
     });
 }
 
@@ -3442,7 +3611,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract".to_vec(),
             50_u64.encode(),
-            400_000_000,
+            5_000_000_000,
             0,
         ));
 
@@ -3451,7 +3620,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             <[u8; 32]>::from(contract_id).encode(),
-            400_000_000,
+            5_000_000_000,
             0,
         ));
 
@@ -3494,8 +3663,14 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
+        let mailbox_threshold_reserved =
+            <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
+
         assert_eq!(user_balance_before_calculating, user_initial_balance);
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            mailbox_threshold_reserved * 2
+        );
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
@@ -3516,16 +3691,19 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         assert_eq!(
             BalancesPallet::<Test>::reserved_balance(USER_1),
-            reserved_balance
+            reserved_balance + mailbox_threshold_reserved * 2
         );
 
         run_to_block(5, None);
 
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        assert_eq!(
+            BalancesPallet::<Test>::reserved_balance(USER_1),
+            mailbox_threshold_reserved * 3
+        );
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user_initial_balance - gas_to_spend - value
+            user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved
         );
     });
 }
@@ -3635,7 +3813,7 @@ fn test_async_messages() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            1_000_000_000u64,
+            10_000_000_000u64,
             0,
         ));
 
@@ -3659,7 +3837,7 @@ fn test_async_messages() {
                 Origin::signed(USER_1),
                 pid,
                 kind.encode(),
-                3_000_000_000u64,
+                10_000_000_000u64,
                 0,
             ));
 
@@ -3674,7 +3852,7 @@ fn test_async_messages() {
                 Origin::signed(USER_1),
                 message_id,
                 EMPTY_PAYLOAD.to_vec(),
-                2_000_000_000u64,
+                10_000_000_000u64,
                 0,
             ));
 
@@ -3713,9 +3891,10 @@ mod utils {
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 500_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 100_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
+    pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE: u128 = 10000000;
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
@@ -3953,6 +4132,7 @@ mod utils {
         let mut actual_error =
             actual_error.expect("Error message not found in any `Event::UserMessageSent`");
         let mut expectations = error.to_string();
+        log::debug!("{:?}", actual_error);
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
         // This check handles display of the error inside.
@@ -3970,6 +4150,14 @@ mod utils {
             dispatch_status(message_id).expect("Message not found in `Event::MessagesDispatched`");
 
         assert_eq!(status, DispatchStatus::NotExecuted)
+    }
+
+    pub(super) fn get_last_event() -> MockEvent {
+        SystemPallet::<Test>::events()
+            .into_iter()
+            .last()
+            .expect("failed to get last event")
+            .event
     }
 
     pub(super) fn get_last_program_id() -> ProgramId {

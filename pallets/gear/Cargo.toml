@@ -62,6 +62,7 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
+demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
 demo-pow-aggregator = { path = "../../examples/binaries/pow-aggregator" }

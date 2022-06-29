@@ -27,7 +27,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
     testing::{Header, TestXt},
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -172,6 +172,7 @@ impl pallet_gear::Config for Test {
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
 }
 

@@ -1,6 +1,115 @@
-use anyhow::Result;
+use crate::builder_error::BuilderError;
+use anyhow::{Context, Result};
 use colored::Colorize;
-use std::{ffi::OsStr, fs::metadata, path::PathBuf, process::Command};
+use pwasm_utils::{
+    parity_wasm,
+    parity_wasm::elements::{Internal, Module, Serialize},
+};
+use std::{
+    ffi::OsStr,
+    fs::metadata,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+#[derive(Debug, thiserror::Error)]
+#[error("Optimizer failed: {0:?}")]
+pub struct OptimizerError(pwasm_utils::OptimizerError);
+
+pub struct Optimizer {
+    module: Module,
+    file: PathBuf,
+}
+
+impl Optimizer {
+    pub fn new(file: PathBuf) -> Result<Self> {
+        let module = parity_wasm::deserialize_file(&file)?;
+        Ok(Self { module, file })
+    }
+
+    pub fn insert_stack_and_export(&mut self) {
+        let _ = crate::insert_stack_end_export(&mut self.module).map_err(|s| log::debug!("{}", s));
+    }
+
+    pub fn optimized_file_name(&self) -> PathBuf {
+        self.file.with_extension("opt.wasm")
+    }
+
+    pub fn metadata_file_name(&self) -> PathBuf {
+        self.file.with_extension("meta.wasm")
+    }
+
+    /// Calls chain optimizer
+    pub fn optimize(&mut self) -> Result<Vec<u8>> {
+        log::debug!("*** Processing chain optimization: {}", self.file.display());
+
+        let mut binary_module = self.module.clone();
+        let binary_file_name = self.optimized_file_name();
+
+        pwasm_utils::optimize(
+            &mut binary_module,
+            vec!["handle", "handle_reply", "init", "__gear_stack_end"],
+        )
+        .map_err(OptimizerError)
+        .with_context(|| {
+            format!(
+                "unable to optimize the WASM file `{0}`",
+                self.file.display()
+            )
+        })?;
+
+        check_exports(&binary_module, &binary_file_name)?;
+
+        let mut code = vec![];
+        binary_module.clone().serialize(&mut code)?;
+
+        log::debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
+        Ok(code)
+    }
+
+    /// Calls metadata optimizer
+    pub fn metadata(&mut self) -> Result<Vec<u8>> {
+        log::debug!(
+            "*** Processing metadata optimization: {}",
+            self.file.display()
+        );
+
+        let mut metadata_module = self.module.clone();
+        let metadata_file_name = self.metadata_file_name();
+
+        pwasm_utils::optimize(
+            &mut metadata_module,
+            vec![
+                "meta_init_input",
+                "meta_init_output",
+                "meta_async_init_input",
+                "meta_async_init_output",
+                "meta_handle_input",
+                "meta_handle_output",
+                "meta_async_handle_input",
+                "meta_async_handle_output",
+                "meta_registry",
+                "meta_title",
+                "meta_state",
+                "meta_state_input",
+                "meta_state_output",
+            ],
+        )
+        .map_err(OptimizerError)
+        .with_context(|| {
+            format!(
+                "unable to generate the metadata WASM file from `{0}`",
+                self.file.display()
+            )
+        })?;
+
+        let mut code = vec![];
+        metadata_module.serialize(&mut code)?;
+
+        log::debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
+        Ok(code)
+    }
+}
 
 pub struct OptimizationResult {
     pub dest_wasm: PathBuf,
@@ -122,4 +231,21 @@ pub fn do_optimization(
         );
     }
     Ok(())
+}
+
+fn check_exports(module: &Module, path: &Path) -> Result<()> {
+    if module
+        .export_section()
+        .ok_or_else(|| BuilderError::ExportSectionNotFound(path.to_path_buf()))?
+        .entries()
+        .iter()
+        .any(|entry| {
+            matches!(entry.internal(), Internal::Function(_))
+                && matches!(entry.field(), "init" | "handle")
+        })
+    {
+        Ok(())
+    } else {
+        Err(BuilderError::RequiredExportFnNotFound(path.to_path_buf()).into())
+    }
 }

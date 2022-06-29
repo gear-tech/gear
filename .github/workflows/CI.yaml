@@ -7,6 +7,7 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,7 +23,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
@@ -38,7 +39,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -102,7 +103,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH

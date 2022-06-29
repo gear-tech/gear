@@ -183,6 +183,16 @@ pub mod pallet {
 
         type CodeStorage: CodeStorage;
 
+        /// The minimal gas amount for message to be inserted in mailbox.
+        ///
+        /// This gas will be consuming as rent for storing and message will be available
+        /// for reply or claim, once gas ends, message removes.
+        ///
+        /// Messages with gas limit less than that minimum will not be added in mailbox,
+        /// but will be seen in events.
+        #[pallet::constant]
+        type MailboxThreshold: Get<u64>;
+
         type Messenger: Messenger<
             BlockNumber = Self::BlockNumber,
             Capacity = u32,
@@ -430,7 +440,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
+                log::debug!("Module failed to load: {:?}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
 
@@ -446,10 +456,9 @@ pub mod pallet {
             })?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_id = code_and_id.code_id();
 
             let packet = InitPacket::new_with_gas(
-                code_id,
+                code_and_id.code_id(),
                 salt,
                 init_payload,
                 gas_limit,
@@ -471,6 +480,8 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.clone().into_origin();
+
+            let code_id = code_and_id.code_id();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
@@ -499,13 +510,39 @@ pub mod pallet {
                 .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
-            QueueOf::<T>::queue(dispatch).map_err(|_| "Unable to push message")?;
+            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
             Self::deposit_event(Event::MessageEnqueued {
                 id: message_id,
                 source: who,
                 destination: program_id,
                 entry: Entry::Init,
+            });
+
+            Ok(().into())
+        }
+
+        /// Submit code for benchmarks which does not check nor instrument the code.
+        #[cfg(feature = "runtime-benchmarks")]
+        pub fn submit_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let schedule = T::Schedule::get();
+
+            let code = Code::new_raw(code, schedule.instruction_weights.version, None, false)
+                .map_err(|e| {
+                    log::debug!("Code failed to load: {:?}", e);
+                    Error::<T>::FailedToConstructProgram
+                })?;
+
+            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+
+            // TODO: replace this temporary (`None`) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
+            Self::deposit_event(Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active { expiration: None },
             });
 
             Ok(().into())
@@ -717,6 +754,7 @@ pub mod pallet {
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
                         ["gr_gas_available"].into(),
+                        T::MailboxThreshold::get(),
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -731,6 +769,7 @@ pub mod pallet {
                         T::OutgoingLimit::get(),
                         schedule.host_fn_weights.clone().into_core(),
                         ["gr_gas_available"].into(),
+                        T::MailboxThreshold::get(),
                     )
                 };
 
@@ -1053,6 +1092,7 @@ pub mod pallet {
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
+                            T::MailboxThreshold::get(),
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
@@ -1067,6 +1107,7 @@ pub mod pallet {
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
+                            T::MailboxThreshold::get(),
                         )
                     };
 
@@ -1432,8 +1473,6 @@ pub mod pallet {
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-                let origin = who.clone().into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
                 let event = Event::MessageEnqueued {
@@ -1448,21 +1487,23 @@ pub mod pallet {
 
                 Self::deposit_event(event);
             } else {
-                // Message in mailbox is not meant for any processing, hence 0 gas limit
-                // and no gas tree needs to be created
-                let origin = who.into_origin();
+                let mut expiration = None;
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
-                // TODO: update logic of insertion into mailbox following new
-                // flow and deposit appropriate event (issue #1010).
-                MailboxOf::<T>::insert(message.clone())?;
+                if gas_limit >= T::MailboxThreshold::get() {
+                    expiration = Some(T::BlockNumber::zero());
+                    // TODO: update logic of insertion into mailbox following new
+                    // flow and deposit appropriate event (issue #1010).
+                    MailboxOf::<T>::insert(message.clone())?;
+                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                }
 
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one
                 // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    expiration: Some(T::BlockNumber::zero()),
+                    expiration,
                 });
             }
 
@@ -1521,6 +1562,8 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let origin = who.clone().into_origin();
+
             let message_id = MessageId::generate_reply(original_message.id(), 0);
             let packet =
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
@@ -1533,7 +1576,6 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let origin = who.clone().into_origin();
                 let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
@@ -1557,26 +1599,27 @@ pub mod pallet {
 
                 Self::deposit_event(event);
             } else {
-                // Message in mailbox is not meant for any processing, hence 0 gas limit
-                // and no gas tree needs to be created
-                let origin = who.into_origin();
-
+                let mut expiration = None;
                 let message = message.into_stored(
                     ProgramId::from_origin(origin),
                     destination,
                     original_message.id(),
                 );
 
-                // TODO: update logic of insertion into mailbox following new
-                // flow and deposit appropriate event (issue #1010).
-                MailboxOf::<T>::insert(message.clone())?;
+                if gas_limit >= T::MailboxThreshold::get() {
+                    expiration = Some(T::BlockNumber::zero());
+                    // TODO: update logic of insertion into mailbox following new
+                    // flow and deposit appropriate event (issue #1010).
+                    MailboxOf::<T>::insert(message.clone())?;
+                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                }
 
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one
                 // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    expiration: Some(T::BlockNumber::zero()),
+                    expiration,
                 });
             }
 
