@@ -148,9 +148,7 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          tar -xf /root/cache/build_cache.tar -C /
-          tar -xf /root/cache/build_cargo_registry.tar -C /
-          tar -xf /root/cache/build_target.tar
+          rsync -ahW --compress-level=0 /root/cache/build/* /
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
