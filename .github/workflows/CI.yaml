@@ -15,7 +15,7 @@ env:
 
 jobs:
   spec_version:
-    runs-on: [ self-hosted, cachepot ]
+    runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -31,7 +31,7 @@ jobs:
 
   check:
     needs: spec_version
-    runs-on: [ self-hosted, cachepot ]
+    runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -62,10 +62,9 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/check* /tmp/
-          tar -xf /tmp/check_cache.tar -C /
-          tar -xf /tmp/check_cargo_registry.tar -C /
-          tar -xf /tmp/check_target.tar
+          tar -xf /root/cache/check_cache.tar -C /
+          tar -xf /root/cache/check_cargo_registry.tar -C /
+          tar -xf /root/cache/check_target.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -88,12 +87,12 @@ jobs:
         run: |
           tar -cf /tmp/check_target.tar ./target
           tar -cf /tmp/check_cache.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git /tmp/cargo/.crates.toml /tmp/cargo/.crates2.json
           mv /tmp/*.tar /root/cache/
 
   build:
     needs: spec_version
-    runs-on: [ self-hosted, cachepot ]
+    runs-on: [self-hosted, cachepot, epyc]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
     steps:
@@ -149,10 +148,9 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/build* /tmp/
-          tar -xf /tmp/build_cache.tar -C /
-          tar -xf /tmp/build_cargo_registry.tar -C /
-          tar -xf /tmp/build_target.tar
+          tar -xf /root/cache/build_cache.tar -C /
+          tar -xf /root/cache/build_cargo_registry.tar -C /
+          tar -xf /root/cache/build_target.tar
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
@@ -223,7 +221,7 @@ jobs:
         id: find_comment_id
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-author: 'github-actions[bot]'
+          comment-author: "github-actions[bot]"
           direction: last
 
       - name: "Create comment (performance)"
@@ -302,7 +300,7 @@ jobs:
         run: |
           tar -cf /tmp/build_target.tar ./target
           tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git /tmp/cargo/.crates.toml /tmp/cargo/.crates2.json
           mv /tmp/*.tar /root/cache/
 
       - name: Prepare artifacts
