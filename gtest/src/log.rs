@@ -253,7 +253,7 @@ impl RunResult {
         self.log.iter().any(|e| e == &log)
     }
 
-    pub fn log(&self) -> &Vec<CoreLog> {
+    pub fn log(&self) -> &[CoreLog] {
         &self.log
     }
 

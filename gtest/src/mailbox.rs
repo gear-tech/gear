@@ -292,29 +292,30 @@ mod tests {
     #[test]
     #[should_panic(expected = "No message that satisfies log")]
     fn take_unknown_log_message() {
-        //Arranging data for future messages
+        // Arranging data for future messages
         let system = System::new();
-        let source_user_id = ProgramIdWrapper::from(100).0;
-        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let source_user_id = 100;
+        let destination_user_id = 200;
         let log = Log::builder().source(source_user_id);
 
-        //Taking mailbox and message that doesn't exists
+        // Taking mailbox and message that doesn't exists
         let mailbox = system.get_mailbox(destination_user_id);
         mailbox.take_message(log);
     }
 
     #[test]
-    #[should_panic(expected = "Such program id is already in actors list")]
+    #[should_panic(expected = "Mailbox available only for users")]
     fn take_programs_mailbox() {
-        //Setting up variables for test
+        // Setting up variables for test
         let system = System::new();
-        let restricted_user_id = ProgramIdWrapper::from(1).0;
-        Program::from_file(
+        let restricted_user_id = 42;
+        Program::from_file_with_id(
             &system,
+            restricted_user_id,
             "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
         );
 
-        //Getting user id that is already registered as a program
+        // Getting user id that is already registered as a program
         system.get_mailbox(restricted_user_id);
     }
 }

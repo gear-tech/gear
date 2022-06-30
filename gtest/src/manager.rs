@@ -49,6 +49,7 @@ pub(crate) enum Actor {
     // Contract: program is always `Some`, option is used to take ownership
     Uninitialized(Option<MessageId>, Option<Program>),
     Dormant,
+    User,
 }
 
 impl Actor {
@@ -246,7 +247,7 @@ impl ExtManager {
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
-        if self.actors.contains_key(&dispatch.destination()) {
+        if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -315,6 +316,32 @@ impl ExtManager {
     ) -> Result<Vec<u8>> {
         let mut executor = self.get_executor(program_id, payload)?;
         executor.execute(function_name)
+    }
+
+    pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
+        !self.actors.contains_key(id) || matches!(self.actors.get(id), Some((Actor::User, _)))
+    }
+
+    pub(crate) fn add_value_to(&mut self, id: &ProgramId, value: Balance) {
+        let (_, balance) = self.actors.entry(*id).or_insert((Actor::User, 0));
+        *balance = balance.saturating_add(value);
+    }
+
+    pub(crate) fn actor_balance(&self, id: &ProgramId) -> Option<Balance> {
+        self.actors.get(id).map(|(_, balance)| *balance)
+    }
+
+    pub(crate) fn claim_value_from_mailbox(&mut self, id: &ProgramId) {
+        let messages = self.mailbox.remove(id);
+        if let Some(messages) = messages {
+            messages.iter().for_each(|message| {
+                self.send_value(
+                    message.source(),
+                    Some(message.destination()),
+                    message.value(),
+                )
+            });
+        }
     }
 
     fn prepare_for(&mut self, dispatch: &Dispatch) {
@@ -555,8 +582,10 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
-        self.actors.remove(&id_exited);
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        if let Some((_, balance)) = self.actors.remove(&id_exited) {
+            self.add_value_to(&value_destination, balance);
+        }
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -568,7 +597,7 @@ impl JournalHandler for ExtManager {
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
-        if self.actors.contains_key(&dispatch.destination()) {
+        if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -641,7 +670,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
-        if let Some(to) = to {
+        if let Some(ref to) = to {
             if let Some((_, balance)) = self.actors.get_mut(&from) {
                 if *balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
@@ -650,9 +679,7 @@ impl JournalHandler for ExtManager {
                 *balance -= value;
             };
 
-            if let Some((_, balance)) = self.actors.get_mut(&to) {
-                *balance += value;
-            };
+            self.add_value_to(to, value);
         }
     }
 
