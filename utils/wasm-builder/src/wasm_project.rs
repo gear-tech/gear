@@ -61,7 +61,7 @@ impl WasmProject {
                 break;
             }
         }
-        target_dir.push("wasm32-unknown-unknown");
+        target_dir.push("wasm-projects");
         target_dir.push(profile);
 
         let profile = if profile == "debug" {
@@ -82,6 +82,11 @@ impl WasmProject {
     /// Return the path to the temporary generated `Cargo.toml`.
     pub fn manifest_path(&self) -> PathBuf {
         self.out_dir.join("Cargo.toml")
+    }
+
+    /// Return the path to the target directory.
+    pub fn target_dir(&self) -> PathBuf {
+        self.target_dir.clone()
     }
 
     /// Return the profile name based on the `OUT_DIR` path.
@@ -159,8 +164,8 @@ impl WasmProject {
             .expect("Run `WasmProject::create_project()` first");
 
         let from_path = self
-            .out_dir
-            .join("target/wasm32-unknown-unknown/release")
+            .target_dir
+            .join("wasm32-unknown-unknown/release")
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
