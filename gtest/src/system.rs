@@ -132,19 +132,19 @@ impl System {
 
     /// Add value to the actor.
     pub fn add_value_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
-        let actor_id = id.into();
+        let actor_id = id.into().0;
         self.0.borrow_mut().add_value_to(&actor_id, value);
     }
 
     /// Return actor balance (value) if exists.
     pub fn actor_balance<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Balance> {
-        let actor_id = id.into();
+        let actor_id = id.into().0;
         self.0.borrow().actor_balance(&actor_id)
     }
 
     /// Claim the user's value from the mailbox.
     pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
-        let actor_id = id.into();
+        let actor_id = id.into().0;
         self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
     }
 }

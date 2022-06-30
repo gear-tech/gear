@@ -23,7 +23,6 @@ use crate::{
     Result,
 };
 use codec::{Codec, Decode, Encode};
-use core::ops::Deref;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -141,20 +140,6 @@ impl From<&str> for ProgramIdWrapper {
         }
 
         Self(bytes.into())
-    }
-}
-
-impl Deref for ProgramIdWrapper {
-    type Target = ProgramId;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<ProgramId> for ProgramIdWrapper {
-    fn as_ref(&self) -> &ProgramId {
-        &self.0
     }
 }
 
