@@ -17,5 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/code.rs");
+
     gear_wasm_builder::build();
 }

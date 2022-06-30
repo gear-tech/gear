@@ -15,7 +15,17 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#![cfg_attr(not(feature = "std"), no_std)]
 
-fn main() {
-    gear_wasm_builder::build();
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[cfg(not(feature = "std"))]
+mod wasm {
+    include! {"./code.rs"}
 }

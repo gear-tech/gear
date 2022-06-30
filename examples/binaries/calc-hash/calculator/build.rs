@@ -15,26 +15,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
+fn main() {
+    println!("cargo:rerun-if-changed=src/code.rs");
 
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-#[cfg(not(feature = "std"))]
-mod wasm {
-    include! {"./code.rs"}
-}
-
-use codec::{Decode, Encode};
-
-/// Program methods.
-#[derive(Debug, Encode, Decode)]
-pub enum Method<Package, MessageId> {
-    Start(Package),
-    Refuel(MessageId),
+    gear_wasm_builder::build();
 }

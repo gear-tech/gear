@@ -3714,17 +3714,18 @@ fn cascading_messages_with_value_do_not_overcharge() {
 fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_pow_aggregator::{Method, WASM_BINARY};
-        use demo_pow_calculator::{Package, WASM_BINARY as CALC_WASM_BINARY};
+        use demo_calc_hash::{Method, Package};
+        use demo_calc_hash_aggregator::WASM_BINARY;
+        use demo_calc_hash_calculator::WASM_BINARY as CALC_WASM_BINARY;
         let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
-        let threshold = <Test as Config>::MailboxThreshold::get();
+        let max_gas_spent_per_hash = 30_000_000_000u64;
 
         // deply calculator
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             CALC_WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.encode(),
+            EMPTY_PAYLOAD.to_vec(),
             block_gas_limit,
             0,
         ));
@@ -3735,7 +3736,7 @@ fn execution_over_blocks() {
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            (threshold, calculator).encode(),
+            (max_gas_spent_per_hash, calculator).encode(),
             block_gas_limit,
             0,
         ));
@@ -3744,19 +3745,25 @@ fn execution_over_blocks() {
         program_exists(calculator.into_origin());
         program_exists(aggregator.into_origin());
 
-        // start calculation
+        // the result of running sha2_256 on [0; 32] itself for 42 times
+        //
+        // 0 -> [0; 32]
+        // 1 -> sha2_256(&[0; 32])
+        // 2 -> sha2_256(sha2_256(&[0; 32]))
+        // 3 -> ...
+        let expected = [
+            138, 64, 61, 254, 55, 192, 102, 102, 40, 78, 11, 110, 11, 207, 223, 93, 190, 11, 114,
+            133, 69, 24, 177, 45, 247, 184, 60, 142, 126, 223, 94, 220,
+        ];
+
+        // trigger calculation
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             aggregator,
-            Method::<Vec<u8>, MessageId>::Start(
-                Package {
-                    base: 2,
-                    exponent: 7,
-                    ptr: 0,
-                    result: 1,
-                }
-                .encode()
-            )
+            Method::Start(Package {
+                paths: vec![[0; 32]],
+                expected,
+            })
             .encode(),
             block_gas_limit,
             0,
@@ -3765,25 +3772,27 @@ fn execution_over_blocks() {
         run_to_block(2, None);
         assert_eq!(maybe_last_mail(USER_1), None);
 
-        // run_to_block(3, Some(500_000));
+        // loop calculation
+        let path: Vec<[u8; 32]>;
+        loop {
+            assert_ok!(Gear::send_message(
+                Origin::signed(USER_1),
+                aggregator,
+                Method::Refuel.encode(),
+                block_gas_limit,
+                0,
+            ));
 
-        //
-        // run_to_block(4, Some(500_000));
-        // assert_eq!(get_last_mail(USER_1), None);
-        //
-        // run_to_block(5, None);
-        // assert_eq!(
-        //     get_last_mail(USER_1).map(|msg| msg.payload().to_vec()),
-        //     Some(
-        //         Package {
-        //             base: 2,
-        //             exponent: 7,
-        //             ptr: 7,
-        //             result: 128
-        //         }
-        //         .encode()
-        //     )
-        // );
+            run_to_next_block(None);
+
+            if let Some(mail) = maybe_last_mail(USER_1) {
+                path = Vec::<[u8; 32]>::decode(&mut mail.payload()).expect("get response failed");
+                assert!(Package::verify(&path));
+                break;
+            }
+        }
+
+        assert_eq!(*path.last().expect("failed to get the last path"), expected);
     });
 }
 

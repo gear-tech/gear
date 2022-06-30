@@ -1289,6 +1289,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-calc-hash"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "parity-scale-codec",
+ "sha2 0.10.2",
+]
+
+[[package]]
+name = "demo-calc-hash-aggregator"
+version = "0.1.0"
+dependencies = [
+ "demo-calc-hash",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-calc-hash-calculator"
+version = "0.1.0"
+dependencies = [
+ "demo-calc-hash",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
@@ -1395,25 +1424,6 @@ dependencies = [
  "gstd",
  "gtest",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-pow-aggregator"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-pow-calculator"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -4871,6 +4881,9 @@ version = "2.0.0"
 dependencies = [
  "demo-async-tester",
  "demo-btree",
+ "demo-calc-hash",
+ "demo-calc-hash-aggregator",
+ "demo-calc-hash-calculator",
  "demo-compose",
  "demo-distributor",
  "demo-exit-handle",
@@ -4879,8 +4892,6 @@ dependencies = [
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
  "demo-mul-by-const",
- "demo-pow-aggregator",
- "demo-pow-calculator",
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-with-gas",
