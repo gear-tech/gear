@@ -162,9 +162,6 @@ pub type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 /// Represents logic of centralized GasTree-algorithm.
 pub trait Provider {
-    /// The maximum amount of gas that can be used within a single block.
-    type BlockGasLimit: Get<u64>;
-
     /// Type representing the external owner of a value (gas) item.
     type ExternalOrigin;
 
@@ -200,7 +197,4 @@ pub trait Provider {
         InternalError = Self::InternalError,
         Error = Self::Error,
     >;
-
-    /// Type manages a gas that is available for the moment of call.
-    type GasAllowance: storage::Limiter<Value = Self::Balance>;
 }

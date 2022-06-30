@@ -155,6 +155,18 @@ pub trait PaymentProvider<AccountId> {
     ) -> Result<(), DispatchError>;
 }
 
+/// Contains various limits for the block.
+pub trait BlockLimiter {
+    /// The maximum amount of gas that can be used within a single block.
+    type BlockGasLimit: Get<u64>;
+
+    /// Type representing a quantity of value.
+    type Balance;
+
+    /// Type manages a gas that is available at the moment of call.
+    type GasAllowance: storage::Limiter<Value = Self::Balance>;
+}
+
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),

@@ -30,7 +30,7 @@
 
 use super::*;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
-use frame_support::{assert_ok, traits::ConstU64};
+use frame_support::assert_ok;
 use primitive_types::H256;
 use proptest::prelude::*;
 use strategies::GasTreeAction;
@@ -171,28 +171,9 @@ impl super::Error for Error {
     }
 }
 
-struct GasAllowance;
-
-impl super::storage::Limiter for GasAllowance {
-    type Value = Balance;
-
-    fn get() -> Self::Value {
-        0
-    }
-
-    fn put(_gas: Self::Value) {
-        unimplemented!()
-    }
-
-    fn decrease(_gas: Self::Value) {
-        unimplemented!()
-    }
-}
-
 struct GasProvider;
 
 impl super::Provider for GasProvider {
-    type BlockGasLimit = ConstU64<1_000>;
     type ExternalOrigin = ExternalOrigin;
     type Key = Key;
     type Balance = Balance;
@@ -208,8 +189,6 @@ impl super::Provider for GasProvider {
         ExternalOrigin,
         GasTreeNodesWrap,
     >;
-
-    type GasAllowance = GasAllowance;
 }
 
 type Gas = <GasProvider as super::Provider>::GasTree;

@@ -356,6 +356,7 @@ impl pallet_gear::Config for Runtime {
     type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
+    type BlockLimiter = GearGas;
 }
 
 #[cfg(feature = "debug-mode")]

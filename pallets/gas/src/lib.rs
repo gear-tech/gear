@@ -126,7 +126,7 @@
 
 use common::{
     storage::{MapStorage, ValueStorage},
-    GasProvider,
+    BlockLimiter, GasProvider,
 };
 use frame_support::{dispatch::DispatchError, pallet_prelude::*};
 pub use pallet::*;
@@ -261,7 +261,6 @@ pub mod pallet {
     }
 
     impl<T: Config> GasProvider for Pallet<T> {
-        type BlockGasLimit = BlockGasLimitOf<T>;
         type ExternalOrigin = AccountIdOf<T>;
         type Key = Key;
         type Balance = Balance;
@@ -277,6 +276,12 @@ pub mod pallet {
             Self::ExternalOrigin,
             GasNodesWrap<T>,
         >;
+    }
+
+    impl<T: Config> BlockLimiter for Pallet<T> {
+        type BlockGasLimit = BlockGasLimitOf<T>;
+
+        type Balance = Balance;
 
         type GasAllowance = GasAllowance<T>;
     }

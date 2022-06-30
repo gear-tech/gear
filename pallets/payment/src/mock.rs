@@ -174,6 +174,7 @@ impl pallet_gear::Config for Test {
     type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
+    type BlockLimiter = GearGas;
 }
 
 impl pallet_gear_program::Config for Test {

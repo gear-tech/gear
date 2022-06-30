@@ -77,9 +77,9 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-pub type GasAllowanceOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasAllowance;
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasTree;
-pub type BlockGasLimitOf<T> = <<T as Config>::GasProvider as common::GasProvider>::BlockGasLimit;
+pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::BlockGasLimit;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -204,6 +204,8 @@ pub mod pallet {
             Balance = u64,
             Error = DispatchError,
         >;
+
+        type BlockLimiter: common::BlockLimiter<Balance = u64>;
     }
 
     #[pallet::pallet]
