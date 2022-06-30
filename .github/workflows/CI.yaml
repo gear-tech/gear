@@ -4,9 +4,9 @@ on:
   schedule:
     - cron: "0 3 * * *"
   push:
-    branches: [master]
+    branches: [ master ]
   pull_request:
-    branches: [master]
+    branches: [ master ]
   workflow_dispatch:
 
 env:
@@ -327,7 +327,57 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: artifact
+  
+  build-win:
+    if: github.ref == 'refs/heads/master'
+    needs: spec_version
+    runs-on: ci-win
+    env:
+      RUSTC_WRAPPER: "cachepot"
+      CARGO_INCREMENTAL: 0
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
 
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: "Install: cargo-nextest"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+
+      - name: "Build: Node"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p gear-node --features=lazy-pages
+
+      - name: "Test: Lazy pages"
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: >- 
+            run
+            -p pallet-gear 
+            -p pallet-gear-debug
+            -p pallet-gear-payment
+            -p pallet-usage
+            -p gear-lazy-pages
+            -p gear-runtime-interface
+            --features=lazy-pages
+  
   upload:
     if: github.event_name == 'push'
     runs-on: self-hosted
