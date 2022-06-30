@@ -25,7 +25,7 @@ impl Package {
     /// verify path
     pub fn verify(path: &[[u8; 32]]) -> bool {
         let len = path.len();
-        for (i, p) in path.into_iter().enumerate() {
+        for (i, p) in path.iter().enumerate() {
             let next = i + 1;
             if next == len {
                 return true;
