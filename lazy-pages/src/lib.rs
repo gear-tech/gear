@@ -20,66 +20,185 @@
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
 //! During execution data from storage is loaded for all pages, which has been accesed.
-//! See also `handle_sigsegv`.
+//! See also `sys::user_signal_handler` in the source code.
+//!
+//! Restrict any page handling in signal handler more then one time.
+//! If some page will be released twice it means, that this page has been added
+//! to lazy pages more then one time during current execution.
+//! This situation may cause problems with memory data update in storage.
+//! For example: one page has no data in storage, but allocated for current program.
+//! Let's make some action for it:
+//! 1) Change data in page: Default data  ->  Data1
+//! 2) Free page
+//! 3) Alloc page, data will Data2 (may be equal Data1).
+//! 4) After alloc we can set page as lazy, to identify wether page is changed after allocation.
+//! This means that we can skip page update in storage in case it wasnt changed after allocation.
+//! 5) Write some data in page but do not change it Data2 -> Data2.
+//! During this step signal handler writes Data2 as data for released page.
+//! 6) After execution we will have Data2 in page. And Data2 in released. So, nothing will be updated
+//! in storage. But program may have some significant data for next execution - so we have a bug.
+//! To avoid this we restrict double releasing.
+//! You can also check another cases in test: memory_access_cases.
+//!
+//! TODO: remove all deprecated code before release (issue #1147)
+
+#![allow(useless_deprecated, deprecated)]
 
 use gear_core::memory::{HostPointer, PageBuf, PageNumber, WasmPageNumber};
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeMap, ops::Add};
+use std::{cell::RefCell, collections::BTreeMap};
 
 mod sys;
 
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum Error {
+    #[display(fmt = "WASM memory begin address is not set")]
+    WasmMemAddrIsNotSet,
+    #[display(
+        fmt = "Exception is from unknown memory (WASM {:#x} > native page {:x})",
+        wasm_mem_begin,
+        native_page
+    )]
+    SignalFromUnknownMemory {
+        wasm_mem_begin: usize,
+        native_page: usize,
+    },
+    #[display(
+        fmt = "Page data must contain {} bytes, actually has {}",
+        expected,
+        actual
+    )]
+    InvalidPageSize { expected: usize, actual: u32 },
+    #[display(fmt = "Exception is from unknown memory: addr = {:?}, {:?}", _0, _1)]
+    LazyPageNotExistForSignalAddr(*const (), PageNumber),
+    /// Found a signal from same page twice - see more in head comment.
+    #[display(fmt = "Page cannot be release page twice: {:?}", _0)]
+    DoubleRelease(PageNumber),
+    #[display(fmt = "Protection error: {}", _0)]
+    #[from]
+    MemoryProtection(region::Error),
+}
+
+#[derive(Default, PartialEq, Eq)]
+pub(crate) struct LazyPagesExecutionContext {
+    /// Pointer to the begin of wasm memory buffer
+    pub wasm_mem_addr: Option<HostPointer>,
+    /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
+    pub wasm_mem_size: Option<usize>,
+    /// Current program prefix in storage
+    pub program_storage_prefix: Option<Vec<u8>>,
+    /// Page data, which has been in storage before current execution.
+    /// For each lazy page, which has been accessed.
+    pub released_lazy_pages: BTreeMap<PageNumber, Option<PageBuf>>,
+
+    #[deprecated]
+    /// Keys in storage for each lazy page.
+    pub lazy_pages_info: BTreeMap<PageNumber, Vec<u8>>,
+}
+
 thread_local! {
-    /// NOTE: here we suppose, that each contract is executed in separate thread.
-    /// Or may be in one thread but consequentially.
+    // NOTE: here we suppose, that each contract is executed in separate thread.
+    // Or may be in one thread but consequentially.
 
     /// Identify whether signal handler is set for current thread
     static LAZY_PAGES_ENABLED: RefCell<bool> = RefCell::new(false);
-    /// Pointer to the begin of wasm memory buffer
-    static WASM_MEM_BEGIN: RefCell<HostPointer> = RefCell::new(0);
-    /// Key in storage for each lazy page
-    static LAZY_PAGES_INFO: RefCell<BTreeMap<LazyPage, Vec<u8>>> = RefCell::new(BTreeMap::new());
-    /// Page data, which has been in storage before current execution.
-    /// For each lazy page, which has been accessed.
-    static RELEASED_LAZY_PAGES: RefCell<BTreeMap<LazyPage, Option<PageBuf>>> = RefCell::new(BTreeMap::new());
+    /// Lazy pages context for current execution
+    static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
 
-pub fn save_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
-    LAZY_PAGES_INFO.with(|lazy_pages_info| {
-        let mut lazy_pages_info = lazy_pages_info.borrow_mut();
-        pages.into_iter().for_each(|p| {
-            let mut key = Vec::with_capacity(prefix.len() + std::mem::size_of::<u32>());
-            key.extend(prefix.clone());
-            key.extend(p.to_le_bytes().to_vec());
-            lazy_pages_info.insert(LazyPage(p), key);
-        })
+#[deprecated]
+pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().lazy_pages_info.keys().copied().collect())
+}
+
+/// Returns current wasm mem buffer pointer, if it's set
+pub fn get_wasm_mem_addr() -> Option<HostPointer> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_addr)
+}
+
+/// Returns current wasm mem buffer size, if it's set
+pub fn get_wasm_mem_size() -> Option<usize> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_size)
+}
+
+/// Set current wasm memory begin addr in global context
+pub fn set_wasm_mem_begin_addr(wasm_mem_addr: HostPointer) {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let _ = ctx.borrow_mut().wasm_mem_addr.insert(wasm_mem_addr);
     });
 }
 
-/// Returns vec of not-accessed wasm lazy pages
-pub fn available_pages() -> Vec<LazyPage> {
-    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().keys().copied().collect())
-}
-
-/// Set current wasm memory begin addr
-pub fn set_wasm_mem_begin_addr(wasm_mem_begin: HostPointer) {
-    WASM_MEM_BEGIN.with(|x| *x.borrow_mut() = wasm_mem_begin);
+/// Set current wasm memory size in global context
+pub fn set_wasm_mem_size(wasm_mem_size: usize) {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let _ = ctx.borrow_mut().wasm_mem_size.insert(wasm_mem_size);
+    });
 }
 
 /// Reset lazy pages info
-pub fn reset_info() {
-    LAZY_PAGES_INFO.with(|x| x.replace(BTreeMap::new()));
-    RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().clear());
-    WASM_MEM_BEGIN.with(|x| *x.borrow_mut() = 0);
+pub fn reset_context() {
+    LAZY_PAGES_CONTEXT.with(|ctx| *ctx.borrow_mut() = Default::default());
 }
 
 /// Returns vec of lazy pages which has been accessed
-pub fn released_pages() -> Vec<LazyPage> {
-    RELEASED_LAZY_PAGES.with(|x| x.borrow().keys().copied().collect())
+pub fn get_released_pages() -> Vec<PageNumber> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_lazy_pages.keys().copied().collect())
 }
 
 /// Returns whether lazy pages env is enabled
 pub fn is_enabled() -> bool {
     LAZY_PAGES_ENABLED.with(|x| *x.borrow())
+}
+
+#[deprecated]
+/// Set storage `key` for `page` in global context
+pub fn set_lazy_page_info(page: PageNumber, key: &[u8]) {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let mut ctx = ctx.borrow_mut();
+        let page_end = page.offset() + PageNumber::size();
+        let need_replace_size = ctx
+            .wasm_mem_size
+            .map(|size| size < page_end)
+            .unwrap_or(true);
+        if need_replace_size {
+            let _ = ctx.wasm_mem_size.insert(page_end);
+        }
+        ctx.lazy_pages_info.insert(page, key.to_vec());
+    });
+}
+
+#[deprecated]
+/// Set lazy pages info and program `pages` `prefix` in global context
+pub fn append_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
+    let max_page = pages.iter().max().copied().unwrap_or(0);
+    let end_offset = (max_page + 1) as usize * PageNumber::size();
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let mut ctx = ctx.borrow_mut();
+
+        ctx.lazy_pages_info
+            .extend(pages.iter().map(|&p| (PageNumber(p), Vec::default())));
+
+        let need_replace_size = ctx
+            .wasm_mem_size
+            .map(|size| size < end_offset)
+            .unwrap_or(true);
+        if need_replace_size {
+            let _ = ctx.wasm_mem_size.insert(end_offset);
+        }
+        let _ = ctx.program_storage_prefix.insert(prefix);
+    });
+}
+
+/// Set program pages `prefix` in storage in global context
+pub fn set_program_prefix(prefix: Vec<u8>) {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let _ = ctx.borrow_mut().program_storage_prefix.insert(prefix);
+    });
+}
+
+/// Returns data for released `page`
+pub fn get_released_page_data(page: PageNumber) -> Option<PageBuf> {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow_mut().released_lazy_pages.get_mut(&page)?.take())
 }
 
 /// Initialize lazy pages:
@@ -94,18 +213,8 @@ pub unsafe fn init() -> bool {
         return true;
     }
 
-    if !LAZY_PAGES_INFO.with(|x| x.borrow().is_empty()) {
-        log::error!("Lazy pages info must be empty before initialization");
-        return false;
-    }
-
-    if !WASM_MEM_BEGIN.with(|x| *x.borrow() == 0) {
-        log::error!("Wasm mem begin must be 0 before initialization");
-        return false;
-    }
-
-    if !RELEASED_LAZY_PAGES.with(|x| x.borrow().is_empty()) {
-        log::error!("Released lazy pages must be empty before initialization");
+    if LAZY_PAGES_CONTEXT.with(|ctx| *ctx.borrow() != LazyPagesExecutionContext::default()) {
+        log::error!("Lazy pages context has not default values before lazy pages initialization");
         return false;
     }
 
@@ -128,76 +237,4 @@ pub unsafe fn init() -> bool {
     LAZY_PAGES_ENABLED.with(|x| *x.borrow_mut() = true);
 
     true
-}
-
-#[derive(Debug, derive_more::Display)]
-pub enum LazyPageError {
-    #[display(fmt = "Exception is from unknown memory, page #{}", _0)]
-    UnknownInfo(LazyPage),
-    #[display(fmt = "Page #{} cannot be released twice", _0)]
-    DoubleRelease(LazyPage),
-}
-
-#[derive(
-    Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, derive_more::Display, derive_more::From,
-)]
-pub struct LazyPage(u32);
-
-impl LazyPage {
-    /// Save page key in storage
-    pub fn set_info(self, key: &[u8]) {
-        LAZY_PAGES_INFO
-            .with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(self, key.to_vec()));
-    }
-
-    /// Returns data of released page which page has in storage before execution
-    pub fn take_data(self) -> Option<PageBuf> {
-        RELEASED_LAZY_PAGES.with(|x| x.borrow_mut().get_mut(&self)?.take())
-    }
-
-    fn release(self, page_buf: PageBuf) -> Result<(), LazyPageError> {
-        RELEASED_LAZY_PAGES.with(move |released_pages| {
-            // Restrict any page handling in signal handler more then one time.
-            // If some page will be released twice it means, that this page has been added
-            // to lazy pages more then one time during current execution.
-            // This situation may cause problems with memory data update in storage.
-            // For example: one page has no data in storage, but allocated for current program.
-            // Let's make some action for it:
-            // 1) Change data in page: Default data  ->  Data1
-            // 2) Free page
-            // 3) Alloc page, data will Data2 (may be equal Data1).
-            // 4) After alloc we can set page as lazy, to identify wether page is changed after allocation.
-            // This means that we can skip page update in storage in case it wasnt changed after allocation.
-            // 5) Write some data in page but do not change it Data2 -> Data2.
-            // During this step signal handler writes Data2 as data for released page.
-            // 6) After execution we will have Data2 in page. And Data2 in released. So, nothing will be updated
-            // in storage. But program may have some significant data for next execution - so we have a bug.
-            // To avoid this we restrict double releasing.
-            // You can also check another cases in test: memory_access_cases.
-            let res = released_pages.borrow_mut().insert(self, Some(page_buf));
-            if res.is_some() {
-                Err(LazyPageError::DoubleRelease(self))
-            } else {
-                Ok(())
-            }
-        })
-    }
-
-    pub fn as_u32(self) -> u32 {
-        self.0
-    }
-}
-
-impl From<PageNumber> for LazyPage {
-    fn from(PageNumber(page): PageNumber) -> Self {
-        Self(page)
-    }
-}
-
-impl Add<u32> for LazyPage {
-    type Output = LazyPage;
-
-    fn add(self, rhs: u32) -> Self::Output {
-        Self(self.0 + rhs)
-    }
 }
