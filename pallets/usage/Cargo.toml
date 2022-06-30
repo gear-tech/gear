@@ -39,7 +39,7 @@ pallet-gear-program = { path = "../gear-program", default-features = false }
 [dev-dependencies]
 parking_lot = "0.12.1"
 env_logger = "0.9"
-pallet-gas = { path = "../gas" }
+pallet-gear-gas = { path = "../gas" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 hex-literal = "0.3.3"
 wasm-instrument = { version = "0.1", default-features = false }

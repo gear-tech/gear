@@ -23,12 +23,12 @@ use crate::{
         MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
         USER_3,
     },
-    pallet, Config, Error, Event, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet,
-    WaitlistOf,
+    pallet, BlockGasLimitOf, Config, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
+    GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, program_exists, storage::*, CodeStorage, GasPrice as _, Origin as _, ValueTree,
+    event::*, program_exists, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
 };
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -57,7 +57,7 @@ fn unstoppable_block_execution_works() {
         let executions_amount = 10;
         let balance_for_each_execution = user_balance / executions_amount;
 
-        assert!(balance_for_each_execution < <Test as pallet_gas::Config>::BlockGasLimit::get());
+        assert!(balance_for_each_execution < BlockGasLimitOf::<Test>::get());
 
         let program_id = {
             let res = submit_program_default(USER_2, ProgramCodeKind::Default);
@@ -99,7 +99,7 @@ fn unstoppable_block_execution_works() {
 
         assert_last_dequeued(executions_amount as u32);
 
-        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1) as u64,
@@ -131,7 +131,7 @@ fn submit_program_expected_failure() {
         );
 
         // Gas limit is too high
-        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
             GearPallet::<Test>::submit_program(
                 Origin::signed(USER_1),
@@ -169,7 +169,7 @@ fn send_message_works() {
         let user2_initial_balance = BalancesPallet::<Test>::free_balance(USER_2);
 
         // No gas has been created initially
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Default);
@@ -234,14 +234,11 @@ fn send_message_works() {
         run_to_block(3, Some(remaining_weight));
 
         // Messages were sent by user 1 only
-        let actual_gas_burned = remaining_weight - pallet_gas::Pallet::<Test>::gas_allowance();
+        let actual_gas_burned = remaining_weight - GasAllowanceOf::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
 
         // Ensure all created imbalances along the way cancel each other
-        assert_eq!(
-            <Test as Config>::GasHandler::total_supply(),
-            DEFAULT_GAS_LIMIT
-        );
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), DEFAULT_GAS_LIMIT);
     });
 }
 
@@ -278,7 +275,8 @@ fn mailbox_threshold_works() {
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
                 assert_eq!(
-                    <Test as Config>::GasHandler::get_limit(message_id.into_origin()),
+                    GasHandlerOf::<Test>::get_limit(message_id)
+                        .map(|result| result.map(|(g, _)| g)),
                     Ok(Some(rent))
                 );
             } else {
@@ -286,7 +284,8 @@ fn mailbox_threshold_works() {
                 // * the ValueNode has not been created.
                 assert!(!MailboxOf::<Test>::contains(&mailbox_key, &message_id));
                 assert_eq!(
-                    <Test as Config>::GasHandler::get_limit(message_id.into_origin()),
+                    GasHandlerOf::<Test>::get_limit(message_id)
+                        .map(|result| result.map(|(g, _)| g)),
                     Ok(None)
                 );
             }
@@ -383,7 +382,7 @@ fn send_message_expected_failure() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         // Gas limit too high
-        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
             GearPallet::<Test>::send_message(
                 Origin::signed(USER_1),
@@ -434,10 +433,8 @@ fn spent_gas_to_reward_block_author_works() {
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
-        let gas_spent = GasPrice::gas_price(
-            <Test as pallet_gas::Config>::BlockGasLimit::get()
-                - pallet_gas::Pallet::<Test>::gas_allowance(),
-        );
+        let gas_spent =
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
         assert_eq!(
             BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
             block_author_initial_balance + gas_spent
@@ -453,7 +450,7 @@ fn unused_gas_released_back_works() {
         let huge_send_message_gas_limit = 50_000;
 
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Default);
@@ -481,10 +478,8 @@ fn unused_gas_released_back_works() {
         );
 
         run_to_block(2, None);
-        let user1_actual_msgs_spends = GasPrice::gas_price(
-            <Test as pallet_gas::Config>::BlockGasLimit::get()
-                - pallet_gas::Pallet::<Test>::gas_allowance(),
-        );
+        let user1_actual_msgs_spends =
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
 
         let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
@@ -501,7 +496,7 @@ fn unused_gas_released_back_works() {
         //
         // `total_supply` must be rechecked in #1010
         assert_eq!(
-            <Test as Config>::GasHandler::total_supply(),
+            GasHandlerOf::<Test>::total_supply(),
             <Test as Config>::MailboxThreshold::get()
         );
     })
@@ -1104,7 +1099,7 @@ fn block_gas_limit_works() {
         assert_last_dequeued(1);
 
         // Equals 0 due to trying execution of msg2.
-        assert_eq!(pallet_gas::Pallet::<Test>::gas_allowance(), 0);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         let real_gas_to_burn = expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2;
         let last_block_allowance = real_gas_to_burn + 1;
@@ -1123,7 +1118,7 @@ fn block_gas_limit_works() {
 
         assert_last_dequeued(2);
         assert_eq!(
-            pallet_gas::Pallet::<Test>::gas_allowance(),
+            GasAllowanceOf::<Test>::get(),
             last_block_allowance - real_gas_to_burn
         );
     });
@@ -1134,7 +1129,7 @@ fn mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
@@ -1161,7 +1156,7 @@ fn mailbox_works() {
         //
         // `total_supply` must be rechecked in #1010
         assert_eq!(
-            <Test as Config>::GasPrice::gas_price(<Test as Config>::GasHandler::total_supply()),
+            <Test as Config>::GasPrice::gas_price(GasHandlerOf::<Test>::total_supply()),
             OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
         );
     })
@@ -1663,7 +1658,7 @@ fn distributor_distribute() {
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
 
@@ -1704,7 +1699,7 @@ fn distributor_distribute() {
         //
         // `total_supply` must be rechecked in #1010
         assert_eq!(
-            <Test as Config>::GasHandler::total_supply(),
+            GasHandlerOf::<Test>::total_supply(),
             mailbox_threshold_gas_limit
         );
     });
@@ -2693,9 +2688,9 @@ fn no_redundant_gas_value_after_exiting() {
             0,
         ));
 
-        let msg_id = get_last_message_id().into_origin();
-        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, Some(gas_spent));
+        let msg_id = get_last_message_id();
+        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
+        assert_eq!(maybe_limit.map(|(g, _)| g), Some(gas_spent));
 
         // before execution
         let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
@@ -2705,7 +2700,7 @@ fn no_redundant_gas_value_after_exiting() {
         run_to_block(3, None);
 
         // gas_limit has been recovered
-        let maybe_limit = <pallet_gas::Pallet<Test>>::get_limit(msg_id).expect("invalid algo");
+        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
         assert_eq!(maybe_limit, None);
 
         // the (reserved_after_send - gas_spent) has been unreserved
@@ -3236,7 +3231,7 @@ fn test_two_contracts_composition_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Initial value in all gas trees is 0
-        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
         let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
@@ -3291,7 +3286,7 @@ fn test_two_contracts_composition_works() {
         //
         // `total_supply` must be rechecked in #1010
         assert_eq!(
-            <Test as Config>::GasHandler::total_supply(),
+            GasHandlerOf::<Test>::total_supply(),
             <Test as Config>::MailboxThreshold::get() * 4
         );
     });
@@ -3717,7 +3712,7 @@ fn execution_over_blocks() {
         use demo_calc_hash::{Method, Package};
         use demo_calc_hash_aggregator::WASM_BINARY;
         use demo_calc_hash_calculator::WASM_BINARY as CALC_WASM_BINARY;
-        let block_gas_limit = <Test as pallet_gas::Config>::BlockGasLimit::get();
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
         let max_gas_spent_per_hash = 30_000_000_000u64;
 
         // deply calculator

@@ -55,7 +55,7 @@ pallet-gear-program = { version = "2.0.0", default-features = false, path = "../
 pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/gear" }
 pallet-gear-debug = { version = "2.0.0", default-features = false, path = "../pallets/gear-debug", optional = true }
 pallet-usage = { version = "2.0.0", default-features = false, path = "../pallets/usage" }
-pallet-gas = { version = "2.0.0", default-features = false, path = "../pallets/gas" }
+pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../pallets/gas" }
 pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../pallets/payment" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../pallets/gear/rpc/runtime-api" }
 gear-common = { version = "0.1.0", default-features = false, path = "../common" }
@@ -79,7 +79,7 @@ std = [
 	"pallet-gear/std",
 	"pallet-gear-debug/std",
 	"pallet-usage/std",
-	"pallet-gas/std",
+	"pallet-gear-gas/std",
 	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"gear-common/std",

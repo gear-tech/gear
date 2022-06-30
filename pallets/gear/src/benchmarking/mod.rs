@@ -37,7 +37,7 @@ use crate::{
     MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasTree, Origin};
 use core_processor::{
     common::ExecutableActor,
     configs::{AllocationsConfig, BlockInfo},
@@ -219,13 +219,10 @@ where
         }
     };
 
-    let initial_gas = T::BlockGasLimit::get();
-    T::GasHandler::create(
-        source.into_origin(),
-        root_message_id.into_origin(),
-        initial_gas,
-    )
-    .map_err(|_| "Internal error: unable to create gas handler")?;
+    let initial_gas = BlockGasLimitOf::<T>::get();
+    let origin = <T::AccountId as Origin>::from_origin(source);
+    GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
+        .map_err(|_| "Internal error: unable to create gas handler")?;
 
     let dispatch = dispatch.into_stored();
 

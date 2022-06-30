@@ -19,13 +19,14 @@
 use crate::{util::*, Params, MAX_QUEUE_LEN};
 use arbitrary::Unstructured;
 use codec::Encode;
-use common::ValueTree;
+use common::GasTree;
 use demo_contract_template::WASM_BINARY as GENERAL_WASM_BINARY;
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_ncompose::WASM_BINARY as NCOMPOSE_WASM_BINARY;
 use frame_support::dispatch::DispatchError;
 use gear_core::ids::ProgramId;
 use gear_runtime::{Gear, Origin, Runtime};
+use pallet_gear::GasHandlerOf;
 use primitive_types::H256;
 use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
 use sp_core::sr25519;
@@ -91,11 +92,9 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
     );
     ext.execute_with(|| {
         // Initial value in all gas trees is 0
-        if <Runtime as pallet_gear::Config>::GasHandler::total_supply() != 0
-            || total_gas_in_wait_list() != 0
-        {
+        if GasHandlerOf::<Runtime>::total_supply() != 0 || total_gas_in_wait_list() != 0 {
             return Ok(GasUsageStats::new(
-                <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
+                GasHandlerOf::<Runtime>::total_supply(),
                 total_gas_in_wait_list(),
                 0,
                 0,
@@ -149,7 +148,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
 
         // Gas balance adds up: all gas is held by waiting messages only
         Ok(GasUsageStats::new(
-            <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
+            GasHandlerOf::<Runtime>::total_supply(),
             total_gas_in_wait_list(),
             0,
             0,
@@ -213,11 +212,9 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
                 <Runtime as pallet_gear::Config>::Currency::total_issuance();
 
             // Initial value in all gas trees is 0
-            if <Runtime as pallet_gear::Config>::GasHandler::total_supply() != 0
-                || total_gas_in_wait_list() != 0
-            {
+            if GasHandlerOf::<Runtime>::total_supply() != 0 || total_gas_in_wait_list() != 0 {
                 return Ok(GasUsageStats::new(
-                    <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
+                    GasHandlerOf::<Runtime>::total_supply(),
                     total_gas_in_wait_list(),
                     initial_total_balance,
                     initial_total_balance,
@@ -405,7 +402,7 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
 
             // Gas balance adds up: all gas is held by waiting messages only
             Ok(GasUsageStats::new(
-                <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
+                GasHandlerOf::<Runtime>::total_supply(),
                 total_gas_in_wait_list(),
                 <Runtime as pallet_gear::Config>::Currency::total_issuance(),
                 initial_total_balance,
@@ -434,10 +431,7 @@ mod tests {
         )
         .execute_with(|| {
             // Initial value in all gas trees is 0
-            assert_eq!(
-                <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
-                0
-            );
+            assert_eq!(GasHandlerOf::<Runtime>::total_supply(), 0);
             assert_eq!(total_gas_in_wait_list(), 0);
 
             let composer_id = generate_program_id(NCOMPOSE_WASM_BINARY, b"salt");
@@ -480,7 +474,7 @@ mod tests {
 
             // Gas balance adds up: all gas is held by waiting messages only
             assert_eq!(
-                <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
+                GasHandlerOf::<Runtime>::total_supply(),
                 total_gas_in_wait_list()
             );
         });
@@ -497,10 +491,7 @@ mod tests {
         )
         .execute_with(|| {
             // Initial value in all gas trees is 0
-            assert_eq!(
-                <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
-                0
-            );
+            assert_eq!(GasHandlerOf::<Runtime>::total_supply(), 0);
             assert_eq!(total_gas_in_wait_list(), 0);
 
             let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
@@ -557,7 +548,7 @@ mod tests {
 
             // Gas balance adds up: all gas is held by waiting messages only
             assert_eq!(
-                <Runtime as pallet_gear::Config>::GasHandler::total_supply(),
+                GasHandlerOf::<Runtime>::total_supply(),
                 total_gas_in_wait_list()
             );
         });
