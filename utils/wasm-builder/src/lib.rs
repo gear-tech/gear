@@ -64,6 +64,7 @@ impl WasmBuilder {
         self.wasm_project.generate()?;
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
+        self.cargo.set_target_dir(self.wasm_project.target_dir());
         self.cargo
             .set_profile(self.wasm_project.profile().to_string());
         self.cargo.run()?;
