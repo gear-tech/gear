@@ -23,7 +23,7 @@ wasmparser = "0.86.0"
 common = { package = "gear-common", path = "../../common", default-features = false }
 gear-core = { path = "../../core", default-features = false }
 gear-runtime = { path = "../../runtime", default-features = false }
-pallet-gas = { path = "../../pallets/gas", default-features = false }
+pallet-gear-gas = { path = "../../pallets/gas", default-features = false }
 pallet-gear = { path = "../../pallets/gear", default-features = false }
 pallet-usage = { path = "../../pallets/usage", default-features = false }
 demo-contract-template = { path = "../../examples/binaries/contract-template", default-features = false }
@@ -62,7 +62,7 @@ std = [
     "primitive-types/std",
     "common/std",
     "gear-runtime/std",
-    "pallet-gas/std",
+    "pallet-gear-gas/std",
     "pallet-gear/std",
     "pallet-usage/std",
     "demo-contract-template/std",

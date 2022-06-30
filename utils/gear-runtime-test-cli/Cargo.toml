@@ -31,7 +31,7 @@ gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime", features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }
 pallet-gear = { path = "../../pallets/gear" }
-pallet-gas = { path = "../../pallets/gas" }
+pallet-gear-gas = { path = "../../pallets/gas" }
 pallet-gear-debug = { path = "../../pallets/gear-debug" }
 gear-core-processor = { path = "../../core-processor" }
 junit-common = { path = "../junit-common" }

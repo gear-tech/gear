@@ -19,7 +19,7 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo, QueueOf, WaitlistOf};
 use codec::Decode;
-use common::{self, storage::*, Origin as _, ValueTree};
+use common::{self, storage::*, GasTree, Origin as _};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency, unsigned::TransactionSource};
 use frame_system::Pallet as SystemPallet;
@@ -27,6 +27,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
+use pallet_gear::GasHandlerOf;
 use pallet_gear_program::Pallet as ProgramPallet;
 use sp_runtime::{
     offchain::{
@@ -80,11 +81,9 @@ where
             ),
             blk_num,
         );
-        let _ = <Test as pallet_gear::Config>::GasHandler::create(
-            user_id.into_origin(),
-            msg_id.into_origin(),
-            gas_limit,
-        );
+
+        let origin = <u64 as common::Origin>::from_origin(user_id.into_origin());
+        let _ = GasHandlerOf::<Test>::create(origin, msg_id, gas_limit);
     }
 }
 
@@ -106,16 +105,10 @@ where
             blk_num,
         );
         if let Some(last_msg_id) = last_msg_id {
-            let _ = <Test as pallet_gear::Config>::GasHandler::split(
-                last_msg_id.into_origin(),
-                msg_id.into_origin(),
-            );
+            let _ = GasHandlerOf::<Test>::split(last_msg_id, msg_id);
         } else {
-            let _ = <Test as pallet_gear::Config>::GasHandler::create(
-                user_id.into_origin(),
-                msg_id.into_origin(),
-                gas_limit,
-            );
+            let origin = <u64 as common::Origin>::from_origin(user_id.into_origin());
+            let _ = GasHandlerOf::<Test>::create(origin, msg_id, gas_limit);
         }
         last_msg_id = Some(msg_id);
     }
@@ -635,8 +628,9 @@ fn trap_reply_message_is_sent() {
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
+            GasHandlerOf::<Test>::get_limit(message.id())
                 .unwrap()
+                .map(|(g, _)| g)
                 .unwrap(),
             1000
         );
@@ -654,8 +648,9 @@ fn trap_reply_message_is_sent() {
         );
 
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
+            GasHandlerOf::<Test>::get_limit(message.id())
                 .unwrap()
+                .map(|(g, _)| g)
                 .unwrap(),
             500
         );
@@ -789,10 +784,7 @@ fn gas_properly_handled_for_trap_replies() {
         assert!(!ProgramPallet::<Test>::program_exists(4.into()));
 
         // 100 gas spent for rent payment by 1st message, other gas unreserved, due to addition of message into mailbox.
-        assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
-            0
-        );
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         // Ensure the message sender has the funds unreserved
         assert_eq!(Balances::reserved_balance(&3), 0);
