@@ -148,7 +148,8 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          rsync -ahW --compress-level=0 /root/cache/build/* /
+          rsync -ahW --compress-level=0 /root/cache/build/tmp /
+          rsync -ahW --compress-level=0 /root/cache/build/target ./
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
