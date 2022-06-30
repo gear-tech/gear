@@ -87,7 +87,7 @@ jobs:
         run: |
           tar -cf /tmp/check_target.tar ./target
           tar -cf /tmp/check_cache.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git /tmp/cargo/.crates.toml /tmp/cargo/.crates2.json
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -298,7 +298,7 @@ jobs:
         run: |
           tar -cf /tmp/build_target.tar ./target
           tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git /tmp/cargo/.crates.toml /tmp/cargo/.crates2.json
           mv /tmp/*.tar /root/cache/
 
       - name: Prepare artifacts
