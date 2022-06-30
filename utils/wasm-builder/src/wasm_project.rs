@@ -62,6 +62,7 @@ impl WasmProject {
             }
         }
         target_dir.push("wasm-projects");
+        target_dir.push(profile);
 
         let profile = if profile == "debug" {
             "dev".to_string()
