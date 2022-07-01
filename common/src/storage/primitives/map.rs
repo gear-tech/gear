@@ -84,9 +84,6 @@ pub trait MapStorage {
 #[macro_export]
 macro_rules! wrap_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty) => {
-        wrap_storage_map!(storage: $storage, name: $name, key: $key, value: $val, counted None);
-    };
-    (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty,) => {
         pub struct $name<T>(PhantomData<T>);
 
         impl<T: crate::Config> MapStorage for $name<T> {
@@ -137,7 +134,7 @@ macro_rules! wrap_storage_map {
 #[macro_export]
 macro_rules! wrap_counted_storage_map {
     (storage: $storage: ident, name: $name: ident, key: $key: ty, value: $val: ty, length: $len: ty) => {
-        $crate::wrap_storage_map!(storage: $storage, name: $name, key: $key, value: $val,);
+        $crate::wrap_storage_map!(storage: $storage, name: $name, key: $key, value: $val);
 
         impl<T: crate::Config> Counted for $name<T> {
             type Length = $len;

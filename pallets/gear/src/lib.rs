@@ -57,7 +57,7 @@ use gear_core::{
     message::*,
     program::Program as NativeProgram,
 };
-use pallet_gas::Pallet as GasPallet;
+use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -77,8 +77,9 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-
-use pallet_gear_program::Pallet as GearProgramPallet;
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::GasAllowance;
+pub type GasHandlerOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasTree;
+pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::BlockGasLimit;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -124,8 +125,7 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState,
-        ValueTree,
+        self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -145,7 +145,6 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_timestamp::Config
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
-        + pallet_gas::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -155,14 +154,6 @@ pub mod pallet {
 
         /// Gas to Currency converter
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
-
-        /// Implementation of a ledger to account for gas creation and consumption
-        type GasHandler: ValueTree<
-            ExternalOrigin = H256,
-            Key = H256,
-            Balance = u64,
-            Error = DispatchError,
-        >;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -205,6 +196,16 @@ pub mod pallet {
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
         >;
+
+        /// Implementation of a ledger to account for gas creation and consumption
+        type GasProvider: common::GasProvider<
+            ExternalOrigin = Self::AccountId,
+            Key = MessageId,
+            Balance = u64,
+            Error = DispatchError,
+        >;
+
+        type BlockLimiter: common::BlockLimiter<Balance = u64>;
     }
 
     #[pallet::pallet]
@@ -415,7 +416,7 @@ pub mod pallet {
             //
             // This field already was affected by gas pallet within the block,
             // so we don't need to include that db write.
-            GasPallet::<T>::update_gas_allowance(remaining_weight);
+            GasAllowanceOf::<T>::put(remaining_weight);
 
             Self::process_queue()
         }
@@ -499,9 +500,9 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = T::GasHandler::create(
-                origin,
-                message_id.into_origin(),
+            let _ = GasHandlerOf::<T>::create(
+                who.clone(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -560,7 +561,7 @@ pub mod pallet {
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                initial_gas.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get),
+                initial_gas.unwrap_or_else(BlockGasLimitOf::<T>::get),
                 payload,
                 value,
                 allow_other_panics,
@@ -576,7 +577,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
-                let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+                let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
                     source,
                     kind.clone(),
@@ -733,8 +734,8 @@ pub mod pallet {
                     load_page_cost: schedule.memory_weights.load_cost,
                 };
 
-                let dispatch_id = queued_dispatch.id().into_origin();
-                let gas_limit = T::GasHandler::get_limit(dispatch_id)
+                let dispatch_id = queued_dispatch.id();
+                let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .ok()
                     .flatten()
                     .ok_or_else(|| {
@@ -777,10 +778,10 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some(remaining_gas) = T::GasHandler::get_origin_key(dispatch_id)
+                    if let Some((remaining_gas, _)) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
                         .and_then(|root_dispatch_id| {
-                            T::GasHandler::get_limit(root_dispatch_id)
+                            GasHandlerOf::<T>::get_limit(root_dispatch_id)
                                 .map_err(|_| {
                                     b"Internal error: unable to get gas limit after execution"
                                         .to_vec()
@@ -858,7 +859,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let weight = GasPallet::<T>::gas_allowance() as Weight;
+            let weight = GasAllowanceOf::<T>::get() as Weight;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -876,11 +877,11 @@ pub mod pallet {
                 if let Some(dispatch) = QueueOf::<T>::dequeue()
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
-                    let msg_id = dispatch.id().into_origin();
+                    let msg_id = dispatch.id();
                     let gas_limit: u64;
-                    match T::GasHandler::get_limit(msg_id) {
+                    match GasHandlerOf::<T>::get_limit(msg_id) {
                         Ok(maybe_limit) => {
-                            if let Some(limit) = maybe_limit {
+                            if let Some((limit, _)) = maybe_limit {
                                 gas_limit = limit;
                             } else {
                                 log::debug!(
@@ -900,9 +901,9 @@ pub mod pallet {
                                 let consumed =
                                     T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
 
-                                GasPallet::<T>::decrease_gas_allowance(consumed);
+                                GasAllowanceOf::<T>::decrease(consumed);
 
-                                if GasPallet::<T>::gas_allowance() < consumed {
+                                if GasAllowanceOf::<T>::get() < consumed {
                                     break;
                                 }
 
@@ -921,7 +922,7 @@ pub mod pallet {
                         dispatch.id(),
                         dispatch.destination(),
                         gas_limit,
-                        GasPallet::<T>::gas_allowance(),
+                        GasAllowanceOf::<T>::get(),
                     );
 
                     let schedule = T::Schedule::get();
@@ -970,12 +971,9 @@ pub mod pallet {
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
                             {
                                 let origin = if let Some(origin) =
-                                    GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
-                                        .unwrap_or_else(|e| {
-                                            unreachable!("ValueTree corrupted: {:?}!", e)
-                                        })
-                                        .map(MessageId::from_origin)
-                                {
+                                    GasHandlerOf::<T>::get_origin_key(dispatch.id()).unwrap_or_else(
+                                        |e| unreachable!("ValueTree corrupted: {:?}!", e),
+                                    ) {
                                     if origin == dispatch.id() {
                                         None
                                     } else {
@@ -1056,7 +1054,7 @@ pub mod pallet {
                         None
                     };
 
-                    let origin = match <T as Config>::GasHandler::get_origin(msg_id) {
+                    let origin = match GasHandlerOf::<T>::get_external(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given gas tree is valid, a node with such id exists and has origin
@@ -1086,9 +1084,9 @@ pub mod pallet {
                             block_info,
                             allocations_config,
                             existential_deposit,
-                            ProgramId::from_origin(origin),
+                            ProgramId::from_origin(origin.into_origin()),
                             program_id,
-                            GasPallet::<T>::gas_allowance(),
+                            GasAllowanceOf::<T>::get(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
@@ -1101,9 +1099,9 @@ pub mod pallet {
                             block_info,
                             allocations_config,
                             existential_deposit,
-                            ProgramId::from_origin(origin),
+                            ProgramId::from_origin(origin.into_origin()),
                             program_id,
-                            GasPallet::<T>::gas_allowance(),
+                            GasAllowanceOf::<T>::get(),
                             T::OutgoingLimit::get(),
                             schedule.host_fn_weights.into_core(),
                             Default::default(),
@@ -1136,7 +1134,7 @@ pub mod pallet {
                 });
             }
 
-            weight.saturating_sub(GasPallet::<T>::gas_allowance())
+            weight.saturating_sub(GasAllowanceOf::<T>::get())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1301,7 +1299,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1378,9 +1376,9 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = T::GasHandler::create(
-                origin,
-                message_id.into_origin(),
+            let _ = GasHandlerOf::<T>::create(
+                who.clone(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -1435,7 +1433,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1456,9 +1454,9 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.clone().into_origin();
+            let origin = who.clone();
 
-            let message_id = Self::next_message_id(origin);
+            let message_id = Self::next_message_id(origin.clone().into_origin());
             let packet = HandlePacket::new_with_gas(
                 destination,
                 payload,
@@ -1473,7 +1471,8 @@ pub mod pallet {
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+
+                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
                 let event = Event::MessageEnqueued {
                     id: message.id(),
@@ -1482,20 +1481,23 @@ pub mod pallet {
                     entry: Entry::Handle,
                 };
 
-                QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin)))
-                    .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+                QueueOf::<T>::queue(
+                    message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())),
+                )
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(event);
             } else {
                 let mut expiration = None;
-                let message = message.into_stored(ProgramId::from_origin(origin));
+                let message =
+                    message.into_stored(ProgramId::from_origin(origin.clone().into_origin()));
 
                 if gas_limit >= T::MailboxThreshold::get() {
                     expiration = Some(T::BlockNumber::zero());
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
-                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
                 }
 
                 // TODO: replace this temporary (zero) value for expiration
@@ -1537,7 +1539,7 @@ pub mod pallet {
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1562,7 +1564,7 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.clone().into_origin();
+            let origin = who.clone();
 
             let message_id = MessageId::generate_reply(original_message.id(), 0);
             let packet =
@@ -1576,7 +1578,7 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
@@ -1591,7 +1593,7 @@ pub mod pallet {
                 };
 
                 QueueOf::<T>::queue(message.into_stored_dispatch(
-                    ProgramId::from_origin(origin),
+                    ProgramId::from_origin(origin.into_origin()),
                     destination,
                     original_message.id(),
                 ))
@@ -1601,7 +1603,7 @@ pub mod pallet {
             } else {
                 let mut expiration = None;
                 let message = message.into_stored(
-                    ProgramId::from_origin(origin),
+                    ProgramId::from_origin(origin.clone().into_origin()),
                     destination,
                     original_message.id(),
                 );
@@ -1611,7 +1613,7 @@ pub mod pallet {
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
-                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
                 }
 
                 // TODO: replace this temporary (zero) value for expiration
