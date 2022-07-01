@@ -9,7 +9,7 @@ services:
       - "9615:9615"
     image: schernovgear/gear:nightly
     environment:
-      - RUST_LOG=essential=debug
+      - RUST_LOG=essential
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
     command: gear-node --base-path /gear/  --prometheus-external {% if rpc is not defined %} --validator  --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' {% endif %} {% if rpc is defined %} --unsafe-ws-external --unsafe-rpc-external  --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' --rpc-methods Unsafe --rpc-cors all {% endif %} {% if bootnodeId is defined %} --bootnodes /ip4/{{ bootnode }}/tcp/30333/p2p/{{ bootnodeId }} {% endif %} {% if archive_node is defined and archive_node == "yes" %} --pruning archive {% endif %}
