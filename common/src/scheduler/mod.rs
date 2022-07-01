@@ -62,7 +62,7 @@ pub trait Scheduler {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::BlockNumber, Length = usize>
-        + KeyIterableByKeyMap;
+        + KeyIterableByKeyMap<Key1 = Self::BlockNumber, Key2 = Self::Task>;
 
     /// Resets all related to messenger storages.
     ///

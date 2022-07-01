@@ -112,7 +112,7 @@ where
             value,
         )?;
 
-        Gear::<T>::process_queue();
+        Gear::<T>::process_queue(Default::default());
 
         let result = Program { caller, addr };
 
@@ -352,7 +352,7 @@ benchmarks! {
         let salt = vec![255u8; 32];
     }: {
         let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
-        Gear::<T>::process_queue();
+        Gear::<T>::process_queue(Default::default());
     }
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
@@ -366,7 +366,7 @@ benchmarks! {
         let salt = vec![255u8; 32];
     }: {
         let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
-        Gear::<T>::process_queue();
+        Gear::<T>::process_queue(Default::default());
     }
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));

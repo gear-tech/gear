@@ -44,6 +44,7 @@ pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/
 hex-literal = "0.3.3"
 wasm-instrument = { version = "0.1", default-features = false }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
+pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
 
 
 [features]
@@ -54,6 +55,7 @@ std = [
 	"common/std",
 	"pallet-gear/std",
 	"pallet-gear-messenger/std",
+	"pallet-gear-scheduler/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",

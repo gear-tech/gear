@@ -108,7 +108,7 @@ pub mod pallet {
     /// Defines block number, which should already contain no tasks,
     /// because they were processed before.
     /// Missed blocks processing prioritized.
-    type MissedBlocksCollection<T> = BTreeSet<Task<T>>;
+    type MissedBlocksCollection<T> = BTreeSet<BlockNumberFor<T>>;
 
     // Below goes storages and their gear's wrapper implementations.
     //

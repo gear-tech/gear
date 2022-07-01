@@ -47,6 +47,7 @@ construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         GearMessenger: pallet_gear_messenger::{Pallet},
+        GearScheduler: pallet_gear_scheduler::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         GearGas: pallet_gear_gas::{Pallet},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -133,6 +134,11 @@ impl pallet_gear::Config for Test {
     type MailboxThreshold = MailboxThreshold;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
+    type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
+}
+
+impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
 }
 

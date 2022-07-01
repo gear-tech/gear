@@ -357,6 +357,7 @@ impl pallet_gear::Config for Runtime {
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -377,6 +378,10 @@ impl pallet_usage::Config for Runtime {
     type TrapReplyExistentialGasLimit = ConstU64<6000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
     type Messenger = GearMessenger;
+}
+
+impl pallet_gear_scheduler::Config for Runtime {
+    type BlockLimiter = GearGas;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -451,9 +456,10 @@ construct_runtime!(
         Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         Usage: pallet_usage,
-        GearGas: pallet_gear_gas,
         GearPayment: pallet_gear_payment,
 
         // Only available with "debug-mode" feature on
@@ -479,9 +485,10 @@ construct_runtime!(
         Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         Usage: pallet_usage,
-        GearGas: pallet_gear_gas,
         GearPayment: pallet_gear_payment,
     }
 );

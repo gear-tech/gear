@@ -50,6 +50,7 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 hex-literal = { version = "0.3.4", optional = true }
 
 # Internal deps
+pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../pallets/gear-scheduler" }
 pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../pallets/gear-messenger" }
 pallet-gear-program = { version = "2.0.0", default-features = false, path = "../pallets/gear-program" }
 pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/gear" }
@@ -76,6 +77,7 @@ std = [
 	"pallet-authorship/std",
 	"pallet-balances/std",
 	"pallet-gear-program/std",
+	"pallet-gear-scheduler/std",
 	"pallet-gear/std",
 	"pallet-gear-debug/std",
 	"pallet-usage/std",

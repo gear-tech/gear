@@ -143,10 +143,15 @@ impl pallet_gear::Config for Test {
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
 }
 
 impl pallet_gear_messenger::Config for Test {
     type Currency = Balances;
+    type BlockLimiter = GearGas;
+}
+
+impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
 }
 
@@ -168,6 +173,7 @@ construct_runtime!(
         Timestamp: pallet_timestamp::{Pallet, Storage},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         GearMessenger: pallet_gear_messenger::{Pallet},
+        GearScheduler: pallet_gear_scheduler::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         GearGas: pallet_gear_gas,
     }
