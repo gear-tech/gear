@@ -74,7 +74,7 @@ impl Deref for TrimmedString {
     }
 }
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::Display)]
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,

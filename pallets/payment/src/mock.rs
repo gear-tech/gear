@@ -27,7 +27,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
     testing::{Header, TestXt},
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -49,7 +49,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Gas: pallet_gas::{Pallet, Storage},
+        GearGas: pallet_gear_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
         TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
@@ -165,14 +165,16 @@ impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = Gas;
     type WeightInfo = ();
     type Schedule = MySchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
+    type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
+    type GasProvider = GearGas;
+    type BlockLimiter = GearGas;
 }
 
 impl pallet_gear_program::Config for Test {
@@ -182,7 +184,7 @@ impl pallet_gear_program::Config for Test {
     type Messenger = GearMessenger;
 }
 
-impl pallet_gas::Config for Test {
+impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = BlockGasLimit;
 }
 

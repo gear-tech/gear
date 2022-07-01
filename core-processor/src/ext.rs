@@ -60,6 +60,7 @@ pub trait ProcessorExt {
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self;
 
     /// Returns whether this extension works with lazy pages
@@ -72,7 +73,7 @@ pub trait ProcessorExt {
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_protect_and_init_info(
         mem: &dyn Memory,
-        lazy_pages: &BTreeSet<PageNumber>,
+        lazy_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error>;
 
@@ -185,6 +186,8 @@ pub struct Ext {
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<&'static str>,
+    /// Mailbox threshold
+    pub mailbox_threshold: u64,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -205,6 +208,7 @@ impl ProcessorExt for Ext {
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self {
         Self {
             gas_counter,
@@ -221,6 +225,7 @@ impl ProcessorExt for Ext {
             program_candidates_data,
             host_fn_weights,
             forbidden_funcs,
+            mailbox_threshold,
         }
     }
 
@@ -234,7 +239,7 @@ impl ProcessorExt for Ext {
 
     fn lazy_pages_protect_and_init_info(
         _mem: &dyn Memory,
-        _memory_pages: &BTreeSet<PageNumber>,
+        _memory_pages: impl Iterator<Item = PageNumber>,
         _prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
         unreachable!()
@@ -317,7 +322,14 @@ impl Ext {
     }
 
     fn charge_message_gas(&mut self, gas_limit: Option<GasLimit>) -> Result<(), ProcessorError> {
-        if self.gas_counter.reduce(gas_limit.unwrap_or(0)) != ChargeResult::Enough {
+        let gas_limit = gas_limit.unwrap_or(0);
+
+        if gas_limit != 0 && gas_limit < self.mailbox_threshold {
+            self.return_and_store_err(Err(MessageError::InsufficientGasLimit {
+                message_gas_limit: gas_limit,
+                mailbox_threshold: self.mailbox_threshold,
+            }))
+        } else if self.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             self.return_and_store_err(Err(MessageError::NotEnoughGas))
         } else {
             Ok(())
@@ -423,7 +435,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Reply(buffer.len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyPush(buffer.len() as u32))?;
         let result = self.message_context.reply_push(buffer);
 
         self.return_and_store_err(result)
@@ -440,7 +452,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::Reply(msg.payload().len() as u32))?;
+        self.charge_gas_runtime(RuntimeCosts::ReplyCommit(msg.payload().len() as u32))?;
 
         self.charge_expiring_resources(&msg)?;
 
@@ -574,7 +586,7 @@ impl EnvExt for Ext {
     }
 
     fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::CreateProgram)?;
+        self.charge_gas_runtime(RuntimeCosts::CreateProgram(packet.payload().len() as u32))?;
 
         self.charge_expiring_resources(&packet)?;
 

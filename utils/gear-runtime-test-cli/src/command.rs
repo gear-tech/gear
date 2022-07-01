@@ -19,11 +19,11 @@
 #![allow(unused_must_use)]
 
 use crate::{
-    util::{get_dispatch_queue, new_test_ext, process_queue, MailboxOf, QueueOf},
+    util::{get_dispatch_queue, new_test_ext, process_queue, run_to_block, MailboxOf, QueueOf},
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
+use gear_common::{storage::*, CodeStorage, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
@@ -31,15 +31,14 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_processor::common::ExecutableActor;
-use gear_runtime::{Origin, Runtime};
+use gear_runtime::{Origin, Runtime, System};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
     proc::*,
     sample::{self, ChainProgram, PayloadVariant},
 };
-use pallet_gas::Pallet as GasPallet;
-use pallet_gear::Pallet as GearPallet;
+use pallet_gear::{GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
 use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
@@ -297,20 +296,17 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
         let gas_limit = message
             .gas_limit
-            .unwrap_or(GasPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64);
+            .unwrap_or_else(GasAllowanceOf::<Runtime>::get);
 
         let value = message.value.unwrap_or(0);
 
         // Force push to MQ if msg.source.is_some()
         if let Some(source) = &message.source {
             let source = H256::from_slice(source.to_program_id().as_ref());
+            let origin = <AccountId32 as gear_common::Origin>::from_origin(source);
             let id = GearPallet::<Runtime>::next_message_id(source);
 
-            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(
-                source,
-                id.into_origin(),
-                gas_limit,
-            );
+            let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit);
 
             let msg = StoredMessage::new(
                 id,
@@ -332,10 +328,11 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 value,
             );
         }
-
-        // After initialization the last snapshot is empty, so we get MQ after sending messages
-        snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
+        run_to_block(System::block_number() + 1, None, true);
     }
+
+    // After initialization the last snapshot is empty, so we get MQ after sending messages
+    snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
 
     process_queue(&mut snapshots, &mut mailbox);
 

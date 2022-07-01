@@ -10,14 +10,59 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };
+use gear_wasm_builder::optimize::Optimizer;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
     env,
+    ffi::OsStr,
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
 };
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Add,
+    derive_more::AddAssign,
+    derive_more::Sub,
+    derive_more::SubAssign,
+    derive_more::Mul,
+    derive_more::MulAssign,
+    derive_more::Div,
+    derive_more::DivAssign,
+    derive_more::Display,
+)]
+pub struct Gas(pub(crate) u64);
+
+impl Gas {
+    pub const fn zero() -> Self {
+        Self(0)
+    }
+
+    pub const fn saturating_add(self, rhs: Self) -> Self {
+        Self(self.0.saturating_add(rhs.0))
+    }
+
+    pub const fn saturating_sub(self, rhs: Self) -> Self {
+        Self(self.0.saturating_sub(rhs.0))
+    }
+
+    pub const fn saturating_mul(self, rhs: Self) -> Self {
+        Self(self.0.saturating_mul(rhs.0))
+    }
+
+    pub const fn saturating_div(self, rhs: Self) -> Self {
+        Self(self.0.saturating_div(rhs.0))
+    }
+}
 
 #[derive(
     Default,
@@ -207,18 +252,100 @@ impl<'a> Program<'a> {
             .expect("Unable to get root directory of the project")
             .join(path)
             .clean();
-        let is_meta = path.to_str().unwrap_or_default().ends_with("meta.wasm");
-        let program_id = id.clone().into().0;
 
-        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        let code = Code::new_raw(code, 1, None, true, is_meta)
+        let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+        assert!(
+            filename.ends_with(".wasm"),
+            "File must have `.wasm` extension"
+        );
+        assert!(
+            !filename.ends_with(".meta.wasm"),
+            "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
+            Use Program::from_opt_and_meta() instead"
+        );
+        let is_opt = filename.ends_with(".opt.wasm");
+
+        let (opt_code, meta_code) = if !is_opt {
+            let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
+            optimizer.insert_stack_and_export();
+            let opt_code = optimizer
+                .optimize()
+                .expect("Failed to produce optimized binary");
+            let meta_code = optimizer
+                .metadata()
+                .expect("Failed to produce metadata binary");
+            (opt_code, Some(meta_code))
+        } else {
+            (
+                fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path)),
+                None,
+            )
+        };
+
+        Self::from_opt_and_meta_code_with_id(system, id, opt_code, meta_code)
+    }
+
+    pub fn from_opt_and_meta<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        optimized: P,
+        metadata: P,
+    ) -> Self {
+        let nonce = system.0.borrow_mut().free_id_nonce();
+        Self::from_opt_and_meta_with_id(system, nonce, optimized, metadata)
+    }
+
+    pub fn from_opt_and_meta_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+        optimized: P,
+        metadata: P,
+    ) -> Self {
+        let read_file = |path: P, ext| {
+            let path = env::current_dir()
+                .expect("Unable to get root directory of the project")
+                .join(path)
+                .clean();
+
+            let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+            assert!(filename.ends_with(ext), "Wrong file extension: {}", ext);
+
+            fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
+        };
+
+        let opt_code = read_file(optimized, ".opt.wasm");
+        let meta_code = read_file(metadata, ".meta.wasm");
+
+        Self::from_opt_and_meta_code_with_id(system, id, opt_code, Some(meta_code))
+    }
+
+    pub fn from_opt_and_meta_code_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+        optimized: Vec<u8>,
+        metadata: Option<Vec<u8>>,
+    ) -> Self {
+        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default())
             .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        let (code, _) = code_and_id.into_parts();
+        let (code, code_id) = code_and_id.into_parts();
+
+        if let Some(metadata) = metadata {
+            system
+                .0
+                .borrow_mut()
+                .meta_binaries
+                .insert(code_id, metadata);
+        }
+
+        let program_id = id.clone().into().0;
         let program = CoreProgram::new(program_id, code);
 
-        Self::program_with_id(system, id, InnerProgram::new(program, Default::default()))
+        Self::program_with_id(
+            system,
+            id,
+            InnerProgram::new(program, code_id, Default::default()),
+        )
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {

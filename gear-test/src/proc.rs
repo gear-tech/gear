@@ -38,6 +38,7 @@ use wasm_instrument::gas_metering::ConstantCostRules;
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
+pub const MAILBOX_THRESHOLD: u64 = 3000;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -115,6 +116,7 @@ where
         OUTGOING_LIMIT,
         Default::default(),
         Default::default(),
+        MAILBOX_THRESHOLD,
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -299,6 +301,7 @@ where
                     OUTGOING_LIMIT,
                     Default::default(),
                     Default::default(),
+                    MAILBOX_THRESHOLD,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -338,6 +341,7 @@ where
                 OUTGOING_LIMIT,
                 Default::default(),
                 Default::default(),
+                MAILBOX_THRESHOLD,
             );
             counter += 1;
 

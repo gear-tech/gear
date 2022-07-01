@@ -6,7 +6,6 @@ use futures::{future, FutureExt};
 use gstd::{msg, prelude::*, ActorId};
 use scale_info::TypeInfo;
 use sp_core::{
-    crypto::UncheckedFrom,
     sr25519::{Pair as Sr25519Pair, Public, Signature},
     Pair,
 };
@@ -84,17 +83,11 @@ async fn main() {
                     .ok()
                     .and_then(|response| {
                         // the same way as in verify.rs from subkey
-                        let mut signature: Signature = Signature([0u8; 64]);
-                        if response.signature.len() == signature.0.len() {
-                            signature.as_mut().copy_from_slice(&response.signature);
-                            Some(signature)
-                        } else {
-                            None
-                        }
+                        Signature::try_from(response.signature.as_slice()).ok()
                     })
             })
             .map(|signature| {
-                let pub_key = Public::unchecked_from(<[u8; 32]>::from(unsafe { SIGNATORIES[i] }));
+                let pub_key = Public(<[u8; 32]>::from(unsafe { SIGNATORIES[i] }));
 
                 Sr25519Pair::verify(&signature, &message, &pub_key).into()
             })

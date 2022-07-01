@@ -15,7 +15,7 @@ jobs:
     runs-on: [self-hosted, cachepot]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH

@@ -163,7 +163,6 @@ impl Code {
         version: u32,
         module: Option<Module>,
         instrument_with_const_rules: bool,
-        is_meta: bool,
     ) -> Result<Self, CodeError> {
         let module = module.unwrap_or(
             wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
@@ -188,10 +187,7 @@ impl Code {
 
         let exports = get_exports(&module, false)?;
 
-        if exports.contains(&DispatchKind::Init)
-            || exports.contains(&DispatchKind::Handle)
-            || is_meta
-        {
+        if exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle) {
             if instrument_with_const_rules {
                 let instrumented_module = wasm_instrument::gas_metering::inject(
                     module,

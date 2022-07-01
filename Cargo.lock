@@ -1419,6 +1419,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy-with-gas"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -1664,8 +1674,8 @@ dependencies = [
  "log",
  "pallet-aura",
  "pallet-balances",
- "pallet-gas",
  "pallet-gear",
+ "pallet-gear-gas",
  "pallet-usage",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -2426,6 +2436,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "primitive-types",
+ "proptest",
  "scale-info",
  "sp-arithmetic",
  "sp-core",
@@ -2568,9 +2579,9 @@ dependencies = [
  "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
+ "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-payment",
  "pallet-gear-program",
@@ -2633,9 +2644,9 @@ dependencies = [
  "junit-common",
  "log",
  "pallet-balances",
- "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
+ "pallet-gear-gas",
  "parity-scale-codec",
  "quick-xml",
  "rayon",
@@ -2848,6 +2859,7 @@ dependencies = [
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
+ "gear-wasm-builder",
  "hex",
  "log",
  "parity-scale-codec",
@@ -4812,31 +4824,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-gas"
-version = "2.0.0"
-dependencies = [
- "env_logger",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "gear-common",
- "gear-core",
- "log",
- "pallet-balances",
- "pallet-timestamp",
- "parity-scale-codec",
- "parity-wasm 0.42.2",
- "primitive-types",
- "proptest",
- "scale-info",
- "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "wabt",
-]
-
-[[package]]
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
@@ -4852,6 +4839,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-program-factory",
  "demo-proxy",
+ "demo-proxy-with-gas",
  "demo-waiting-proxy",
  "env_logger",
  "frame-benchmarking",
@@ -4868,7 +4856,7 @@ dependencies = [
  "page_size",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gas",
+ "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
  "pallet-gear-program",
@@ -4904,8 +4892,8 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gas",
  "pallet-gear",
+ "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
@@ -4914,6 +4902,30 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "wabt",
+]
+
+[[package]]
+name = "pallet-gear-gas"
+version = "2.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "log",
+ "pallet-balances",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "primitive-types",
+ "scale-info",
+ "serde",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4955,8 +4967,8 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gas",
  "pallet-gear",
+ "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
@@ -5163,8 +5175,8 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gas",
  "pallet-gear",
+ "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-timestamp",
@@ -7408,9 +7420,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.81"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b7ce2b32a1aed03c558dc61a5cd328f15aff2dbc17daad8fb8af04d2100e15c"
+checksum = "82c2c1fdcd807d1098552c5b9a36e425e42e9fbd7c6a37a8425f390f781f7fa7"
 dependencies = [
  "itoa 1.0.2",
  "ryu",
@@ -9260,7 +9272,7 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "log",
- "pwasm-utils",
+ "thiserror",
 ]
 
 [[package]]

@@ -27,7 +27,6 @@ use crate::{
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
-    vec::Vec,
 };
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
@@ -128,14 +127,9 @@ fn prepare_memory<A: ProcessorExt>(
         let lazy_pages = allocations
             .iter()
             .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_data.contains_key(page))
-            .collect();
-        A::lazy_pages_protect_and_init_info(mem, &lazy_pages, program_id)
+            .filter(|page| !pages_data.contains_key(page));
+        A::lazy_pages_protect_and_init_info(mem, lazy_pages, program_id)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
-        log::trace!(
-            "lazy pages = {:?}",
-            lazy_pages.iter().map(|p| p.0).collect::<Vec<_>>()
-        );
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -296,6 +290,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Default::default(),
         settings.host_fn_weights,
         settings.forbidden_funcs,
+        settings.mailbox_threshold,
     );
 
     let mut env = E::new(

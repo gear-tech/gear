@@ -45,7 +45,7 @@ const USAGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 #[frame_support::pallet]
 pub mod pallet {
     use super::{offchain::PayeeInfo, *};
-    use common::{storage::*, GasPrice, Origin, PaymentProvider, ValueTree};
+    use common::{storage::*, GasPrice, GasTree, Origin, PaymentProvider};
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -57,6 +57,7 @@ pub mod pallet {
         ids::{MessageId, ProgramId},
         message::{ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     };
+    use pallet_gear::GasHandlerOf;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -278,10 +279,10 @@ pub mod pallet {
                             let chargeable_amount =
                                 <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
+                            match GasHandlerOf::<T>::get_limit(dispatch.id()) {
                                 Ok(maybe_limit) => {
                                     match maybe_limit {
-                                        Some(msg_gas_balance) => {
+                                        Some((msg_gas_balance, _)) => {
                                             let usable_gas = msg_gas_balance
                                                 .saturating_sub(T::TrapReplyExistentialGasLimit::get());
 
@@ -310,7 +311,7 @@ pub mod pallet {
                 )
                 .for_each(|(fee, dispatch, msg_gas_balance)| {
                     let msg_id = dispatch.id();
-                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id.into_origin(), fee) {
+                    if let Err(e) = GasHandlerOf::<T>::spend(msg_id, fee) {
                         log::debug!(
                             target: "essential",
                             "Error spending {:?} gas from {:?}: {:?}",
@@ -319,7 +320,7 @@ pub mod pallet {
                         return;
                     };
                     let total_reward = T::GasPrice::gas_price(fee);
-                    let origin = match <T as pallet_gear::Config>::GasHandler::get_origin(msg_id.into_origin()) {
+                    let origin = match GasHandlerOf::<T>::get_external(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given the gas tree is valid, the node with this id is guaranteed to have an origin
@@ -339,7 +340,7 @@ pub mod pallet {
                                 T::ExternalSubmitterRewardFraction::get() * total_reward;
                             let validator_reward = total_reward.saturating_sub(user_reward);
                             if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                origin,
+                                origin.clone().into_origin(),
                                 who,
                                 user_reward,
                             ) {
@@ -349,9 +350,10 @@ pub mod pallet {
                                     e,
                                 );
                             }
+
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                    origin,
+                                    origin.into_origin(),
                                     &author,
                                     validator_reward,
                                 ) {
@@ -366,7 +368,7 @@ pub mod pallet {
                         _ => {
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                    origin,
+                                    origin.into_origin(),
                                     &author,
                                     total_reward,
                                 ) {
@@ -394,9 +396,9 @@ pub mod pallet {
 
                             if pallet_gear_program::Pallet::<T>::program_exists(dispatch.destination()) {
                                 // Enqueue the trap reply message
-                                if let Err(e) = <T as pallet_gear::Config>::GasHandler::split(
-                                    msg_id.into_origin(),
-                                    trap_message_id.into_origin(),
+                                if let Err(e) = GasHandlerOf::<T>::split(
+                                    msg_id,
+                                    trap_message_id,
                                 ) {
                                     log::debug!(
                                         target: "essential",
@@ -430,7 +432,7 @@ pub mod pallet {
                             }
 
                             // Consume the corresponding node
-                            match T::GasHandler::consume(msg_id.into_origin()) {
+                            match GasHandlerOf::<T>::consume(msg_id) {
                                 Err(e) => {
                                     // We only can get an error here if the gas tree is invalidated
                                     // TODO: throwing a panic is not appropriate here; decide, what to do
@@ -448,7 +450,7 @@ pub mod pallet {
                                         let refund = T::GasPrice::gas_price(gas_left);
 
                                         let _ = <T as pallet_gear::Config>::Currency::unreserve(
-                                            &<T::AccountId as Origin>::from_origin(external),
+                                            &external,
                                             refund,
                                         );
                                     }

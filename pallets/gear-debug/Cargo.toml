@@ -42,7 +42,7 @@ gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 hex-literal = "0.3.3"
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-gas = { path = "../gas" }
+pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-program = { path = "../gear-program", default-features = false }
 

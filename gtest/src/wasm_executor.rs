@@ -19,6 +19,8 @@ use wasmtime::{
     Val,
 };
 
+use crate::MAILBOX_THRESHOLD;
+
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor {
     instance: Instance,
@@ -31,6 +33,7 @@ impl WasmExecutor {
     /// Also uses provided memory pages for future execution
     pub(crate) fn new(
         program: &Program,
+        meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
     ) -> Result<Self, String> {
@@ -45,8 +48,7 @@ impl WasmExecutor {
         let engine = Engine::new(&config).map_err(|error| error.to_string())?;
         let mut store = Store::<StoreData<Ext>>::new(&engine, store_data);
 
-        let module =
-            Module::new(&engine, program.code().code()).map_err(|error| error.to_string())?;
+        let module = Module::new(&engine, meta_binary).map_err(|error| error.to_string())?;
 
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
@@ -142,6 +144,7 @@ impl WasmExecutor {
             Default::default(),
             Default::default(),
             Default::default(),
+            MAILBOX_THRESHOLD,
         )
     }
 

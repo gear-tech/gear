@@ -22,10 +22,10 @@ use super::*;
 
 /// Check that removed nodes invariants are met
 pub(super) fn assert_removed_nodes_props(
-    consumed: H256,
-    removed_nodes: BTreeMap<H256, ValueNode>,
-    remaining_ids: &BTreeSet<H256>,
-    marked_consumed_nodes: &BTreeSet<H256>,
+    consumed: Key,
+    removed_nodes: BTreeMap<Key, GasNode>,
+    remaining_ids: &BTreeSet<Key>,
+    marked_consumed_nodes: &BTreeSet<Key>,
 ) {
     if removed_nodes.is_empty() {
         return;
@@ -46,9 +46,9 @@ pub(super) fn assert_removed_nodes_props(
 // That is true for all the removed nodes except for the `consumed` one, because when it's removed
 // it's redundant to update it's status in the persistence layer to `consumed`.
 fn assert_removed_nodes_are_consumed(
-    consumed: H256,
-    marked_consumed_nodes: &BTreeSet<H256>,
-    removed_nodes: &BTreeMap<H256, ValueNode>,
+    consumed: Key,
+    marked_consumed_nodes: &BTreeSet<Key>,
+    removed_nodes: &BTreeMap<Key, GasNode>,
 ) {
     for (id, node) in removed_nodes {
         if *id != consumed {
@@ -65,9 +65,9 @@ fn assert_removed_nodes_are_consumed(
 
 // Check that removed nodes form a path (if more than one was removed).
 fn assert_removed_nodes_form_path(
-    consumed: H256,
-    remaining_ids: &BTreeSet<H256>,
-    removed_nodes: BTreeMap<H256, ValueNode>,
+    consumed: Key,
+    remaining_ids: &BTreeSet<Key>,
+    removed_nodes: BTreeMap<Key, GasNode>,
 ) {
     let mut not_checked_parents_count = removed_nodes.len();
     let mut node = removed_nodes
@@ -92,8 +92,8 @@ fn assert_removed_nodes_form_path(
 // That is done the following way. Each time `consume` procedure is called we check `root_node` for existence.
 // If it was removed after a new `consume` call, then all the tree must be empty. So no nodes can be removed
 // after root was removed in the `consume` call.
-pub(super) fn assert_root_removed_last(root_node: H256, remaining_ids: &BTreeSet<H256>) {
-    if Gas::get_node(&root_node).is_none() {
+pub(super) fn assert_root_removed_last(root_node: Key, remaining_ids: &BTreeSet<Key>) {
+    if Gas::get_node(root_node).is_none() {
         assert!(remaining_ids.is_empty());
     }
 }
