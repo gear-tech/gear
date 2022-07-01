@@ -168,8 +168,6 @@ pub mod pallet {
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
 
-    pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
-
     /// The current storage version.
     const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
