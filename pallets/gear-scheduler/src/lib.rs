@@ -47,7 +47,10 @@ pub mod pallet {
 
     // Gear Scheduler Pallet's `Config`.
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        /// Various limits for the block.
+        type BlockLimiter: common::BlockLimiter<Balance = u64>;
+    }
 
     // Gear Scheduler Pallet itself.
     //

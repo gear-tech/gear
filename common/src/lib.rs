@@ -159,7 +159,7 @@ pub trait PaymentProvider<AccountId> {
 /// Contains various limits for the block.
 pub trait BlockLimiter {
     /// The maximum amount of gas that can be used within a single block.
-    type BlockGasLimit: Get<u64>;
+    type BlockGasLimit: Get<Self::Balance>;
 
     /// Type representing a quantity of value.
     type Balance;

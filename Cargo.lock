@@ -5054,6 +5054,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear-gas",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",

@@ -63,7 +63,7 @@ construct_runtime!(
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet, Storage},
+        GearGas: pallet_gear_gas::{Pallet},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},

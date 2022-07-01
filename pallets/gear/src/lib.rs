@@ -205,6 +205,7 @@ pub mod pallet {
             Error = DispatchError,
         >;
 
+        /// Various limits for the block.
         type BlockLimiter: common::BlockLimiter<Balance = u64>;
     }
 
