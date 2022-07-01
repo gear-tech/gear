@@ -24,8 +24,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo,
-    TerminationReasonKind, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
+    TrapExplanation,
 };
 use gear_core::{
     charge_gas_token,
@@ -55,7 +55,6 @@ pub trait ProcessorExt {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -66,7 +65,7 @@ pub trait ProcessorExt {
     /// Returns whether this extension works with lazy pages
     fn is_lazy_pages_enabled() -> bool;
 
-    /// If extention support lazy pages, then checks that
+    /// If extension support lazy pages, then checks that
     /// environment for lazy pages is initialized.
     fn check_lazy_pages_consistent_state() -> bool;
 
@@ -92,7 +91,7 @@ pub enum ProcessorError {
     Core(ExtError),
     /// Termination reason occurred in a syscall
     #[display(fmt = "Terminated: {:?}", _0)]
-    Terminated(TerminationReasonKind),
+    Terminated(TerminationReason),
     /// User's code panicked
     #[display(fmt = "Panic occurred: {}", _0)]
     Panic(String),
@@ -111,7 +110,7 @@ impl ProcessorError {
     pub fn into_trap_explanation(self) -> Option<TrapExplanation> {
         match self {
             Self::Core(err) => Some(TrapExplanation::Core(err)),
-            Self::Panic(msg) => Some(TrapExplanation::Other(msg)),
+            Self::Panic(msg) => Some(TrapExplanation::Other(msg.into())),
             _ => None,
         }
     }
@@ -147,7 +146,7 @@ impl IntoExtError for ProcessorError {
 }
 
 impl AsTerminationReason for ProcessorError {
-    fn as_termination_reason(&self) -> Option<&TerminationReasonKind> {
+    fn as_termination_reason(&self) -> Option<&TerminationReason> {
         match self {
             ProcessorError::Terminated(reason) => Some(reason),
             _ => None,
@@ -175,8 +174,6 @@ pub struct Ext {
     pub existential_deposit: u128,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<ProcessorError>,
-    /// Contains argument to the `exit` if it was called.
-    pub exit_argument: Option<ProgramId>,
     /// Communication origin
     pub origin: ProgramId,
     /// Current program id
@@ -203,7 +200,6 @@ impl ProcessorExt for Ext {
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
-        exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -220,7 +216,6 @@ impl ProcessorExt for Ext {
             config,
             existential_deposit,
             error_explanation: None,
-            exit_argument,
             origin,
             program_id,
             program_candidates_data,
@@ -254,7 +249,10 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(
+        self,
+        memory: &dyn Memory,
+    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         let wasm_pages = self.allocations_context.allocations().clone();
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
@@ -268,19 +266,19 @@ impl IntoExtInfo for Ext {
         let (outcome, context_store) = self.message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
-        Ok(ExtInfo {
+        let info = ExtInfo {
             gas_amount: self.gas_counter.into(),
             allocations: wasm_pages,
             pages_data,
             generated_dispatches,
             awakening,
             context_store,
-            trap_explanation: self
-                .error_explanation
-                .and_then(ProcessorError::into_trap_explanation),
-            exit_argument: self.exit_argument,
             program_candidates_data: self.program_candidates_data,
-        })
+        };
+        let trap_explanation = self
+            .error_explanation
+            .and_then(ProcessorError::into_trap_explanation);
+        Ok((info, trap_explanation))
     }
 
     fn into_gas_amount(self) -> GasAmount {
@@ -378,16 +376,16 @@ impl EnvExt for Ext {
         // Returns back greedily used gas for allocations
         let first_page = page_number;
         let last_page = first_page + pages_num - 1.into();
-        let mut new_alloced_pages_num = 0;
+        let mut new_allocated_pages_num = 0;
         for page in first_page.0..=last_page.0 {
             if !self.allocations_context.is_init_page(page.into()) {
-                new_alloced_pages_num += 1;
+                new_allocated_pages_num += 1;
             }
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.config
                 .alloc_cost
-                .saturating_mul((pages_num.0 - new_alloced_pages_num) as u64),
+                .saturating_mul((pages_num.0 - new_allocated_pages_num) as u64),
         );
 
         self.refund_gas(gas_to_return_back as u32)?;
@@ -461,10 +459,8 @@ impl EnvExt for Ext {
         Ok(self.message_context.current().source())
     }
 
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error> {
+    fn exit(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
-        debug_assert!(self.exit_argument.is_none());
-        self.exit_argument = Some(value_destination);
         Ok(())
     }
 
@@ -516,7 +512,7 @@ impl EnvExt for Ext {
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReasonKind::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 
@@ -529,7 +525,7 @@ impl EnvExt for Ext {
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
-            (Enough, NotEnough) => Err(TerminationReasonKind::GasAllowanceExceeded.into()),
+            (Enough, NotEnough) => Err(TerminationReason::GasAllowanceExceeded.into()),
             (Enough, Enough) => Ok(()),
         };
 

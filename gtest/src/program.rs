@@ -18,12 +18,55 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use wasm_instrument::gas_metering::ConstantCostRules;
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::Add,
+    derive_more::AddAssign,
+    derive_more::Sub,
+    derive_more::SubAssign,
+    derive_more::Mul,
+    derive_more::MulAssign,
+    derive_more::Div,
+    derive_more::DivAssign,
+    derive_more::Display,
+)]
+pub struct Gas(pub(crate) u64);
+
+impl Gas {
+    pub const fn zero() -> Self {
+        Self(0)
+    }
+
+    pub const fn saturating_add(self, rhs: Self) -> Self {
+        Self(self.0.saturating_add(rhs.0))
+    }
+
+    pub const fn saturating_sub(self, rhs: Self) -> Self {
+        Self(self.0.saturating_sub(rhs.0))
+    }
+
+    pub const fn saturating_mul(self, rhs: Self) -> Self {
+        Self(self.0.saturating_mul(rhs.0))
+    }
+
+    pub const fn saturating_div(self, rhs: Self) -> Self {
+        Self(self.0.saturating_div(rhs.0))
+    }
+}
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn meta_state(&mut self, payload: Option<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
     }
@@ -119,13 +162,20 @@ impl<'a> Program<'a> {
         system: &'a System,
         id: I,
     ) -> Self {
-        let current_dir = env::current_dir().expect("Unable to get current dir");
-        let path_file = current_dir.join(".binpath");
-        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let relative_path: PathBuf = String::from_utf8(path_bytes).expect("Invalid path").into();
-        let path = current_dir.join(relative_path);
+        Self::from_file_with_id(system, id, Self::wasm_path("wasm"))
+    }
 
-        Self::from_file_with_id(system, id, path)
+    pub fn current_opt(system: &'a System) -> Self {
+        let nonce = system.0.borrow_mut().free_id_nonce();
+
+        Self::current_opt_with_id(system, nonce)
+    }
+
+    pub fn current_opt_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+    ) -> Self {
+        Self::from_file_with_id(system, id, Self::wasm_path("opt.wasm"))
     }
 
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
@@ -157,11 +207,11 @@ impl<'a> Program<'a> {
             .expect("Unable to get root directory of the project")
             .join(path)
             .clean();
-
+        let is_meta = path.to_str().unwrap_or_default().ends_with("meta.wasm");
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        let code = Code::try_new(code, 1, |_| ConstantCostRules::default())
+        let code = Code::new_raw(code, 1, None, true, is_meta)
             .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
@@ -249,26 +299,36 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> D {
-        D::decode(&mut self.meta_state_with_bytes(payload.encode()).as_slice())
-            .expect("Failed to decode result")
+    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> Result<D, String> {
+        D::decode(&mut self.meta_state_with_bytes(payload.encode())?.as_slice())
+            .map_err(|error| error.to_string())
     }
 
-    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Vec<u8> {
+    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>, String> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
     }
 
-    pub fn meta_state_empty<D: Decode>(&self) -> D {
-        D::decode(&mut self.meta_state_empty_with_bytes().as_slice())
-            .expect("Failed to decode result")
+    pub fn meta_state_empty<D: Decode>(&self) -> Result<D, String> {
+        D::decode(&mut self.meta_state_empty_with_bytes()?.as_slice())
+            .map_err(|error| error.to_string())
     }
 
-    pub fn meta_state_empty_with_bytes(&self) -> Vec<u8> {
+    pub fn meta_state_empty_with_bytes(&self) -> Result<Vec<u8>, String> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, None, "meta_state")
+    }
+
+    fn wasm_path(extension: &str) -> PathBuf {
+        let current_dir = env::current_dir().expect("Unable to get current dir");
+        let path_file = current_dir.join(".binpath");
+        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
+        let mut relative_path: PathBuf =
+            String::from_utf8(path_bytes).expect("Invalid path").into();
+        relative_path.set_extension(extension);
+        current_dir.join(relative_path)
     }
 }
 

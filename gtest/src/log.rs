@@ -1,4 +1,4 @@
-use crate::program::ProgramIdWrapper;
+use crate::program::{Gas, ProgramIdWrapper};
 use codec::{Codec, Encode};
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -200,9 +200,11 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if let Some(payload) = &self.payload {
-            if payload != &other.payload {
-                return false;
+        if self.exit_code == 0 {
+            if let Some(payload) = &self.payload {
+                if payload != &other.payload {
+                    return false;
+                }
             }
         }
 
@@ -222,6 +224,8 @@ pub struct RunResult {
     pub(crate) others_failed: bool,
     pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
+    pub(crate) main_gas_burned: Gas,
+    pub(crate) others_gas_burned: Gas,
 }
 
 impl RunResult {
@@ -249,6 +253,14 @@ impl RunResult {
 
     pub fn total_processed(&self) -> u32 {
         self.total_processed
+    }
+
+    pub fn main_gas_burned(&self) -> Gas {
+        self.main_gas_burned
+    }
+
+    pub fn others_gas_burned(&self) -> Gas {
+        self.others_gas_burned
     }
 
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {

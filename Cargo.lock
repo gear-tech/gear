@@ -93,9 +93,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.57"
+version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08f9b8508dccb7687a1d6c4ce66b2b0ecef467c94667de27d8d7fe1f8d2a9cdc"
+checksum = "bb07d2053ccdbe10e2af2995a2f116c1330396493dc1269f6a91d0ae82e19704"
 
 [[package]]
 name = "approx"
@@ -689,6 +689,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_metadata"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3abb7553d5b9b8421c6de7cb02606ff15e0c6eea7d8eadd75ef013fd636bec36"
+dependencies = [
+ "camino",
+ "cargo-platform",
+ "semver 1.0.9",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,9 +798,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.5"
+version = "3.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d53da17d37dba964b9b3ecb5c5a1f193a2762c700e6829201e645b9381c99dc7"
+checksum = "9f1fe12880bae935d142c8702d500c63a4e8634b6c3c57ad72bf978fc7b6249a"
 dependencies = [
  "atty",
  "bitflags",
@@ -802,9 +815,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.2.5"
+version = "3.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c11d40217d16aee8508cc8e5fde8b4ff24639758608e5374e731b53f85749fb9"
+checksum = "ed6db9e867166a43a53f7199b5e4d1f522a1e5bd626654be263c999ce59df39a"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -1319,6 +1332,15 @@ dependencies = [
  "gcore",
  "gear-wasm-builder",
  "gstd",
+]
+
+[[package]]
+name = "demo-gas-burned"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
 ]
 
 [[package]]
@@ -2356,6 +2378,8 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "log",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -2376,6 +2400,7 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "derive_more",
  "gear-backend-common",
  "gear-core",
@@ -2456,8 +2481,10 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "gear-core-errors",
+ "hex",
  "log",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -2652,7 +2679,7 @@ name = "gear-wasm-builder"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "cargo_metadata",
+ "cargo_metadata 0.15.0",
  "colored",
  "log",
  "pathdiff",
@@ -2813,8 +2840,11 @@ dependencies = [
 name = "gtest"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "colored",
+ "derive_more",
  "env_logger",
+ "gear-backend-common",
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
@@ -5582,9 +5612,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.39"
+version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c54b25569025b7fc9651de43004ae593a75ad88543b17178aa5e1b9c4f15f56f"
+checksum = "dd96a1e8ed2596c337f8eae5f24924ec83f5ad5ab21ea8e455d3566c69fbcaf7"
 dependencies = [
  "unicode-ident",
 ]
@@ -5797,9 +5827,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.18"
+version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1feb54ed693b93a84e14094943b84b7c4eae204c512b7ccb95ab0c66d278ad1"
+checksum = "3bcdf212e9776fbcb2d23ab029360416bb1706b1aea2d1a5ba002727cbcab804"
 dependencies = [
  "proc-macro2",
 ]
@@ -8387,7 +8417,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#677f
 dependencies = [
  "ansi_term",
  "build-helper",
- "cargo_metadata",
+ "cargo_metadata 0.14.2",
  "sp-maybe-compressed-blob",
  "strum",
  "tempfile",

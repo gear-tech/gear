@@ -52,7 +52,7 @@ use common::{
     ValueTree,
 };
 use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
+    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, ExecutionErrorReason, JournalHandler,
 };
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
@@ -258,14 +258,11 @@ where
             }
             MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
-
-                if let Some(reason) = trap {
-                    log::info!(
-                        "🪤 Program {} terminated with a trap: {}",
-                        program_id.into_origin(),
-                        reason
-                    );
-                };
+                log::info!(
+                    "🪤 Program {} terminated with a trap: {}",
+                    program_id.into_origin(),
+                    trap
+                );
 
                 DispatchStatus::Failed
             }
@@ -481,7 +478,16 @@ where
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
-            let message = dispatch.into_parts().1;
+            let message = match dispatch.exit_code() {
+                Some(0) | None => dispatch.into_parts().1,
+                _ => {
+                    let message = dispatch.into_parts().1;
+                    message
+                        .clone()
+                        .with_string_payload::<ExecutionErrorReason>()
+                        .unwrap_or(message)
+                }
+            };
 
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be

@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::missing_safety_doc)]
 
 extern crate alloc;
 
@@ -203,19 +202,19 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle() {
+    unsafe extern "C" fn handle() {
         debug!("Handling sequence started");
         gstd::message_loop(Program::handle_request());
         debug!("Handling sequence terminated");
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {
+    unsafe extern "C" fn handle_reply() {
         gstd::record_reply();
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         STATE = Some(ProgramState::default());
         msg::reply((), 0).unwrap();
         debug!("Program initialized");

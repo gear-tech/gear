@@ -39,4 +39,10 @@ pub enum BuilderError {
 
     #[error("unable to generate the metadata WASM file from `{0}`")]
     UnableToGenerateMeta(PathBuf),
+
+    #[error("WASM module does't contain export section `{0}`")]
+    ExportSectionNotFound(PathBuf),
+
+    #[error("WASM module doesn't contain required export funtion (init/handle) `{0}`")]
+    RequiredExportFnNotFound(PathBuf),
 }

@@ -1,4 +1,10 @@
-use core_processor::{Ext, ProcessorExt};
+use anyhow::Error;
+use core_processor::{
+    Ext,
+    ProcessorError::{Core, Panic, Terminated},
+    ProcessorExt,
+};
+use gear_backend_common::TerminationReason;
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
     env::{Ext as ExtTrait, ExtCarrier},
@@ -27,28 +33,33 @@ impl WasmExecutor {
         program: &Program,
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
             ext: ext_carrier.cloned(),
-            termination_reason: None,
+            termination_reason: TerminationReason::Success,
         };
 
         let config = Config::new();
-        let engine = Engine::new(&config).expect("Failed to create engine");
+        let engine = Engine::new(&config).map_err(|error| error.to_string())?;
         let mut store = Store::<StoreData<Ext>>::new(&engine, store_data);
 
-        let module = Module::new(&engine, program.code().code()).expect("Failed to create module");
+        let module =
+            Module::new(&engine, program.code().code()).map_err(|error| error.to_string())?;
 
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
-                .expect("Failed to create memory");
+                .map_err(|error| error.to_string())?;
+
         let funcs = funcs_tree::build(&mut store, memory, None);
         let mut externs = Vec::with_capacity(module.imports().len());
         for import in module.imports() {
             if import.module() != "env" {
-                panic!("Non environment import in module");
+                return Err(format!(
+                    "Non environment import in module: {:?}",
+                    import.module()
+                ));
             }
             match import.name() {
                 Some("memory") => externs.push(Extern::Memory(memory)),
@@ -56,7 +67,7 @@ impl WasmExecutor {
                     if funcs.contains_key(key) {
                         externs.push(funcs[key].into())
                     } else {
-                        panic!("Wasm is asking for unknown function: {:?}. Consider to add in from FuncsHandler", key)
+                        return Err(format!("Wasm is asking for function: {:?} with wasn't found. Consider to add in from FuncsHandler", key));
                     }
                 }
                 _ => continue,
@@ -64,30 +75,47 @@ impl WasmExecutor {
         }
 
         let instance =
-            Instance::new(&mut store, &module, &externs).expect("Failed to create instance");
-        WasmExecutor::set_pages(&mut store, &mut memory, memory_pages)
-            .expect("Failed to set memory pages");
+            Instance::new(&mut store, &module, &externs).map_err(|error| error.to_string())?;
+        WasmExecutor::set_pages(&mut store, &mut memory, memory_pages)?;
 
-        Self {
+        Ok(Self {
             instance,
             store,
             memory,
-        }
+        })
     }
 
     /// Executes non-void function by provided name.
-    /// Panics if no function with such name was found or function was void
-    pub(crate) fn execute(&mut self, function_name: &str) -> Vec<u8> {
-        let function = self.get_function(function_name);
+    /// Panics if function is void
+    pub(crate) fn execute(&mut self, function_name: &str) -> Result<Vec<u8>, String> {
+        let function = self.get_function(function_name)?;
         let mut prt_to_result_array = [Val::I32(0)];
 
         function
             .call(&mut self.store, &[], &mut prt_to_result_array)
-            .expect("Failed call");
+            .map_err(|error| self.get_error_message(error))?;
 
         match prt_to_result_array[0] {
             Val::I32(ptr_to_result) => self.read_result(ptr_to_result),
-            _ => panic!("{}", "Got wrong type"),
+            _ => Err("Got wrong type".to_string()),
+        }
+    }
+
+    fn get_error_message(&self, error: Error) -> String {
+        if let Some(processor_error) = self
+            .store
+            .data()
+            .ext
+            .with(|a| a.error_explanation.clone())
+            .unwrap()
+        {
+            match processor_error {
+                Core(ext_error) => ext_error.to_string(),
+                Terminated(termination_reason) => termination_reason.to_string(),
+                Panic(error_description) => error_description,
+            }
+        } else {
+            error.to_string()
         }
     }
 
@@ -109,7 +137,6 @@ impl WasmExecutor {
             Default::default(),
             Default::default(),
             0,
-            None,
             Default::default(),
             Default::default(),
             Default::default(),
@@ -118,13 +145,13 @@ impl WasmExecutor {
         )
     }
 
-    fn get_function(&mut self, function_name: &str) -> Func {
+    fn get_function(&mut self, function_name: &str) -> Result<Func, String> {
         self.instance
             .get_func(&mut self.store, function_name)
-            .expect("No function with such name was found")
+            .ok_or(format!("No function with name: {:?}", function_name))
     }
 
-    fn read_result(&mut self, ptr_to_result_data: i32) -> Vec<u8> {
+    fn read_result(&mut self, ptr_to_result_data: i32) -> Result<Vec<u8>, String> {
         let offset = ptr_to_result_data as usize;
 
         // Reading a fat pointer from the `offset`
@@ -133,11 +160,11 @@ impl WasmExecutor {
 
         self.memory
             .read(&self.store, offset, &mut ptr)
-            .expect("Failed to read data ptr");
+            .map_err(|error| error.to_string())?;
 
         self.memory
             .read(&self.store, offset + ptr.len(), &mut len)
-            .expect("Failed to read data length");
+            .map_err(|error| error.to_string())?;
 
         let ptr = i32::from_ne_bytes(ptr) as usize;
         let len = i32::from_ne_bytes(len) as usize;
@@ -147,9 +174,9 @@ impl WasmExecutor {
 
         self.memory
             .read(&self.store, ptr, &mut result)
-            .expect("Failed to read result");
+            .map_err(|error| error.to_string())?;
 
-        result
+        Ok(result)
     }
 
     fn set_pages<T: ExtTrait>(
@@ -160,7 +187,10 @@ impl WasmExecutor {
         let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
         for (page_number, buffer) in pages {
             if memory_size <= page_number.to_wasm_page() {
-                panic!("Memory size {:?} less than {:?}", memory_size, page_number);
+                return Err(format!(
+                    "Memory size {:?} less than {:?}",
+                    memory_size, page_number
+                ));
             }
             memory
                 .write(&mut store, page_number.offset(), &buffer[..])
@@ -208,24 +238,32 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        let result: Vec<Wallet> = program.meta_state(&Some(Id {
-            decimal: 2,
-            hex: vec![2u8],
-        }));
+        let result: Vec<Wallet> = program
+            .meta_state(&Some(Id {
+                decimal: 2,
+                hex: vec![2u8],
+            }))
+            .expect("Meta_state failed");
 
         assert_eq!(result.encode(), vec![0]);
     }
 
     #[test]
-    #[should_panic(expected = "Failed call: wasm trap: wasm `unreachable` instruction executed")]
-    fn test_failing_with_empty_payload() {
+    fn test_meta_extension_happy_case() {
         let system = System::default();
         let program = Program::from_file(
             &system,
-            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
+            "../target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
         );
 
-        program.meta_state_empty::<Vec<Wallet>>();
+        let result: Vec<Wallet> = program
+            .meta_state(&Some(Id {
+                decimal: 2,
+                hex: vec![2u8],
+            }))
+            .expect("Meta_state failed");
+
+        assert_eq!(result.encode(), vec![0]);
     }
 
     #[test]
@@ -259,13 +297,13 @@ mod meta_tests {
         );
         assert!(!run_result.main_failed);
 
-        let result: Vec<Wallet> = program.meta_state(&expected_id);
+        let result: Vec<Wallet> = program.meta_state(&expected_id).expect("Meta_state failed");
 
         assert_eq!(result.encode(), expected_result.encode());
     }
 
     #[test]
-    #[should_panic(expected = "No function with such name was found")]
+    #[should_panic(expected = "Meta_state failed: \"No function with name: \\\"fsd314f\\\"\"")]
     fn test_failing_with_unknown_function() {
         let unknown_function_name = "fsd314f";
         let system = System::default();
@@ -277,11 +315,12 @@ mod meta_tests {
         system
             .0
             .borrow_mut()
-            .call_meta(&program.id, None, unknown_function_name);
+            .call_meta(&program.id, None, unknown_function_name)
+            .expect("Meta_state failed");
     }
 
     #[test]
-    #[should_panic(expected = "Failed call: expected 0 results, got 1")]
+    #[should_panic(expected = "Meta_state failed: \"expected 0 results, got 1\"")]
     fn test_failing_with_void_function() {
         let void_function_name = "init";
         let system = System::default();
@@ -293,6 +332,23 @@ mod meta_tests {
         system
             .0
             .borrow_mut()
-            .call_meta(&program.id, None, void_function_name);
+            .call_meta(&program.id, None, void_function_name)
+            .expect("Meta_state failed");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Meta_state failed: \"'failed to decode input argument: Decode(Error)', meta/src/lib.rs:157:42\""
+    )]
+    fn test_failing_with_empty_payload() {
+        let system = System::default();
+        let program = Program::from_file(
+            &system,
+            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
+        );
+
+        program
+            .meta_state_empty::<Vec<Wallet>>()
+            .expect("Meta_state failed");
     }
 }

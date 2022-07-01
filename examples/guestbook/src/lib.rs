@@ -26,7 +26,7 @@ gstd::metadata! {
 static mut MESSAGES: Vec<MessageIn> = Vec::new();
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let action: Action = msg::load().unwrap();
 
     match action {

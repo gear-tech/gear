@@ -97,7 +97,7 @@ pub enum MessageError {
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
@@ -121,7 +121,7 @@ pub enum MemoryError {
 }
 
 /// Execution error.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available during execution.
@@ -133,7 +133,9 @@ pub enum ExecutionError {
 }
 
 /// An error occurred in API.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::From,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature

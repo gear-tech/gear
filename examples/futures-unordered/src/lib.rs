@@ -10,7 +10,7 @@ static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(',').collect();
     if dests.len() != 2 {

@@ -18,7 +18,7 @@
 
 use crate::{
     log::{CoreLog, RunResult},
-    program::WasmProgram,
+    program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
@@ -158,6 +158,8 @@ pub(crate) struct ExtManager {
     pub(crate) log: Vec<StoredMessage>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
+    pub(crate) main_gas_burned: Gas,
+    pub(crate) others_gas_burned: Gas,
 }
 
 impl ExtManager {
@@ -269,7 +271,21 @@ impl ExtManager {
             log: log.into_iter().map(CoreLog::from).collect(),
             message_id: self.msg_id,
             total_processed,
+            main_gas_burned: self.main_gas_burned,
+            others_gas_burned: self.others_gas_burned,
         }
+    }
+
+    /// Call non-void meta function from actor stored in manager.
+    /// Warning! This is a static call that doesn't change actors pages data.
+    pub(crate) fn call_meta(
+        &mut self,
+        program_id: &ProgramId,
+        payload: Option<Payload>,
+        function_name: &str,
+    ) -> Result<Vec<u8>, String> {
+        let mut executor = self.get_executor(program_id, payload)?;
+        executor.execute(function_name)
     }
 
     fn prepare_for(&mut self, dispatch: &Dispatch) {
@@ -278,6 +294,8 @@ impl ExtManager {
         self.log.clear();
         self.main_failed = false;
         self.others_failed = false;
+        self.main_gas_burned = Gas::zero();
+        self.others_gas_burned = Gas::zero();
 
         // TODO: Remove this check after #349.
         if !self.dispatches.is_empty() {
@@ -380,7 +398,7 @@ impl ExtManager {
                         source,
                         DispatchOutcome::InitFailure {
                             program_id,
-                            reason: Some(expl.to_string()),
+                            reason: expl.to_string(),
                         },
                     );
                 } else {
@@ -389,7 +407,7 @@ impl ExtManager {
                         source,
                         DispatchOutcome::MessageTrap {
                             program_id,
-                            trap: Some(expl.to_string()),
+                            trap: expl.to_string(),
                         },
                     )
                 }
@@ -450,27 +468,20 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    /// Call non-void meta function from an actor stored in manager.
-    /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn call_meta(
+    fn get_executor(
         &mut self,
         program_id: &ProgramId,
         payload: Option<Payload>,
-        function_name: &str,
-    ) -> Vec<u8> {
-        let mut executor = self.get_executor(program_id, payload);
-        executor.execute(function_name)
-    }
-
-    fn get_executor(&mut self, program_id: &ProgramId, payload: Option<Payload>) -> WasmExecutor {
+    ) -> Result<WasmExecutor, String> {
         let (actor, balance) = self
             .actors
             .get_mut(program_id)
-            .expect("No program with such id");
+            .ok_or(format!("No actor with program id: {:?}", program_id))?;
 
-        let actor = actor
-            .get_executable_actor(*balance)
-            .expect("Wrong actor type");
+        let actor = actor.get_executable_actor(*balance).ok_or(format!(
+            "Actor with program id: {:?} isn't executable",
+            program_id
+        ))?;
         let pages_initial_data = actor
             .pages_data
             .into_iter()
@@ -502,7 +513,13 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+        if self.msg_id == message_id {
+            self.main_gas_burned = self.main_gas_burned.saturating_add(Gas(amount));
+        } else {
+            self.others_gas_burned = self.others_gas_burned.saturating_add(Gas(amount));
+        }
+    }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
         self.actors.remove(&id_exited);
