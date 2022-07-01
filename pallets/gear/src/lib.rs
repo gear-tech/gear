@@ -125,7 +125,8 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
+        self, event::*, lazy_pages, BlockLimiter, CodeMetadata, GasPrice, GasTree, Origin, Program,
+        ProgramState,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -149,7 +150,7 @@ pub mod pallet {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// Gas and value transfer currency
+        /// Balances management trait for gas/value migrations.
         type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         /// Gas to Currency converter
@@ -205,8 +206,8 @@ pub mod pallet {
             Error = DispatchError,
         >;
 
-        /// Various limits for the block.
-        type BlockLimiter: common::BlockLimiter<Balance = u64>;
+        /// Block limits.
+        type BlockLimiter: BlockLimiter<Balance = u64>;
     }
 
     #[pallet::pallet]

@@ -161,6 +161,7 @@ parameter_types! {
 
 impl pallet_gear_messenger::Config for Test {
     type Currency = Balances;
+    type BlockLimiter = GearGas;
 }
 
 impl pallet_usage::Config for Test {
