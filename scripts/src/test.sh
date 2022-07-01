@@ -95,7 +95,7 @@ runtime_upgrade_test() {
   DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
   # Run node
-  RUST_LOG="pallet_gear=debug,runtime::gear::hooks=debug" $ROOT_DIR/target/release/gear-node \
+  RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
   --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 7
 
   # Change dir to the js script dir

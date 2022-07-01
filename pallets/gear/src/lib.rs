@@ -379,21 +379,21 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "runtime::gear::hooks", "🚧 Runtime upgrade");
+            log::debug!(target: "runtime::gear", "⚙️ Runtime upgrade");
 
             Weight::MAX
         }
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
-            log::debug!(target: "runtime::gear::hooks", "🚧 Initialization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️ Initialization of block #{:?}", bn);
 
             0
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear::hooks", "🚧 Finalization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️ Finalization of block #{:?}", bn);
         }
 
         /// Queue processing occurs after all normal extrinsics in the block
@@ -401,17 +401,10 @@ pub mod pallet {
         /// There should always remain enough weight for this hook to be invoked
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
-                target: "runtime::gear::hooks",
-                "🚧 Queue processing of block #{:?} with weight='{:?}'",
-                bn,
-                remaining_weight,
-            );
-
-            log::debug!(
                 target: "runtime::gear",
-                "{} of weight remains in block {:?} after normal extrinsics have been processed",
-                remaining_weight,
+                "⚙️ Queue processing of block #{:?} with weight='{:?}'",
                 bn,
+                remaining_weight,
             );
 
             // Adjust the block gas allowance based on actual remaining weight.
@@ -420,7 +413,19 @@ pub mod pallet {
             // so we don't need to include that db write.
             GasAllowanceOf::<T>::put(remaining_weight);
 
-            Self::process_queue()
+            Self::process_tasks();
+            Self::process_queue();
+
+            let weight = remaining_weight.saturating_sub(GasAllowanceOf::<T>::get() as Weight);
+
+            log::debug!(
+                target: "runtime::gear",
+                "⚙️ Weight '{:?}' left after queue processing of block #{:?}",
+                weight,
+                bn,
+            );
+
+            weight
         }
     }
 
@@ -857,11 +862,12 @@ pub mod pallet {
             MessageId::generate_from_user(block_number, user_id, nonce.into())
         }
 
-        /// Message Queue processing.
-        pub fn process_queue() -> Weight {
-            let mut ext_manager = ExtManager::<T>::default();
+        /// Delayed tasks processing.
+        pub fn process_tasks() {}
 
-            let weight = GasAllowanceOf::<T>::get() as Weight;
+        /// Message Queue processing.
+        pub fn process_queue() {
+            let mut ext_manager = ExtManager::<T>::default();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -1135,8 +1141,6 @@ pub mod pallet {
                     state_changes: post_data.state_changes,
                 });
             }
-
-            weight.saturating_sub(GasAllowanceOf::<T>::get())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
