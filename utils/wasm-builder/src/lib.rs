@@ -28,7 +28,6 @@ pub mod optimize;
 mod stack_end;
 mod wasm_project;
 
-pub use optimize::check_exports;
 pub use stack_end::insert_stack_end_export;
 
 /// WASM building tool.
