@@ -413,9 +413,13 @@ pub mod pallet {
             // so we don't need to include that db write.
             GasAllowanceOf::<T>::put(remaining_weight);
 
+            // Processing regular and delayed tasks.
             Self::process_tasks();
+
+            // Processing message queue.
             Self::process_queue();
 
+            // Calculating weight burned within the block.
             let weight = remaining_weight.saturating_sub(GasAllowanceOf::<T>::get() as Weight);
 
             log::debug!(
