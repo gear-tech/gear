@@ -39,8 +39,18 @@ pub use pallet::*;
 pub mod pallet {
     pub use frame_support::weights::Weight;
 
-    use frame_support::traits::StorageVersion;
-    use sp_std::convert::TryInto;
+    use common::{
+        scheduler::{TasksScopeImpl, *},
+        storage::*,
+        BlockLimiter, Origin,
+    };
+    use frame_support::{
+        dispatch::DispatchError, pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion,
+    };
+    use frame_system::pallet_prelude::*;
+    use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData};
+
+    pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
     /// The current storage version.
     const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -67,5 +77,142 @@ pub mod pallet {
     //
     // Used as inner error type for `Scheduler` implementation.
     #[pallet::error]
-    pub enum Error<T> {}
+    pub enum Error<T> {
+        /// Occurs when given task already exists in tasks scope.
+        DuplicateTask,
+        /// Occurs when task wasn't found in storage.
+        TaskNotFound,
+    }
+
+    // Implementation of `DequeueError` for `Error<T>`
+    // usage as `Queue::Error`.
+    impl<T: crate::Config> TasksScopeError for Error<T> {
+        fn duplicate_task() -> Self {
+            Self::DuplicateTask
+        }
+
+        fn task_not_found() -> Self {
+            Self::TaskNotFound
+        }
+    }
+
+    /// Account Id type of the task.
+    type AccountId<T> = <T as frame_system::Config>::AccountId;
+
+    /// Task type of the scheduler.
+    type Task<T> = ScheduledTask<AccountId<T>>;
+
+    // BTreeSet used to exclude duplicates and always keep collection sorted.
+    /// Missed blocks collection type.
+    ///
+    /// Defines block number, which should already contain no tasks,
+    /// because they were processed before.
+    /// Missed blocks processing prioritized.
+    type MissedBlocksCollection<T> = BTreeSet<Task<T>>;
+
+    // Below goes storages and their gear's wrapper implementations.
+    //
+    // Note, that we declare storages private to avoid outside
+    // interaction with them, but wrappers - public to be able
+    // use them as generic parameters in public `Scheduler`
+    // implementation.
+
+    // ----
+
+    // Private storage for missed blocks collection.
+    #[pallet::storage]
+    type MissedBlocks<T> = StorageValue<_, MissedBlocksCollection<T>>;
+
+    // Public wrap of the missed blocks collection.
+    common::wrap_storage_value!(
+        storage: MissedBlocks,
+        name: MissedBlocksWrap,
+        value: MissedBlocksCollection<T>
+    );
+
+    // ----
+
+    // Private storage for tasks scope elements.
+    // Primary item stored as second key of double map for optimization.
+    // Value here is useless, so unit type used as space saver:
+    // `assert_eq!(().encode().len(), 0)`
+    #[pallet::storage]
+    type TasksScope<T: Config> =
+        StorageDoubleMap<_, Identity, BlockNumberFor<T>, Identity, Task<T>, ()>;
+
+    // Public wrap of the mailbox elements.
+    common::wrap_extended_storage_double_map!(
+        storage: TasksScope,
+        name: TasksScopeWrap,
+        key1: BlockNumberFor<T>,
+        key2: Task<T>,
+        value: (),
+        length: usize
+    );
+
+    // ----
+
+    // Below goes callbacks, used for task scope algorithm.
+    //
+    // Note, that they are public like storage wrappers
+    // only to be able use as public trait's generics.
+
+    // ----
+
+    /// Callback function for success `add` and `delete` actions.
+    pub struct OnAffect<T: crate::Config>(PhantomData<T>);
+
+    // Callback trait implementation.
+    //
+    // Addition to or deletion from task scope represented with single DB write.
+    // This callback reduces block gas allowance by that value.
+    impl<T: crate::Config> EmptyCallback for OnAffect<T> {
+        fn call() {
+            let weight = T::DbWeight::get().writes(1);
+            GasAllowanceOf::<T>::decrease(weight);
+        }
+    }
+
+    // ----
+
+    /// Store of queue action's callbacks.
+    pub struct TasksScopeCallbacksImpl<T: crate::Config>(PhantomData<T>);
+
+    // Callbacks store for tasks scope trait implementation.
+    impl<T: crate::Config> TasksScopeCallbacks for TasksScopeCallbacksImpl<T> {
+        type OnAdd = OnAffect<T>;
+        type OnDelete = OnAffect<T>;
+    }
+
+    // ----
+
+    // Below goes final `Scheduler` implementation for
+    // Gear Scheduler Pallet based on above generated
+    // types and parameters.
+
+    /// Delayed tasks centralized behavior for
+    /// Gear Scheduler Pallet.
+    ///
+    /// See `gear_common::scheduler::Scheduler` for
+    /// complete documentation.
+    impl<T: crate::Config> Scheduler for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type BlockNumber = BlockNumberFor<T>;
+        type Task = Task<T>;
+        type MissedBlocksCollection = MissedBlocksCollection<T>;
+        type Error = Error<T>;
+        type OutputError = DispatchError;
+
+        type MissedBlocks = MissedBlocksWrap<T>;
+
+        type TasksScope = TasksScopeImpl<
+            TasksScopeWrap<T>,
+            Self::Task,
+            Self::Error,
+            DispatchError,
+            TasksScopeCallbacksImpl<T>,
+        >;
+    }
 }

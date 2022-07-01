@@ -46,10 +46,10 @@ pub trait TasksScope {
 
 /// Represents store of tasks scope's action callbacks.
 pub trait TasksScopeCallbacks {
-    /// Callback on success `insert`.
-    type OnInsert: EmptyCallback;
-    /// Callback on success `remove`.
-    type OnRemove: EmptyCallback;
+    /// Callback on success `add`.
+    type OnAdd: EmptyCallback;
+    /// Callback on success `delete`.
+    type OnDelete: EmptyCallback;
 }
 
 /// Represents tasks scope error type.
@@ -94,7 +94,7 @@ where
     fn add(bn: Self::BlockNumber, task: Self::Task) -> Result<(), Self::OutputError> {
         if !Self::contains(&bn, &task) {
             T::insert(bn, task, ());
-            Callbacks::OnInsert::call();
+            Callbacks::OnAdd::call();
             Ok(())
         } else {
             Err(Self::Error::duplicate_task().into())
@@ -112,7 +112,7 @@ where
     fn delete(bn: Self::BlockNumber, task: Self::Task) -> Result<(), Self::OutputError> {
         if T::contains_keys(&bn, &task) {
             T::remove(bn, task);
-            Callbacks::OnRemove::call();
+            Callbacks::OnDelete::call();
             Ok(())
         } else {
             Err(Self::Error::task_not_found().into())

@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use codec::{Decode, Encode};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
+use scale_info::TypeInfo;
 
 /// Scheduled task sense and required data for processing action.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
 pub enum ScheduledTask<AccountId> {
     // Rent charging section.
     // -----
