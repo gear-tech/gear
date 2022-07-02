@@ -763,12 +763,12 @@ pub mod pallet {
 
                 let journal = if lazy_pages_enabled {
                     core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                        block_config.clone(),
+                        &block_config,
                         message_execution_config,
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
-                        block_config.clone(),
+                        &block_config,
                         message_execution_config,
                     )
                 };
@@ -1096,12 +1096,12 @@ pub mod pallet {
 
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                            block_config.clone(),
+                            &block_config,
                             message_execution_config,
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
-                            block_config.clone(),
+                            &block_config,
                             message_execution_config,
                         )
                     };

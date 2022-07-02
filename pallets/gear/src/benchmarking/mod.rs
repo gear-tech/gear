@@ -431,7 +431,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -494,7 +494,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_gas_available {
@@ -523,7 +523,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_msg_id {
@@ -540,7 +540,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_origin {
@@ -557,7 +557,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_program_id {
@@ -574,7 +574,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_source {
@@ -592,7 +592,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_value {
@@ -609,7 +609,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_value_available {
@@ -626,7 +626,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_size {
@@ -655,7 +655,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_read {
@@ -695,7 +695,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_read_per_kb {
@@ -739,7 +739,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_block_height {
@@ -768,7 +768,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_block_timestamp {
@@ -797,7 +797,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_send_init {
@@ -827,7 +827,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -869,7 +869,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -911,7 +911,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -964,7 +964,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1017,7 +1017,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1060,7 +1060,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1101,7 +1101,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1143,7 +1143,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_reply_push_per_kb {
@@ -1182,7 +1182,7 @@ benchmarks! {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
     }
 
     gr_reply_to {
@@ -1214,7 +1214,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1245,7 +1245,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1278,7 +1278,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1318,7 +1318,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1349,7 +1349,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1380,7 +1380,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1426,7 +1426,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1490,7 +1490,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }
@@ -1555,7 +1555,7 @@ benchmarks! {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(block_config, message_execution_config);
+        >(&block_config, message_execution_config);
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }

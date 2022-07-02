@@ -488,7 +488,7 @@ impl ExtManager {
             program_id: dest,
         };
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
-            block_config,
+            &block_config,
             message_execution_config,
         );
 

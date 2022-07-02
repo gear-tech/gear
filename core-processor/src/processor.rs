@@ -44,7 +44,7 @@ enum SuccessfulDispatchResultKind {
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    block_config: BlockConfig,
+    block_config: &BlockConfig,
     MessageExecutionConfig {
         executable_actor: maybe_actor,
         dispatch,
@@ -54,7 +54,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
-        Ok(actor) => process_executable::<A, E>(actor, dispatch, origin, block_config),
+        Ok(actor) => process_executable::<A, E>(actor, dispatch, origin, block_config.clone()),
     }
 }
 

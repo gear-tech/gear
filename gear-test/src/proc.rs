@@ -122,7 +122,7 @@ where
         program_id,
     };
 
-    let journal = core_processor::process::<Ext, E>(block_config, message_execution_config);
+    let journal = core_processor::process::<Ext, E>(&block_config, message_execution_config);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -313,7 +313,7 @@ where
                 };
 
                 let journal =
-                    core_processor::process::<Ext, E>(block_config, message_execution_config);
+                    core_processor::process::<Ext, E>(&block_config, message_execution_config);
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -359,7 +359,7 @@ where
             };
 
             let journal =
-                core_processor::process::<Ext, E>(block_config.clone(), message_execution_config);
+                core_processor::process::<Ext, E>(&block_config, message_execution_config);
             counter += 1;
 
             core_processor::handle_journal(journal, journal_handler);
