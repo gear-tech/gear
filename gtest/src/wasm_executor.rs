@@ -198,8 +198,9 @@ impl WasmExecutor {
 
 #[cfg(test)]
 mod meta_tests {
-    use crate::{Program, System};
+    use crate::{Program, System, TestError};
     use codec::{Decode, Encode};
+    use core_processor::ProcessorError;
     use gear_core::ids::ProgramId;
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
@@ -249,7 +250,7 @@ mod meta_tests {
         let system = System::default();
         let program = Program::from_file(
             &system,
-            "../target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+            "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
         let result: Vec<Wallet> = program
@@ -299,7 +300,6 @@ mod meta_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Meta_state failed: \"No function with name: \\\"fsd314f\\\"\"")]
     fn test_failing_with_unknown_function() {
         let unknown_function_name = "fsd314f";
         let system = System::default();
@@ -308,15 +308,19 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        system
+        let result = system
             .0
             .borrow_mut()
-            .call_meta(&program.id, None, unknown_function_name)
-            .expect("Meta_state failed");
+            .call_meta(&program.id, None, unknown_function_name);
+        if let Err(ref err) = result {
+            println!("{:?}", err);
+        }
+        assert!(
+            matches!(result, Err(TestError::FunctionNotFound(func)) if func == unknown_function_name)
+        );
     }
 
     #[test]
-    #[should_panic(expected = "Meta_state failed: \"expected 0 results, got 1\"")]
     fn test_failing_with_void_function() {
         let void_function_name = "init";
         let system = System::default();
@@ -325,17 +329,14 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        system
+        let result = system
             .0
             .borrow_mut()
-            .call_meta(&program.id, None, void_function_name)
-            .expect("Meta_state failed");
+            .call_meta(&program.id, None, void_function_name);
+        assert!(matches!(result, Err(TestError::FunctionNotFound(_))));
     }
 
     #[test]
-    #[should_panic(
-        expected = "Meta_state failed: \"'failed to decode input argument: Decode(Error)', meta/src/lib.rs:157:42\""
-    )]
     fn test_failing_with_empty_payload() {
         let system = System::default();
         let program = Program::from_file(
@@ -343,8 +344,10 @@ mod meta_tests {
             "../target/wasm32-unknown-unknown/release/demo_meta.wasm",
         );
 
-        program
-            .meta_state_empty::<Vec<Wallet>>()
-            .expect("Meta_state failed");
+        let result = program.meta_state_empty::<Vec<Wallet>>();
+        assert!(matches!(
+            result,
+            Err(TestError::ExecutionError(ProcessorError::Panic(_)))
+        ));
     }
 }
