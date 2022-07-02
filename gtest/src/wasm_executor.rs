@@ -209,13 +209,13 @@ mod meta_tests {
         pub hex: Vec<u8>,
     }
 
-    #[derive(Debug, Encode, Clone, Decode, PartialEq)]
+    #[derive(Debug, Encode, Clone, Decode, PartialEq, Eq)]
     pub struct Person {
         pub surname: String,
         pub name: String,
     }
 
-    #[derive(Debug, Encode, Clone, Decode, PartialEq)]
+    #[derive(Debug, Encode, Clone, Decode, PartialEq, Eq)]
     pub struct Wallet {
         pub id: Id,
         pub person: Person,
