@@ -42,8 +42,6 @@ use std::{
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
 
-const OUTGOING_LIMIT: u32 = 1024;
-
 pub(crate) type Balance = u128;
 
 #[derive(Debug)]
@@ -473,13 +471,7 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
-            allocations_config: Default::default(),
-            existential_deposit: crate::EXISTENTIAL_DEPOSIT,
-            gas_allowance: u64::MAX,
-            outgoing_limit: OUTGOING_LIMIT,
-            host_fn_weights: Default::default(),
-            forbidden_funcs: Default::default(),
-            mailbox_threshold: crate::MAILBOX_THRESHOLD,
+            ..Default::default()
         };
         let message_execution_config = MessageExecutionConfig {
             executable_actor,

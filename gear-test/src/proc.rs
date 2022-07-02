@@ -36,10 +36,6 @@ use std::{
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
 
-pub const EXISTENTIAL_DEPOSIT: u128 = 500;
-pub const OUTGOING_LIMIT: u32 = 1024;
-pub const MAILBOX_THRESHOLD: u64 = 3000;
-
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
@@ -102,13 +98,7 @@ where
 
     let block_config = BlockConfig {
         block_info,
-        allocations_config: Default::default(),
-        existential_deposit: EXISTENTIAL_DEPOSIT,
-        gas_allowance: u64::MAX,
-        outgoing_limit: OUTGOING_LIMIT,
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
-        mailbox_threshold: MAILBOX_THRESHOLD,
+        ..Default::default()
     };
 
     let message_execution_config = MessageExecutionConfig {
@@ -289,13 +279,7 @@ where
 
             let block_config = BlockConfig {
                 block_info: BlockInfo { height, timestamp },
-                allocations_config: Default::default(),
-                existential_deposit: EXISTENTIAL_DEPOSIT,
-                gas_allowance: u64::MAX,
-                outgoing_limit: OUTGOING_LIMIT,
-                host_fn_weights: Default::default(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: MAILBOX_THRESHOLD,
+                ..Default::default()
             };
 
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
@@ -340,13 +324,7 @@ where
                     height: counter,
                     timestamp,
                 },
-                allocations_config: Default::default(),
-                existential_deposit: EXISTENTIAL_DEPOSIT,
-                gas_allowance: u64::MAX,
-                outgoing_limit: OUTGOING_LIMIT,
-                host_fn_weights: Default::default(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: MAILBOX_THRESHOLD,
+                ..Default::default()
             };
 
             let message_execution_config = MessageExecutionConfig {
