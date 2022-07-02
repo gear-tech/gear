@@ -63,20 +63,23 @@ impl WasmExecutor {
 
         let module = Module::new(&engine, meta_binary)?;
 
+        let mut linker = wasmtime::Linker::<StoreData<Ext>>::new(&engine);
+
         let mut memory =
             WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))?;
 
         let funcs = funcs_tree::build(&mut store, memory, None);
-        let mut externs = Vec::with_capacity(module.imports().len());
         for import in module.imports() {
             if import.module() != "env" {
                 return Err(TestError::InvalidImportModule(import.module().to_string()));
             }
             match import.name() {
-                Some("memory") => externs.push(Extern::Memory(memory)),
+                Some("memory") => {
+                    linker.define("env", "memory", Extern::Memory(memory))?;
+                }
                 Some(key) => {
                     if funcs.contains_key(key) {
-                        externs.push(funcs[key].into())
+                        linker.define("env", key, funcs[key])?;
                     } else {
                         return Err(TestError::UnsupportedFunction(key.to_string()));
                     }
@@ -85,7 +88,8 @@ impl WasmExecutor {
             };
         }
 
-        let instance = Instance::new(&mut store, &module, &externs)?;
+        let instance = linker.instantiate(&mut store, &module)?;
+
         WasmExecutor::set_pages(&mut store, &mut memory, memory_pages)?;
 
         Ok(Self {
