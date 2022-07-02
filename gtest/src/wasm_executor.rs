@@ -209,13 +209,13 @@ mod meta_tests {
         pub hex: Vec<u8>,
     }
 
-    #[derive(Encode, Clone, Decode)]
+    #[derive(Debug, Encode, Clone, Decode, PartialEq)]
     pub struct Person {
         pub surname: String,
         pub name: String,
     }
 
-    #[derive(Encode, Clone, Decode)]
+    #[derive(Debug, Encode, Clone, Decode, PartialEq)]
     pub struct Wallet {
         pub id: Id,
         pub person: Person,
@@ -242,7 +242,7 @@ mod meta_tests {
             }))
             .expect("Meta_state failed");
 
-        assert_eq!(result.encode(), vec![0]);
+        assert_eq!(result, vec![]);
     }
 
     #[test]
@@ -296,7 +296,7 @@ mod meta_tests {
 
         let result: Vec<Wallet> = program.meta_state(&expected_id).expect("Meta_state failed");
 
-        assert_eq!(result.encode(), expected_result.encode());
+        assert_eq!(result, expected_result);
     }
 
     #[test]
