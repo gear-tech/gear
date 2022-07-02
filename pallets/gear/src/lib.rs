@@ -129,7 +129,7 @@ pub mod pallet {
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-        configs::{AllocationsConfig, BlockInfo},
+        configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionConfig},
         Ext,
     };
     use frame_support::{
@@ -707,11 +707,31 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
+            let schedule = T::Schedule::get();
+
+            let allocations_config = AllocationsConfig {
+                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                init_cost: schedule.memory_weights.initial_cost,
+                alloc_cost: schedule.memory_weights.allocation_cost,
+                mem_grow_cost: schedule.memory_weights.grow_cost,
+                load_page_cost: schedule.memory_weights.load_cost,
+            };
+
+            let block_config = BlockConfig {
+                block_info,
+                allocations_config,
+                existential_deposit,
+                gas_allowance: u64::MAX,
+                outgoing_limit: T::OutgoingLimit::get(),
+                host_fn_weights: schedule.host_fn_weights.into_core(),
+                forbidden_funcs: ["gr_gas_available"].into(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+            };
+
             let mut min_limit = 0;
             let mut reserved = 0;
             let mut burned = 0;
 
-            let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
 
             while let Some(queued_dispatch) =
@@ -726,14 +746,6 @@ pub mod pallet {
                     .get_executable_actor(actor_id, !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-                let allocations_config = AllocationsConfig {
-                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
-                    init_cost: schedule.memory_weights.initial_cost,
-                    alloc_cost: schedule.memory_weights.allocation_cost,
-                    mem_grow_cost: schedule.memory_weights.grow_cost,
-                    load_page_cost: schedule.memory_weights.load_cost,
-                };
-
                 let dispatch_id = queued_dispatch.id();
                 let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .ok()
@@ -742,35 +754,22 @@ pub mod pallet {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
+                let message_execution_config = MessageExecutionConfig {
+                    executable_actor: Some(actor),
+                    dispatch: queued_dispatch.into_incoming(gas_limit),
+                    origin: ProgramId::from_origin(source),
+                    program_id: actor_id,
+                };
+
                 let journal = if lazy_pages_enabled {
                     core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(gas_limit),
-                        block_info,
-                        allocations_config,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                        ["gr_gas_available"].into(),
-                        T::MailboxThreshold::get(),
+                        block_config.clone(),
+                        message_execution_config,
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(gas_limit),
-                        block_info,
-                        allocations_config,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                        ["gr_gas_available"].into(),
-                        T::MailboxThreshold::get(),
+                        block_config.clone(),
+                        message_execution_config,
                     )
                 };
 
@@ -860,6 +859,7 @@ pub mod pallet {
             let mut ext_manager = ExtManager::<T>::default();
 
             let weight = GasAllowanceOf::<T>::get() as Weight;
+            let schedule = T::Schedule::get();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -868,6 +868,25 @@ pub mod pallet {
 
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+            let allocations_config = AllocationsConfig {
+                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                init_cost: schedule.memory_weights.initial_cost,
+                alloc_cost: schedule.memory_weights.allocation_cost,
+                mem_grow_cost: schedule.memory_weights.grow_cost,
+                load_page_cost: schedule.memory_weights.load_cost,
+            };
+
+            let block_config = BlockConfig {
+                block_info,
+                allocations_config,
+                existential_deposit,
+                gas_allowance: GasAllowanceOf::<T>::get(),
+                outgoing_limit: T::OutgoingLimit::get(),
+                host_fn_weights: schedule.host_fn_weights.into_core(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+            };
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
@@ -925,7 +944,6 @@ pub mod pallet {
                         GasAllowanceOf::<T>::get(),
                     );
 
-                    let schedule = T::Schedule::get();
                     let lazy_pages_enabled =
                         cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
@@ -1069,43 +1087,22 @@ pub mod pallet {
                         }
                     };
 
-                    let allocations_config = AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
-                        init_cost: schedule.memory_weights.initial_cost,
-                        alloc_cost: schedule.memory_weights.allocation_cost,
-                        mem_grow_cost: schedule.memory_weights.grow_cost,
-                        load_page_cost: schedule.memory_weights.load_cost,
+                    let message_execution_config = MessageExecutionConfig {
+                        executable_actor: maybe_active_actor,
+                        dispatch: dispatch.into_incoming(gas_limit),
+                        origin: ProgramId::from_origin(origin.into_origin()),
+                        program_id,
                     };
 
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                            maybe_active_actor,
-                            dispatch.into_incoming(gas_limit),
-                            block_info,
-                            allocations_config,
-                            existential_deposit,
-                            ProgramId::from_origin(origin.into_origin()),
-                            program_id,
-                            GasAllowanceOf::<T>::get(),
-                            T::OutgoingLimit::get(),
-                            schedule.host_fn_weights.into_core(),
-                            Default::default(),
-                            T::MailboxThreshold::get(),
+                            block_config.clone(),
+                            message_execution_config,
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
-                            maybe_active_actor,
-                            dispatch.into_incoming(gas_limit),
-                            block_info,
-                            allocations_config,
-                            existential_deposit,
-                            ProgramId::from_origin(origin.into_origin()),
-                            program_id,
-                            GasAllowanceOf::<T>::get(),
-                            T::OutgoingLimit::get(),
-                            schedule.host_fn_weights.into_core(),
-                            Default::default(),
-                            T::MailboxThreshold::get(),
+                            block_config.clone(),
+                            message_execution_config,
                         )
                     };
 

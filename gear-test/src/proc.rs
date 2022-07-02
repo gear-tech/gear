@@ -100,24 +100,29 @@ where
     let program_id = program.id();
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
-    let journal = core_processor::process::<Ext, E>(
-        Some(ExecutableActor {
+    let block_config = BlockConfig {
+        block_info,
+        allocations_config: Default::default(),
+        existential_deposit: EXISTENTIAL_DEPOSIT,
+        gas_allowance: u64::MAX,
+        outgoing_limit: OUTGOING_LIMIT,
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: MAILBOX_THRESHOLD,
+    };
+
+    let message_execution_config = MessageExecutionConfig {
+        executable_actor: Some(ExecutableActor {
             program,
             balance: 0,
             pages_data: Default::default(),
         }),
-        message.into(),
-        block_info,
-        Default::default(),
-        EXISTENTIAL_DEPOSIT,
-        Default::default(),
+        dispatch: message.into(),
+        origin: Default::default(),
         program_id,
-        u64::MAX,
-        OUTGOING_LIMIT,
-        Default::default(),
-        Default::default(),
-        MAILBOX_THRESHOLD,
-    );
+    };
+
+    let journal = core_processor::process::<Ext, E>(block_config, message_execution_config);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -282,27 +287,33 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
+            let block_config = BlockConfig {
+                block_info: BlockInfo { height, timestamp },
+                allocations_config: Default::default(),
+                existential_deposit: EXISTENTIAL_DEPOSIT,
+                gas_allowance: u64::MAX,
+                outgoing_limit: OUTGOING_LIMIT,
+                host_fn_weights: Default::default(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: MAILBOX_THRESHOLD,
+            };
+
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let program_id = dispatch.destination();
 
                 let actor = state.actors.get(&program_id).cloned();
 
-                let journal = core_processor::process::<Ext, E>(
-                    actor.unwrap_or_else(|| {
+                let message_execution_config = MessageExecutionConfig {
+                    executable_actor: actor.unwrap_or_else(|| {
                         panic!("Error: Message to user {:?} in dispatch queue!", program_id)
                     }),
-                    dispatch.into_incoming(gas_limit),
-                    BlockInfo { height, timestamp },
-                    Default::default(),
-                    EXISTENTIAL_DEPOSIT,
-                    Default::default(),
+                    dispatch: dispatch.into_incoming(gas_limit),
+                    origin: Default::default(),
                     program_id,
-                    u64::MAX,
-                    OUTGOING_LIMIT,
-                    Default::default(),
-                    Default::default(),
-                    MAILBOX_THRESHOLD,
-                );
+                };
+
+                let journal =
+                    core_processor::process::<Ext, E>(block_config, message_execution_config);
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -324,25 +335,31 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let journal = core_processor::process::<Ext, E>(
-                actor.unwrap_or_else(|| {
-                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
-                }),
-                dispatch.into_incoming(gas_limit),
-                BlockInfo {
+            let block_config = BlockConfig {
+                block_info: BlockInfo {
                     height: counter,
                     timestamp,
                 },
-                Default::default(),
-                EXISTENTIAL_DEPOSIT,
-                Default::default(),
+                allocations_config: Default::default(),
+                existential_deposit: EXISTENTIAL_DEPOSIT,
+                gas_allowance: u64::MAX,
+                outgoing_limit: OUTGOING_LIMIT,
+                host_fn_weights: Default::default(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: MAILBOX_THRESHOLD,
+            };
+
+            let message_execution_config = MessageExecutionConfig {
+                executable_actor: actor.unwrap_or_else(|| {
+                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                }),
+                dispatch: dispatch.into_incoming(gas_limit),
+                origin: Default::default(),
                 program_id,
-                u64::MAX,
-                OUTGOING_LIMIT,
-                Default::default(),
-                Default::default(),
-                MAILBOX_THRESHOLD,
-            );
+            };
+
+            let journal =
+                core_processor::process::<Ext, E>(block_config.clone(), message_execution_config);
             counter += 1;
 
             core_processor::handle_journal(journal, journal_handler);

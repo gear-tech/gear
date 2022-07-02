@@ -21,7 +21,11 @@ use crate::{
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
 };
-use core_processor::{common::*, configs::BlockInfo, Ext};
+use core_processor::{
+    common::*,
+    configs::{BlockConfig, BlockInfo, MessageExecutionConfig},
+    Ext,
+};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
@@ -467,19 +471,25 @@ impl ExtManager {
             .get(&dispatch.id())
             .expect("Unable to find gas limit for message")
             .unwrap_or(u64::MAX);
-        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+        let block_config = BlockConfig {
+            block_info: self.block_info,
+            allocations_config: Default::default(),
+            existential_deposit: crate::EXISTENTIAL_DEPOSIT,
+            gas_allowance: u64::MAX,
+            outgoing_limit: OUTGOING_LIMIT,
+            host_fn_weights: Default::default(),
+            forbidden_funcs: Default::default(),
+            mailbox_threshold: crate::MAILBOX_THRESHOLD,
+        };
+        let message_execution_config = MessageExecutionConfig {
             executable_actor,
-            dispatch.into_incoming(gas_limit),
-            self.block_info,
-            Default::default(),
-            crate::EXISTENTIAL_DEPOSIT,
-            self.origin,
-            dest,
-            u64::MAX,
-            OUTGOING_LIMIT,
-            Default::default(),
-            Default::default(),
-            crate::MAILBOX_THRESHOLD,
+            dispatch: dispatch.into_incoming(gas_limit),
+            origin: self.origin,
+            program_id: dest,
+        };
+        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+            block_config,
+            message_execution_config,
         );
 
         core_processor::handle_journal(journal, self);

@@ -21,15 +21,14 @@ use crate::{
         DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
         ExecutionErrorReason, JournalNote,
     },
-    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
+    configs::{BlockConfig, ExecutionSettings, MessageExecutionConfig},
     executor,
     ext::ProcessorExt,
 };
-use alloc::{collections::BTreeSet, string::ToString, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
-    costs::HostFnWeights,
     env::Ext as EnvExt,
     ids::{MessageId, ProgramId},
     message::{
@@ -43,38 +42,19 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
-#[allow(clippy::too_many_arguments)]
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    maybe_actor: Option<ExecutableActor>,
-    dispatch: IncomingDispatch,
-    block_info: BlockInfo,
-    allocations_config: AllocationsConfig,
-    existential_deposit: u128,
-    origin: ProgramId,
-    // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
-    program_id: ProgramId,
-    gas_allowance: u64,
-    outgoing_limit: u32,
-    host_fn_weights: HostFnWeights,
-    forbidden_funcs: BTreeSet<&'static str>,
-    mailbox_threshold: u64,
+    block_config: BlockConfig,
+    MessageExecutionConfig {
+        executable_actor: maybe_actor,
+        dispatch,
+        origin,
+        program_id,
+    }: MessageExecutionConfig,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
-        Ok(actor) => process_executable::<A, E>(
-            actor,
-            dispatch,
-            block_info,
-            allocations_config,
-            existential_deposit,
-            origin,
-            gas_allowance,
-            outgoing_limit,
-            host_fn_weights,
-            forbidden_funcs,
-            mailbox_threshold,
-        ),
+        Ok(actor) => process_executable::<A, E>(actor, dispatch, origin, block_config),
     }
 }
 
@@ -275,19 +255,20 @@ fn process_success(
     journal
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
-    block_info: BlockInfo,
-    allocations_config: AllocationsConfig,
-    existential_deposit: u128,
     origin: ProgramId,
-    gas_allowance: u64,
-    outgoing_limit: u32,
-    host_fn_weights: HostFnWeights,
-    forbidden_funcs: BTreeSet<&'static str>,
-    mailbox_threshold: u64,
+    BlockConfig {
+        block_info,
+        allocations_config,
+        existential_deposit,
+        gas_allowance,
+        outgoing_limit,
+        host_fn_weights,
+        forbidden_funcs,
+        mailbox_threshold,
+    }: BlockConfig,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
