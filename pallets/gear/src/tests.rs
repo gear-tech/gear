@@ -3709,36 +3709,35 @@ fn cascading_messages_with_value_do_not_overcharge() {
 fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::{Method, Package};
-        use demo_calc_hash_aggregator::WASM_BINARY;
-        use demo_calc_hash_calculator::WASM_BINARY as CALC_WASM_BINARY;
+        use demo_calc_hash::Package;
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+        // use demo_calc_hash_calculator::WASM_BINARY as CALC_WASM_BINARY;
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
         let max_gas_spent_per_hash = 30_000_000_000u64;
 
-        // deply calculator
-        assert_ok!(Gear::submit_program(
-            Origin::signed(USER_1),
-            CALC_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            block_gas_limit,
-            0,
-        ));
-        let calculator = get_last_program_id();
+        // // deply calculator
+        // assert_ok!(Gear::submit_program(
+        //     Origin::signed(USER_1),
+        //     CALC_WASM_BINARY.to_vec(),
+        //     DEFAULT_SALT.to_vec(),
+        //     EMPTY_PAYLOAD.to_vec(),
+        //     block_gas_limit,
+        //     0,
+        // ));
+        // let calculator = get_last_program_id();
 
         // deploy aggregator
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            (max_gas_spent_per_hash, calculator).encode(),
-            block_gas_limit,
+            max_gas_spent_per_hash.encode(),
+            2_000_000_000,
             0,
         ));
-        let aggregator = get_last_program_id();
+        let over_blocks = get_last_program_id();
 
-        program_exists(calculator.into_origin());
-        program_exists(aggregator.into_origin());
+        program_exists(over_blocks.into_origin());
 
         // the result of running sha2_256 on [0; 32] itself for 42 times
         //
@@ -3754,25 +3753,24 @@ fn execution_over_blocks() {
         // trigger calculation
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
-            aggregator,
-            Method::Start(Package {
+            over_blocks,
+            Method::Init(Package {
                 paths: vec![[0; 32]],
                 expected,
             })
             .encode(),
-            block_gas_limit,
+            2_000_000_000,
             0,
         ));
 
         run_to_block(2, None);
-        assert_eq!(maybe_last_mail(USER_1), None);
 
         // loop calculation
         let path: Vec<[u8; 32]>;
         loop {
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
-                aggregator,
+                over_blocks,
                 Method::Refuel.encode(),
                 block_gas_limit,
                 0,

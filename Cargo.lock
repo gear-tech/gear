@@ -1298,7 +1298,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-calc-hash-aggregator"
+name = "demo-calc-hash-in-one-block"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
@@ -1308,7 +1308,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-calc-hash-calculator"
+name = "demo-calc-hash-over-blocks"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
@@ -4858,8 +4858,8 @@ dependencies = [
  "demo-async-tester",
  "demo-btree",
  "demo-calc-hash",
- "demo-calc-hash-aggregator",
- "demo-calc-hash-calculator",
+ "demo-calc-hash-in-one-block",
+ "demo-calc-hash-over-blocks",
  "demo-compose",
  "demo-distributor",
  "demo-exit-handle",

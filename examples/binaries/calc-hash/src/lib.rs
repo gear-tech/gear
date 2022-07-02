@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 
 extern crate alloc;
 
@@ -6,11 +6,29 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use sha2::Digest;
 
-/// Program methods.
-#[derive(Debug, Encode, Decode)]
-pub enum Method {
-    Start(Package),
-    Refuel,
+pub struct GasMeter {
+    /// Last gas available
+    pub last_gas_available: u64,
+
+    /// Max gas spent per calculation
+    pub max_gas_spent: u64,
+}
+
+impl GasMeter {
+    /// Check if the given `gas_available` can run a calculation
+    pub fn spin(&mut self, gas_available: u64) -> bool {
+        if gas_available < self.last_gas_available {
+            let last_gas_spent = self.last_gas_available - gas_available;
+            self.max_gas_spent = self.max_gas_spent.max(last_gas_spent);
+        }
+
+        if gas_available < self.max_gas_spent {
+            return false;
+        }
+
+        self.last_gas_available = gas_available;
+        true
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -22,7 +40,7 @@ pub struct Package {
 }
 
 impl Package {
-    /// verify path
+    /// Path verification.
     pub fn verify(path: &[[u8; 32]]) -> bool {
         let len = path.len();
         for (i, p) in path.iter().enumerate() {
@@ -39,10 +57,13 @@ impl Package {
         false
     }
 
-    pub fn calc(&mut self) {
+    /// Calculate the next path.
+    pub fn calc(mut self) -> Self {
         self.paths.push(sha2_256(&self.ptr()));
+        self
     }
 
+    /// Check if the calculation is finished.
     pub fn finished(&self) -> bool {
         self.ptr() == self.expected
     }
