@@ -20,6 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
+    TestError, TestResult,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
@@ -311,7 +312,7 @@ impl ExtManager {
         program_id: &ProgramId,
         payload: Option<Payload>,
         function_name: &str,
-    ) -> Result<Vec<u8>, String> {
+    ) -> TestResult<Vec<u8>> {
         let mut executor = self.get_executor(program_id, payload)?;
         executor.execute(function_name)
     }
@@ -501,17 +502,16 @@ impl ExtManager {
         &mut self,
         program_id: &ProgramId,
         payload: Option<Payload>,
-    ) -> Result<WasmExecutor, String> {
+    ) -> TestResult<WasmExecutor> {
         let (actor, balance) = self
             .actors
             .get_mut(program_id)
-            .ok_or(format!("No actor with program id: {:?}", program_id))?;
+            .ok_or(TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
-        let actor = actor.get_executable_actor(*balance).ok_or(format!(
-            "Actor with program id: {:?} isn't executable",
-            program_id
-        ))?;
+        let actor = actor
+            .get_executable_actor(*balance)
+            .ok_or(TestError::ActorIsntExecutable(*program_id))?;
         let pages_initial_data = actor
             .pages_data
             .into_iter()

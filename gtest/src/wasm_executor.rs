@@ -1,9 +1,22 @@
-use anyhow::Error;
-use core_processor::{
-    Ext,
-    ProcessorError::{Core, Panic, Terminated},
-    ProcessorExt,
-};
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use core_processor::{Ext, ProcessorExt};
 use gear_backend_common::TerminationReason;
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
@@ -19,7 +32,7 @@ use wasmtime::{
     Val,
 };
 
-use crate::MAILBOX_THRESHOLD;
+use crate::{TestError, TestResult, MAILBOX_THRESHOLD};
 
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor {
@@ -36,7 +49,7 @@ impl WasmExecutor {
         meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
-    ) -> Result<Self, String> {
+    ) -> TestResult<Self> {
         let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
@@ -45,23 +58,19 @@ impl WasmExecutor {
         };
 
         let config = Config::new();
-        let engine = Engine::new(&config).map_err(|error| error.to_string())?;
+        let engine = Engine::new(&config)?;
         let mut store = Store::<StoreData<Ext>>::new(&engine, store_data);
 
-        let module = Module::new(&engine, meta_binary).map_err(|error| error.to_string())?;
+        let module = Module::new(&engine, meta_binary)?;
 
         let mut memory =
-            WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))
-                .map_err(|error| error.to_string())?;
+            WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))?;
 
         let funcs = funcs_tree::build(&mut store, memory, None);
         let mut externs = Vec::with_capacity(module.imports().len());
         for import in module.imports() {
             if import.module() != "env" {
-                return Err(format!(
-                    "Non environment import in module: {:?}",
-                    import.module()
-                ));
+                return Err(TestError::InvalidImportModule(import.module().to_string()));
             }
             match import.name() {
                 Some("memory") => externs.push(Extern::Memory(memory)),
@@ -69,15 +78,14 @@ impl WasmExecutor {
                     if funcs.contains_key(key) {
                         externs.push(funcs[key].into())
                     } else {
-                        return Err(format!("Wasm is asking for function: {:?} with wasn't found. Consider to add in from FuncsHandler", key));
+                        return Err(TestError::UnsupportedFunction(key.to_string()));
                     }
                 }
                 _ => continue,
             };
         }
 
-        let instance =
-            Instance::new(&mut store, &module, &externs).map_err(|error| error.to_string())?;
+        let instance = Instance::new(&mut store, &module, &externs)?;
         WasmExecutor::set_pages(&mut store, &mut memory, memory_pages)?;
 
         Ok(Self {
@@ -89,35 +97,29 @@ impl WasmExecutor {
 
     /// Executes non-void function by provided name.
     /// Panics if function is void
-    pub(crate) fn execute(&mut self, function_name: &str) -> Result<Vec<u8>, String> {
+    pub(crate) fn execute(&mut self, function_name: &str) -> TestResult<Vec<u8>> {
         let function = self.get_function(function_name)?;
-        let mut prt_to_result_array = [Val::I32(0)];
+        let mut ptr_to_result_array = [Val::I32(0)];
 
         function
-            .call(&mut self.store, &[], &mut prt_to_result_array)
-            .map_err(|error| self.get_error_message(error))?;
+            .call(&mut self.store, &[], &mut ptr_to_result_array)
+            .map_err(|err| {
+                if let Some(processor_error) = self
+                    .store
+                    .data()
+                    .ext
+                    .with(|a| a.error_explanation.clone())
+                    .expect("`with` is expected to be called only after `inner` is set")
+                {
+                    processor_error.into()
+                } else {
+                    TestError::WasmtimeError(err)
+                }
+            })?;
 
-        match prt_to_result_array[0] {
+        match ptr_to_result_array[0] {
             Val::I32(ptr_to_result) => self.read_result(ptr_to_result),
-            _ => Err("Got wrong type".to_string()),
-        }
-    }
-
-    fn get_error_message(&self, error: Error) -> String {
-        if let Some(processor_error) = self
-            .store
-            .data()
-            .ext
-            .with(|a| a.error_explanation.clone())
-            .unwrap()
-        {
-            match processor_error {
-                Core(ext_error) => ext_error.to_string(),
-                Terminated(termination_reason) => termination_reason.to_string(),
-                Panic(error_description) => error_description,
-            }
-        } else {
-            error.to_string()
+            _ => Err(TestError::InvalidReturnType),
         }
     }
 
@@ -148,26 +150,23 @@ impl WasmExecutor {
         )
     }
 
-    fn get_function(&mut self, function_name: &str) -> Result<Func, String> {
+    fn get_function(&mut self, function_name: &str) -> TestResult<Func> {
         self.instance
             .get_func(&mut self.store, function_name)
-            .ok_or(format!("No function with name: {:?}", function_name))
+            .ok_or_else(|| TestError::FunctionNotFound(function_name.to_string()))
     }
 
-    fn read_result(&mut self, ptr_to_result_data: i32) -> Result<Vec<u8>, String> {
+    fn read_result(&mut self, ptr_to_result_data: i32) -> TestResult<Vec<u8>> {
         let offset = ptr_to_result_data as usize;
 
         // Reading a fat pointer from the `offset`
         let mut ptr = [0_u8; mem::size_of::<i32>()];
         let mut len = [0_u8; mem::size_of::<i32>()];
 
-        self.memory
-            .read(&self.store, offset, &mut ptr)
-            .map_err(|error| error.to_string())?;
+        self.memory.read(&self.store, offset, &mut ptr)?;
 
         self.memory
-            .read(&self.store, offset + ptr.len(), &mut len)
-            .map_err(|error| error.to_string())?;
+            .read(&self.store, offset + ptr.len(), &mut len)?;
 
         let ptr = i32::from_ne_bytes(ptr) as usize;
         let len = i32::from_ne_bytes(len) as usize;
@@ -175,9 +174,7 @@ impl WasmExecutor {
         // Reading a vector from `ptr`
         let mut result = vec![0; len];
 
-        self.memory
-            .read(&self.store, ptr, &mut result)
-            .map_err(|error| error.to_string())?;
+        self.memory.read(&self.store, ptr, &mut result)?;
 
         Ok(result)
     }
@@ -186,18 +183,14 @@ impl WasmExecutor {
         mut store: &mut Store<StoreData<T>>,
         memory: &mut WasmtimeMemory,
         pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-    ) -> Result<(), String> {
+    ) -> TestResult<()> {
         let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
         for (page_number, buffer) in pages {
-            if memory_size <= page_number.to_wasm_page() {
-                return Err(format!(
-                    "Memory size {:?} less than {:?}",
-                    memory_size, page_number
-                ));
+            let wasm_page_number = page_number.to_wasm_page();
+            if memory_size <= wasm_page_number {
+                return Err(TestError::InsufficientMemory(memory_size, wasm_page_number));
             }
-            memory
-                .write(&mut store, page_number.offset(), &buffer[..])
-                .map_err(|error| format!("Cannot write to {:?}: {:?}", page_number, error))?;
+            memory.write(&mut store, page_number.offset(), &buffer[..])?;
         }
         Ok(())
     }
