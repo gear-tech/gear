@@ -3711,20 +3711,8 @@ fn execution_over_blocks() {
     new_test_ext().execute_with(|| {
         use demo_calc_hash::Package;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
-        // use demo_calc_hash_calculator::WASM_BINARY as CALC_WASM_BINARY;
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
         let max_gas_spent_per_hash = 30_000_000_000u64;
-
-        // // deply calculator
-        // assert_ok!(Gear::submit_program(
-        //     Origin::signed(USER_1),
-        //     CALC_WASM_BINARY.to_vec(),
-        //     DEFAULT_SALT.to_vec(),
-        //     EMPTY_PAYLOAD.to_vec(),
-        //     block_gas_limit,
-        //     0,
-        // ));
-        // let calculator = get_last_program_id();
 
         // deploy aggregator
         assert_ok!(Gear::submit_program(
@@ -3732,7 +3720,7 @@ fn execution_over_blocks() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             max_gas_spent_per_hash.encode(),
-            2_000_000_000,
+            3_000_000_000,
             0,
         ));
         let over_blocks = get_last_program_id();
@@ -3754,12 +3742,12 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             over_blocks,
-            Method::Init(Package {
+            Method::Start(Package {
                 paths: vec![[0; 32]],
                 expected,
             })
             .encode(),
-            2_000_000_000,
+            3_000_000_000,
             0,
         ));
 

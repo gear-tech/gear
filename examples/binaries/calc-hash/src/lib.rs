@@ -33,7 +33,7 @@ impl GasMeter {
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Package {
-    /// The paths of the calculation
+    /// Paths of the calculation.
     pub paths: Vec<[u8; 32]>,
     /// Expected result.
     pub expected: [u8; 32],

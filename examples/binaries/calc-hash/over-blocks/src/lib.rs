@@ -37,7 +37,7 @@ mod wasm {
 /// Program methods.
 #[derive(Debug, Encode, Decode)]
 pub enum Method {
-    Init(Package),
+    Start(Package),
     Refuel,
     Calculate(Package),
 }

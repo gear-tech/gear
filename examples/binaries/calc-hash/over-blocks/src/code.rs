@@ -1,6 +1,6 @@
 use crate::Method;
 use gstd::{exec, msg, ActorId, BTreeMap, Decode, Encode, MessageId, Vec};
-use shared::{GasMeter, Package};
+use shared::Package;
 
 mod state {
     use gstd::{ActorId, BTreeMap, Vec};
@@ -18,7 +18,7 @@ async fn main() {
     let method = msg::load::<Method>().expect("Invalid contract method");
 
     match method {
-        Method::Init(mut pkg) => unsafe {
+        Method::Start(pkg) => unsafe {
             state::REGISTRY.insert(msg::source(), pkg);
         },
         Method::Refuel => unsafe { dispatch().await },
@@ -30,14 +30,19 @@ async fn main() {
 
 /// Dispatch calcuation
 async unsafe fn dispatch() {
+    let mut pkg = state::REGISTRY
+        .get_mut(&msg::source())
+        .expect("Calculation not found, please run start first.");
+
+    // first check here for saving gas and making `wake` operation standalone
+    if pkg.finished() {
+        return;
+    }
+
     loop {
         if !state::GAS_METER.spin(exec::gas_available()) {
             return;
         }
-
-        let mut pkg = state::REGISTRY
-            .get_mut(&msg::source())
-            .expect("Calculation not found, please init first.");
 
         let reply: Package = Package::decode(
             &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.clone()), 0)
@@ -48,12 +53,12 @@ async unsafe fn dispatch() {
         )
         .expect("decode package failed");
 
-        if reply.finished() {
-            gstd::debug!("calculation finished!");
-            msg::reply(reply.paths, 0).expect("send reply failed");
-            return;
-        }
-
         *pkg = reply;
+
+        // second checking finished in loop
+        if pkg.finished() {
+            msg::reply(pkg.paths.clone(), 0).expect("send reply failed");
+            break;
+        }
     }
 }
