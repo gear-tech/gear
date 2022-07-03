@@ -44,6 +44,10 @@ pub enum TestError {
     #[display(fmt = "Actor is not executable: `{:?}`", _0)]
     ActorIsntExecutable(ProgramId),
 
+    /// Meta WASM binary hasn't been provided.
+    #[display(fmt = "Meta WASM binary hasn't been provided")]
+    MetaBinaryNotProvided,
+
     /// Insufficient memory.
     #[display(fmt = "Insufficient memory: available {:?} < requested {:?}", _0, _1)]
     InsufficientMemory(WasmPageNumber, WasmPageNumber),

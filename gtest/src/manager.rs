@@ -520,7 +520,7 @@ impl ExtManager {
         let meta_binary = code_id
             .and_then(|code_id| self.meta_binaries.get(&code_id))
             .map(Vec::as_slice)
-            .expect("Metadata binary must be present");
+            .ok_or(TestError::MetaBinaryNotProvided)?;
 
         WasmExecutor::new(&actor.program, meta_binary, &pages_initial_data, payload)
     }

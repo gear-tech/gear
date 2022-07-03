@@ -232,7 +232,7 @@ mod meta_tests {
     }
 
     #[test]
-    fn test_happy_case() {
+    fn happy_case() {
         let system = System::default();
         let program = Program::from_file(
             &system,
@@ -250,7 +250,7 @@ mod meta_tests {
     }
 
     #[test]
-    fn test_meta_extension_happy_case() {
+    fn meta_extension_happy_case() {
         let system = System::default();
         let program = Program::from_file(
             &system,
@@ -268,7 +268,7 @@ mod meta_tests {
     }
 
     #[test]
-    fn test_manager_executions_coworking() {
+    fn manager_executions_coworking() {
         let user_id: ProgramId = 100.into();
         let system = System::default();
         let program = Program::from_file(
@@ -304,7 +304,7 @@ mod meta_tests {
     }
 
     #[test]
-    fn test_failing_with_unknown_function() {
+    fn failing_with_unknown_function() {
         let unknown_function_name = "fsd314f";
         let system = System::default();
         let program = Program::from_file(
@@ -325,7 +325,7 @@ mod meta_tests {
     }
 
     #[test]
-    fn test_failing_with_void_function() {
+    fn failing_with_void_function() {
         let void_function_name = "init";
         let system = System::default();
         let program = Program::from_file(
@@ -341,7 +341,7 @@ mod meta_tests {
     }
 
     #[test]
-    fn test_failing_with_empty_payload() {
+    fn failing_with_empty_payload() {
         let system = System::default();
         let program = Program::from_file(
             &system,
@@ -353,5 +353,17 @@ mod meta_tests {
             result,
             Err(TestError::ExecutionError(ProcessorError::Panic(_)))
         ));
+    }
+
+    #[test]
+    fn failing_without_meta_binary() {
+        let system = System::default();
+        let program = Program::from_file(
+            &system,
+            "../target/wasm32-unknown-unknown/release/demo_meta.opt.wasm",
+        );
+
+        let result = program.meta_state_empty::<Vec<Wallet>>();
+        assert!(matches!(result, Err(TestError::MetaBinaryNotProvided)));
     }
 }
