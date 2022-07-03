@@ -18,7 +18,21 @@
 
 //! Unit tests module.
 
-use crate::mock::*;
+extern crate alloc;
+
+use crate::{mock::*, *};
+use alloc::string::ToString;
+use common::{scheduler::*, storage::*, GasTree, Origin};
+use core_processor::common::ExecutionErrorReason;
+use frame_system::Pallet as SystemPallet;
+use gear_core::{ids::*, message::*};
+use pallet_gear::{GasAllowanceOf, GasHandlerOf};
+use sp_core::H256;
+
+type GA = GasAllowanceOf<Test>;
+type GH = GasHandlerOf<Test>;
+type TS = <Pallet<Test> as Scheduler>::TasksScope;
+type WL = <<Test as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -27,10 +41,175 @@ pub(crate) fn init_logger() {
         .try_init();
 }
 
+// ProgramId::from_origin(H256::random().into_origin())
+
+fn dispatch_from(src: impl Into<ProgramId>) -> StoredDispatch {
+    StoredDispatch::new(
+        DispatchKind::Handle,
+        StoredMessage::new(
+            MessageId::from_origin(H256::random().into_origin()),
+            src.into(),
+            ProgramId::from_origin(H256::random().into_origin()),
+            Default::default(),
+            0,
+            None,
+        ),
+        None,
+    )
+}
+
+fn populate_wl_from(
+    src: <Test as frame_system::Config>::AccountId,
+    bn: <Test as frame_system::Config>::BlockNumber,
+) -> (MessageId, ProgramId) {
+    let dispatch = dispatch_from(src);
+    let mid = dispatch.id();
+    let pid = dispatch.destination();
+
+    TS::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid)).expect("Failed to insert task");
+    WL::insert(dispatch).expect("Failed to insert to waitlist");
+    GH::create(src, mid, 1_000_000).expect("Failed to create gas handler");
+
+    (mid, pid)
+}
+
+fn task_and_wl_message_exist(
+    mid: impl Into<MessageId>,
+    pid: impl Into<ProgramId>,
+    bn: <Test as frame_system::Config>::BlockNumber,
+) -> bool {
+    let mid = mid.into();
+    let pid = pid.into();
+
+    let ts = TS::contains(&bn, &ScheduledTask::RemoveFromWaitlist(pid, mid));
+    let wl = WL::contains(&pid, &mid);
+
+    if ts != wl {
+        panic!("Logic invalidated");
+    }
+
+    ts
+}
+
+// oor: out of rent
+fn oor_reply_exists(
+    user_id: <Test as frame_system::Config>::AccountId,
+    mid: impl Into<MessageId>,
+    pid: impl Into<ProgramId>,
+) -> bool {
+    let src = ProgramId::from_origin(user_id.into_origin());
+    let mid = mid.into();
+    let pid = pid.into();
+
+    SystemPallet::<Test>::events().into_iter().any(|e| {
+        if let mock::Event::Gear(pallet_gear::Event::UserMessageSent {
+            message: msg,
+            expiration: None,
+        }) = &e.event
+        {
+            msg.destination() == src
+                && msg.source() == pid
+                && msg.reply() == Some((mid, 1))
+                && msg.payload() == ExecutionErrorReason::OutOfRent.to_string().as_bytes()
+        } else {
+            false
+        }
+    })
+}
+
+fn db_r_w(reads: u64, writes: u64) -> Weight {
+    <Test as frame_system::Config>::DbWeight::get().reads_writes(reads, writes)
+}
+
+// Don't worry if this test fails in your PR.
+// It's due to gas allowance checking in most cases.
+// Read and understand what's going on here,
+// updating gas allowance changes afterward.
 #[test]
-fn sample() {
+fn gear_handles_tasks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        run_to_block(1);
+        // We start from block 2 for confidence.
+        run_to_block(2, Some(u64::MAX));
+        // Read of missed blocks.
+        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+
+        // Appending task and message to wl.
+        let bn = 5;
+        let (mid, pid) = populate_wl_from(USER_1, bn);
+        assert!(task_and_wl_message_exist(mid, pid, bn));
+        assert!(!oor_reply_exists(USER_1, mid, pid));
+
+        // Check if task and message exist before start of block `bn`.
+        run_to_block(bn - 1, Some(u64::MAX));
+        // Read of missed blocks.
+        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+
+        // Storages checking.
+        assert!(task_and_wl_message_exist(mid, pid, bn));
+        assert!(!oor_reply_exists(USER_1, mid, pid));
+
+        // Check if task and message got processed in block `bn`.
+        run_to_block(bn, Some(u64::MAX));
+        // Read of missed blocks and write for removal of task.
+        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 1));
+
+        // Storages checking.
+        assert!(!task_and_wl_message_exist(mid, pid, bn));
+        assert!(oor_reply_exists(USER_1, mid, pid));
+    });
+}
+
+// Don't worry if this test fails in your PR.
+// It's due to gas allowance checking in most cases.
+// Read and understand what's going on here,
+// updating gas allowance changes afterward.
+#[test]
+fn gear_handles_outdated_tasks() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // We start from block 2 for confidence.
+        run_to_block(2, Some(u64::MAX));
+        // Read of missed blocks.
+        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+
+        // Appending twice task and message to wl.
+        let bn = 5;
+        let (mid1, pid1) = populate_wl_from(USER_1, bn);
+        let (mid2, pid2) = populate_wl_from(USER_1, bn);
+        assert!(task_and_wl_message_exist(mid1, pid1, bn));
+        assert!(task_and_wl_message_exist(mid2, pid2, bn));
+        assert!(!oor_reply_exists(USER_1, mid1, pid1));
+        assert!(!oor_reply_exists(USER_1, mid2, pid2));
+
+        // Check if tasks and messages exist before start of block `bn`.
+        run_to_block(bn - 1, Some(u64::MAX));
+        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+
+        // Storages checking.
+        assert!(task_and_wl_message_exist(mid1, pid1, bn));
+        assert!(task_and_wl_message_exist(mid2, pid2, bn));
+        assert!(!oor_reply_exists(USER_1, mid1, pid1));
+        assert!(!oor_reply_exists(USER_1, mid2, pid2));
+
+        // Check if task and message got processed before start of block `bn`.
+        // But due to the low gas allowance, we may process the only first task.
+        run_to_block(bn, Some(db_r_w(1, 2) + 1));
+        // Read of missed blocks, write to it afterwards + single task processing.
+        assert_eq!(GA::get(), 1);
+
+        // Storages checking.
+        assert!(!task_and_wl_message_exist(mid1, pid1, bn));
+        assert!(task_and_wl_message_exist(mid2, pid2, bn));
+        assert!(oor_reply_exists(USER_1, mid1, pid1));
+        assert!(!oor_reply_exists(USER_1, mid2, pid2));
+
+        // Check if missed task and message got processed in block `bn`.
+        run_to_block(bn + 1, Some(u64::MAX));
+        // Delete of missed blocks + single task processing.
+        assert_eq!(GA::get(), u64::MAX - db_r_w(0, 2));
+
+        assert!(!task_and_wl_message_exist(mid2, pid2, bn));
+        assert!(oor_reply_exists(USER_1, mid2, pid2));
     });
 }

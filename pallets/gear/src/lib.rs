@@ -411,7 +411,7 @@ pub mod pallet {
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
                 target: "runtime::gear",
-                "⚙️ Queue processing of block #{:?} with weight='{:?}'",
+                "⚙️ Queue and tasks processing of block #{:?} with weight='{:?}'",
                 bn,
                 remaining_weight,
             );
@@ -438,7 +438,7 @@ pub mod pallet {
 
             log::debug!(
                 target: "runtime::gear",
-                "⚙️ Weight '{:?}' left after queue processing of block #{:?}",
+                "⚙️ Weight '{:?}' burned in block #{:?}",
                 weight,
                 bn,
             );
@@ -892,15 +892,15 @@ pub mod pallet {
             //
             // We also append current bn to process it together, by iterating
             // over sorted bns set (that's the reason why `BTreeSet` used).
-            let missed_blocks = MissedBlocksOf::<T>::take()
+            let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
                 .map(|mut set| {
                     GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
                     set.insert(bn);
-                    set
+                    (set, false)
                 })
                 .unwrap_or_else(|| {
                     GasAllowanceOf::<T>::decrease(T::DbWeight::get().reads(1));
-                    [bn].into()
+                    ([bn].into(), true)
                 });
 
             // Where we were had to stop processing due to zeroed gas allowance.
@@ -911,8 +911,27 @@ pub mod pallet {
                 // Tasks drain iterator.
                 let tasks = TasksScopeOf::<T>::drain_prefix_keys(*bn);
 
+                // Checking gas allowance.
+                //
+                // Making sure we have gas to remove next task
+                // or update missed blocks.
+                if were_empty {
+                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                        stopped_at = Some(*bn);
+                        break;
+                    }
+                } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                    stopped_at = Some(*bn);
+                    break;
+                }
+
                 // Iterating over tasks, scheduled on `bn`.
                 for task in tasks {
+                    log::debug!("Processing task: {:?}", task);
+
+                    // Decreasing gas allowance due to DB deletion.
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+
                     // Processing task.
                     //
                     // NOTE: Gas allowance decrease should be implemented
@@ -921,7 +940,15 @@ pub mod pallet {
                     task.process_with(ext_manager);
 
                     // Checking gas allowance.
-                    if GasAllowanceOf::<T>::get() == 0 {
+                    //
+                    // Making sure we have gas to remove next task
+                    // or update missed blocks.
+                    if were_empty {
+                        if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                            stopped_at = Some(*bn);
+                            break;
+                        }
+                    } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
                         stopped_at = Some(*bn);
                         break;
                     }
@@ -947,6 +974,12 @@ pub mod pallet {
                         x != stopped_at
                     })
                     .collect();
+
+                // Charging for inserting into missing blocks,
+                // if we were reading it only (they were empty).
+                if were_empty {
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                }
 
                 MissedBlocksOf::<T>::put(actual_missed_blocks);
             }
