@@ -3712,14 +3712,13 @@ fn execution_over_blocks() {
         use demo_calc_hash::Package;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
-        let max_gas_spent_per_hash = 30_000_000_000u64;
 
         // deploy aggregator
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            max_gas_spent_per_hash.encode(),
+            EMPTY_PAYLOAD.to_vec(),
             3_000_000_000,
             0,
         ));
