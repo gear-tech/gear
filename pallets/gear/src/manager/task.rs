@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf, WaitlistOf};
+use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
 use common::{
@@ -49,7 +49,7 @@ where
 
     // TODO: generate system signal for program (#647).
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) {
-        // Taking message from waitlist.
+        // Taking message from waitlist and charging for holding there.
         //
         // It's guaranteed to be addressed to program
         // or waitlist/scheduler storage invalidated!
@@ -57,8 +57,9 @@ where
         // Note:
         // `assert_eq!(waitlisted.id(), message_id)`
         // `assert_eq!(waitlisted.destination(), program_id)`
-        let (waitlisted, _) = WaitlistOf::<T>::remove(program_id, message_id)
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+        let waitlisted = self
+            .wake_message_impl(program_id, message_id)
+            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {

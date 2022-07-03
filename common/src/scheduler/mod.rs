@@ -45,6 +45,9 @@ pub trait Scheduler {
     /// any required error type.
     type OutputError: From<Self::Error> + Debug;
 
+    /// Storing costs per block.
+    type CostsPerBlock: SchedulingCostsPerBlock<BlockNumber = Self::BlockNumber>;
+
     /// Block numbers, which have already passed,
     /// but still contain tasks to deal with.
     ///
@@ -71,4 +74,22 @@ pub trait Scheduler {
     fn reset() {
         Self::TasksScope::clear();
     }
+}
+
+/// Storing costs getter trait.
+pub trait SchedulingCostsPerBlock {
+    /// Block number type.
+    type BlockNumber;
+
+    /// Extra reserve for being able to pay for missed blocks.
+    fn reserve_for() -> Self::BlockNumber;
+
+    /// Cost for storing code per block.
+    fn code() -> u64;
+    /// Cost for storing message in mailbox per block.
+    fn mailbox() -> u64;
+    /// Cost for storing program per block.
+    fn program() -> u64;
+    /// Cost for storing message in waitlist per block.
+    fn waitlist() -> u64;
 }

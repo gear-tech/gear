@@ -24,6 +24,7 @@ use crate::{mock::*, *};
 use alloc::string::ToString;
 use common::{scheduler::*, storage::*, GasTree, Origin};
 use core_processor::common::ExecutionErrorReason;
+use frame_support::traits::ReservableCurrency;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{ids::*, message::*};
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
@@ -41,7 +42,11 @@ pub(crate) fn init_logger() {
         .try_init();
 }
 
-// ProgramId::from_origin(H256::random().into_origin())
+const DEFAULT_GAS: u64 = 1_000_000;
+
+fn wl_cost_for(amount_of_blocks: u64) -> u128 {
+    (<Pallet<Test> as Scheduler>::CostsPerBlock::waitlist() * amount_of_blocks) as u128
+}
 
 fn dispatch_from(src: impl Into<ProgramId>) -> StoredDispatch {
     StoredDispatch::new(
@@ -68,7 +73,8 @@ fn populate_wl_from(
 
     TS::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid)).expect("Failed to insert task");
     WL::insert(dispatch).expect("Failed to insert to waitlist");
-    GH::create(src, mid, 1_000_000).expect("Failed to create gas handler");
+    Balances::reserve(&src, DEFAULT_GAS as u128).expect("Cannot reserve gas");
+    GH::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
 
     (mid, pid)
 }
@@ -130,15 +136,32 @@ fn gear_handles_tasks() {
     init_logger();
     new_test_ext().execute_with(|| {
         // We start from block 2 for confidence.
-        run_to_block(2, Some(u64::MAX));
+        let initial_block = 2;
+        run_to_block(initial_block, Some(u64::MAX));
         // Read of missed blocks.
         assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+
+        // Block producer initial balance.
+        let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
+        assert_eq!(Balances::reserved_balance(BLOCK_AUTHOR), 0);
+
+        // USER_1 initial balance.
+        let user1_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
 
         // Appending task and message to wl.
         let bn = 5;
         let (mid, pid) = populate_wl_from(USER_1, bn);
         assert!(task_and_wl_message_exist(mid, pid, bn));
         assert!(!oor_reply_exists(USER_1, mid, pid));
+
+        // Balance checking.
+        assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user1_balance - DEFAULT_GAS as u128
+        );
+        assert_eq!(Balances::reserved_balance(USER_1), DEFAULT_GAS as u128);
 
         // Check if task and message exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
@@ -149,6 +172,14 @@ fn gear_handles_tasks() {
         assert!(task_and_wl_message_exist(mid, pid, bn));
         assert!(!oor_reply_exists(USER_1, mid, pid));
 
+        // Balance checking.
+        assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user1_balance - DEFAULT_GAS as u128
+        );
+        assert_eq!(Balances::reserved_balance(USER_1), DEFAULT_GAS as u128);
+
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
         // Read of missed blocks and write for removal of task.
@@ -157,6 +188,15 @@ fn gear_handles_tasks() {
         // Storages checking.
         assert!(!task_and_wl_message_exist(mid, pid, bn));
         assert!(oor_reply_exists(USER_1, mid, pid));
+
+        // Balance checking.
+        let cost = wl_cost_for(bn - initial_block); // Diff of blocks of insertion and removal.
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            block_author_balance + cost
+        );
+        assert_eq!(Balances::free_balance(USER_1), user1_balance - cost);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
     });
 }
 
@@ -169,18 +209,44 @@ fn gear_handles_outdated_tasks() {
     init_logger();
     new_test_ext().execute_with(|| {
         // We start from block 2 for confidence.
-        run_to_block(2, Some(u64::MAX));
+        let initial_block = 2;
+        run_to_block(initial_block, Some(u64::MAX));
         // Read of missed blocks.
         assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+
+        // Block producer initial balance.
+        let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
+        assert_eq!(Balances::reserved_balance(BLOCK_AUTHOR), 0);
+
+        // USER_1 initial balance.
+        let user1_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+
+        // USER_2 initial balance.
+        let user2_balance = Balances::free_balance(USER_2);
+        assert_eq!(Balances::reserved_balance(USER_2), 0);
 
         // Appending twice task and message to wl.
         let bn = 5;
         let (mid1, pid1) = populate_wl_from(USER_1, bn);
-        let (mid2, pid2) = populate_wl_from(USER_1, bn);
+        let (mid2, pid2) = populate_wl_from(USER_2, bn);
         assert!(task_and_wl_message_exist(mid1, pid1, bn));
         assert!(task_and_wl_message_exist(mid2, pid2, bn));
         assert!(!oor_reply_exists(USER_1, mid1, pid1));
-        assert!(!oor_reply_exists(USER_1, mid2, pid2));
+        assert!(!oor_reply_exists(USER_2, mid2, pid2));
+
+        // Balance checking.
+        assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user1_balance - DEFAULT_GAS as u128
+        );
+        assert_eq!(Balances::reserved_balance(USER_1), DEFAULT_GAS as u128);
+        assert_eq!(
+            Balances::free_balance(USER_2),
+            user2_balance - DEFAULT_GAS as u128
+        );
+        assert_eq!(Balances::reserved_balance(USER_2), DEFAULT_GAS as u128);
 
         // Check if tasks and messages exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
@@ -190,7 +256,20 @@ fn gear_handles_outdated_tasks() {
         assert!(task_and_wl_message_exist(mid1, pid1, bn));
         assert!(task_and_wl_message_exist(mid2, pid2, bn));
         assert!(!oor_reply_exists(USER_1, mid1, pid1));
-        assert!(!oor_reply_exists(USER_1, mid2, pid2));
+        assert!(!oor_reply_exists(USER_2, mid2, pid2));
+
+        // Balance checking.
+        assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user1_balance - DEFAULT_GAS as u128
+        );
+        assert_eq!(Balances::reserved_balance(USER_1), DEFAULT_GAS as u128);
+        assert_eq!(
+            Balances::free_balance(USER_2),
+            user2_balance - DEFAULT_GAS as u128
+        );
+        assert_eq!(Balances::reserved_balance(USER_2), DEFAULT_GAS as u128);
 
         // Check if task and message got processed before start of block `bn`.
         // But due to the low gas allowance, we may process the only first task.
@@ -198,18 +277,50 @@ fn gear_handles_outdated_tasks() {
         // Read of missed blocks, write to it afterwards + single task processing.
         assert_eq!(GA::get(), 1);
 
-        // Storages checking.
-        assert!(!task_and_wl_message_exist(mid1, pid1, bn));
-        assert!(task_and_wl_message_exist(mid2, pid2, bn));
-        assert!(oor_reply_exists(USER_1, mid1, pid1));
-        assert!(!oor_reply_exists(USER_1, mid2, pid2));
+        let cost1 = wl_cost_for(bn - initial_block);
+
+        // Storages checking (order isn't guaranteed).
+        if task_and_wl_message_exist(mid1, pid1, bn) {
+            assert!(!task_and_wl_message_exist(mid2, pid2, bn));
+            assert!(!oor_reply_exists(USER_1, mid1, pid1));
+            assert!(oor_reply_exists(USER_2, mid2, pid2));
+            assert_eq!(Balances::free_balance(USER_2), user2_balance - cost1);
+            assert_eq!(Balances::reserved_balance(USER_2), 0);
+        } else {
+            assert!(task_and_wl_message_exist(mid2, pid2, bn));
+            assert!(oor_reply_exists(USER_1, mid1, pid1));
+            assert!(!oor_reply_exists(USER_2, mid2, pid2));
+            assert_eq!(Balances::free_balance(USER_1), user1_balance - cost1);
+            assert_eq!(Balances::reserved_balance(USER_1), 0);
+        }
+
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            block_author_balance + cost1
+        );
 
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
         // Delete of missed blocks + single task processing.
         assert_eq!(GA::get(), u64::MAX - db_r_w(0, 2));
 
+        let cost2 = wl_cost_for(bn + 1 - initial_block);
+
+        // Storages checking.
+        assert!(!task_and_wl_message_exist(mid1, pid1, bn));
         assert!(!task_and_wl_message_exist(mid2, pid2, bn));
-        assert!(oor_reply_exists(USER_1, mid2, pid2));
+        assert!(oor_reply_exists(USER_1, mid1, pid1));
+        assert!(oor_reply_exists(USER_2, mid2, pid2));
+
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            block_author_balance + cost1 + cost2
+        );
+        assert_eq!(
+            Balances::free_balance(USER_1) + Balances::free_balance(USER_2),
+            user1_balance + user2_balance - cost1 - cost2
+        );
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(Balances::reserved_balance(USER_2), 0);
     });
 }

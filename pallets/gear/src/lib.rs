@@ -59,7 +59,7 @@ use gear_core::{
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -77,6 +77,7 @@ pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlis
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
 pub(crate) type TasksScopeOf<T> = <<T as Config>::Scheduler as Scheduler>::TasksScope;
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
+pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
@@ -1123,8 +1124,32 @@ pub mod pallet {
                                     program_id,
                                     current_message_id,
                                 );
+
+                                let message_id = dispatch.id();
+                                let program_id = dispatch.destination();
                                 WaitlistOf::<T>::insert(dispatch).unwrap_or_else(|e| {
                                     unreachable!("Waitlist corrupted! {:?}", e)
+                                });
+
+                                let current_bn = <frame_system::Pallet<T>>::block_number()
+                                    .saturated_into::<u32>();
+
+                                let can_cover =
+                                    gas_limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
+                                let reserve_for =
+                                    CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
+
+                                let duration = (can_cover as u32).saturating_sub(reserve_for);
+
+                                let deadline = current_bn.saturating_add(duration);
+                                let deadline: T::BlockNumber = deadline.unique_saturated_into();
+
+                                TasksScopeOf::<T>::add(
+                                    deadline,
+                                    ScheduledTask::RemoveFromWaitlist(program_id, message_id),
+                                )
+                                .unwrap_or_else(|e| {
+                                    unreachable!("Scheduling logic invalidated! {:?}", e)
                                 });
                                 continue;
                             }

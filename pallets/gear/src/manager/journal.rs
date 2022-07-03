@@ -18,10 +18,10 @@
 
 use crate::{
     manager::{ExtManager, TOL},
-    Authorship, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet,
-    QueueOf, SentOf, WaitlistOf,
+    Authorship, Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
+    MailboxOf, Pallet, QueueOf, SentOf, TasksScopeOf, WaitlistOf,
 };
-use common::{event::*, storage::*, CodeStorage, GasPrice, GasTree, Origin, Program};
+use common::{event::*, scheduler::*, storage::*, CodeStorage, GasPrice, GasTree, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
 };
@@ -33,10 +33,8 @@ use gear_core::{
     memory::{PageBuf, PageNumber},
     message::{Dispatch, StoredDispatch},
 };
-use sp_runtime::{
-    traits::{UniqueSaturatedInto, Zero},
-    SaturatedConversion,
-};
+use sp_runtime::traits::{SaturatedConversion, UniqueSaturatedInto, Zero};
+
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -58,8 +56,7 @@ where
             common::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
-                    // TODO: update gas limit in `ValueTree` here (issue #1022).
-                    if let Ok((m, _)) = WaitlistOf::<T>::remove(p_id, m_id) {
+                    if let Some(m) = self.wake_message_impl(p_id, m_id) {
                         Pallet::<T>::deposit_event(Event::<T>::MessageWoken {
                             id: m_id,
                             reason: MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
@@ -222,7 +219,9 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         // TODO: update gas limit in `ValueTree` here (issue #1022).
-        for (message, _) in WaitlistOf::<T>::drain_key(id_exited) {
+        for (message, bn) in WaitlistOf::<T>::drain_key(id_exited) {
+            self.charge_for_wake(message.id(), bn);
+
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
@@ -360,30 +359,51 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        WaitlistOf::<T>::insert(dispatch.clone())
-            .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
+        if let Ok(Some((limit, _))) = GasHandlerOf::<T>::get_limit(dispatch.id()) {
+            let message_id = dispatch.id();
+            let program_id = dispatch.destination();
 
-        let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(dispatch.id())
-            .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
-        {
-            if key == dispatch.id() {
-                None
+            WaitlistOf::<T>::insert(dispatch)
+                .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
+
+            let current_bn = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
+
+            let can_cover = limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
+            let reserve_for = CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
+
+            let duration = (can_cover as u32).saturating_sub(reserve_for);
+
+            let deadline = current_bn.saturating_add(duration);
+            let deadline: T::BlockNumber = deadline.unique_saturated_into();
+
+            TasksScopeOf::<T>::add(
+                deadline,
+                ScheduledTask::RemoveFromWaitlist(program_id, message_id),
+            )
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(message_id)
+                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
+            {
+                if key == message_id {
+                    None
+                } else {
+                    Some(key)
+                }
             } else {
-                Some(key)
-            }
-        } else {
-            unreachable!("ValueTree corrupted!")
-        };
+                unreachable!("ValueTree corrupted!")
+            };
 
-        // TODO: replace this temporary (zero) value
-        // for expiration block number with properly
-        // calculated one (issues #646 and #969).
-        Pallet::<T>::deposit_event(Event::MessageWaited {
-            id: dispatch.id(),
-            origin: origin_key,
-            reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
-            expiration: T::BlockNumber::zero(),
-        });
+            // TODO: replace this temporary (zero) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
+            Pallet::<T>::deposit_event(Event::MessageWaited {
+                id: message_id,
+                origin: origin_key,
+                reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+                expiration: T::BlockNumber::zero(),
+            });
+        }
     }
 
     fn wake_message(
@@ -392,84 +412,14 @@ where
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Ok((dispatch, bn)) = WaitlistOf::<T>::remove(program_id, awakening_id) {
-            let duration = <frame_system::Pallet<T>>::block_number()
-                .saturated_into::<u32>()
-                .saturating_sub(bn.saturated_into::<u32>());
-            let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
-
-            match GasHandlerOf::<T>::spend(message_id, chargeable_amount) {
-                Ok(_) => {
-                    match GasHandlerOf::<T>::get_external(message_id) {
-                        Ok(maybe_origin) => {
-                            if let Some(origin) = maybe_origin {
-                                let charge = T::GasPrice::gas_price(chargeable_amount);
-                                if let Some(author) = Authorship::<T>::author() {
-                                    match <T as Config>::Currency::repatriate_reserved(
-                                        &origin,
-                                        &author,
-                                        charge,
-                                        BalanceStatus::Free,
-                                    ) {
-                                        Ok(leftover) => {
-                                            if leftover > TOL.unique_saturated_into() {
-                                                log::debug!(
-                                                    target: "essential",
-                                                    "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                                    origin,
-                                                    author,
-                                                    charge,
-                                                    leftover,
-                                                );
-                                            }
-                                        }
-                                        Err(e) => {
-                                            log::debug!(
-                                                target: "essential",
-                                                "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
-                                                charge,
-                                                origin,
-                                                author,
-                                                e,
-                                            );
-                                        }
-                                    }
-                                }
-                            } else {
-                                log::debug!(
-                                    target: "essential",
-                                    "Failed to get origin of {:?}",
-                                    message_id,
-                                );
-                            }
-                        }
-                        Err(_err) => {
-                            // We only can get an error here if the gas tree is invalidated
-                            // TODO: handle appropriately
-                            unreachable!("Can never happen unless gas tree corrupted");
-                        }
-                    }
-                }
-                Err(err) => {
-                    log::debug!(
-                        target: "essential",
-                        "Error charging {:?} of gas rent for awakening message {:?}: {:?}",
-                        chargeable_amount,
-                        message_id,
-                        err,
-                    );
-                }
-            }
-
-            let event = Event::MessageWoken {
+        if let Some(dispatch) = self.wake_message_impl(program_id, awakening_id) {
+            Pallet::<T>::deposit_event(Event::MessageWoken {
                 id: dispatch.id(),
                 reason: MessageWokenRuntimeReason::WakeCalled.into_reason(),
-            };
+            });
 
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-
-            Pallet::<T>::deposit_event(event);
         } else {
             log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",

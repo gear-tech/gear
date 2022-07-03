@@ -40,12 +40,16 @@ pub mod pallet {
     pub use frame_support::weights::Weight;
 
     use common::{
-        scheduler::{TasksScopeImpl, *},
+        scheduler::{SchedulingCostsPerBlock, TasksScopeImpl, *},
         storage::*,
         BlockLimiter, Origin,
     };
     use frame_support::{
-        dispatch::DispatchError, pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion,
+        dispatch::DispatchError,
+        pallet_prelude::*,
+        sp_runtime::traits::UniqueSaturatedInto,
+        storage::PrefixIterator,
+        traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
     use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData};
@@ -186,6 +190,35 @@ pub mod pallet {
 
     // ----
 
+    // Below goes costs implementation.
+
+    impl<T: crate::Config> SchedulingCostsPerBlock for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type BlockNumber = BlockNumberFor<T>;
+
+        fn reserve_for() -> Self::BlockNumber {
+            3u32.unique_saturated_into()
+        }
+
+        fn code() -> u64 {
+            todo!("#646");
+        }
+
+        fn mailbox() -> u64 {
+            todo!("#646");
+        }
+
+        fn program() -> u64 {
+            todo!("#646");
+        }
+
+        fn waitlist() -> u64 {
+            100
+        }
+    }
+
     // Below goes final `Scheduler` implementation for
     // Gear Scheduler Pallet based on above generated
     // types and parameters.
@@ -204,6 +237,8 @@ pub mod pallet {
         type MissedBlocksCollection = MissedBlocksCollection<T>;
         type Error = Error<T>;
         type OutputError = DispatchError;
+
+        type CostsPerBlock = Self;
 
         type MissedBlocks = MissedBlocksWrap<T>;
 
