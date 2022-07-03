@@ -136,7 +136,6 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
-    type WaitListFeePerBlock = ();
     type Schedule = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<0>;

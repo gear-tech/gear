@@ -1676,7 +1676,6 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-gas",
- "pallet-usage",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "parking_lot 0.12.1",
@@ -2592,7 +2591,6 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
- "pallet-usage",
  "pallet-utility",
  "parity-scale-codec",
  "scale-info",
@@ -5191,38 +5189,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-runtime",
-]
-
-[[package]]
-name = "pallet-usage"
-version = "2.0.0"
-dependencies = [
- "env_logger",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "gear-common",
- "gear-core",
- "gear-core-processor",
- "hex-literal",
- "log",
- "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-gear-program",
- "pallet-gear-scheduler",
- "pallet-timestamp",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "primitive-types",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "wasm-instrument",
 ]
 
 [[package]]

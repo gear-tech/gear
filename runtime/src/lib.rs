@@ -71,7 +71,6 @@ pub use pallet_gear;
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
-pub use pallet_usage;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -339,7 +338,6 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 10;
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
-    pub const WaitListFeePerBlock: u64 = 1_000;
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
 }
 
@@ -350,7 +348,6 @@ impl pallet_gear::Config for Runtime {
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = ConstU32<1024>;
-    type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<0>;
@@ -365,18 +362,6 @@ impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
-    type Messenger = GearMessenger;
-}
-
-impl pallet_usage::Config for Runtime {
-    type Event = Event;
-    type PaymentProvider = Gear;
-    type WeightInfo = pallet_usage::weights::GearSupportWeight<Runtime>;
-    type WaitListTraversalInterval = WaitListTraversalInterval;
-    type ExpirationDuration = ExpirationDuration;
-    type MaxBatchSize = ConstU32<100>;
-    type TrapReplyExistentialGasLimit = ConstU64<6000>;
-    type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
     type Messenger = GearMessenger;
 }
 
@@ -459,7 +444,6 @@ construct_runtime!(
         GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
-        Usage: pallet_usage,
         GearPayment: pallet_gear_payment,
 
         // Only available with "debug-mode" feature on
@@ -488,7 +472,6 @@ construct_runtime!(
         GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
-        Usage: pallet_usage,
         GearPayment: pallet_gear_payment,
     }
 );

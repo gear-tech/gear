@@ -158,7 +158,6 @@ impl common::GasPrice for GasConverter {
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
-    pub const WaitListFeePerBlock: u64 = 1_000;
     pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
@@ -170,7 +169,6 @@ impl pallet_gear::Config for Test {
     type Schedule = MySchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
-    type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;

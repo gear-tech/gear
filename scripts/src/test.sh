@@ -79,7 +79,6 @@ pallet_test() {
   cargo test -p pallet-gear "$@"
   cargo test -p pallet-gear-debug "$@"
   cargo test -p pallet-gear-payment "$@"
-  cargo test -p pallet-usage "$@"
   cargo test -p pallet-gear-messenger "$@"
   cargo test -p pallet-gear-program "$@"
   cargo test -p pallet-gas "$@"
@@ -120,6 +119,6 @@ run_fuzzer() {
   cd $ROOT_DIR/utils/economic-checks
 
   # Run fuzzer
-  RUST_LOG="essential,pallet_gear=debug,pallet_usage=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
+  RUST_LOG="essential,pallet_gear=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
   cargo fuzz run --release --sanitizer=none $TARGET
 }

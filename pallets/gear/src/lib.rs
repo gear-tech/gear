@@ -169,10 +169,6 @@ pub mod pallet {
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
 
-        /// The cost for a message to spend one block in the wait list
-        #[pallet::constant]
-        type WaitListFeePerBlock: Get<u64>;
-
         type DebugInfo: DebugInfo;
 
         type CodeStorage: CodeStorage;
