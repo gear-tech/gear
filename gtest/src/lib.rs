@@ -24,7 +24,7 @@ mod program;
 mod system;
 mod wasm_executor;
 
-pub use error::{TestError, TestResult};
+pub use error::{Result, TestError};
 pub use log::{CoreLog, Log, RunResult};
 pub use program::{calculate_program_id, Gas, Program, WasmProgram};
 pub use system::System;

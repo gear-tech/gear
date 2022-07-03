@@ -20,7 +20,7 @@ use crate::{
     log::RunResult,
     manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
-    TestResult,
+    Result,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
@@ -403,21 +403,21 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> TestResult<D> {
+    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> Result<D> {
         D::decode(&mut self.meta_state_with_bytes(payload.encode())?.as_slice()).map_err(Into::into)
     }
 
-    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> TestResult<Vec<u8>> {
+    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
     }
 
-    pub fn meta_state_empty<D: Decode>(&self) -> TestResult<D> {
+    pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {
         D::decode(&mut self.meta_state_empty_with_bytes()?.as_slice()).map_err(Into::into)
     }
 
-    pub fn meta_state_empty_with_bytes(&self) -> TestResult<Vec<u8>> {
+    pub fn meta_state_empty_with_bytes(&self) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, None, "meta_state")

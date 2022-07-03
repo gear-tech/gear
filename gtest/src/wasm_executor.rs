@@ -32,7 +32,7 @@ use wasmtime::{
     Val,
 };
 
-use crate::{TestError, TestResult, MAILBOX_THRESHOLD};
+use crate::{Result, TestError, MAILBOX_THRESHOLD};
 
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor {
@@ -49,7 +49,7 @@ impl WasmExecutor {
         meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
-    ) -> TestResult<Self> {
+    ) -> Result<Self> {
         let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
         let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
@@ -101,7 +101,7 @@ impl WasmExecutor {
 
     /// Executes non-void function by provided name.
     /// Panics if function is void
-    pub(crate) fn execute(&mut self, function_name: &str) -> TestResult<Vec<u8>> {
+    pub(crate) fn execute(&mut self, function_name: &str) -> Result<Vec<u8>> {
         let function = self.get_function(function_name)?;
         let mut ptr_to_result_array = [Val::I32(0)];
 
@@ -154,13 +154,13 @@ impl WasmExecutor {
         )
     }
 
-    fn get_function(&mut self, function_name: &str) -> TestResult<Func> {
+    fn get_function(&mut self, function_name: &str) -> Result<Func> {
         self.instance
             .get_func(&mut self.store, function_name)
             .ok_or_else(|| TestError::FunctionNotFound(function_name.to_string()))
     }
 
-    fn read_result(&mut self, ptr_to_result_data: i32) -> TestResult<Vec<u8>> {
+    fn read_result(&mut self, ptr_to_result_data: i32) -> Result<Vec<u8>> {
         let offset = ptr_to_result_data as usize;
 
         // Reading a fat pointer from the `offset`
@@ -187,7 +187,7 @@ impl WasmExecutor {
         mut store: &mut Store<StoreData<T>>,
         memory: &mut WasmtimeMemory,
         pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-    ) -> TestResult<()> {
+    ) -> Result<()> {
         let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
         for (page_number, buffer) in pages {
             let wasm_page_number = page_number.to_wasm_page();

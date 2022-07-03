@@ -20,7 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    TestError, TestResult,
+    Result, TestError,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
@@ -312,7 +312,7 @@ impl ExtManager {
         program_id: &ProgramId,
         payload: Option<Payload>,
         function_name: &str,
-    ) -> TestResult<Vec<u8>> {
+    ) -> Result<Vec<u8>> {
         let mut executor = self.get_executor(program_id, payload)?;
         executor.execute(function_name)
     }
@@ -502,7 +502,7 @@ impl ExtManager {
         &mut self,
         program_id: &ProgramId,
         payload: Option<Payload>,
-    ) -> TestResult<WasmExecutor> {
+    ) -> Result<WasmExecutor> {
         let (actor, balance) = self
             .actors
             .get_mut(program_id)

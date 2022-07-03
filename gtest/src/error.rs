@@ -22,7 +22,8 @@ use core_processor::ProcessorError;
 use gear_core::{ids::ProgramId, memory::WasmPageNumber};
 use wasmtime::MemoryAccessError;
 
-pub type TestResult<T> = Result<T, TestError>;
+/// Type alias for the testing functions running result.
+pub type Result<T, E = TestError> = core::result::Result<T, E>;
 
 /// List of general errors.
 #[derive(Debug, derive_more::Display)]
