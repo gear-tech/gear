@@ -264,7 +264,7 @@ mod meta_tests {
             }))
             .expect("Meta_state failed");
 
-        assert_eq!(result.encode(), vec![0]);
+        assert_eq!(result, vec![]);
     }
 
     #[test]
