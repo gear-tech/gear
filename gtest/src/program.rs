@@ -423,12 +423,12 @@ impl<'a> Program<'a> {
             .call_meta(&self.id, None, "meta_state")
     }
 
-    pub fn add_value(&mut self, value: Balance) {
-        self.manager.borrow_mut().add_value_to(&self.id(), value)
+    pub fn mint(&mut self, value: Balance) {
+        self.manager.borrow_mut().mint_to(&self.id(), value)
     }
 
-    pub fn balance(&self) -> Option<Balance> {
-        self.manager.borrow().actor_balance(&self.id())
+    pub fn balance(&self) -> Balance {
+        self.manager.borrow().balance_of(&self.id())
     }
 
     fn wasm_path(extension: &str) -> PathBuf {
@@ -481,24 +481,24 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        sys.add_value_to(user_id, 5000);
-        assert_eq!(sys.actor_balance(user_id), Some(5000));
+        sys.mint_to(user_id, 5000);
+        assert_eq!(sys.balance_of(user_id), 5000);
 
         let mut prog = Program::from_file(
             &sys,
             "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
         );
 
-        prog.add_value(1000);
-        assert_eq!(prog.balance(), Some(1000));
+        prog.mint(1000);
+        assert_eq!(prog.balance(), 1000);
 
         prog.send_with_value(user_id, "init".to_string(), 500);
-        assert_eq!(prog.balance(), Some(1500));
-        assert_eq!(sys.actor_balance(user_id), Some(4500));
+        assert_eq!(prog.balance(), 1500);
+        assert_eq!(sys.balance_of(user_id), 4500);
 
         prog.send_with_value(user_id, "PING".to_string(), 1000);
-        assert_eq!(prog.balance(), Some(2500));
-        assert_eq!(sys.actor_balance(user_id), Some(3500));
+        assert_eq!(prog.balance(), 2500);
+        assert_eq!(sys.balance_of(user_id), 3500);
     }
 
     #[test]
@@ -512,9 +512,9 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.add_value_to(sender0, 10000);
-        sys.add_value_to(sender1, 10000);
-        sys.add_value_to(sender2, 10000);
+        sys.mint_to(sender0, 10000);
+        sys.mint_to(sender1, 10000);
+        sys.mint_to(sender2, 10000);
 
         let prog = Program::from_file(
             &sys,
@@ -522,25 +522,25 @@ mod tests {
         );
 
         prog.send_bytes(receiver, b"init");
-        assert_eq!(prog.balance(), Some(0));
+        assert_eq!(prog.balance(), 0);
 
         // Send values to the program
         prog.send_bytes_with_value(sender0, b"insert", 1000);
-        assert_eq!(sys.actor_balance(sender0), Some(9000));
+        assert_eq!(sys.balance_of(sender0), 9000);
         prog.send_bytes_with_value(sender1, b"insert", 2000);
-        assert_eq!(sys.actor_balance(sender1), Some(8000));
+        assert_eq!(sys.balance_of(sender1), 8000);
         prog.send_bytes_with_value(sender2, b"insert", 3000);
-        assert_eq!(sys.actor_balance(sender2), Some(7000));
+        assert_eq!(sys.balance_of(sender2), 7000);
 
         // Check program's balance
-        assert_eq!(prog.balance(), Some(1000 + 2000 + 3000));
+        assert_eq!(prog.balance(), 1000 + 2000 + 3000);
 
         // Request to smash the piggy bank and send the value to the receiver address
         prog.send_bytes(receiver, b"smash");
         sys.claim_value_from_mailbox(receiver);
-        assert_eq!(sys.actor_balance(receiver), Some(1000 + 2000 + 3000));
+        assert_eq!(sys.balance_of(receiver), 1000 + 2000 + 3000);
 
         // Check program's balance is empty
-        assert_eq!(prog.balance(), Some(0));
+        assert_eq!(prog.balance(), 0);
     }
 }

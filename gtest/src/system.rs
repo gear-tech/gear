@@ -131,15 +131,15 @@ impl System {
     }
 
     /// Add value to the actor.
-    pub fn add_value_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
+    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().add_value_to(&actor_id, value);
+        self.0.borrow_mut().mint_to(&actor_id, value);
     }
 
     /// Return actor balance (value) if exists.
-    pub fn actor_balance<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Balance> {
+    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
         let actor_id = id.into().0;
-        self.0.borrow().actor_balance(&actor_id)
+        self.0.borrow().balance_of(&actor_id)
     }
 
     /// Claim the user's value from the mailbox.

@@ -322,13 +322,16 @@ impl ExtManager {
         !self.actors.contains_key(id) || matches!(self.actors.get(id), Some((Actor::User, _)))
     }
 
-    pub(crate) fn add_value_to(&mut self, id: &ProgramId, value: Balance) {
+    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
         let (_, balance) = self.actors.entry(*id).or_insert((Actor::User, 0));
         *balance = balance.saturating_add(value);
     }
 
-    pub(crate) fn actor_balance(&self, id: &ProgramId) -> Option<Balance> {
-        self.actors.get(id).map(|(_, balance)| *balance)
+    pub(crate) fn balance_of(&self, id: &ProgramId) -> Balance {
+        self.actors
+            .get(id)
+            .map(|(_, balance)| *balance)
+            .unwrap_or_default()
     }
 
     pub(crate) fn claim_value_from_mailbox(&mut self, id: &ProgramId) {
@@ -584,7 +587,7 @@ impl JournalHandler for ExtManager {
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.add_value_to(&value_destination, balance);
+            self.mint_to(&value_destination, balance);
         }
     }
 
@@ -679,7 +682,7 @@ impl JournalHandler for ExtManager {
                 *balance -= value;
             };
 
-            self.add_value_to(to, value);
+            self.mint_to(to, value);
         }
     }
 

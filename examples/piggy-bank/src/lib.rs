@@ -4,16 +4,11 @@ use gstd::{debug, exec, msg};
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    match &msg::load_bytes()[..] {
-        b"insert" => debug!(
-            "inserted: {}, total: {}",
-            msg::value(),
-            exec::value_available()
-        ),
-        b"smash" => {
-            debug!("smashing, total: {}", exec::value_available());
-            msg::send_bytes(msg::source(), b"send", exec::value_available()).unwrap();
-        }
-        _ => (),
+    let available_value = exec::value_available();
+    debug!("inserted: {}, total: {}", msg::value(), available_value);
+
+    if msg::load_bytes() == b"smash" {
+        debug!("smashing, total: {}", available_value);
+        msg::reply_bytes(b"send", available_value).unwrap();
     }
 }
