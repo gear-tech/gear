@@ -56,7 +56,7 @@ impl Package {
     }
 
     fn ptr(&self) -> [u8; 32] {
-        *self.paths.last().expect("invalid route")
+        *self.paths.last().expect("Invalid route.")
     }
 }
 

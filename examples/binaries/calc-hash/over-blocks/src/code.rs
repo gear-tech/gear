@@ -36,7 +36,7 @@ async fn main() {
                     }
                 }
 
-                let _ = msg::reply(pkg, 0).expect("send reply failed");
+                let _ = msg::reply(pkg, 0).expect("Send reply failed.");
             }
         }
     }
@@ -55,17 +55,17 @@ async unsafe fn dispatch(id: PackageId) {
 
     let reply: Package = Package::decode(
         &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.clone()), 0)
-            .expect("send message failed")
+            .expect("Send message failed.")
             .await
-            .expect("get reply failed")
+            .expect("Get reply failed.")
             .as_ref(),
     )
-    .expect("decode package failed");
+    .expect("Decode package failed.");
 
     *pkg = reply;
 
     // second checking finished in `Method::Calculate`
     if pkg.finished() {
-        msg::reply(pkg.paths.clone(), 0).expect("send reply failed");
+        msg::reply(pkg.paths.clone(), 0).expect("Send reply failed.");
     }
 }
