@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![no_std]
-#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
+#![feature(const_btree_new)]
+
+use codec::{Decode, Encode};
+use shared::Package;
 
 #[cfg(feature = "std")]
 mod code {
@@ -29,4 +32,12 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[cfg(not(feature = "std"))]
 mod wasm {
     include! {"./code.rs"}
+}
+
+/// Program methods.
+#[derive(Debug, Encode, Decode)]
+pub enum Method {
+    Start(Package),
+    Refuel,
+    Calculate(Package),
 }

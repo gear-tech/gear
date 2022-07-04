@@ -6,32 +6,6 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use sha2::Digest;
 
-pub type PackageId = [u8; 32];
-
-/// Methods of the aggregator of calc hash
-#[derive(Debug, Encode, Decode)]
-pub enum Method<ProgramId> {
-    Start(Package),
-    Refuel([u8; 32]),
-    ForceInOneBlock(Package),
-    SetCalculators(Calculators<ProgramId>),
-}
-
-/// Methods of program calc-hash-over-blocks
-#[derive(Debug, Encode, Decode)]
-pub enum OverBlocksMethod {
-    Start(Package),
-    Refuel(PackageId),
-}
-
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct Calculators<ProgramId> {
-    /// ProgramId of over blocks calculator
-    pub over_blocks: ProgramId,
-    /// ProgramId of one block calculator
-    pub in_one_block: ProgramId,
-}
-
 pub struct GasMeter {
     /// Last gas available
     pub last_gas_available: u64,
@@ -59,8 +33,6 @@ impl GasMeter {
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Package {
-    /// Id of this calculation.
-    pub id: PackageId,
     /// Paths of the calculation.
     pub paths: Vec<[u8; 32]>,
     /// Expected result.

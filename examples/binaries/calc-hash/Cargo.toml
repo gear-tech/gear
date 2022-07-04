@@ -12,7 +12,3 @@ sha2 = { version = "0.10.2", default-features = false }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
-
-[features]
-std = []
-default = [ "std" ]

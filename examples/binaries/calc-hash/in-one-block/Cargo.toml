@@ -16,6 +16,3 @@ shared = { path = "..", package = "demo-calc-hash" }
 [build-dependencies]
 gear-wasm-builder = { path = "../../../../utils/wasm-builder" }
 
-[features]
-std = []
-default = [ "std" ]

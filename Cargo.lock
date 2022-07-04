@@ -1298,16 +1298,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-calc-hash-aggregator"
-version = "0.1.0"
-dependencies = [
- "demo-calc-hash",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-calc-hash-in-one-block"
 version = "0.1.0"
 dependencies = [
@@ -4868,7 +4858,6 @@ dependencies = [
  "demo-async-tester",
  "demo-btree",
  "demo-calc-hash",
- "demo-calc-hash-aggregator",
  "demo-calc-hash-in-one-block",
  "demo-calc-hash-over-blocks",
  "demo-compose",
