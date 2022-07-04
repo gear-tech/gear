@@ -1,16 +1,16 @@
 use crate::Method;
 use gstd::{exec, msg, ActorId, BTreeMap, Decode, Encode, MessageId, Vec};
-use shared::Package;
+use shared::{Package, PackageId};
 
 mod state {
     use gstd::{ActorId, BTreeMap, Vec};
-    use shared::{GasMeter, Package};
+    use shared::{GasMeter, Package, PackageId};
 
     pub static mut GAS_METER: GasMeter = GasMeter {
         last_gas_available: 0,
         max_gas_spent: 0,
     };
-    pub static mut REGISTRY: BTreeMap<ActorId, Package> = BTreeMap::new();
+    pub static mut REGISTRY: BTreeMap<PackageId, Package> = BTreeMap::new();
 }
 
 #[gstd::async_main]
@@ -18,8 +18,8 @@ async fn main() {
     let method = msg::load::<Method>().expect("Invalid contract method");
 
     match method {
-        Method::Start(pkg) => unsafe {
-            state::REGISTRY.insert(msg::source(), pkg);
+        Method::Start(pkg_with_id) => unsafe {
+            state::REGISTRY.insert(pkg_with_id.id, pkg_with_id.package);
 
             // # NOTE
             //
@@ -38,7 +38,7 @@ async fn main() {
             //     .expect("failed");
             // }
         },
-        Method::Refuel => unsafe { dispatch().await },
+        Method::Refuel(id) => unsafe { dispatch(id).await },
         Method::Calculate(mut pkg) => unsafe {
             while state::GAS_METER.spin(exec::gas_available()) {
                 pkg = pkg.calc();
@@ -54,9 +54,9 @@ async fn main() {
 }
 
 /// Dispatch calcuation
-async unsafe fn dispatch() {
+async unsafe fn dispatch(id: PackageId) {
     let mut pkg = state::REGISTRY
-        .get_mut(&msg::source())
+        .get_mut(&id)
         .expect("Calculation not found, please run start first.");
 
     // first check here for saving gas and making `wake` operation standalone
@@ -75,7 +75,7 @@ async unsafe fn dispatch() {
 
     *pkg = reply;
 
-    // second checking finished in loop
+    // second checking finished in `Method::Calculate`
     if pkg.finished() {
         // # NOTE
         //

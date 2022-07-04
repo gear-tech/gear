@@ -6,6 +6,9 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use sha2::Digest;
 
+pub type PackageId = [u8; 32];
+
+/// Instance for checking if have enough gas to process calculation.
 pub struct GasMeter {
     /// Last gas available
     pub last_gas_available: u64,
@@ -31,12 +34,22 @@ impl GasMeter {
     }
 }
 
+/// Calculation package.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Package {
     /// Paths of the calculation.
     pub paths: Vec<[u8; 32]>,
     /// Expected result.
     pub expected: [u8; 32],
+}
+
+/// Package with id specified.
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct PackageWithId {
+    /// The Id of calculation pacakge.
+    pub id: PackageId,
+    /// Calculation package.
+    pub package: Package,
 }
 
 impl Package {

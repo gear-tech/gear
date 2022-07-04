@@ -3709,7 +3709,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::Package;
+        use demo_calc_hash::{sha2_256, Package, PackageWithId};
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -3736,14 +3736,18 @@ fn execution_over_blocks() {
             138, 64, 61, 254, 55, 192, 102, 102, 40, 78, 11, 110, 11, 207, 223, 93, 190, 11, 114,
             133, 69, 24, 177, 45, 247, 184, 60, 142, 126, 223, 94, 220,
         ];
+        let package_id = sha2_256(b"42");
 
         // trigger calculation
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             over_blocks,
-            Method::Start(Package {
-                paths: vec![[0; 32]],
-                expected,
+            Method::Start(PackageWithId {
+                id: package_id,
+                package: Package {
+                    paths: vec![[0; 32]],
+                    expected,
+                }
             })
             .encode(),
             3_000_000_000,
@@ -3758,7 +3762,7 @@ fn execution_over_blocks() {
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 over_blocks,
-                Method::Refuel.encode(),
+                Method::Refuel(package_id).encode(),
                 block_gas_limit,
                 0,
             ));
