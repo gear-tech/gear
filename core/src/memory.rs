@@ -144,6 +144,16 @@ impl PageNumber {
         (self.0 / PageNumber::num_in_one_wasm_page()).into()
     }
 
+    /// Saturating addition.
+    pub const fn saturating_add(self, other: Self) -> Self {
+        Self(self.0.saturating_add(other.0))
+    }
+
+    /// Saturating subtraction.
+    pub const fn saturating_sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0))
+    }
+
     /// Return page size in bytes.
     pub const fn size() -> usize {
         GEAR_PAGE_SIZE
@@ -155,17 +165,19 @@ impl PageNumber {
     }
 }
 
-impl core::ops::Add<PageNumber> for PageNumber {
+impl Add for PageNumber {
     type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self(self.0.saturating_add(other.0))
+
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0 + other.0)
     }
 }
 
-impl core::ops::Sub<PageNumber> for PageNumber {
+impl Sub for PageNumber {
     type Output = Self;
-    fn sub(self, other: Self) -> Self {
-        Self(self.0.saturating_sub(other.0))
+
+    fn sub(self, other: Self) -> Self::Output {
+        Self(self.0 - other.0)
     }
 }
 
@@ -203,6 +215,16 @@ impl WasmPageNumber {
         PageNumber::from(self.0 * PageNumber::num_in_one_wasm_page())
     }
 
+    /// Saturating addition.
+    pub const fn saturating_add(self, other: Self) -> Self {
+        Self(self.0.saturating_add(other.0))
+    }
+
+    /// Saturating subtraction.
+    pub const fn saturating_sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0))
+    }
+
     /// Return page size in bytes.
     pub const fn size() -> usize {
         WASM_PAGE_SIZE
@@ -218,16 +240,16 @@ impl WasmPageNumber {
 impl Add for WasmPageNumber {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self {
-        Self(self.0.saturating_add(other.0))
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0 + other.0)
     }
 }
 
 impl Sub for WasmPageNumber {
     type Output = Self;
 
-    fn sub(self, other: Self) -> Self {
-        Self(self.0.saturating_sub(other.0))
+    fn sub(self, other: Self) -> Self::Output {
+        Self(self.0 - other.0)
     }
 }
 
@@ -324,7 +346,7 @@ impl AllocationsContext {
         pages: WasmPageNumber,
         mem: &mut dyn Memory,
     ) -> Result<WasmPageNumber, Error> {
-        let last_static_page = self.static_pages - 1.into();
+        let last_static_page = self.static_pages.saturating_sub(1.into());
 
         let iter = self
             .allocations
@@ -343,28 +365,30 @@ impl AllocationsContext {
 
             current = Some(page);
 
-            if let Some(previous) = previous {
-                if *page - *previous > pages {
-                    at = Some(*previous + 1.into());
+            if let Some(&previous) = previous {
+                if (*page).saturating_sub(previous) > pages {
+                    at = Some((previous).saturating_add(1.into()));
                     break;
                 }
             }
         }
 
         let at = at
-            .or_else(|| current.map(|v| *v + 1.into()))
+            .or_else(|| current.map(|v| (*v).saturating_add(1.into())))
             .unwrap_or(self.static_pages);
 
-        if at + pages > self.max_pages {
+        let final_page = at.saturating_add(pages);
+
+        if final_page > self.max_pages {
             return Err(Error::OutOfBounds);
         }
 
-        let extra_grow = at + pages - mem.size();
+        let extra_grow = final_page.saturating_sub(mem.size());
         if extra_grow > 0.into() {
             mem.grow(extra_grow)?;
         }
 
-        for page_num in at.0..(at + pages).0 {
+        for page_num in at.0..final_page.0 {
             self.allocations.insert(WasmPageNumber(page_num));
         }
 
@@ -413,12 +437,28 @@ mod tests {
         assert_eq!(sum, PageNumber(300));
     }
 
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "attempt to add with overflow")]
+    /// Test that PageNumbers addition causes panic on overflow
+    fn page_number_addition_with_overflow() {
+        let _ = PageNumber(u32::MAX) + PageNumber(1);
+    }
+
     #[test]
     /// Test that PageNumbers subtract correctly
     fn page_number_subtraction() {
         let subtraction = PageNumber(299) - PageNumber(199);
 
         assert_eq!(subtraction, PageNumber(100))
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    /// Test that PageNumbers subtraction causes panic on overflow
+    fn page_number_subtraction_with_overflow() {
+        let _ = PageNumber(1) - PageNumber(u32::MAX);
     }
 
     #[test]
