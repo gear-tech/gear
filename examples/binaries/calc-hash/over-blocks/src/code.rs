@@ -4,52 +4,41 @@ use shared::{Package, PackageId};
 
 mod state {
     use gstd::{ActorId, BTreeMap, Vec};
-    use shared::{GasMeter, Package, PackageId};
+    use shared::{Package, PackageId};
 
-    pub static mut GAS_METER: GasMeter = GasMeter {
-        last_gas_available: 0,
-        max_gas_spent: 0,
-    };
+    pub static mut THRESHOLD: Option<u64> = None;
     pub static mut REGISTRY: BTreeMap<PackageId, Package> = BTreeMap::new();
+}
+
+#[no_mangle]
+unsafe extern "C" fn init() {
+    state::THRESHOLD = Some(msg::load().expect("Invalid threshold."));
 }
 
 #[gstd::async_main]
 async fn main() {
-    let method = msg::load::<Method>().expect("Invalid contract method");
+    let method = msg::load::<Method>().expect("Invalid contract method.");
 
-    match method {
-        Method::Start(pkg_with_id) => unsafe {
-            state::REGISTRY.insert(pkg_with_id.id, pkg_with_id.package);
+    unsafe {
+        let threshold = state::THRESHOLD.expect("Threshold has not been set.");
 
-            // # NOTE
-            //
-            // // if we dispatch calculation here
-            // {
-            //     // don't have enough gas to do this
-            //     dispatch().await;
-            //
-            //     // so this is unreachable forever
-            //     msg::reply(
-            //         state::REGISTRY
-            //             .get_mut(&msg::source())
-            //             .expect("Calculation not found"),
-            //         0,
-            //     )
-            //     .expect("failed");
-            // }
-        },
-        Method::Refuel(id) => unsafe { dispatch(id).await },
-        Method::Calculate(mut pkg) => unsafe {
-            while state::GAS_METER.spin(exec::gas_available()) {
-                pkg = pkg.calc();
-
-                if pkg.finished() {
-                    break;
-                }
+        match method {
+            Method::Start(pkg_with_id) => {
+                state::REGISTRY.insert(pkg_with_id.id, pkg_with_id.package);
             }
+            Method::Refuel(id) => dispatch(id).await,
+            Method::Calculate(mut pkg) => {
+                while exec::gas_available() > threshold {
+                    pkg = pkg.calc();
 
-            let _ = msg::reply(pkg, 0).expect("send reply failed");
-        },
+                    if pkg.finished() {
+                        break;
+                    }
+                }
+
+                let _ = msg::reply(pkg, 0).expect("send reply failed");
+            }
+        }
     }
 }
 
@@ -77,13 +66,6 @@ async unsafe fn dispatch(id: PackageId) {
 
     // second checking finished in `Method::Calculate`
     if pkg.finished() {
-        // # NOTE
-        //
-        // if we want to reply on start message
-        //
-        // we need to pass this result to the start message
-        //
-        // but this `dispatch` may be executed in `Method::Refuel`.
         msg::reply(pkg.paths.clone(), 0).expect("send reply failed");
     }
 }

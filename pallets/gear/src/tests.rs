@@ -3708,33 +3708,133 @@ fn cascading_messages_with_value_do_not_overcharge() {
 #[test]
 fn execution_over_blocks() {
     init_logger();
+
+    let assert_last_mail = |expected: [u8; 32]| {
+        let last_mail = get_last_mail(USER_1);
+        let paths = Vec::<[u8; 32]>::decode(&mut last_mail.payload().as_ref())
+            .expect("Decode result failed");
+        assert_eq!(
+            *paths.last().expect("failed to get the last path"),
+            expected
+        );
+
+        MailboxOf::<Test>::drain_key(USER_1);
+    };
+
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::{sha2_256, Package, PackageWithId};
-        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+        use demo_calc_hash::Package;
+        use demo_calc_hash_in_one_block::WASM_BINARY;
+
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
-        // deploy aggregator
+        // deply demo-calc-hash-in-one-block
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
-            3_000_000_000,
+            5_000_000_000,
             0,
         ));
-        let over_blocks = get_last_program_id();
+        let in_one_block = get_last_program_id();
 
-        program_exists(over_blocks.into_origin());
+        program_exists(in_one_block.into_origin());
 
-        // the result of running sha2_256 on [0; 32] itself for 42 times
+        // the result of running sha2_256 on [0; 32] itself for 8 times
         //
         // 0 -> [0; 32]
         // 1 -> sha2_256(&[0; 32])
         // 2 -> sha2_256(sha2_256(&[0; 32]))
         // 3 -> ...
         let expected = [
-            138, 64, 61, 254, 55, 192, 102, 102, 40, 78, 11, 110, 11, 207, 223, 93, 190, 11, 114,
-            133, 69, 24, 177, 45, 247, 184, 60, 142, 126, 223, 94, 220,
+            106, 155, 113, 28, 229, 211, 116, 158, 206, 41, 70, 49, 16, 182, 22, 77, 187, 40, 221,
+            162, 137, 2, 88, 107, 246, 110, 134, 94, 140, 41, 195, 80,
+        ];
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            in_one_block,
+            Package {
+                paths: vec![[0; 32]],
+                expected,
+            }
+            .encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_last_mail(expected);
+
+        // the result of running sha2_256 on [0; 32] itself for 1024 times
+        //
+        // 0 -> [0; 32]
+        // 1 -> sha2_256(&[0; 32])
+        // 2 -> sha2_256(sha2_256(&[0; 32]))
+        // 3 -> ...
+        let expected = [
+            115, 184, 88, 177, 201, 83, 218, 113, 246, 195, 148, 154, 144, 66, 206, 87, 238, 124,
+            121, 192, 229, 100, 226, 199, 99, 46, 156, 233, 157, 115, 249, 104,
+        ];
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            in_one_block,
+            Package {
+                paths: vec![[0; 32]],
+                expected,
+            }
+            .encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        let message_id = get_last_message_id();
+        run_to_next_block(None);
+
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
+            ))),
+        );
+    });
+
+    new_test_ext().execute_with(|| {
+        use demo_calc_hash::{sha2_256, Package, PackageWithId};
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+
+        // deploy demo-calc-hash-over-blocks
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            // Hardly can estimate this since this is
+            //
+            // the_max_cost_of_one_sha2_256
+            // + reply the result to program
+            // + reply the result to user
+            //
+            // unless we write a interface in the program to calculate this only.
+            30_000_000_000_u64.encode(),
+            2_000_000_000,
+            0,
+        ));
+        let over_blocks = get_last_program_id();
+
+        program_exists(over_blocks.into_origin());
+
+        // the result of running sha2_256 on [0; 32] itself for 512 times
+        //
+        // 0 -> [0; 32]
+        // 1 -> sha2_256(&[0; 32])
+        // 2 -> sha2_256(sha2_256(&[0; 32]))
+        // 3 -> ...
+        let expected = [
+            130, 141, 146, 68, 45, 238, 16, 187, 125, 175, 16, 233, 167, 180, 221, 245, 127, 215,
+            213, 112, 31, 15, 246, 138, 80, 34, 242, 72, 19, 59, 119, 235,
         ];
         let package_id = sha2_256(b"42");
 
@@ -3754,11 +3854,10 @@ fn execution_over_blocks() {
             0,
         ));
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
-        // loop calculation
-        let path: Vec<[u8; 32]>;
-        loop {
+        let mut count = 0;
+        while maybe_last_mail(USER_1).is_none() {
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 over_blocks,
@@ -3767,16 +3866,12 @@ fn execution_over_blocks() {
                 0,
             ));
 
+            count += 1;
             run_to_next_block(None);
-
-            if let Some(mail) = maybe_last_mail(USER_1) {
-                path = Vec::<[u8; 32]>::decode(&mut mail.payload()).expect("get response failed");
-                assert!(Package::verify(&path));
-                break;
-            }
         }
 
-        assert_eq!(*path.last().expect("failed to get the last path"), expected);
+        assert!(count != 0);
+        assert_last_mail(expected);
     });
 }
 

@@ -8,32 +8,6 @@ use sha2::Digest;
 
 pub type PackageId = [u8; 32];
 
-/// Instance for checking if have enough gas to process calculation.
-pub struct GasMeter {
-    /// Last gas available
-    pub last_gas_available: u64,
-
-    /// Max gas spent per calculation
-    pub max_gas_spent: u64,
-}
-
-impl GasMeter {
-    /// Check if the given `gas_available` can run a calculation
-    pub fn spin(&mut self, gas_available: u64) -> bool {
-        if gas_available < self.last_gas_available {
-            let last_gas_spent = self.last_gas_available - gas_available;
-            self.max_gas_spent = self.max_gas_spent.max(last_gas_spent);
-        }
-
-        if gas_available < self.max_gas_spent {
-            return false;
-        }
-
-        self.last_gas_available = gas_available;
-        true
-    }
-}
-
 /// Calculation package.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Package {
