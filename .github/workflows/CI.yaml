@@ -51,6 +51,18 @@ jobs:
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
+      - name: "Install: Nightly-2022-06-30 toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-06-30
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: pin to nightly-2022-06-30"
+        run: |
+          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-2022-06-30-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+
       - name: "Install: Build deps"
         run: |
           sudo apt update
@@ -113,6 +125,18 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
+
+      - name: "Install: Nightly-2022-06-30 toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-06-30
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: pin to nightly-2022-06-30"
+        run: |
+          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-2022-06-30-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
