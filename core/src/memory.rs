@@ -20,7 +20,7 @@
 
 use core::{
     convert::TryFrom,
-    ops::{Deref, DerefMut},
+    ops::{Add, Deref, DerefMut, Sub},
 };
 
 use alloc::{
@@ -158,14 +158,14 @@ impl PageNumber {
 impl core::ops::Add<PageNumber> for PageNumber {
     type Output = Self;
     fn add(self, other: Self) -> Self {
-        Self(self.0 + other.0)
+        Self(self.0.saturating_add(other.0))
     }
 }
 
 impl core::ops::Sub<PageNumber> for PageNumber {
     type Output = Self;
     fn sub(self, other: Self) -> Self {
-        Self(self.0 - other.0)
+        Self(self.0.saturating_sub(other.0))
     }
 }
 
@@ -215,7 +215,7 @@ impl WasmPageNumber {
     }
 }
 
-impl core::ops::Add for WasmPageNumber {
+impl Add for WasmPageNumber {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -223,7 +223,7 @@ impl core::ops::Add for WasmPageNumber {
     }
 }
 
-impl core::ops::Sub for WasmPageNumber {
+impl Sub for WasmPageNumber {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
@@ -324,52 +324,64 @@ impl AllocationsContext {
         pages: WasmPageNumber,
         mem: &mut dyn Memory,
     ) -> Result<WasmPageNumber, Error> {
-        // silly allocator, brute-forces first continuous sector
-        let mut candidate = self.static_pages;
-        let mut found = WasmPageNumber(0);
+        let last_static_page = self.static_pages - 1.into();
 
-        while found < pages {
-            if candidate + pages > self.max_pages {
-                log::debug!(
-                    "candidate: {:?}, pages: {:?}, max_pages: {:?}",
-                    candidate,
-                    pages,
-                    self.max_pages
-                );
-                return Err(Error::OutOfMemory);
+        let iter = self
+            .allocations
+            .iter()
+            .skip_while(|&page| page < &last_static_page);
+
+        let mut previous = None;
+        let mut current = None;
+
+        let mut at = None;
+
+        for page in iter {
+            if current.is_some() {
+                previous = current;
             }
 
-            if self.allocations.contains(&(candidate + found)) {
-                candidate = candidate + WasmPageNumber(1);
-                found = WasmPageNumber(0);
-                continue;
-            }
+            current = Some(page);
 
-            found = found + WasmPageNumber(1);
+            if let Some(previous) = previous {
+                if *page - *previous > pages {
+                    at = Some(*previous + 1.into());
+                    break;
+                }
+            }
         }
 
-        if candidate + found > mem.size() {
-            let extra_grow = candidate + found - mem.size();
+        let at = at
+            .or_else(|| current.map(|v| *v + 1.into()))
+            .unwrap_or(self.static_pages);
+
+        if at + pages > self.max_pages {
+            return Err(Error::OutOfBounds);
+        }
+
+        let extra_grow = at + pages - mem.size();
+        if extra_grow > 0.into() {
             mem.grow(extra_grow)?;
         }
 
-        for page_num in candidate.0..(candidate + found).0 {
+        for page_num in at.0..(at + pages).0 {
             self.allocations.insert(WasmPageNumber(page_num));
         }
 
-        Ok(candidate)
+        Ok(at)
     }
 
     /// Free specific page.
     ///
     /// Currently running program should own this page.
     pub fn free(&mut self, page: WasmPageNumber) -> Result<(), Error> {
-        if page < self.static_pages || page > self.max_pages {
-            return Err(Error::InvalidFree(page.0));
+        if page > self.max_pages {
+            Err(Error::OutOfBounds)
+        } else if page < self.static_pages || !self.allocations.remove(&page) {
+            Err(Error::InvalidFree(page.0))
+        } else {
+            Ok(())
         }
-        self.allocations.remove(&page);
-
-        Ok(())
     }
 
     /// Return reference to the allocation manager.
@@ -401,28 +413,12 @@ mod tests {
         assert_eq!(sum, PageNumber(300));
     }
 
-    #[cfg(debug_assertions)]
-    #[test]
-    #[should_panic(expected = "attempt to add with overflow")]
-    /// Test that PageNumbers addition causes panic on overflow
-    fn page_number_addition_with_overflow() {
-        let _ = PageNumber(u32::MAX) + PageNumber(1);
-    }
-
     #[test]
     /// Test that PageNumbers subtract correctly
     fn page_number_subtraction() {
         let subtraction = PageNumber(299) - PageNumber(199);
 
         assert_eq!(subtraction, PageNumber(100))
-    }
-
-    #[cfg(debug_assertions)]
-    #[test]
-    #[should_panic(expected = "attempt to subtract with overflow")]
-    /// Test that PageNumbers subtraction causes panic on overflow
-    fn page_number_subtraction_with_overflow() {
-        let _ = PageNumber(1) - PageNumber(u32::MAX);
     }
 
     #[test]
