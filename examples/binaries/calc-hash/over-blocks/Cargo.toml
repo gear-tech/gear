@@ -18,4 +18,4 @@ gear-wasm-builder = { path = "../../../../utils/wasm-builder" }
 
 [features]
 std = []
-default = ["std"]
+default = [ "std" ]

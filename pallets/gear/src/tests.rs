@@ -3709,22 +3709,69 @@ fn cascading_messages_with_value_do_not_overcharge() {
 fn execution_over_blocks() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::Package;
-        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+        use demo_calc_hash::{sha2_256, Calculators, Method, Package};
+        use demo_calc_hash_aggregator::WASM_BINARY as AGGREGATOR;
+        use demo_calc_hash_in_one_block::WASM_BINARY as IN_ONE_BLOCK;
+        use demo_calc_hash_over_blocks::WASM_BINARY as OVER_BLOCKS;
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
         // deploy aggregator
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
-            WASM_BINARY.to_vec(),
+            AGGREGATOR.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             3_000_000_000,
             0,
         ));
+        let aggregator = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // deploy calculating hash over blocks
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            OVER_BLOCKS.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            aggregator.encode(),
+            8_000_000_000,
+            0,
+        ));
         let over_blocks = get_last_program_id();
 
+        run_to_next_block(None);
+
+        // deploy calculating hash in one block
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            IN_ONE_BLOCK.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            aggregator.encode(),
+            3_000_000_000,
+            0,
+        ));
+        let in_one_block = get_last_program_id();
+
+        program_exists(aggregator.into_origin());
         program_exists(over_blocks.into_origin());
+        program_exists(in_one_block.into_origin());
+
+        run_to_next_block(None);
+
+        // setup aggregator
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            aggregator,
+            Method::SetCalculators(Calculators {
+                over_blocks,
+                in_one_block,
+            })
+            .encode(),
+            3_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
 
         // the result of running sha2_256 on [0; 32] itself for 42 times
         //
@@ -3737,28 +3784,31 @@ fn execution_over_blocks() {
             133, 69, 24, 177, 45, 247, 184, 60, 142, 126, 223, 94, 220,
         ];
 
+        let package_id = sha2_256(b"42");
+
         // trigger calculation
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
-            over_blocks,
-            Method::Start(Package {
+            aggregator,
+            Method::<ProgramId>::Start(Package {
+                id: package_id,
                 paths: vec![[0; 32]],
                 expected,
             })
             .encode(),
-            3_000_000_000,
+            block_gas_limit,
             0,
         ));
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
         // loop calculation
         let path: Vec<[u8; 32]>;
         loop {
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
-                over_blocks,
-                Method::Refuel.encode(),
+                aggregator,
+                Method::<ProgramId>::Refuel(package_id).encode(),
                 block_gas_limit,
                 0,
             ));
