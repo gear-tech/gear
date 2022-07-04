@@ -36,6 +36,10 @@ use std::{
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
 
+pub const EXISTENTIAL_DEPOSIT: u128 = 500;
+pub const OUTGOING_LIMIT: u32 = 1024;
+pub const MAILBOX_THRESHOLD: u64 = 3000;
+
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
@@ -98,6 +102,9 @@ where
 
     let block_config = BlockConfig {
         block_info,
+        existential_deposit: EXISTENTIAL_DEPOSIT,
+        outgoing_limit: OUTGOING_LIMIT,
+        mailbox_threshold: MAILBOX_THRESHOLD,
         ..Default::default()
     };
 
@@ -279,6 +286,9 @@ where
 
             let block_config = BlockConfig {
                 block_info: BlockInfo { height, timestamp },
+                existential_deposit: EXISTENTIAL_DEPOSIT,
+                outgoing_limit: OUTGOING_LIMIT,
+                mailbox_threshold: MAILBOX_THRESHOLD,
                 ..Default::default()
             };
 
@@ -324,6 +334,9 @@ where
                     height: counter,
                     timestamp,
                 },
+                existential_deposit: EXISTENTIAL_DEPOSIT,
+                outgoing_limit: OUTGOING_LIMIT,
+                mailbox_threshold: MAILBOX_THRESHOLD,
                 ..Default::default()
             };
 

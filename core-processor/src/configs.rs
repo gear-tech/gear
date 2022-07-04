@@ -30,9 +30,6 @@ const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
-const EXISTENTIAL_DEPOSIT: u128 = 500;
-const OUTGOING_LIMIT: u32 = 1024;
-const MAILBOX_THRESHOLD: u64 = 3000;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -158,12 +155,12 @@ impl Default for BlockConfig {
         Self {
             block_info: Default::default(),
             allocations_config: Default::default(),
-            existential_deposit: EXISTENTIAL_DEPOSIT,
+            existential_deposit: 0,
             gas_allowance: u64::MAX,
-            outgoing_limit: OUTGOING_LIMIT,
+            outgoing_limit: 0,
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
-            mailbox_threshold: MAILBOX_THRESHOLD,
+            mailbox_threshold: 0,
         }
     }
 }

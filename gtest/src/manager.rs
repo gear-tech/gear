@@ -20,6 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
+    EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD,
 };
 use core_processor::{
     common::*,
@@ -41,6 +42,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use wasm_instrument::gas_metering::ConstantCostRules;
+
+const OUTGOING_LIMIT: u32 = 1024;
 
 pub(crate) type Balance = u128;
 
@@ -471,6 +474,9 @@ impl ExtManager {
             .unwrap_or(u64::MAX);
         let block_config = BlockConfig {
             block_info: self.block_info,
+            existential_deposit: EXISTENTIAL_DEPOSIT,
+            outgoing_limit: OUTGOING_LIMIT,
+            mailbox_threshold: MAILBOX_THRESHOLD,
             ..Default::default()
         };
         let message_execution_context = MessageExecutionContext {
