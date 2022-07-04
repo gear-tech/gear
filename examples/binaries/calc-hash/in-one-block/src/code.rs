@@ -1,8 +1,8 @@
 use gstd::msg;
 use shared::Package;
 
-#[gstd::async_main]
-async fn main() {
+#[no_mangle]
+unsafe extern "C" fn handle() {
     let mut pkg = msg::load::<Package>().expect("Invalid initial data");
 
     while !pkg.finished() {
