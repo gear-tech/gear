@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionErrorReason,
-        JournalNote, WasmExecutionContext,
+        Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
+        ExecutionErrorReason, JournalNote, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
@@ -46,31 +46,34 @@ enum SuccessfulDispatchResultKind {
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     block_config: &BlockConfig,
     MessageExecutionContext {
-        executable_actor: maybe_actor,
+        actor,
         dispatch,
         origin,
-        program_id,
     }: MessageExecutionContext,
 ) -> Vec<JournalNote> {
-    match check_is_executable(maybe_actor, &dispatch) {
-        Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
-        Ok(actor) => process_executable::<A, E>(actor, dispatch, origin, block_config.clone()),
+    match check_is_executable(actor, &dispatch) {
+        Err((program_id, exit_code)) => process_non_executable(dispatch, program_id, exit_code),
+        Ok(data) => process_executable::<A, E>(data, dispatch, origin, block_config.clone()),
     }
 }
 
 fn check_is_executable(
-    maybe_actor: Option<ExecutableActor>,
+    Actor {
+        executable_data,
+        destination_program,
+    }: Actor,
     dispatch: &IncomingDispatch,
-) -> Result<ExecutableActor, ExitCode> {
-    maybe_actor
-        .map(|a| {
-            if a.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
+) -> Result<ExecutableActorData, (ProgramId, ExitCode)> {
+    executable_data
+        .map(|data| {
+            if data.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
                 Err(crate::RE_INIT_EXIT_CODE)
             } else {
-                Ok(a)
+                Ok(data)
             }
         })
         .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
+        .map_err(|exit_code| (destination_program, exit_code))
 }
 
 /// Helper function for journal creation in trap/error case
@@ -256,7 +259,7 @@ fn process_success(
 }
 
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    actor: ExecutableActor,
+    data: ExecutableActorData,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     BlockConfig {
@@ -286,10 +289,10 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     };
     let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
 
-    let program_id = actor.program.id();
+    let program_id = data.program.id();
 
     let exec_result = executor::execute_wasm::<A, E>(
-        actor,
+        data,
         dispatch.clone(),
         execution_context,
         execution_settings,

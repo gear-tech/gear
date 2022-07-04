@@ -35,7 +35,7 @@ pub struct InMemoryExtManager {
     marked_destinations: BTreeSet<ProgramId>,
     dispatch_queue: VecDeque<StoredDispatch>,
     log: Vec<StoredMessage>,
-    actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
+    actors_data: BTreeMap<ProgramId, Option<ExecutableActorData>>,
     waiting_init: BTreeMap<ProgramId, Vec<MessageId>>,
     gas_limits: BTreeMap<MessageId, u64>,
     wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
@@ -71,9 +71,9 @@ impl ExecutionContext for InMemoryExtManager {
         let program = Program::new(id, code);
 
         self.waiting_init.insert(program.id(), vec![]);
-        self.actors.insert(
+        self.actors_data.insert(
             program.id(),
-            Some(ExecutableActor {
+            Some(ExecutableActorData {
                 program: program.clone(),
                 balance: 0,
                 pages_data: Default::default(),
@@ -91,7 +91,7 @@ impl CollectState for InMemoryExtManager {
         let InMemoryExtManager {
             dispatch_queue,
             log,
-            actors,
+            actors_data: actors,
             current_failed,
             ..
         } = self.clone();
@@ -107,7 +107,7 @@ impl CollectState for InMemoryExtManager {
         State {
             dispatch_queue,
             log,
-            actors,
+            actors_data: actors,
             current_failed,
         }
     }
@@ -124,7 +124,7 @@ impl JournalHandler for InMemoryExtManager {
             DispatchOutcome::MessageTrap { .. } => true,
             DispatchOutcome::InitFailure { program_id, .. } => {
                 self.move_waiting_msgs_to_queue(program_id);
-                if let Some(actor) = self.actors.get_mut(&program_id) {
+                if let Some(actor) = self.actors_data.get_mut(&program_id) {
                     // Program is now considered terminated (in opposite to active). But not deleted from the state.
                     *actor = None;
                 }
@@ -134,7 +134,7 @@ impl JournalHandler for InMemoryExtManager {
             | DispatchOutcome::NoExecution
             | DispatchOutcome::Exit { .. } => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
-                if let Some(Some(actor)) = self.actors.get_mut(&program_id) {
+                if let Some(Some(actor)) = self.actors_data.get_mut(&program_id) {
                     actor.program.set_initialized();
                 }
                 self.move_waiting_msgs_to_queue(program_id);
@@ -146,7 +146,7 @@ impl JournalHandler for InMemoryExtManager {
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
-        self.actors.remove(&id_exited);
+        self.actors_data.remove(&id_exited);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -160,7 +160,8 @@ impl JournalHandler for InMemoryExtManager {
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         let destination = dispatch.destination();
-        if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
+        if self.actors_data.contains_key(&destination)
+            || self.marked_destinations.contains(&destination)
         {
             // imbuing gas-less messages with maximum gas!
             let gas_limit = dispatch.gas_limit().unwrap_or(u64::MAX);
@@ -209,7 +210,7 @@ impl JournalHandler for InMemoryExtManager {
         mut pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         if let Some(actor) = self
-            .actors
+            .actors_data
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
@@ -221,7 +222,7 @@ impl JournalHandler for InMemoryExtManager {
 
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
         if let Some(actor) = self
-            .actors
+            .actors_data
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
@@ -242,7 +243,7 @@ impl JournalHandler for InMemoryExtManager {
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
-            if let Some(Some(actor)) = self.actors.get_mut(&from) {
+            if let Some(Some(actor)) = self.actors_data.get_mut(&from) {
                 if actor.balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
                 }
@@ -250,7 +251,7 @@ impl JournalHandler for InMemoryExtManager {
                 actor.balance -= value;
             };
 
-            if let Some(Some(actor)) = self.actors.get_mut(&to) {
+            if let Some(Some(actor)) = self.actors_data.get_mut(&to) {
                 actor.balance += value;
             };
         };
@@ -259,7 +260,7 @@ impl JournalHandler for InMemoryExtManager {
     fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
         if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
-                if !self.actors.contains_key(&candidate_id) {
+                if !self.actors_data.contains_key(&candidate_id) {
                     let code =
                         Code::try_new(code.clone(), 1, |_| ConstantCostRules::default()).unwrap();
 

@@ -249,14 +249,13 @@ where
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
-            .get_executable_actor(actor_id, false)
+            .get_actor(actor_id, false)
             .ok_or("Program not found in the storage")?;
 
         let message_execution_context = MessageExecutionContext {
-            executable_actor: Some(actor),
+            actor,
             dispatch: queued_dispatch.into_incoming(initial_gas),
             origin: ProgramId::from_origin(source),
-            program_id: actor_id,
         };
 
         Ok(Exec {

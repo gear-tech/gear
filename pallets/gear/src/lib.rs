@@ -128,7 +128,7 @@ pub mod pallet {
         self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
     };
     use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
+        common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
         Ext,
     };
@@ -743,7 +743,7 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_executable_actor(actor_id, !lazy_pages_enabled)
+                    .get_actor(actor_id, !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
@@ -755,10 +755,9 @@ pub mod pallet {
                     })?;
 
                 let message_execution_context = MessageExecutionContext {
-                    executable_actor: Some(actor),
+                    actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
-                    program_id: actor_id,
                 };
 
                 let journal = if lazy_pages_enabled {
@@ -950,7 +949,7 @@ pub mod pallet {
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
 
-                    let maybe_active_actor = if let Some(maybe_active_program) =
+                    let active_actor_data = if let Some(maybe_active_program) =
                         common::get_program(program_id.into_origin())
                     {
                         // Check whether message should be added to the wait list
@@ -1051,7 +1050,7 @@ pub mod pallet {
                                 }
                             };
 
-                            Some(ExecutableActor {
+                            Some(ExecutableActorData {
                                 program,
                                 balance,
                                 pages_data,
@@ -1088,10 +1087,12 @@ pub mod pallet {
                     };
 
                     let message_execution_context = MessageExecutionContext {
-                        executable_actor: maybe_active_actor,
+                        actor: Actor {
+                            executable_data: active_actor_data,
+                            destination_program: program_id,
+                        },
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(origin.into_origin()),
-                        program_id,
                     };
 
                     let journal = if lazy_pages_enabled {

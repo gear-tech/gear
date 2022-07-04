@@ -339,9 +339,18 @@ pub enum ExecutionErrorReason {
     OutOfRent,
 }
 
-/// Executable actor.
+/// Actor.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ExecutableActor {
+pub struct Actor {
+    /// Executable actor data
+    pub executable_data: Option<ExecutableActorData>,
+    /// Destination program.
+    pub destination_program: ProgramId,
+}
+
+/// Executable actor data.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ExecutableActorData {
     /// Program.
     pub program: Program,
     /// Program value balance.
@@ -366,8 +375,8 @@ pub struct State {
     pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
     /// Log records.
     pub log: Vec<StoredMessage>,
-    /// State of each executable actor.
-    pub actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
+    /// State of each actor.
+    pub actors_data: BTreeMap<ProgramId, Option<ExecutableActorData>>,
     /// Is current state failed.
     pub current_failed: bool,
 }
@@ -378,19 +387,16 @@ impl Debug for State {
             .field("dispatch_queue", &self.dispatch_queue)
             .field("log", &self.log)
             .field(
-                "actors",
+                "actors_data",
                 &self
-                    .actors
+                    .actors_data
                     .iter()
                     .filter_map(|(id, actor)| {
-                        actor.as_ref().map(|actor| {
-                            (
-                                *id,
-                                (actor.balance, actor.program.get_allocations().clone()),
-                            )
-                        })
+                        actor
+                            .as_ref()
+                            .map(|data| (*id, (data.balance, data.program.get_allocations())))
                     })
-                    .collect::<BTreeMap<ProgramId, (u128, BTreeSet<WasmPageNumber>)>>(),
+                    .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
             )
             .field("current_failed", &self.current_failed)
             .finish()

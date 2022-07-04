@@ -48,16 +48,16 @@ const OUTGOING_LIMIT: u32 = 1024;
 pub(crate) type Balance = u128;
 
 #[derive(Debug)]
-pub(crate) enum Actor {
+pub(crate) enum TestActor {
     Initialized(Program),
     // Contract: program is always `Some`, option is used to take ownership
     Uninitialized(Option<MessageId>, Option<Program>),
     Dormant,
 }
 
-impl Actor {
+impl TestActor {
     fn new(init_message_id: Option<MessageId>, program: Program) -> Self {
-        Actor::Uninitialized(init_message_id, Some(program))
+        TestActor::Uninitialized(init_message_id, Some(program))
     }
 
     // # Panics
@@ -68,28 +68,28 @@ impl Actor {
             "can't transmute actor, which isn't uninitialized"
         );
 
-        if let Actor::Uninitialized(_, maybe_prog) = self {
+        if let TestActor::Uninitialized(_, maybe_prog) = self {
             let mut prog = maybe_prog
                 .take()
                 .expect("actor storage contains only `Some` values by contract");
             if let Program::Genuine { program, .. } = &mut prog {
                 program.set_initialized();
             }
-            *self = Actor::Initialized(prog);
+            *self = TestActor::Initialized(prog);
         }
     }
 
     fn is_dormant(&self) -> bool {
-        matches!(self, Actor::Dormant)
+        matches!(self, TestActor::Dormant)
     }
 
     fn is_uninitialized(&self) -> bool {
-        matches!(self, Actor::Uninitialized(..))
+        matches!(self, TestActor::Uninitialized(..))
     }
 
     fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
         match self {
-            Actor::Initialized(Program::Genuine { pages_data, .. }) => Some(pages_data),
+            TestActor::Initialized(Program::Genuine { pages_data, .. }) => Some(pages_data),
             _ => None,
         }
     }
@@ -97,29 +97,29 @@ impl Actor {
     // Takes ownership over mock program, putting `None` value instead of it.
     fn take_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
         match self {
-            Actor::Initialized(Program::Mock(mock))
-            | Actor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
+            TestActor::Initialized(Program::Mock(mock))
+            | TestActor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
             _ => None,
         }
     }
 
     fn code_id(&self) -> Option<CodeId> {
         match self {
-            Actor::Initialized(Program::Genuine { code_id, .. })
-            | Actor::Uninitialized(_, Some(Program::Genuine { code_id, .. })) => Some(*code_id),
+            TestActor::Initialized(Program::Genuine { code_id, .. })
+            | TestActor::Uninitialized(_, Some(Program::Genuine { code_id, .. })) => Some(*code_id),
             _ => None,
         }
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor(&self, balance: Balance) -> Option<ExecutableActor> {
+    fn get_executable_actor_data(&self, balance: Balance) -> Option<ExecutableActorData> {
         let (program, pages_data) = match self {
-            Actor::Initialized(Program::Genuine {
+            TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
                 ..
             })
-            | Actor::Uninitialized(
+            | TestActor::Uninitialized(
                 _,
                 Some(Program::Genuine {
                     program,
@@ -129,7 +129,7 @@ impl Actor {
             ) => (program.clone(), pages_data.clone()),
             _ => return None,
         };
-        Some(ExecutableActor {
+        Some(ExecutableActorData {
             program,
             balance,
             pages_data,
@@ -176,7 +176,7 @@ pub(crate) struct ExtManager {
     pub(crate) id_nonce: u64,
 
     // State
-    pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
+    pub(crate) actors: BTreeMap<ProgramId, (TestActor, Balance)>,
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
@@ -216,12 +216,12 @@ impl ExtManager {
         program_id: ProgramId,
         program: Program,
         init_message_id: Option<MessageId>,
-    ) -> Option<(Actor, Balance)> {
+    ) -> Option<(TestActor, Balance)> {
         if let Program::Genuine { program, .. } = &program {
             self.store_new_code(program.raw_code());
         }
         self.actors
-            .insert(program_id, (Actor::new(init_message_id, program), 0))
+            .insert(program_id, (TestActor::new(init_message_id, program), 0))
     }
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
@@ -285,8 +285,8 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(dispatch);
-            } else if let Some(executable_actor) = actor.get_executable_actor(*balance) {
-                self.process_normal(executable_actor, dispatch);
+            } else if let Some(data) = actor.get_executable_actor_data(*balance) {
+                self.process_normal(data, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -349,7 +349,7 @@ impl ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        *actor = Actor::Dormant;
+        *actor = TestActor::Dormant;
 
         self.move_waiting_msgs_to_queue(message_id, program_id);
         self.mark_failed(message_id);
@@ -369,7 +369,7 @@ impl ExtManager {
             .actors
             .get(&dispatch.destination())
             .expect("method called for unknown destination");
-        if let Actor::Uninitialized(maybe_message_id, _) = actor {
+        if let TestActor::Uninitialized(maybe_message_id, _) = actor {
             let id = maybe_message_id.expect("message in dispatch queue has id");
             dispatch.reply().is_none() && id != dispatch.id()
         } else {
@@ -447,25 +447,21 @@ impl ExtManager {
         // After run either `init_success` is called or `init_failed`.
         // So only active (init success) program can be modified
         self.actors.entry(program_id).and_modify(|(actor, _)| {
-            if let Actor::Initialized(old_mock) = actor {
+            if let TestActor::Initialized(old_mock) = actor {
                 *old_mock = Program::Mock(Some(mock));
             }
         });
     }
 
-    fn process_normal(&mut self, executable_actor: ExecutableActor, dispatch: StoredDispatch) {
-        self.process_dispatch(Some(executable_actor), dispatch);
+    fn process_normal(&mut self, data: ExecutableActorData, dispatch: StoredDispatch) {
+        self.process_dispatch(Some(data), dispatch);
     }
 
     fn process_dormant(&mut self, dispatch: StoredDispatch) {
         self.process_dispatch(None, dispatch);
     }
 
-    fn process_dispatch(
-        &mut self,
-        executable_actor: Option<ExecutableActor>,
-        dispatch: StoredDispatch,
-    ) {
+    fn process_dispatch(&mut self, data: Option<ExecutableActorData>, dispatch: StoredDispatch) {
         let dest = dispatch.destination();
         let gas_limit = self
             .gas_limits
@@ -480,10 +476,12 @@ impl ExtManager {
             ..Default::default()
         };
         let message_execution_context = MessageExecutionContext {
-            executable_actor,
+            actor: Actor {
+                executable_data: data,
+                destination_program: dest,
+            },
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
-            program_id: dest,
         };
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             &block_config,
@@ -512,10 +510,10 @@ impl ExtManager {
             .expect("No program with such id");
 
         let code_id = actor.code_id();
-        let actor = actor
-            .get_executable_actor(*balance)
+        let data = actor
+            .get_executable_actor_data(*balance)
             .expect("Wrong actor type");
-        let pages_initial_data = actor
+        let pages_initial_data = data
             .pages_data
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
@@ -525,7 +523,7 @@ impl ExtManager {
             .map(Vec::as_slice)
             .expect("Metadata binary must be present");
 
-        WasmExecutor::new(&actor.program, meta_binary, &pages_initial_data, payload)
+        WasmExecutor::new(&data.program, meta_binary, &pages_initial_data, payload)
     }
 }
 
@@ -624,7 +622,7 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Actor::Initialized(Program::Genuine {
+        if let TestActor::Initialized(Program::Genuine {
             program,
             pages_data,
             ..
@@ -686,7 +684,7 @@ impl JournalHandler for ExtManager {
             );
             for (invalid_candidate_id, _) in candidates {
                 self.actors
-                    .insert(invalid_candidate_id, (Actor::Dormant, 0));
+                    .insert(invalid_candidate_id, (TestActor::Dormant, 0));
             }
         }
     }

@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionError, ExecutionErrorReason,
-        WasmExecutionContext,
+        DispatchResult, DispatchResultKind, ExecutableActorData, ExecutionError,
+        ExecutionErrorReason, WasmExecutionContext,
     },
     configs::ExecutionSettings,
     ext::ProcessorExt,
@@ -203,7 +203,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    actor: ExecutableActor,
+    data: ExecutableActorData,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
@@ -217,11 +217,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         panic!("Cannot use ext with lazy pages without lazy pages env enabled");
     }
 
-    let ExecutableActor {
+    let ExecutableActorData {
         program,
         balance,
         pages_data: mut pages_initial_data,
-    } = actor;
+    } = data;
 
     let program_id = program.id();
     let kind = dispatch.kind();

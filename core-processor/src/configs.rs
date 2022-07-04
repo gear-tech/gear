@@ -18,7 +18,7 @@
 
 //! Configurations.
 
-use crate::common::ExecutableActor;
+use crate::common::Actor;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use gear_core::{
@@ -168,13 +168,10 @@ impl Default for BlockConfig {
 /// Unstable parameters for message execution across processing runs
 #[derive(Clone)]
 pub struct MessageExecutionContext {
-    /// Optional executable actor
-    pub executable_actor: Option<ExecutableActor>,
+    /// Executable actor
+    pub actor: Actor,
     /// Incoming dispatch
     pub dispatch: IncomingDispatch,
     /// The external origin for a key
     pub origin: ProgramId,
-    // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
-    /// Destination program
-    pub program_id: ProgramId,
 }

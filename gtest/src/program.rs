@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::{Actor, ExtManager, Program as InnerProgram},
+    manager::{ExtManager, Program as InnerProgram, TestActor},
     system::System,
 };
 use codec::{Codec, Decode, Encode};
@@ -363,7 +363,7 @@ impl<'a> Program<'a> {
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
-        let kind = if let Actor::Uninitialized(id, _) = actor {
+        let kind = if let TestActor::Uninitialized(id, _) = actor {
             if id.is_none() {
                 *id = Some(message.id());
                 DispatchKind::Init

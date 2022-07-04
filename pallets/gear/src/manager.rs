@@ -53,7 +53,8 @@ use common::{
     ProgramState,
 };
 use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, ExecutionErrorReason, JournalHandler,
+    Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, ExecutionErrorReason,
+    JournalHandler,
 };
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
@@ -158,7 +159,7 @@ where
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
+    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
@@ -182,10 +183,13 @@ where
             Default::default()
         };
 
-        Some(ExecutableActor {
-            program,
-            balance,
-            pages_data,
+        Some(Actor {
+            executable_data: Some(ExecutableActorData {
+                program,
+                balance,
+                pages_data,
+            }),
+            destination_program: id,
         })
     }
 
