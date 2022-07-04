@@ -258,7 +258,7 @@ where
             }
             MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
-                log::info!(
+                log::debug!(
                     "🪤 Program {} terminated with a trap: {}",
                     program_id.into_origin(),
                     trap
