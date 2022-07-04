@@ -20,6 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
+    Result, TestError,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
@@ -304,6 +305,18 @@ impl ExtManager {
         }
     }
 
+    /// Call non-void meta function from actor stored in manager.
+    /// Warning! This is a static call that doesn't change actors pages data.
+    pub(crate) fn call_meta(
+        &mut self,
+        program_id: &ProgramId,
+        payload: Option<Payload>,
+        function_name: &str,
+    ) -> Result<Vec<u8>> {
+        let mut executor = self.get_executor(program_id, payload)?;
+        executor.execute(function_name)
+    }
+
     fn prepare_for(&mut self, dispatch: &Dispatch) {
         self.msg_id = dispatch.id();
         self.origin = dispatch.source();
@@ -485,28 +498,20 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    /// Call non-void meta function from an actor stored in manager.
-    /// Warning! This is a static call that doesn't change actors pages data.
-    pub(crate) fn call_meta(
+    fn get_executor(
         &mut self,
         program_id: &ProgramId,
         payload: Option<Payload>,
-        function_name: &str,
-    ) -> Vec<u8> {
-        let mut executor = self.get_executor(program_id, payload);
-        executor.execute(function_name)
-    }
-
-    fn get_executor(&mut self, program_id: &ProgramId, payload: Option<Payload>) -> WasmExecutor {
+    ) -> Result<WasmExecutor> {
         let (actor, balance) = self
             .actors
             .get_mut(program_id)
-            .expect("No program with such id");
+            .ok_or(TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let actor = actor
             .get_executable_actor(*balance)
-            .expect("Wrong actor type");
+            .ok_or(TestError::ActorIsntExecutable(*program_id))?;
         let pages_initial_data = actor
             .pages_data
             .into_iter()
@@ -515,7 +520,7 @@ impl ExtManager {
         let meta_binary = code_id
             .and_then(|code_id| self.meta_binaries.get(&code_id))
             .map(Vec::as_slice)
-            .expect("Metadata binary must be present");
+            .ok_or(TestError::MetaBinaryNotProvided)?;
 
         WasmExecutor::new(&actor.program, meta_binary, &pages_initial_data, payload)
     }
