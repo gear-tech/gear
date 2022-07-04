@@ -47,7 +47,7 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-06-30
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
@@ -110,7 +110,7 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-06-30
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
@@ -345,7 +345,7 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-06-30
           target: wasm32-unknown-unknown
 
       - name: "Install: cargo-nextest"
