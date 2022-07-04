@@ -18,8 +18,8 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
-        ExecutionErrorReason,
+        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionError, ExecutionErrorReason,
+        WasmExecutionContext,
     },
     configs::ExecutionSettings,
     ext::ProcessorExt,
@@ -205,7 +205,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
-    context: ExecutionContext,
+    context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {

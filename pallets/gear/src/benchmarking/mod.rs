@@ -38,7 +38,7 @@ use crate::{
 };
 use codec::Encode;
 use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasTree, Origin};
-use core_processor::configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionConfig};
+use core_processor::configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
@@ -125,7 +125,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
-    message_execution_config: MessageExecutionConfig,
+    message_execution_context: MessageExecutionContext,
 }
 
 fn prepare<T>(
@@ -252,7 +252,7 @@ where
             .get_executable_actor(actor_id, false)
             .ok_or("Program not found in the storage")?;
 
-        let message_execution_config = MessageExecutionConfig {
+        let message_execution_context = MessageExecutionContext {
             executable_actor: Some(actor),
             dispatch: queued_dispatch.into_incoming(initial_gas),
             origin: ProgramId::from_origin(source),
@@ -262,7 +262,7 @@ where
         Ok(Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         })
     } else {
         Err("Dispatch not found")
@@ -425,13 +425,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -487,14 +487,14 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
 
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_gas_available {
@@ -517,13 +517,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_msg_id {
@@ -534,13 +534,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_origin {
@@ -551,13 +551,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_program_id {
@@ -568,13 +568,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_source {
@@ -586,13 +586,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_value {
@@ -603,13 +603,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_value_available {
@@ -620,13 +620,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_size {
@@ -649,13 +649,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_read {
@@ -689,13 +689,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_read_per_kb {
@@ -733,13 +733,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_block_height {
@@ -762,13 +762,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_block_timestamp {
@@ -791,13 +791,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_send_init {
@@ -821,13 +821,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -863,13 +863,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -905,13 +905,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -958,13 +958,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1011,13 +1011,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1054,13 +1054,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1095,13 +1095,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1137,13 +1137,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_reply_push_per_kb {
@@ -1176,13 +1176,13 @@ benchmarks! {
         let Exec {
             ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
     }
 
     gr_reply_to {
@@ -1208,13 +1208,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1239,13 +1239,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1272,13 +1272,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1312,13 +1312,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1343,13 +1343,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1374,13 +1374,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1420,13 +1420,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1484,13 +1484,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }
@@ -1549,13 +1549,13 @@ benchmarks! {
         let Exec {
             mut ext_manager,
             block_config,
-            message_execution_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
             SandboxEnvironment<ext::LazyPagesExt>,
-        >(&block_config, message_execution_config);
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }

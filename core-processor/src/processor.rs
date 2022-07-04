@@ -18,10 +18,10 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
-        ExecutionErrorReason, JournalNote,
+        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionErrorReason,
+        JournalNote, WasmExecutionContext,
     },
-    configs::{BlockConfig, ExecutionSettings, MessageExecutionConfig},
+    configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
     ext::ProcessorExt,
 };
@@ -45,12 +45,12 @@ enum SuccessfulDispatchResultKind {
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     block_config: &BlockConfig,
-    MessageExecutionConfig {
+    MessageExecutionContext {
         executable_actor: maybe_actor,
         dispatch,
         origin,
         program_id,
-    }: MessageExecutionConfig,
+    }: MessageExecutionContext,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
@@ -280,7 +280,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         forbidden_funcs,
         mailbox_threshold,
     );
-    let execution_context = ExecutionContext {
+    let execution_context = WasmExecutionContext {
         origin,
         gas_allowance,
     };

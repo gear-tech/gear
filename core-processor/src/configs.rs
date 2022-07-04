@@ -170,7 +170,7 @@ impl Default for BlockConfig {
 
 /// Unstable parameters for message execution across processing runs
 #[derive(Clone)]
-pub struct MessageExecutionConfig {
+pub struct MessageExecutionContext {
     /// Optional executable actor
     pub executable_actor: Option<ExecutableActor>,
     /// Incoming dispatch

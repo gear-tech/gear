@@ -101,7 +101,7 @@ where
         ..Default::default()
     };
 
-    let message_execution_config = MessageExecutionConfig {
+    let message_execution_context = MessageExecutionContext {
         executable_actor: Some(ExecutableActor {
             program,
             balance: 0,
@@ -112,7 +112,7 @@ where
         program_id,
     };
 
-    let journal = core_processor::process::<Ext, E>(&block_config, message_execution_config);
+    let journal = core_processor::process::<Ext, E>(&block_config, message_execution_context);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -287,7 +287,7 @@ where
 
                 let actor = state.actors.get(&program_id).cloned();
 
-                let message_execution_config = MessageExecutionConfig {
+                let message_execution_context = MessageExecutionContext {
                     executable_actor: actor.unwrap_or_else(|| {
                         panic!("Error: Message to user {:?} in dispatch queue!", program_id)
                     }),
@@ -297,7 +297,7 @@ where
                 };
 
                 let journal =
-                    core_processor::process::<Ext, E>(&block_config, message_execution_config);
+                    core_processor::process::<Ext, E>(&block_config, message_execution_context);
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -327,7 +327,7 @@ where
                 ..Default::default()
             };
 
-            let message_execution_config = MessageExecutionConfig {
+            let message_execution_context = MessageExecutionContext {
                 executable_actor: actor.unwrap_or_else(|| {
                     panic!("Error: Message to user {:?} in dispatch queue!", program_id)
                 }),
@@ -337,7 +337,7 @@ where
             };
 
             let journal =
-                core_processor::process::<Ext, E>(&block_config, message_execution_config);
+                core_processor::process::<Ext, E>(&block_config, message_execution_context);
             counter += 1;
 
             core_processor::handle_journal(journal, journal_handler);

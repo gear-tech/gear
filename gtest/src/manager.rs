@@ -23,7 +23,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, MessageExecutionConfig},
+    configs::{BlockConfig, BlockInfo, MessageExecutionContext},
     Ext,
 };
 use gear_backend_wasmtime::WasmtimeEnvironment;
@@ -473,7 +473,7 @@ impl ExtManager {
             block_info: self.block_info,
             ..Default::default()
         };
-        let message_execution_config = MessageExecutionConfig {
+        let message_execution_context = MessageExecutionContext {
             executable_actor,
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
@@ -481,7 +481,7 @@ impl ExtManager {
         };
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             &block_config,
-            message_execution_config,
+            message_execution_context,
         );
 
         core_processor::handle_journal(journal, self);

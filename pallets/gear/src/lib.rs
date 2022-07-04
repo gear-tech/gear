@@ -129,7 +129,7 @@ pub mod pallet {
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-        configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionConfig},
+        configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
         Ext,
     };
     use frame_support::{
@@ -754,7 +754,7 @@ pub mod pallet {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
-                let message_execution_config = MessageExecutionConfig {
+                let message_execution_context = MessageExecutionContext {
                     executable_actor: Some(actor),
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
@@ -764,12 +764,12 @@ pub mod pallet {
                 let journal = if lazy_pages_enabled {
                     core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
                         &block_config,
-                        message_execution_config,
+                        message_execution_context,
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
                         &block_config,
-                        message_execution_config,
+                        message_execution_context,
                     )
                 };
 
@@ -1087,7 +1087,7 @@ pub mod pallet {
                         }
                     };
 
-                    let message_execution_config = MessageExecutionConfig {
+                    let message_execution_context = MessageExecutionContext {
                         executable_actor: maybe_active_actor,
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(origin.into_origin()),
@@ -1097,12 +1097,12 @@ pub mod pallet {
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
                             &block_config,
-                            message_execution_config,
+                            message_execution_context,
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
                             &block_config,
-                            message_execution_config,
+                            message_execution_context,
                         )
                     };
 

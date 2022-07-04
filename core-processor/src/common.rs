@@ -352,7 +352,7 @@ pub struct ExecutableActor {
 
 /// Execution context.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ExecutionContext {
+pub struct WasmExecutionContext {
     /// Original user.
     pub origin: ProgramId,
     /// Gas allowance of the block.
