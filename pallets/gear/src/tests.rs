@@ -445,13 +445,16 @@ fn unused_gas_released_back_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
-        let huge_send_message_gas_limit = 50_000;
+        // This amount is intentionally lower than that hardcoded in the
+        // source of ProgramCodeKind::OutgoingWithValueInHandle so the
+        // execution ends in a trap sending a message to user's mailbox.
+        let huge_send_message_gas_limit = 40_000;
 
         // Initial value in all gas trees is 0
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -472,7 +475,7 @@ fn unused_gas_released_back_works() {
         );
         assert_eq!(
             BalancesPallet::<Test>::reserved_balance(USER_1),
-            (DEFAULT_GAS_LIMIT + huge_send_message_gas_limit) as _,
+            user1_potential_msgs_spends
         );
 
         run_to_block(2, None);
