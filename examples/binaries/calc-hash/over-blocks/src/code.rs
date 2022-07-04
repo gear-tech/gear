@@ -39,11 +39,16 @@ async fn main() {
             // }
         },
         Method::Refuel => unsafe { dispatch().await },
-        // TODO
-        //
-        // optimize this
         Method::Calculate(mut pkg) => unsafe {
-            let _ = msg::reply(pkg.calc(), 0).expect("send reply failed");
+            while state::GAS_METER.spin(exec::gas_available()) {
+                pkg = pkg.calc();
+
+                if pkg.finished() {
+                    break;
+                }
+            }
+
+            let _ = msg::reply(pkg, 0).expect("send reply failed");
         },
     }
 }
@@ -59,29 +64,26 @@ async unsafe fn dispatch() {
         return;
     }
 
-    while state::GAS_METER.spin(exec::gas_available()) {
-        let reply: Package = Package::decode(
-            &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.clone()), 0)
-                .expect("send message failed")
-                .await
-                .expect("get reply failed")
-                .as_ref(),
-        )
-        .expect("decode package failed");
+    let reply: Package = Package::decode(
+        &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.clone()), 0)
+            .expect("send message failed")
+            .await
+            .expect("get reply failed")
+            .as_ref(),
+    )
+    .expect("decode package failed");
 
-        *pkg = pkg.clone();
+    *pkg = reply;
 
-        // second checking finished in loop
-        if pkg.finished() {
-            // # NOTE
-            //
-            // if we want to reply on start message
-            //
-            // we need to pass this result to the start message
-            //
-            // but this `dispatch` may be executed in `Method::Refuel`.
-            msg::reply(pkg.paths.clone(), 0).expect("send reply failed");
-            break;
-        }
+    // second checking finished in loop
+    if pkg.finished() {
+        // # NOTE
+        //
+        // if we want to reply on start message
+        //
+        // we need to pass this result to the start message
+        //
+        // but this `dispatch` may be executed in `Method::Refuel`.
+        msg::reply(pkg.paths.clone(), 0).expect("send reply failed");
     }
 }
