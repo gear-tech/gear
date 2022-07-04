@@ -3870,7 +3870,7 @@ fn execution_over_blocks() {
             run_to_next_block(None);
         }
 
-        assert!(count != 0);
+        assert!(count > 1);
         assert_last_mail(expected);
     });
 }
