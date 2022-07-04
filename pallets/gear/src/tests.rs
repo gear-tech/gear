@@ -3711,8 +3711,8 @@ fn execution_over_blocks() {
 
     let assert_last_mail = |expected: [u8; 32]| {
         let last_mail = get_last_mail(USER_1);
-        let paths = Vec::<[u8; 32]>::decode(&mut last_mail.payload().as_ref())
-            .expect("Decode result failed");
+        let paths =
+            Vec::<[u8; 32]>::decode(&mut last_mail.payload()).expect("Decode result failed");
         assert_eq!(
             *paths.last().expect("failed to get the last path"),
             expected
