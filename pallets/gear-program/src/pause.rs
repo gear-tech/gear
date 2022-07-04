@@ -63,7 +63,7 @@ impl<T: Config> pallet::Pallet<T> {
 
         let pages_data = common::get_program_pages_data(program_id.into_origin(), &program)
             .map_err(|e| {
-                log::error!("{}", e);
+                log::error!("pause_program error: {}", e);
                 PauseError::InvalidPageDataSize
             })?;
 
@@ -119,7 +119,7 @@ impl<T: Config> pallet::Pallet<T> {
             paused_program.program,
             memory_pages,
         ) {
-            log::error!("{}", err);
+            log::error!("resume_program_impl error: {}", err);
             return Err(Error::<T>::NotAllocatedPageWithData.into());
         }
 

@@ -300,7 +300,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         mem_size,
     )
     .map_err(|err| {
-        log::debug!("Setup instance err = {}", err);
+        log::debug!("Setup instance error: {}", err);
         ExecutionError {
             program_id,
             gas_amount: err.gas_amount.clone(),
@@ -345,7 +345,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    log::debug!("term reason = {:?}", termination);
+    log::debug!("Termination reason: {:?}", termination);
 
     // Parsing outcome.
     let kind = match termination {

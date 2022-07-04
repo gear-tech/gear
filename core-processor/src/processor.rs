@@ -315,7 +315,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         msg_ctx_settings,
     )
     .map_err(|err| {
-        log::debug!("Wasm execution err: {}", err.reason);
+        log::debug!("Wasm execution error: {}", err.reason);
         err
     });
 

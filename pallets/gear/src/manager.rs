@@ -496,7 +496,7 @@ where
                         let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
                     }
                     Err(e) => {
-                        log::error!("{:?}", e);
+                        log::error!("mailbox insert error: {:?}", e);
                     }
                 }
             };
@@ -508,7 +508,7 @@ where
             } else {
                 let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
                     .unwrap_or_else(|e| {
-                        log::error!("{:?}", e);
+                        log::error!("get gas limit error: {:?}", e);
                         None
                     })
                     .map(|(g, _)| g)
@@ -591,7 +591,8 @@ where
                                             }
                                         }
                                         Err(e) => {
-                                            log::debug!(
+                                            // Reserved funds should be always repatriatable
+                                            log::error!(
                                                 target: "essential",
                                                 "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
                                                 charge,
@@ -603,7 +604,9 @@ where
                                     }
                                 }
                             } else {
-                                log::debug!(
+                                // The fact that gas tree exist without root node from which
+                                // "external" can be evaluated is an error
+                                log::error!(
                                     target: "essential",
                                     "Failed to get origin of {:?}",
                                     message_id,
@@ -721,7 +724,8 @@ where
                         Ok(())
                     }
                     Err(e) => {
-                        log::debug!(
+                        // This is a error, as reserved should always be repatriatable
+                        log::error!(
                             target: "essential",
                             "Failure to repatriate reserves of {:?} from 0x{:?} to 0x{:?}: {:?}",
                             value,

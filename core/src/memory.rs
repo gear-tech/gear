@@ -330,7 +330,7 @@ impl AllocationsContext {
 
         while found < pages {
             if candidate + pages > self.max_pages {
-                log::debug!(
+                log::error!(
                     "candidate: {:?}, pages: {:?}, max_pages: {:?}",
                     candidate,
                     pages,
