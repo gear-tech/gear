@@ -26,22 +26,25 @@ use wasmtime::MemoryAccessError;
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
 
 /// List of general errors.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum TestError {
     /// Invalid return type after execution.
     #[display(fmt = "Invalid return type after execution")]
     InvalidReturnType,
 
     /// Function not found in executor.
+    #[from(ignore)]
     #[display(fmt = "Function not found in executor: `{}`", _0)]
     FunctionNotFound(String),
 
     /// Actor not found.
-    #[display(fmt = "Actor not found: `{:?}`", _0)]
+    #[from(ignore)]
+    #[display(fmt = "Actor not found: `{}`", _0)]
     ActorNotFound(ProgramId),
 
     /// Actor is not executable.
-    #[display(fmt = "Actor is not executable: `{:?}`", _0)]
+    #[from(ignore)]
+    #[display(fmt = "Actor is not executable: `{}`", _0)]
     ActorIsntExecutable(ProgramId),
 
     /// Meta WASM binary hasn't been provided.
@@ -53,10 +56,12 @@ pub enum TestError {
     InsufficientMemory(WasmPageNumber, WasmPageNumber),
 
     /// Invalid import module.
+    #[from(ignore)]
     #[display(fmt = "Invalid import module: `{}` instead of `env`", _0)]
     InvalidImportModule(String),
 
     /// Failed to call unsupported function.
+    #[from(ignore)]
     #[display(fmt = "Failed to call unsupported function: `{}`", _0)]
     UnsupportedFunction(String),
 
@@ -75,28 +80,4 @@ pub enum TestError {
     /// Wrapper for `parity-scale-codec` error (see [`parity_scale_codec::Error`]).
     #[display(fmt = "{}", _0)]
     ScaleCodecError(CodecError),
-}
-
-impl From<ProcessorError> for TestError {
-    fn from(err: ProcessorError) -> Self {
-        TestError::ExecutionError(err)
-    }
-}
-
-impl From<MemoryAccessError> for TestError {
-    fn from(err: MemoryAccessError) -> Self {
-        TestError::MemoryError(err)
-    }
-}
-
-impl From<AnyhowError> for TestError {
-    fn from(err: AnyhowError) -> Self {
-        TestError::WasmtimeError(err)
-    }
-}
-
-impl From<CodecError> for TestError {
-    fn from(err: CodecError) -> Self {
-        TestError::ScaleCodecError(err)
-    }
 }
