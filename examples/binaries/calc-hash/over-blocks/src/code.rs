@@ -20,8 +20,28 @@ async fn main() {
     match method {
         Method::Start(pkg) => unsafe {
             state::REGISTRY.insert(msg::source(), pkg);
+
+            // # NOTE
+            //
+            // // if we dispatch calculation here
+            // {
+            //     // don't have enough gas to do this
+            //     dispatch().await;
+            //
+            //     // so this is unreachable forever
+            //     msg::reply(
+            //         state::REGISTRY
+            //             .get_mut(&msg::source())
+            //             .expect("Calculation not found"),
+            //         0,
+            //     )
+            //     .expect("failed");
+            // }
         },
         Method::Refuel => unsafe { dispatch().await },
+        // TODO
+        //
+        // optimize this
         Method::Calculate(mut pkg) => unsafe {
             let _ = msg::reply(pkg.calc(), 0).expect("send reply failed");
         },
@@ -49,10 +69,17 @@ async unsafe fn dispatch() {
         )
         .expect("decode package failed");
 
-        *pkg = reply;
+        *pkg = pkg.clone();
 
         // second checking finished in loop
         if pkg.finished() {
+            // # NOTE
+            //
+            // if we want to reply on start message
+            //
+            // we need to pass this result to the start message
+            //
+            // but this `dispatch` may be executed in `Method::Refuel`.
             msg::reply(pkg.paths.clone(), 0).expect("send reply failed");
             break;
         }
