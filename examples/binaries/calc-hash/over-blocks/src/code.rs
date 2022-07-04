@@ -39,11 +39,7 @@ async unsafe fn dispatch() {
         return;
     }
 
-    loop {
-        if !state::GAS_METER.spin(exec::gas_available()) {
-            return;
-        }
-
+    while state::GAS_METER.spin(exec::gas_available()) {
         let reply: Package = Package::decode(
             &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.clone()), 0)
                 .expect("send message failed")
