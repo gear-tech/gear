@@ -980,8 +980,6 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 1080476846 + 41640740 - 1; // calc gas pid1 + pid2 - 1
-
         // Submit programs and get their ids
         let pid1 = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat1));
@@ -994,14 +992,13 @@ fn block_gas_limit_works() {
             res.expect("submit result was asserted")
         };
 
-        run_to_block(2, Some(remaining_weight));
+        // here two programs got initialized
+        run_to_next_block(None);
         assert_last_dequeued(2);
+        assert_init_success(2);
 
         // Count gas needed to process programs with default payload
-        let GasInfo {
-            burned: expected_gas_msg_to_pid1,
-            ..
-        } = Gear::calculate_gas_info(
+        let gas1 = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid1),
             EMPTY_PAYLOAD.to_vec(),
@@ -1009,10 +1006,11 @@ fn block_gas_limit_works() {
             true,
         )
         .expect("calculate_gas_info failed");
-        let GasInfo {
-            burned: expected_gas_msg_to_pid2,
-            ..
-        } = Gear::calculate_gas_info(
+
+        // cause pid1 sends messages
+        assert!(gas1.burned < gas1.min_limit);
+
+        let gas2 = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid2),
             EMPTY_PAYLOAD.to_vec(),
@@ -1021,65 +1019,89 @@ fn block_gas_limit_works() {
         )
         .expect("calculate_gas_info failed");
 
-        // TrapInHandle code kind is used because processing default payload in its
-        // context requires such an amount of gas, that the following assertion can be passed.
-        assert!(expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2 > remaining_weight);
+        // cause pid2 does nothing except calculations
+        assert_eq!(gas2.burned, gas2.min_limit);
 
+        // showing that min_limit works as expected.
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
-            expected_gas_msg_to_pid1,
+            gas1.min_limit - 1,
             1000
         ));
+        let failed1 = get_last_message_id();
+
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
-            expected_gas_msg_to_pid1,
+            gas1.min_limit,
             1000
         ));
+        let succeed1 = get_last_message_id();
 
-        run_to_block(3, Some(remaining_weight));
-        assert_last_dequeued(2);
-
-        // Run to the next block to reset the gas limit
-        run_to_block(4, Some(remaining_weight));
-
-        // Add more messages to queue
-        // Total `gas_limit` of three messages (2 to pid1 and 1 to pid2) exceeds the block gas limit
-        assert!(remaining_weight < 2 * expected_gas_msg_to_pid1 + remaining_weight);
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1),
-            pid1,
-            EMPTY_PAYLOAD.to_vec(),
-            expected_gas_msg_to_pid1,
-            2000
-        ));
-        let msg1 = get_last_message_id();
-
-        let msg2_gas = remaining_weight;
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid2,
             EMPTY_PAYLOAD.to_vec(),
-            msg2_gas,
+            gas2.min_limit - 1,
             1000
         ));
-        let _msg2 = get_last_message_id();
+        let failed2 = get_last_message_id();
 
-        let msg3_gas = expected_gas_msg_to_pid1;
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
-            pid1,
+            pid2,
             EMPTY_PAYLOAD.to_vec(),
-            expected_gas_msg_to_pid1,
-            2000
+            gas2.min_limit,
+            1000
         ));
-        let _msg3 = get_last_message_id();
+        let succeed2 = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_last_dequeued(4);
+        assert_succeed(succeed1);
+        assert_succeed(succeed2);
+        assert_failed(
+            failed1,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
+                MessageError::NotEnoughGas,
+            ))),
+        );
+        assert_failed(
+            failed2,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
+            ))),
+        );
+
+        let send_with_min_limit_to = |pid: ProgramId, gas: &GasInfo| {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(USER_1),
+                pid,
+                EMPTY_PAYLOAD.to_vec(),
+                gas.min_limit,
+                1000
+            ));
+        };
+
+        send_with_min_limit_to(pid1, &gas1);
+        send_with_min_limit_to(pid2, &gas2);
+
+        assert!(gas1.burned + gas2.burned < gas1.min_limit + gas2.min_limit);
+
+        // both processed if gas allowance equal only burned count
+        run_to_next_block(Some(gas1.burned + gas2.burned));
+        assert_last_dequeued(2);
+
+        send_with_min_limit_to(pid1, &gas1);
+        send_with_min_limit_to(pid2, &gas2);
+        send_with_min_limit_to(pid1, &gas1);
 
         // Try to process 3 messages
-        run_to_block(5, Some(remaining_weight));
+        run_to_next_block(Some(gas1.burned + gas2.burned - 1));
 
         // Message #1 is dequeued and processed.
         // Message #2 tried to execute, but exceed gas_allowance is re-queued at the top.
@@ -1088,38 +1110,22 @@ fn block_gas_limit_works() {
         // | 1 |        | 2 |
         // | 2 |  ===>  | 3 |
         // | 3 |        |   |
-
-        assert_failed(
-            msg1,
-            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Message(
-                MessageError::NotEnoughGas,
-            ))),
-        );
         assert_last_dequeued(1);
 
         // Equals 0 due to trying execution of msg2.
         assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
-        let real_gas_to_burn = expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2;
-        let last_block_allowance = real_gas_to_burn + 1;
+        // Try to process 2 messages.
+        run_to_next_block(Some(gas2.burned + gas1.burned + 10));
 
-        // Try to process 2 messages
-        run_to_block(6, Some(last_block_allowance));
-
-        assert!(last_block_allowance < msg2_gas + msg3_gas);
-
-        // Message #2 gas limit exceeds the remaining allowance, but got processed.
-        // Message #3 same suits that block.
+        // Both messages got processed.
         //
         // | 2 |        |   |
         // | 3 |  ===>  |   |
         // |   |        |   |
 
         assert_last_dequeued(2);
-        assert_eq!(
-            GasAllowanceOf::<Test>::get(),
-            last_block_allowance - real_gas_to_burn
-        );
+        assert_eq!(GasAllowanceOf::<Test>::get(), 10);
     });
 }
 
