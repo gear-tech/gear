@@ -665,7 +665,7 @@ pub mod pallet {
 
             QueueOf::<T>::clear();
 
-            let main_program_id = match kind {
+            match kind {
                 HandleKind::Init(code) => {
                     let salt = b"calculate_gas_salt".to_vec();
                     Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
@@ -673,47 +673,30 @@ pub mod pallet {
                             format!("Internal error: submit_program failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
-
-                    QueueOf::<T>::iter()
-                        .next()
-                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
-                        .and_then(|queued| {
-                            queued
-                                .map_err(|_| {
-                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
-                                })
-                                .map(|dispatch| dispatch.destination())
-                        })?
                 }
-
                 HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: send_message failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
-
-                    destination
                 }
-
                 HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: send_reply failed with '{:?}'", e).into_bytes()
                         })?;
-
-                    QueueOf::<T>::iter()
-                        .next()
-                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
-                        .and_then(|queued| {
-                            queued
-                                .map_err(|_| {
-                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
-                                })
-                                .map(|dispatch| dispatch.destination())
-                        })?
                 }
             };
+
+            let (main_message_id, main_program_id) = QueueOf::<T>::iter()
+                .next()
+                .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
+                .and_then(|queued| {
+                    queued
+                        .map_err(|_| b"Internal error: failed to retrieve queued dispatch".to_vec())
+                        .map(|dispatch| (dispatch.id(), dispatch.destination()))
+                })?;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -790,35 +773,52 @@ pub mod pallet {
                     )
                 };
 
+                let get_main_limit = || {
+                    GasHandlerOf::<T>::get_limit(main_message_id).map_err(|_| {
+                        b"Internal error: unable to get gas limit after execution".to_vec()
+                    })
+                };
+
+                let get_origin_msg_of = |msg_id| {
+                    GasHandlerOf::<T>::get_origin_key(msg_id)
+                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())
+                        .map(|v| v.unwrap_or(msg_id))
+                };
+
+                let from_main_chain =
+                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
+
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some((remaining_gas, _)) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
-                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
-                        .and_then(|root_dispatch_id| {
-                            GasHandlerOf::<T>::get_limit(root_dispatch_id)
-                                .map_err(|_| {
-                                    b"Internal error: unable to get gas limit after execution"
-                                        .to_vec()
-                                })
-                                .transpose()
-                        })
-                        .transpose()?
-                    {
+                    if let Some((remaining_gas, _)) = get_main_limit()? {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
-                    }
+                    };
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
-                            let gas_limit = dispatch.gas_limit().unwrap_or(0);
+                            if from_main_chain(dispatch.id())? {
+                                let gas_limit: u64;
 
-                            // TODO change calculation of the field #1074
-                            reserved = reserved.saturating_add(gas_limit);
+                                if let Some(limit) = dispatch.gas_limit() {
+                                    gas_limit = limit
+                                } else {
+                                    gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id()).map_err(|_| {
+                                        b"Internal error: unable to get gas limit after execution".to_vec()
+                                    })?.ok_or_else(|| b"Internal error: unable to get gas limit after execution".to_vec())?.0
+                                }
+
+                                if gas_limit >= T::MailboxThreshold::get() {
+                                    reserved = reserved.saturating_add(gas_limit);
+                                }
+                            }
                         }
 
-                        JournalNote::GasBurned { amount, .. } => {
-                            burned = burned.saturating_add(amount);
+                        JournalNote::GasBurned { amount, message_id } => {
+                            if from_main_chain(message_id)? {
+                                burned = burned.saturating_add(amount);
+                            }
                         }
 
                         JournalNote::MessageDispatched {
