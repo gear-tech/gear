@@ -916,9 +916,7 @@ fn lazy_pages() {
     });
 }
 
-// TODO: ignored until #642 implemented
 #[test]
-#[ignore]
 fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
@@ -1493,28 +1491,36 @@ fn send_reply_value_claiming_works() {
 
         let user_messages_data = [
             // gas limit, value
-            (1_000_000, 1000),
-            (20_000_000, 2000),
+            (35_000_000, 4000),
+            (45_000_000, 5000),
         ];
 
-        let mut reserved_balance_in_process = 0;
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
+            // user 2 triggers program to send message to user 1
+            // user 2 after this contains += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
+            // reserved as MB holding fee
+            //
+            // here we also run process queue, so on second iteration user 1's
+            // first reply got processed and funds freed
             let reply_to_id =
-                populate_mailbox_from_program(prog_id, USER_1, next_block, 2_000_000_000, 0);
-
+                populate_mailbox_from_program(prog_id, USER_2, next_block, 2_000_000_000, 0);
             next_block += 1;
 
-            assert!(!MailboxOf::<Test>::is_empty(&USER_1));
-
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
+            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
-            // add the new reserved balance from `populate_mailbox_from_program`
-            reserved_balance_in_process += OUTGOING_WITH_VALUE_IN_HANDLE_VALUE;
+            assert!(MailboxOf::<Test>::contains(&USER_1, &reply_to_id));
+
             assert_eq!(
-                BalancesPallet::<Test>::reserved_balance(USER_1),
-                reserved_balance_in_process
+                BalancesPallet::<Test>::reserved_balance(USER_2),
+                OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
             );
 
+            // nothing changed
+            assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), user_balance);
+            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+            // auto-claim of "locked_value" + send is here
             assert_ok!(GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1),
                 reply_to_id,
@@ -1523,26 +1529,17 @@ fn send_reply_value_claiming_works() {
                 value_to_reply,
             ));
 
-            let user_expected_balance =
-                user_balance - value_to_reply - GasPrice::gas_price(gas_limit_to_reply)
-                    + locked_value;
+            let currently_sent = value_to_reply + GasPrice::gas_price(gas_limit_to_reply);
 
             assert_eq!(
                 BalancesPallet::<Test>::free_balance(USER_1),
-                user_expected_balance
+                user_balance + locked_value - currently_sent
             );
-
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
-                GasPrice::gas_price(gas_limit_to_reply)
-                    + value_to_reply
-                    + reserved_balance_in_process
+                currently_sent
             );
-
-            // This add-up is from send_reply
-            //
-            // prepare for the next loop
-            reserved_balance_in_process += <Test as Config>::MailboxThreshold::get() as u128;
+            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_2), 0,);
         }
     })
 }
@@ -1550,15 +1547,14 @@ fn send_reply_value_claiming_works() {
 // user 1 sends to prog msg
 // prog send to user 1 msg to mailbox
 // user 1 claims it from mailbox
-
-// TODO: ignored until #642 implemented
 #[test]
-#[ignore]
 fn claim_value_from_mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_2), 0);
         let claimer_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
         let gas_sent = 10_000_000_000;
         let value_sent = 1000;
@@ -1568,7 +1564,9 @@ fn claim_value_from_mailbox_works() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
+
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
+
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -1582,6 +1580,7 @@ fn claim_value_from_mailbox_works() {
             true,
         )
         .expect("calculate_gas_info failed");
+
         let gas_burned = GasPrice::gas_price(gas_burned);
 
         run_to_block(3, None);
@@ -2908,13 +2907,7 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(4, None);
 
-        let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
-        let mailbox_threshold_reserved =
-            <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-        assert_eq!(
-            before_balance - mailbox_threshold_reserved,
-            BalancesPallet::<Test>::free_balance(USER_1)
-        );
+        assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), before_balance);
     })
 }
 
@@ -3105,7 +3098,7 @@ fn gas_spent_vs_balance() {
             0,
             true,
         )
-        .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
+        .unwrap();
 
         // check that all changes made by calculate_gas_info are rollbacked
         assert_eq!(
@@ -3134,7 +3127,7 @@ fn gas_spent_vs_balance() {
             0,
             true,
         )
-        .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
+        .unwrap();
 
         assert_eq!(
             balance_after_init - balance_after_handle,
@@ -3181,7 +3174,7 @@ fn gas_spent_precalculated() {
             0,
             true,
         )
-        .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
+        .unwrap();
 
         let schedule = <Test as Config>::Schedule::get();
 
@@ -3720,8 +3713,7 @@ fn call_forbidden_function() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
-        )
-        .map_err(|e| String::from_utf8(e).unwrap());
+        );
 
         assert_eq!(
             res,

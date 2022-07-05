@@ -128,7 +128,9 @@ pub mod pallet {
         self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
     };
     use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
+        common::{
+            DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, JournalNote,
+        },
         configs::{AllocationsConfig, BlockInfo},
         Ext,
     };
@@ -581,7 +583,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
-        ) -> Result<GasInfo, Vec<u8>> {
+        ) -> Result<GasInfo, String> {
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
@@ -592,6 +594,10 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                 )
+                .map_err(|e| {
+                    String::from_utf8(e)
+                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
+                })
             })?;
 
             Self::run_with_ext_copy(|| {
@@ -612,6 +618,10 @@ pub mod pallet {
                         burned,
                     },
                 )
+                .map_err(|e| {
+                    String::from_utf8(e)
+                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
+                })
             })
         }
 
@@ -802,11 +812,6 @@ pub mod pallet {
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
                             let gas_limit = dispatch.gas_limit().unwrap_or(0);
-                            if ext_manager.check_user_id(&dispatch.destination()) && gas_limit > 0 {
-                                return Err(
-                                    b"Message sent to user with non zero gas limit".to_vec()
-                                );
-                            }
 
                             // TODO change calculation of the field #1074
                             reserved = reserved.saturating_add(gas_limit);
@@ -1551,6 +1556,9 @@ pub mod pallet {
 
             // Claim outstanding value from the original message first
             let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
+            // TODO: burn here for holding #646.
+            let mut ext_manager: ExtManager<T> = Default::default();
+            ext_manager.message_consumed(reply_to_id);
             let destination = original_message.source();
 
             // There should be no possibility to modify mailbox if two users interact.
@@ -1615,6 +1623,9 @@ pub mod pallet {
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
             let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
+            // TODO: burn here for holding #646.
+            let mut ext_manager: ExtManager<T> = Default::default();
+            ext_manager.message_consumed(message_id);
 
             Self::deposit_event(Event::UserMessageRead {
                 id: message_id,
