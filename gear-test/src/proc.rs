@@ -20,7 +20,7 @@ use crate::{
     address::Address,
     check::ExecutionContext,
     js::{MetaData, MetaType},
-    manager::CollectState,
+    manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
 use core_processor::{common::*, configs::*, Ext};
@@ -290,6 +290,7 @@ where
                 let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
                     panic!("Error: Message to user {:?} in dispatch queue!", program_id)
                 });
+                let actor = actor.into_core(program_id);
 
                 let message_execution_context = MessageExecutionContext {
                     actor,
@@ -318,6 +319,7 @@ where
             let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
                 panic!("Error: Message to user {:?} in dispatch queue!", program_id)
             });
+            let actor = actor.into_core(program_id);
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())

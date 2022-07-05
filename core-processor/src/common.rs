@@ -19,8 +19,7 @@
 //! Common structures for processing.
 
 use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::{self, Debug, Formatter},
+    collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
@@ -30,7 +29,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
+    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
 };
 use gear_core_errors::MemoryError;
@@ -366,40 +365,4 @@ pub struct WasmExecutionContext {
     pub origin: ProgramId,
     /// Gas allowance of the block.
     pub gas_allowance: u64,
-}
-
-#[derive(Clone, Default)]
-/// In-memory state.
-pub struct State {
-    /// Message queue.
-    pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
-    /// Log records.
-    pub log: Vec<StoredMessage>,
-    /// State of each actor.
-    pub actors: BTreeMap<ProgramId, Actor>,
-    /// Is current state failed.
-    pub current_failed: bool,
-}
-
-impl Debug for State {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("State")
-            .field("dispatch_queue", &self.dispatch_queue)
-            .field("log", &self.log)
-            .field(
-                "actors",
-                &self
-                    .actors
-                    .iter()
-                    .filter_map(|(id, actor)| {
-                        actor
-                            .executable_data
-                            .as_ref()
-                            .map(|data| (*id, (actor.balance, data.program.get_allocations())))
-                    })
-                    .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
-            )
-            .field("current_failed", &self.current_failed)
-            .finish()
-    }
 }

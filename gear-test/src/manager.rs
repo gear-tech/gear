@@ -22,11 +22,50 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
+    message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program,
 };
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt,
+};
 use wasm_instrument::gas_metering::ConstantCostRules;
+
+#[derive(Clone, Default)]
+/// In-memory state.
+pub struct State {
+    /// Message queue.
+    pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
+    /// Log records.
+    pub log: Vec<StoredMessage>,
+    /// State of each actor.
+    pub actors: BTreeMap<ProgramId, TestActor>,
+    /// Is current state failed.
+    pub current_failed: bool,
+}
+
+impl fmt::Debug for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("State")
+            .field("dispatch_queue", &self.dispatch_queue)
+            .field("log", &self.log)
+            .field(
+                "actors",
+                &self
+                    .actors
+                    .iter()
+                    .filter_map(|(id, actor)| {
+                        actor
+                            .executable_data
+                            .as_ref()
+                            .map(|data| (*id, (actor.balance, data.program.get_allocations())))
+                    })
+                    .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
+            )
+            .field("current_failed", &self.current_failed)
+            .finish()
+    }
+}
 
 /// Something that can return in-memory state.
 pub trait CollectState {
@@ -36,8 +75,23 @@ pub trait CollectState {
 
 #[derive(Clone)]
 pub struct TestActor {
-    balance: u128,
-    executable_data: Option<ExecutableActorData>,
+    pub balance: u128,
+    pub executable_data: Option<ExecutableActorData>,
+}
+
+impl TestActor {
+    pub fn into_core(self, dest: ProgramId) -> Actor {
+        let Self {
+            balance,
+            executable_data,
+        } = self;
+
+        Actor {
+            balance,
+            destination_program: dest,
+            executable_data,
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -105,25 +159,10 @@ impl CollectState for InMemoryExtManager {
         let InMemoryExtManager {
             dispatch_queue,
             log,
-            actors: actors_data,
+            actors,
             current_failed,
             ..
         } = self.clone();
-
-        let actors = actors_data
-            .into_iter()
-            .zip(dispatch_queue.iter())
-            .map(|((id, data), dispatch)| {
-                (
-                    id,
-                    Actor {
-                        balance: data.balance,
-                        destination_program: dispatch.destination(),
-                        executable_data: data.executable_data,
-                    },
-                )
-            })
-            .collect();
 
         let dispatch_queue = dispatch_queue
             .into_iter()
