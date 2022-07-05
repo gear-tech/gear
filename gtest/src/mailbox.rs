@@ -18,6 +18,7 @@
 
 use crate::{manager::ExtManager, CoreLog, Log, RunResult};
 use codec::Encode;
+use core_processor::common::JournalHandler;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, StoredMessage},
@@ -47,26 +48,7 @@ impl<'a> Mailbox<'a> {
     }
 
     pub fn take_message<T: Into<Log>>(&self, log: T) -> MessageReplier {
-        let log = log.into();
-        let mut manager = self.manager.borrow_mut();
-        let index = if let Some(mailbox) = manager.mailbox.get(&self.user_id) {
-            mailbox
-                .iter()
-                .position(|message| log.eq(message))
-                .expect("No message that satisfies log")
-        } else {
-            panic!("Infallible. No mailbox associated with this user id");
-        };
-
-        let taken_message = manager
-            .mailbox
-            .get_mut(&self.user_id)
-            .expect(
-                "Infallible exception- we've just worked with element that we are trying to get",
-            )
-            .remove(index);
-
-        MessageReplier::new(taken_message, self.manager)
+        MessageReplier::new(self.remove_message(log), self.manager)
     }
 
     pub fn reply(&self, log: Log, payload: impl Encode, value: u128) -> RunResult {
@@ -75,6 +57,29 @@ impl<'a> Mailbox<'a> {
 
     pub fn reply_bytes(&self, log: Log, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
         self.take_message(log).reply_bytes(raw_payload, value)
+    }
+
+    pub fn claim_value<T: Into<Log>>(&self, log: T) {
+        let message = self.remove_message(log);
+        self.manager.borrow_mut().send_value(
+            message.source(),
+            Some(message.destination()),
+            message.value(),
+        );
+    }
+
+    fn remove_message<T: Into<Log>>(&self, log: T) -> StoredMessage {
+        let log = log.into();
+        let mut manager = self.manager.borrow_mut();
+        let messages = manager
+            .mailbox
+            .get_mut(&self.user_id)
+            .expect("Infallible. No mailbox associated with this user id");
+        let index = messages
+            .iter()
+            .position(|message| log.eq(message))
+            .expect("No message that satisfies log");
+        messages.remove(index)
     }
 }
 
@@ -317,5 +322,37 @@ mod tests {
 
         // Getting user id that is already registered as a program
         system.get_mailbox(restricted_user_id);
+    }
+
+    #[test]
+    fn claim_value_from_mailbox() {
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let sender_id = 1;
+        let receiver_id = 42;
+        let payload = b"hello".to_vec();
+
+        let log = Log::builder()
+            .source(sender_id)
+            .dest(receiver_id)
+            .payload(payload.clone());
+
+        let message = Message::new(
+            message_id,
+            sender_id.into(),
+            receiver_id.into(),
+            payload.encode(),
+            Default::default(),
+            1000,
+            None,
+        );
+
+        system.mint_to(sender_id, 1000);
+        system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
+
+        let receiver_mailbox = system.get_mailbox(receiver_id);
+        receiver_mailbox.claim_value(log.clone());
+
+        assert_eq!(system.balance_of(receiver_id), 1000);
     }
 }
