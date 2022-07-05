@@ -130,8 +130,7 @@ impl ExecutionSettings {
 }
 
 /// Stable parameters for the whole block across processing runs.
-// TODO: remove Default derive in favor of `BlockConfig::test`
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct BlockConfig {
     /// Block info.
     pub block_info: BlockInfo,

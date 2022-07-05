@@ -101,13 +101,7 @@ where
     let program_id = program.id();
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
-    let block_config = BlockConfig {
-        block_info,
-        existential_deposit: EXISTENTIAL_DEPOSIT,
-        outgoing_limit: OUTGOING_LIMIT,
-        mailbox_threshold: MAILBOX_THRESHOLD,
-        ..Default::default()
-    };
+    let block_config = test_block_config(block_info);
 
     let message_execution_context = MessageExecutionContext {
         actor: Actor {
@@ -288,13 +282,7 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let block_config = BlockConfig {
-                block_info: BlockInfo { height, timestamp },
-                existential_deposit: EXISTENTIAL_DEPOSIT,
-                outgoing_limit: OUTGOING_LIMIT,
-                mailbox_threshold: MAILBOX_THRESHOLD,
-                ..Default::default()
-            };
+            let block_config = test_block_config(BlockInfo { height, timestamp });
 
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let program_id = dispatch.destination();
@@ -335,16 +323,10 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let block_config = BlockConfig {
-                block_info: BlockInfo {
-                    height: counter,
-                    timestamp,
-                },
-                existential_deposit: EXISTENTIAL_DEPOSIT,
-                outgoing_limit: OUTGOING_LIMIT,
-                mailbox_threshold: MAILBOX_THRESHOLD,
-                ..Default::default()
-            };
+            let block_config = test_block_config(BlockInfo {
+                height: counter,
+                timestamp,
+            });
 
             let message_execution_context = MessageExecutionContext {
                 actor,
@@ -367,4 +349,16 @@ where
     }
 
     results
+}
+
+fn test_block_config(block_info: BlockInfo) -> BlockConfig {
+    BlockConfig {
+        block_info,
+        allocations_config: Default::default(),
+        existential_deposit: EXISTENTIAL_DEPOSIT,
+        outgoing_limit: OUTGOING_LIMIT,
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: MAILBOX_THRESHOLD,
+    }
 }
