@@ -129,35 +129,35 @@ impl ExecutionSettings {
     }
 }
 
-/// Stable parameters for the whole block across processing runs
+/// Stable parameters for the whole block across processing runs.
 // TODO: remove Default derive in favor of `BlockConfig::test`
 #[derive(Clone, Default)]
 pub struct BlockConfig {
-    /// Block info
+    /// Block info.
     pub block_info: BlockInfo,
-    /// Allocations config
+    /// Allocations config.
     pub allocations_config: AllocationsConfig,
-    /// Existential deposit
+    /// Existential deposit.
     pub existential_deposit: u128,
-    /// Outgoing limit
+    /// Outgoing limit.
     pub outgoing_limit: u32,
-    /// Host function weights
+    /// Host function weights.
     pub host_fn_weights: HostFnWeights,
-    /// Forbidden functions
+    /// Forbidden functions.
     pub forbidden_funcs: BTreeSet<&'static str>,
-    /// Mailbox threshold
+    /// Mailbox threshold.
     pub mailbox_threshold: u64,
 }
 
-/// Unstable parameters for message execution across processing runs
+/// Unstable parameters for message execution across processing runs.
 #[derive(Clone)]
 pub struct MessageExecutionContext {
-    /// Executable actor
+    /// Executable actor.
     pub actor: Actor,
-    /// Incoming dispatch
+    /// Incoming dispatch.
     pub dispatch: IncomingDispatch,
-    /// The external origin for a key
+    /// The ID of the user who started interaction with programs.
     pub origin: ProgramId,
-    /// Gas allowance
+    /// Gas allowance.
     pub gas_allowance: u64,
 }
