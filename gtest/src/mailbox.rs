@@ -351,7 +351,7 @@ mod tests {
         system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
         let receiver_mailbox = system.get_mailbox(receiver_id);
-        receiver_mailbox.claim_value(log.clone());
+        receiver_mailbox.claim_value(log);
 
         assert_eq!(system.balance_of(receiver_id), 1000);
     }
