@@ -17,10 +17,10 @@ unsafe extern "C" fn init() {
 
 #[gstd::async_main]
 async fn main() {
-    let threshold = state::THRESHOLD.expect("Threshold has not been set.");
-    let method = msg::load::<Method>().expect("Invalid contract method.");
-
     unsafe {
+        let threshold = state::THRESHOLD.expect("Threshold has not been set.");
+        let method = msg::load::<Method>().expect("Invalid contract method.");
+
         match method {
             Method::Start(pkg) => {
                 state::REGISTRY.insert(pkg.id, pkg);

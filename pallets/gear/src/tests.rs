@@ -3707,10 +3707,11 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn execution_over_blocks() {
-    use demo_calc_hash::Package;
     init_logger();
 
     let assert_last_message = |src: [u8; 32], count: u128| {
+        use demo_calc_hash::Package;
+
         let last_message = maybe_last_message(USER_1).expect("Get last message failed.");
         let result = <[u8; 32]>::decode(&mut last_message.payload()).expect("Decode result failed");
 
@@ -3719,6 +3720,90 @@ fn execution_over_blocks() {
         // this `count` will consume all elements
         MailboxOf::<Test>::drain_key(USER_1).count();
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 0);
+    };
+
+    let estimate_gas_per_calc = || -> (u64, u64) {
+        use demo_calc_hash::Package;
+        use demo_calc_hash_in_one_block::WASM_BINARY;
+
+        let (src, id, times) = ([0; 32], b"estimate", 1);
+
+        let init_gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        // deploy demo-calc-hash-over-blocks
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"estimate threshold".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            init_gas.burned,
+            0,
+        ));
+        let in_one_block = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // estimate start cost
+        let pkg = Package::new(src, id, times);
+        let gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(in_one_block),
+            pkg.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        (init_gas.min_limit, gas.min_limit)
+    };
+
+    let estimate_gas_for_init_and_start = || -> (u64, u64) {
+        use demo_calc_hash::Package;
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+
+        let (src, id, times) = ([0; 32], b"estimate_over_blocks", 1);
+
+        let init_gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            0u64.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        // deploy demo-calc-hash-over-blocks
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"estimate over blocks".to_vec(),
+            0u64.encode(),
+            init_gas.min_limit,
+            0,
+        ));
+        let over_blocks = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // estimate start cost
+        let pkg = Package::new(src, id, times);
+        let start_gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(over_blocks),
+            Method::Start(pkg).encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        (init_gas.min_limit, start_gas.min_limit)
     };
 
     new_test_ext().execute_with(|| {
@@ -3778,20 +3863,16 @@ fn execution_over_blocks() {
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
+        let (_, calc_threshold) = estimate_gas_per_calc();
+        let (init_gas, start_gas) = estimate_gas_for_init_and_start();
+
         // deploy demo-calc-hash-over-blocks
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            // Hardly can estimate this since this is
-            //
-            // the_max_cost_of_one_sha2_256
-            // + reply the result to program
-            // + reply the result to user
-            //
-            // unless we write a interface in the program to calculate this only.
-            30_000_000_000_u64.encode(),
-            2_000_000_000,
+            calc_threshold.encode(),
+            init_gas,
             0,
         ));
         let over_blocks = get_last_program_id();
@@ -3805,7 +3886,7 @@ fn execution_over_blocks() {
             Origin::signed(USER_1),
             over_blocks,
             Method::Start(Package::new(src, id, times)).encode(),
-            3_000_000_000,
+            start_gas,
             0,
         ));
 
