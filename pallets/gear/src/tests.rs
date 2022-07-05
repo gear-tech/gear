@@ -3707,18 +3707,18 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn execution_over_blocks() {
+    use demo_calc_hash::Package;
     init_logger();
 
-    let assert_last_mail = |expected: [u8; 32]| {
-        let last_mail = get_last_mail(USER_1);
-        let paths =
-            Vec::<[u8; 32]>::decode(&mut last_mail.payload()).expect("Decode result failed");
-        assert_eq!(
-            *paths.last().expect("failed to get the last path"),
-            expected
-        );
+    let assert_last_message = |src: [u8; 32], count: u128| {
+        let last_message = maybe_last_message(USER_1).expect("Get last message failed.");
+        let result = <[u8; 32]>::decode(&mut last_message.payload()).expect("Decode result failed");
 
-        MailboxOf::<Test>::drain_key(USER_1);
+        assert!(Package::verify(src, count, result));
+
+        // this `count` will consume all elements
+        MailboxOf::<Test>::drain_key(USER_1).count();
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 0);
     };
 
     new_test_ext().execute_with(|| {
@@ -3738,54 +3738,26 @@ fn execution_over_blocks() {
         ));
         let in_one_block = get_last_program_id();
 
-        program_exists(in_one_block.into_origin());
+        assert!(program_exists(in_one_block.into_origin()));
 
-        // the result of running sha2_256 on [0; 32] itself for 8 times
-        //
-        // 0 -> [0; 32]
-        // 1 -> sha2_256(&[0; 32])
-        // 2 -> sha2_256(sha2_256(&[0; 32]))
-        // 3 -> ...
-        let expected = [
-            106, 155, 113, 28, 229, 211, 116, 158, 206, 41, 70, 49, 16, 182, 22, 77, 187, 40, 221,
-            162, 137, 2, 88, 107, 246, 110, 134, 94, 140, 41, 195, 80,
-        ];
+        let (src, id_1, id_2) = ([0; 32], b"foo", b"bar");
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             in_one_block,
-            Package {
-                paths: vec![[0; 32]],
-                expected,
-            }
-            .encode(),
+            Package::new(src, id_1, 128).encode(),
             block_gas_limit,
             0,
         ));
 
         run_to_next_block(None);
 
-        assert_last_mail(expected);
-
-        // the result of running sha2_256 on [0; 32] itself for 1024 times
-        //
-        // 0 -> [0; 32]
-        // 1 -> sha2_256(&[0; 32])
-        // 2 -> sha2_256(sha2_256(&[0; 32]))
-        // 3 -> ...
-        let expected = [
-            115, 184, 88, 177, 201, 83, 218, 113, 246, 195, 148, 154, 144, 66, 206, 87, 238, 124,
-            121, 192, 229, 100, 226, 199, 99, 46, 156, 233, 157, 115, 249, 104,
-        ];
+        assert_last_message([0; 32], 128);
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             in_one_block,
-            Package {
-                paths: vec![[0; 32]],
-                expected,
-            }
-            .encode(),
+            Package::new(src, id_2, 1024).encode(),
             block_gas_limit,
             0,
         ));
@@ -3802,7 +3774,7 @@ fn execution_over_blocks() {
     });
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::{sha2_256, Package, PackageWithId};
+        use demo_calc_hash::{sha2_256, Package};
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -3824,32 +3796,15 @@ fn execution_over_blocks() {
         ));
         let over_blocks = get_last_program_id();
 
-        program_exists(over_blocks.into_origin());
+        assert!(program_exists(over_blocks.into_origin()));
 
-        // the result of running sha2_256 on [0; 32] itself for 512 times
-        //
-        // 0 -> [0; 32]
-        // 1 -> sha2_256(&[0; 32])
-        // 2 -> sha2_256(sha2_256(&[0; 32]))
-        // 3 -> ...
-        let expected = [
-            130, 141, 146, 68, 45, 238, 16, 187, 125, 175, 16, 233, 167, 180, 221, 245, 127, 215,
-            213, 112, 31, 15, 246, 138, 80, 34, 242, 72, 19, 59, 119, 235,
-        ];
-        let package_id = sha2_256(b"42");
+        let (src, id, times) = ([0; 32], b"42", 1024);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             over_blocks,
-            Method::Start(PackageWithId {
-                id: package_id,
-                package: Package {
-                    paths: vec![[0; 32]],
-                    expected,
-                }
-            })
-            .encode(),
+            Method::Start(Package::new(src, id, times)).encode(),
             3_000_000_000,
             0,
         ));
@@ -3857,11 +3812,11 @@ fn execution_over_blocks() {
         run_to_next_block(None);
 
         let mut count = 0;
-        while maybe_last_mail(USER_1).is_none() {
+        while maybe_last_message(USER_1).is_none() {
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 over_blocks,
-                Method::Refuel(package_id).encode(),
+                Method::Refuel(sha2_256(id)).encode(),
                 block_gas_limit,
                 0,
             ));
@@ -3871,7 +3826,7 @@ fn execution_over_blocks() {
         }
 
         assert!(count > 1);
-        assert_last_mail(expected);
+        assert_last_message(src, times);
     });
 }
 
@@ -4306,6 +4261,29 @@ mod utils {
                 _ => None,
             })
             .expect("can't find message send event")
+    }
+
+    pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
+        SystemPallet::<Test>::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockEvent::Gear(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                Event::UserMessageSent { message, .. } => {
+                    if message.destination() == account.into() {
+                        Some(message)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            })
     }
 
     pub(super) fn maybe_last_mail(account: AccountId) -> Option<StoredMessage> {

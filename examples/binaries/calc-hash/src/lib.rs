@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use sha2::Digest;
 
@@ -11,52 +10,45 @@ pub type PackageId = [u8; 32];
 /// Calculation package.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Package {
-    /// Paths of the calculation.
-    pub paths: Vec<[u8; 32]>,
-    /// Expected result.
-    pub expected: [u8; 32],
-}
-
-/// Package with id specified.
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct PackageWithId {
-    /// The Id of calculation pacakge.
+    /// Id of the package.
     pub id: PackageId,
-    /// Calculation package.
-    pub package: Package,
+    /// Result of the calculation.
+    pub result: [u8; 32],
+    /// Current calculating times.
+    pub counter: u128,
+    /// Expected calcuating times.
+    pub expected: u128,
 }
 
 impl Package {
-    /// Path verification.
-    pub fn verify(path: &[[u8; 32]]) -> bool {
-        let len = path.len();
-        for (i, p) in path.iter().enumerate() {
-            let next = i + 1;
-            if next == len {
-                return true;
-            }
+    /// New package
+    pub fn new(src: [u8; 32], id: &[u8], expected: u128) -> Self {
+        Package {
+            id: sha2_256(&id),
+            result: src,
+            counter: 0,
+            expected,
+        }
+    }
 
-            if sha2_256(p) != path[next] {
-                return false;
-            }
+    /// Path verification.
+    pub fn verify(mut src: [u8; 32], times: u128, result: [u8; 32]) -> bool {
+        for _ in 0..times {
+            src = sha2_256(&src);
         }
 
-        false
+        src == result
     }
 
     /// Calculate the next path.
-    pub fn calc(mut self) -> Self {
-        self.paths.push(sha2_256(&self.ptr()));
-        self
+    pub fn calc(&mut self) {
+        self.result = sha2_256(&self.result);
+        self.counter += 1;
     }
 
     /// Check if the calculation is finished.
     pub fn finished(&self) -> bool {
-        self.ptr() == self.expected
-    }
-
-    fn ptr(&self) -> [u8; 32] {
-        *self.paths.last().expect("Invalid route.")
+        self.counter == self.expected
     }
 }
 

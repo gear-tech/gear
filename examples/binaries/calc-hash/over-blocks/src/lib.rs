@@ -19,7 +19,7 @@
 #![feature(const_btree_new)]
 
 use codec::{Decode, Encode};
-use shared::{Package, PackageId, PackageWithId};
+use shared::{Package, PackageId};
 
 #[cfg(feature = "std")]
 mod code {
@@ -37,7 +37,7 @@ mod wasm {
 /// Program methods.
 #[derive(Debug, Encode, Decode)]
 pub enum Method {
-    Start(PackageWithId),
+    Start(Package),
     Refuel(PackageId),
-    Calculate(Package),
+    Calculate(PackageId),
 }

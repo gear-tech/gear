@@ -6,8 +6,8 @@ unsafe extern "C" fn handle() {
     let mut pkg = msg::load::<Package>().expect("Invalid initial data.");
 
     while !pkg.finished() {
-        pkg = pkg.calc();
+        pkg.calc();
     }
 
-    msg::reply(pkg.paths, 0).expect("Send reply failed.");
+    msg::reply(pkg.result, 0).expect("Send reply failed.");
 }

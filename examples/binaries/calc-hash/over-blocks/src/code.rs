@@ -17,19 +17,22 @@ unsafe extern "C" fn init() {
 
 #[gstd::async_main]
 async fn main() {
+    let threshold = state::THRESHOLD.expect("Threshold has not been set.");
     let method = msg::load::<Method>().expect("Invalid contract method.");
 
     unsafe {
-        let threshold = state::THRESHOLD.expect("Threshold has not been set.");
-
         match method {
-            Method::Start(pkg_with_id) => {
-                state::REGISTRY.insert(pkg_with_id.id, pkg_with_id.package);
+            Method::Start(pkg) => {
+                state::REGISTRY.insert(pkg.id, pkg);
             }
             Method::Refuel(id) => dispatch(id).await,
-            Method::Calculate(mut pkg) => {
+            Method::Calculate(mut id) => {
+                let mut pkg = state::REGISTRY
+                    .get_mut(&id)
+                    .expect("Calculation not found, please run start first.");
+
                 while exec::gas_available() > threshold {
-                    pkg = pkg.calc();
+                    pkg.calc();
 
                     if pkg.finished() {
                         break;
@@ -54,7 +57,7 @@ async unsafe fn dispatch(id: PackageId) {
     }
 
     let reply: Package = Package::decode(
-        &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.clone()), 0)
+        &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.id), 0)
             .expect("Send message failed.")
             .await
             .expect("Get reply failed.")
@@ -66,6 +69,6 @@ async unsafe fn dispatch(id: PackageId) {
 
     // second checking finished in `Method::Calculate`
     if pkg.finished() {
-        msg::reply(pkg.paths.clone(), 0).expect("Send reply failed.");
+        msg::reply(pkg.result, 0).expect("Send reply failed.");
     }
 }
