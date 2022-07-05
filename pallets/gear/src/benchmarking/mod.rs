@@ -238,7 +238,6 @@ where
             load_page_cost: T::Schedule::get().memory_weights.load_cost,
         },
         existential_deposit,
-        gas_allowance: u64::MAX,
         outgoing_limit: 2048,
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
@@ -256,6 +255,7 @@ where
             actor,
             dispatch: queued_dispatch.into_incoming(initial_gas),
             origin: ProgramId::from_origin(source),
+            gas_allowance: u64::MAX,
         };
 
         Ok(Exec {

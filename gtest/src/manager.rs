@@ -505,6 +505,7 @@ impl ExtManager {
             },
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
+            gas_allowance: u64::MAX,
         };
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             &block_config,

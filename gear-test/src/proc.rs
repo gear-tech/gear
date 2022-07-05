@@ -120,6 +120,7 @@ where
         },
         dispatch: message.into(),
         origin: Default::default(),
+        gas_allowance: u64::MAX,
     };
 
     let journal = core_processor::process::<Ext, E>(&block_config, message_execution_context);
@@ -306,6 +307,7 @@ where
                     actor,
                     dispatch: dispatch.into_incoming(gas_limit),
                     origin: Default::default(),
+                    gas_allowance: u64::MAX,
                 };
 
                 let journal =
@@ -348,6 +350,7 @@ where
                 actor,
                 dispatch: dispatch.into_incoming(gas_limit),
                 origin: Default::default(),
+                gas_allowance: u64::MAX,
             };
 
             let journal =

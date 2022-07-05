@@ -130,7 +130,8 @@ impl ExecutionSettings {
 }
 
 /// Stable parameters for the whole block across processing runs
-#[derive(Clone)]
+// TODO: remove Default derive in favor of `BlockConfig::test`
+#[derive(Clone, Default)]
 pub struct BlockConfig {
     /// Block info
     pub block_info: BlockInfo,
@@ -138,8 +139,6 @@ pub struct BlockConfig {
     pub allocations_config: AllocationsConfig,
     /// Existential deposit
     pub existential_deposit: u128,
-    /// Gas allowance
-    pub gas_allowance: u64,
     /// Outgoing limit
     pub outgoing_limit: u32,
     /// Host function weights
@@ -148,21 +147,6 @@ pub struct BlockConfig {
     pub forbidden_funcs: BTreeSet<&'static str>,
     /// Mailbox threshold
     pub mailbox_threshold: u64,
-}
-
-impl Default for BlockConfig {
-    fn default() -> Self {
-        Self {
-            block_info: Default::default(),
-            allocations_config: Default::default(),
-            existential_deposit: 0,
-            gas_allowance: u64::MAX,
-            outgoing_limit: 0,
-            host_fn_weights: Default::default(),
-            forbidden_funcs: Default::default(),
-            mailbox_threshold: 0,
-        }
-    }
 }
 
 /// Unstable parameters for message execution across processing runs
@@ -174,4 +158,6 @@ pub struct MessageExecutionContext {
     pub dispatch: IncomingDispatch,
     /// The external origin for a key
     pub origin: ProgramId,
+    /// Gas allowance
+    pub gas_allowance: u64,
 }

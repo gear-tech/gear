@@ -49,13 +49,19 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         actor,
         dispatch,
         origin,
+        gas_allowance,
     }: MessageExecutionContext,
 ) -> Vec<JournalNote> {
     match check_is_executable(actor, &dispatch) {
         Err((program_id, exit_code)) => process_non_executable(dispatch, program_id, exit_code),
-        Ok((balance, data)) => {
-            process_executable::<A, E>(balance, data, dispatch, origin, block_config.clone())
-        }
+        Ok((balance, data)) => process_executable::<A, E>(
+            balance,
+            data,
+            dispatch,
+            origin,
+            gas_allowance,
+            block_config.clone(),
+        ),
     }
 }
 
@@ -266,11 +272,11 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     data: ExecutableActorData,
     dispatch: IncomingDispatch,
     origin: ProgramId,
+    gas_allowance: u64,
     BlockConfig {
         block_info,
         allocations_config,
         existential_deposit,
-        gas_allowance,
         outgoing_limit,
         host_fn_weights,
         forbidden_funcs,

@@ -721,7 +721,6 @@ pub mod pallet {
                 block_info,
                 allocations_config,
                 existential_deposit,
-                gas_allowance: u64::MAX,
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: ["gr_gas_available"].into(),
@@ -758,6 +757,7 @@ pub mod pallet {
                     actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
+                    gas_allowance: u64::MAX,
                 };
 
                 let journal = if lazy_pages_enabled {
@@ -880,7 +880,6 @@ pub mod pallet {
                 block_info,
                 allocations_config,
                 existential_deposit,
-                gas_allowance: GasAllowanceOf::<T>::get(),
                 outgoing_limit: T::OutgoingLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
@@ -1093,6 +1092,7 @@ pub mod pallet {
                         },
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(origin.into_origin()),
+                        gas_allowance: GasAllowanceOf::<T>::get(),
                     };
 
                     let journal = if lazy_pages_enabled {
