@@ -403,10 +403,3 @@ impl Debug for State {
             .finish()
     }
 }
-
-// TODO: move into gear-test
-/// Something that can return in-memory state.
-pub trait CollectState {
-    /// Collect the state from self.
-    fn collect(&self) -> State;
-}

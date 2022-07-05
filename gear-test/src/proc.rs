@@ -20,6 +20,7 @@ use crate::{
     address::Address,
     check::ExecutionContext,
     js::{MetaData, MetaType},
+    manager::CollectState,
     sample::{PayloadVariant, Test},
 };
 use core_processor::{common::*, configs::*, Ext};

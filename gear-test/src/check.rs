@@ -18,13 +18,14 @@
 
 use crate::{
     js::{MetaData, MetaType},
+    manager::CollectState,
     proc,
     sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test},
 };
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::{
-    common::{CollectState, ExecutableActorData, JournalHandler},
+    common::{ExecutableActorData, JournalHandler},
     Ext,
 };
 use derive_more::Display;

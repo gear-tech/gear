@@ -28,6 +28,12 @@ use gear_core::{
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use wasm_instrument::gas_metering::ConstantCostRules;
 
+/// Something that can return in-memory state.
+pub trait CollectState {
+    /// Collect the state from self.
+    fn collect(&self) -> State;
+}
+
 #[derive(Clone)]
 pub struct TestActor {
     balance: u128,
