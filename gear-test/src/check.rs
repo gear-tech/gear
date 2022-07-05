@@ -581,9 +581,9 @@ where
                         .collect();
 
                     let actual_prog_ids = final_state
-                        .actors_data
+                        .actors
                         .iter()
-                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .map(|(id, actor)| (*id, actor.executable_data.is_none()))
                         .collect();
 
                     if let Err(prog_id_errors) = check_programs_state(
@@ -602,10 +602,10 @@ where
                 if !skip_allocations {
                     if let Some(alloc) = &exp.allocations {
                         let progs: Vec<Program> = final_state
-                            .actors_data
+                            .actors
                             .clone()
                             .into_iter()
-                            .filter_map(|(_, data_opt)| data_opt)
+                            .filter_map(|(_, actor)| actor.executable_data)
                             .map(|data| data.program)
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
@@ -617,9 +617,9 @@ where
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
                         let data = final_state
-                            .actors_data
+                            .actors
                             .into_iter()
-                            .filter_map(|(_, data_opt)| data_opt)
+                            .filter_map(|(_, actor)| actor.executable_data)
                             .collect();
                         if let Err(mem_errors) = check_memory(&data, mem) {
                             errors.push(format!("step: {:?}", exp.step));

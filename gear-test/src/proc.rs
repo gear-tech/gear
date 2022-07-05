@@ -110,12 +110,12 @@ where
 
     let message_execution_context = MessageExecutionContext {
         actor: Actor {
+            balance: 0,
+            destination_program: program_id,
             executable_data: Some(ExecutableActorData {
                 program,
-                balance: 0,
                 pages_data: Default::default(),
             }),
-            destination_program: program_id,
         },
         dispatch: message.into(),
         origin: Default::default(),
@@ -297,19 +297,12 @@ where
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let program_id = dispatch.destination();
 
-                let actor_data = state
-                    .actors_data
-                    .get(&program_id)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        panic!("Error: Message to user {:?} in dispatch queue!", program_id)
-                    });
+                let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
+                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                });
 
                 let message_execution_context = MessageExecutionContext {
-                    actor: Actor {
-                        executable_data: actor_data,
-                        destination_program: program_id,
-                    },
+                    actor,
                     dispatch: dispatch.into_incoming(gas_limit),
                     origin: Default::default(),
                 };
@@ -331,13 +324,9 @@ where
         while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
             let program_id = dispatch.destination();
 
-            let actor_data = state
-                .actors_data
-                .get(&program_id)
-                .cloned()
-                .unwrap_or_else(|| {
-                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
-                });
+            let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
+                panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+            });
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
@@ -355,10 +344,7 @@ where
             };
 
             let message_execution_context = MessageExecutionContext {
-                actor: Actor {
-                    executable_data: actor_data,
-                    destination_program: program_id,
-                },
+                actor,
                 dispatch: dispatch.into_incoming(gas_limit),
                 origin: Default::default(),
             };

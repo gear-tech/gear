@@ -53,7 +53,9 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
 ) -> Vec<JournalNote> {
     match check_is_executable(actor, &dispatch) {
         Err((program_id, exit_code)) => process_non_executable(dispatch, program_id, exit_code),
-        Ok(data) => process_executable::<A, E>(data, dispatch, origin, block_config.clone()),
+        Ok((balance, data)) => {
+            process_executable::<A, E>(balance, data, dispatch, origin, block_config.clone())
+        }
     }
 }
 
@@ -61,15 +63,16 @@ fn check_is_executable(
     Actor {
         executable_data,
         destination_program,
+        balance,
     }: Actor,
     dispatch: &IncomingDispatch,
-) -> Result<ExecutableActorData, (ProgramId, ExitCode)> {
+) -> Result<(u128, ExecutableActorData), (ProgramId, ExitCode)> {
     executable_data
         .map(|data| {
             if data.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
                 Err(crate::RE_INIT_EXIT_CODE)
             } else {
-                Ok(data)
+                Ok((balance, data))
             }
         })
         .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
@@ -259,6 +262,7 @@ fn process_success(
 }
 
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+    balance: u128,
     data: ExecutableActorData,
     dispatch: IncomingDispatch,
     origin: ProgramId,
@@ -292,6 +296,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     let program_id = data.program.id();
 
     let exec_result = executor::execute_wasm::<A, E>(
+        balance,
         data,
         dispatch.clone(),
         execution_context,

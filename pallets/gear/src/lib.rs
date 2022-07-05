@@ -1027,11 +1027,6 @@ pub mod pallet {
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
-                            let balance = <T as Config>::Currency::free_balance(
-                                &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
-                            )
-                            .unique_saturated_into();
-
                             let pages_data = if lazy_pages_enabled {
                                 Default::default()
                             } else {
@@ -1052,7 +1047,6 @@ pub mod pallet {
 
                             Some(ExecutableActorData {
                                 program,
-                                balance,
                                 pages_data,
                             })
                         } else {
@@ -1071,6 +1065,11 @@ pub mod pallet {
                         None
                     };
 
+                    let balance = <T as Config>::Currency::free_balance(
+                        &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                    )
+                    .unique_saturated_into();
+
                     let origin = match GasHandlerOf::<T>::get_external(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
@@ -1088,8 +1087,9 @@ pub mod pallet {
 
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
-                            executable_data: active_actor_data,
+                            balance,
                             destination_program: program_id,
+                            executable_data: active_actor_data,
                         },
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(origin.into_origin()),

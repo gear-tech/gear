@@ -203,6 +203,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+    balance: u128,
     data: ExecutableActorData,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -219,7 +220,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     let ExecutableActorData {
         program,
-        balance,
         pages_data: mut pages_initial_data,
     } = data;
 

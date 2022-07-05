@@ -436,7 +436,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     let program = CoreProgram::from_parts(*pid, code, pages, true);
                     Some(ExecutableActorData {
                         program,
-                        balance: 0,
                         pages_data: vec_page_data_map_to_page_buf_map(
                             info.persistent_pages.clone(),
                         )

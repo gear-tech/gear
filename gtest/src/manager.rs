@@ -112,7 +112,7 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(&self, balance: Balance) -> Option<ExecutableActorData> {
+    fn get_executable_actor_data(&self) -> Option<ExecutableActorData> {
         let (program, pages_data) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
@@ -131,7 +131,6 @@ impl TestActor {
         };
         Some(ExecutableActorData {
             program,
-            balance,
             pages_data,
         })
     }
@@ -282,11 +281,12 @@ impl ExtManager {
                 .actors
                 .get_mut(&dest)
                 .expect("Somehow message queue contains message for user");
+            let balance = *balance;
 
             if actor.is_dormant() {
-                self.process_dormant(dispatch);
-            } else if let Some(data) = actor.get_executable_actor_data(*balance) {
-                self.process_normal(data, dispatch);
+                self.process_dormant(balance, dispatch);
+            } else if let Some(data) = actor.get_executable_actor_data() {
+                self.process_normal(balance, data, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -465,15 +465,25 @@ impl ExtManager {
         });
     }
 
-    fn process_normal(&mut self, data: ExecutableActorData, dispatch: StoredDispatch) {
-        self.process_dispatch(Some(data), dispatch);
+    fn process_normal(
+        &mut self,
+        balance: u128,
+        data: ExecutableActorData,
+        dispatch: StoredDispatch,
+    ) {
+        self.process_dispatch(balance, Some(data), dispatch);
     }
 
-    fn process_dormant(&mut self, dispatch: StoredDispatch) {
-        self.process_dispatch(None, dispatch);
+    fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
+        self.process_dispatch(balance, None, dispatch);
     }
 
-    fn process_dispatch(&mut self, data: Option<ExecutableActorData>, dispatch: StoredDispatch) {
+    fn process_dispatch(
+        &mut self,
+        balance: u128,
+        data: Option<ExecutableActorData>,
+        dispatch: StoredDispatch,
+    ) {
         let dest = dispatch.destination();
         let gas_limit = self
             .gas_limits
@@ -489,8 +499,9 @@ impl ExtManager {
         };
         let message_execution_context = MessageExecutionContext {
             actor: Actor {
-                executable_data: data,
+                balance,
                 destination_program: dest,
+                executable_data: data,
             },
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
@@ -508,14 +519,14 @@ impl ExtManager {
         program_id: &ProgramId,
         payload: Option<Payload>,
     ) -> Result<WasmExecutor> {
-        let (actor, balance) = self
+        let (actor, _balance) = self
             .actors
             .get_mut(program_id)
             .ok_or(TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
         let data = actor
-            .get_executable_actor_data(*balance)
+            .get_executable_actor_data()
             .ok_or(TestError::ActorIsntExecutable(*program_id))?;
         let pages_initial_data = data
             .pages_data

@@ -342,10 +342,12 @@ pub enum ExecutionErrorReason {
 /// Actor.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Actor {
-    /// Executable actor data
-    pub executable_data: Option<ExecutableActorData>,
+    /// Program value balance.
+    pub balance: u128,
     /// Destination program.
     pub destination_program: ProgramId,
+    /// Executable actor data
+    pub executable_data: Option<ExecutableActorData>,
 }
 
 /// Executable actor data.
@@ -353,8 +355,6 @@ pub struct Actor {
 pub struct ExecutableActorData {
     /// Program.
     pub program: Program,
-    /// Program value balance.
-    pub balance: u128,
     /// Data which some program allocated pages may have.
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
 }
@@ -376,7 +376,7 @@ pub struct State {
     /// Log records.
     pub log: Vec<StoredMessage>,
     /// State of each actor.
-    pub actors_data: BTreeMap<ProgramId, Option<ExecutableActorData>>,
+    pub actors: BTreeMap<ProgramId, Actor>,
     /// Is current state failed.
     pub current_failed: bool,
 }
@@ -387,14 +387,15 @@ impl Debug for State {
             .field("dispatch_queue", &self.dispatch_queue)
             .field("log", &self.log)
             .field(
-                "actors_data",
+                "actors",
                 &self
-                    .actors_data
+                    .actors
                     .iter()
                     .filter_map(|(id, actor)| {
                         actor
+                            .executable_data
                             .as_ref()
-                            .map(|data| (*id, (data.balance, data.program.get_allocations())))
+                            .map(|data| (*id, (actor.balance, data.program.get_allocations())))
                     })
                     .collect::<BTreeMap<ProgramId, (u128, &BTreeSet<WasmPageNumber>)>>(),
             )
@@ -403,6 +404,7 @@ impl Debug for State {
     }
 }
 
+// TODO: move into gear-test
 /// Something that can return in-memory state.
 pub trait CollectState {
     /// Collect the state from self.

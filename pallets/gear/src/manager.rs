@@ -184,12 +184,12 @@ where
         };
 
         Some(Actor {
+            balance,
+            destination_program: id,
             executable_data: Some(ExecutableActorData {
                 program,
-                balance,
                 pages_data,
             }),
-            destination_program: id,
         })
     }
 
