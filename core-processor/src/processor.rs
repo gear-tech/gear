@@ -45,44 +45,46 @@ enum SuccessfulDispatchResultKind {
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     block_config: &BlockConfig,
-    MessageExecutionContext {
+    execution_context: MessageExecutionContext,
+) -> Vec<JournalNote> {
+    let MessageExecutionContext {
         actor,
         dispatch,
         origin,
         gas_allowance,
-    }: MessageExecutionContext,
-) -> Vec<JournalNote> {
-    match check_is_executable(actor, &dispatch) {
-        Err((program_id, exit_code)) => process_non_executable(dispatch, program_id, exit_code),
-        Ok((balance, data)) => process_executable::<A, E>(
-            balance,
-            data,
-            dispatch,
+    } = execution_context;
+    let Actor {
+        balance,
+        destination_program,
+        executable_data,
+    } = actor;
+
+    match check_is_executable(executable_data, &dispatch) {
+        Err(exit_code) => process_non_executable(dispatch, destination_program, exit_code),
+        Ok(data) => process_executable::<A, E>(
             origin,
             gas_allowance,
+            data,
+            dispatch,
+            balance,
             block_config.clone(),
         ),
     }
 }
 
 fn check_is_executable(
-    Actor {
-        executable_data,
-        destination_program,
-        balance,
-    }: Actor,
+    executable_data: Option<ExecutableActorData>,
     dispatch: &IncomingDispatch,
-) -> Result<(u128, ExecutableActorData), (ProgramId, ExitCode)> {
+) -> Result<ExecutableActorData, ExitCode> {
     executable_data
         .map(|data| {
             if data.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
                 Err(crate::RE_INIT_EXIT_CODE)
             } else {
-                Ok((balance, data))
+                Ok(data)
             }
         })
         .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
-        .map_err(|exit_code| (destination_program, exit_code))
 }
 
 /// Helper function for journal creation in trap/error case
@@ -268,12 +270,16 @@ fn process_success(
 }
 
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    balance: u128,
-    data: ExecutableActorData,
-    dispatch: IncomingDispatch,
     origin: ProgramId,
     gas_allowance: u64,
-    BlockConfig {
+    data: ExecutableActorData,
+    dispatch: IncomingDispatch,
+    balance: u128,
+    block_config: BlockConfig,
+) -> Vec<JournalNote> {
+    use SuccessfulDispatchResultKind::*;
+
+    let BlockConfig {
         block_info,
         allocations_config,
         existential_deposit,
@@ -281,9 +287,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
-    }: BlockConfig,
-) -> Vec<JournalNote> {
-    use SuccessfulDispatchResultKind::*;
+    } = block_config;
 
     let execution_settings = ExecutionSettings::new(
         block_info,
