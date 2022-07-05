@@ -101,7 +101,7 @@ where
     ) -> TransactionValidity {
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
-        self.0.validate(who, call, &*info, len)
+        self.0.validate(who, call, &info, len)
     }
 
     fn pre_dispatch(
@@ -113,7 +113,7 @@ where
     ) -> Result<Self::Pre, TransactionValidityError> {
         // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let info = Self::pre_dispatch_info(call, info);
-        self.0.pre_dispatch(who, call, &*info, len)
+        self.0.pre_dispatch(who, call, &info, len)
     }
 
     fn post_dispatch(

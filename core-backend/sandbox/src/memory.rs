@@ -37,7 +37,7 @@ impl Memory for MemoryWrap {
         self.0
             .grow(pages.0)
             .map(|prev| prev.into())
-            .map_err(|_| Error::OutOfMemory)
+            .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {

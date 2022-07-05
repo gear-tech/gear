@@ -118,8 +118,8 @@ pub enum MessageError {
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
     /// allowed.
-    #[display(fmt = "Maximum possible memory has been allocated")]
-    OutOfMemory,
+    #[display(fmt = "Memory memory out of maximal bounds")]
+    OutOfBounds,
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
