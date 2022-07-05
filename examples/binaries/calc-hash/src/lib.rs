@@ -10,34 +10,19 @@ pub type PackageId = [u8; 32];
 /// Calculation package.
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Package {
-    /// Id of the package.
-    pub id: PackageId,
     /// Result of the calculation.
     pub result: [u8; 32],
     /// Current calculating times.
     pub counter: u128,
-    /// Expected calcuating times.
-    pub expected: u128,
 }
 
 impl Package {
     /// New package
-    pub fn new(src: [u8; 32], id: &[u8], expected: u128) -> Self {
+    pub fn new(src: [u8; 32]) -> Self {
         Package {
-            id: sha2_256(&id),
             result: src,
             counter: 0,
-            expected,
         }
-    }
-
-    /// Path verification.
-    pub fn verify(mut src: [u8; 32], times: u128, result: [u8; 32]) -> bool {
-        for _ in 0..times {
-            src = sha2_256(&src);
-        }
-
-        src == result
     }
 
     /// Calculate the next path.
@@ -47,8 +32,8 @@ impl Package {
     }
 
     /// Check if the calculation is finished.
-    pub fn finished(&self) -> bool {
-        self.counter == self.expected
+    pub fn finished(&self, expected: u128) -> bool {
+        self.counter.eq(&expected)
     }
 }
 
@@ -57,4 +42,13 @@ pub fn sha2_256(data: &[u8]) -> [u8; 32] {
     let mut output = [0u8; 32];
     output.copy_from_slice(sha2::Sha256::digest(data).as_slice());
     output
+}
+
+/// Path verification.
+pub fn verify_result(mut src: [u8; 32], times: u128, result: [u8; 32]) -> bool {
+    for _ in 0..times {
+        src = sha2_256(&src);
+    }
+
+    src == result
 }

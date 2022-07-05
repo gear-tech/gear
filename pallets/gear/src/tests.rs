@@ -3713,23 +3713,20 @@ fn execution_over_blocks() {
     init_logger();
 
     let assert_last_message = |src: [u8; 32], count: u128| {
-        use demo_calc_hash::Package;
+        use demo_calc_hash::verify_result;
 
         let last_message = maybe_last_message(USER_1).expect("Get last message failed.");
         let result = <[u8; 32]>::decode(&mut last_message.payload()).expect("Decode result failed");
 
-        assert!(Package::verify(src, count, result));
+        assert!(verify_result(src, count, result));
 
-        // this `count` will consume all elements
-        MailboxOf::<Test>::drain_key(USER_1).count();
-        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 0);
+        SystemPallet::<Test>::reset_events();
     };
 
     let estimate_gas_per_calc = || -> (u64, u64) {
-        use demo_calc_hash::Package;
-        use demo_calc_hash_in_one_block::WASM_BINARY;
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
-        let (src, id, times) = ([0; 32], b"estimate", 1);
+        let (src, times) = ([0; 32], 1);
 
         let init_gas = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -3754,7 +3751,7 @@ fn execution_over_blocks() {
         run_to_next_block(None);
 
         // estimate start cost
-        let pkg = Package::new(src, id, times);
+        let pkg = Package::new(times, src);
         let gas = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(in_one_block),
@@ -3768,10 +3765,10 @@ fn execution_over_blocks() {
     };
 
     let estimate_gas_for_init_and_start = || -> (u64, u64) {
-        use demo_calc_hash::Package;
+        use demo_calc_hash::sha2_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
 
-        let (src, id, times) = ([0; 32], b"estimate_over_blocks", 1);
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
         let init_gas = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -3795,23 +3792,48 @@ fn execution_over_blocks() {
 
         run_to_next_block(None);
 
-        // estimate start cost
-        let pkg = Package::new(src, id, times);
-        let start_gas = Gear::calculate_gas_info(
+        let (src, id, expected) = ([1; 32], sha2_256(b"estimate_over_blocks"), 0);
+
+        // Estimate start cost.
+        let start_gas_wait = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(over_blocks),
-            Method::Start(pkg).encode(),
+            Method::Start { expected, src, id }.encode(),
             0,
             true,
         )
         .expect("Failed to get gas spent");
 
-        (init_gas.min_limit, start_gas.min_limit)
+        // Init the start message with 0 expected first.
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            over_blocks,
+            Method::Start { src, id, expected }.encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        // Estimate the gas spent on waking.
+        let start_gas_wake = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(over_blocks),
+            Method::Start { expected, src, id }.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        run_to_next_block(None);
+        SystemPallet::<Test>::reset_events();
+
+        (
+            init_gas.min_limit,
+            start_gas_wait.min_limit + start_gas_wake.min_limit,
+        )
     };
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::Package;
-        use demo_calc_hash_in_one_block::WASM_BINARY;
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -3828,12 +3850,12 @@ fn execution_over_blocks() {
 
         assert!(program_exists(in_one_block.into_origin()));
 
-        let (src, id_1, id_2) = ([0; 32], b"foo", b"bar");
+        let src = [0; 32];
 
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             in_one_block,
-            Package::new(src, id_1, 128).encode(),
+            Package::new(128, src).encode(),
             block_gas_limit,
             0,
         ));
@@ -3845,7 +3867,7 @@ fn execution_over_blocks() {
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             in_one_block,
-            Package::new(src, id_2, 1024).encode(),
+            Package::new(1024, src).encode(),
             block_gas_limit,
             0,
         ));
@@ -3862,7 +3884,7 @@ fn execution_over_blocks() {
     });
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::{sha2_256, Package};
+        use demo_calc_hash::sha2_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -3882,13 +3904,13 @@ fn execution_over_blocks() {
 
         assert!(program_exists(over_blocks.into_origin()));
 
-        let (src, id, times) = ([0; 32], b"42", 1024);
+        let (src, id, expected) = ([0; 32], sha2_256(b"42"), 1024);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             over_blocks,
-            Method::Start(Package::new(src, id, times)).encode(),
+            Method::Start { src, id, expected }.encode(),
             start_gas,
             0,
         ));
@@ -3900,7 +3922,7 @@ fn execution_over_blocks() {
             assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 over_blocks,
-                Method::Refuel(sha2_256(id)).encode(),
+                Method::Refuel(id).encode(),
                 block_gas_limit,
                 0,
             ));
@@ -3910,7 +3932,7 @@ fn execution_over_blocks() {
         }
 
         assert!(count > 1);
-        assert_last_message(src, times);
+        assert_last_message(src, expected);
     });
 }
 
@@ -4025,7 +4047,11 @@ mod utils {
         Origin, SystemPallet, Test,
     };
     use codec::Decode;
-    use common::{event::*, storage::IterableByKeyMap, Origin as _};
+    use common::{
+        event::*,
+        storage::{CountedByKey, IterableByKeyMap},
+        Origin as _,
+    };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},

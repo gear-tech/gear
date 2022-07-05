@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![no_std]
+use codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
 mod code {
@@ -28,4 +29,40 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[cfg(not(feature = "std"))]
 mod wasm {
     include! {"./code.rs"}
+}
+
+/// Package with expected
+#[derive(Encode, Decode)]
+pub struct Package {
+    /// Expected calculation times.
+    pub expected: u128,
+    /// Calculation package.
+    pub package: shared::Package,
+}
+
+impl Package {
+    /// New package with expected.
+    pub fn new(expected: u128, src: [u8; 32]) -> Self {
+        Self {
+            expected,
+            package: shared::Package::new(src),
+        }
+    }
+
+    /// Deref `Pacakge::calc`
+    pub fn calc(&mut self) {
+        self.package.calc();
+    }
+
+    /// Deref `Pacakge::finished`
+    ///
+    /// Check if calculation is finished.
+    pub fn finished(&self) -> bool {
+        self.package.finished(self.expected)
+    }
+
+    /// The result of calculation.
+    pub fn result(&self) -> [u8; 32] {
+        self.package.result
+    }
 }

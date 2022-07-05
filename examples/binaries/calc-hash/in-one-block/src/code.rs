@@ -1,5 +1,5 @@
+use crate::Package;
 use gstd::msg;
-use shared::Package;
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
@@ -9,5 +9,5 @@ unsafe extern "C" fn handle() {
         pkg.calc();
     }
 
-    msg::reply(pkg.result, 0).expect("Send reply failed.");
+    msg::reply(pkg.result(), 0).expect("Send reply failed.");
 }

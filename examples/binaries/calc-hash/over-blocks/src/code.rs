@@ -1,74 +1,115 @@
 use crate::Method;
 use gstd::{exec, msg, ActorId, BTreeMap, Decode, Encode, MessageId, Vec};
-use shared::{Package, PackageId};
-
-mod state {
-    use gstd::{ActorId, BTreeMap, Vec};
-    use shared::{Package, PackageId};
-
-    pub static mut THRESHOLD: Option<u64> = None;
-    pub static mut REGISTRY: BTreeMap<PackageId, Package> = BTreeMap::new();
-}
+use shared::PackageId;
+use types::Package;
 
 #[no_mangle]
 unsafe extern "C" fn init() {
     state::THRESHOLD = Some(msg::load().expect("Invalid threshold."));
 }
 
-#[gstd::async_main]
-async fn main() {
+#[no_mangle]
+unsafe extern "C" fn handle() {
     unsafe {
         let threshold = state::THRESHOLD.expect("Threshold has not been set.");
         let method = msg::load::<Method>().expect("Invalid contract method.");
 
         match method {
-            Method::Start(pkg) => {
-                state::REGISTRY.insert(pkg.id, pkg);
+            Method::Start { expected, id, src } => {
+                if !state::REGISTRY.contains_key(&id) {
+                    state::REGISTRY.insert(id, Package::new(expected, src));
+                }
+
+                let pkg = state::REGISTRY.get(&id).expect("Calculation not found.");
+
+                if pkg.finished() {
+                    msg::reply(pkg.result(), 0).expect("send reply failed");
+                } else {
+                    exec::wait();
+                }
             }
-            Method::Refuel(id) => dispatch(id).await,
-            Method::Calculate(mut id) => {
+            // Proxy the `Calculate` method for mocking aggregator && calculator.
+            Method::Refuel(id) => {
+                msg::send(exec::program_id(), Method::Calculate(id), 0)
+                    .expect("Send message failed.");
+            }
+            Method::Calculate(id) => {
                 let mut pkg = state::REGISTRY
                     .get_mut(&id)
                     .expect("Calculation not found, please run start first.");
 
+                // First check here for saving gas and making `wake` operation standalone.
+                if pkg.finished() {
+                    return;
+                }
+
                 while exec::gas_available() > threshold {
                     pkg.calc();
 
+                    // Second checking if finished in `Method::Calculate`.
                     if pkg.finished() {
-                        break;
+                        gstd::debug!("go wake");
+                        pkg.wake();
+                        return;
                     }
                 }
-
-                let _ = msg::reply(pkg, 0).expect("Send reply failed.");
             }
         }
     }
 }
 
-/// Dispatch calcuation
-async unsafe fn dispatch(id: PackageId) {
-    let mut pkg = state::REGISTRY
-        .get_mut(&id)
-        .expect("Calculation not found, please run start first.");
+mod state {
+    use super::types::Package;
+    use gstd::{ActorId, BTreeMap, Vec};
+    use shared::PackageId;
 
-    // first check here for saving gas and making `wake` operation standalone
-    if pkg.finished() {
-        return;
+    pub static mut THRESHOLD: Option<u64> = None;
+    pub static mut REGISTRY: BTreeMap<PackageId, Package> = BTreeMap::new();
+}
+
+mod types {
+    use gstd::{exec, msg, MessageId};
+
+    /// Package with counter
+    pub struct Package {
+        /// Expected calculation times.
+        pub expected: u128,
+        /// Id of the start message.
+        pub message_id: MessageId,
+        /// The calculation pacakge.
+        pub package: shared::Package,
     }
 
-    let reply: Package = Package::decode(
-        &mut msg::send_for_reply(exec::program_id(), Method::Calculate(pkg.id), 0)
-            .expect("Send message failed.")
-            .await
-            .expect("Get reply failed.")
-            .as_ref(),
-    )
-    .expect("Decode package failed.");
+    impl Package {
+        /// New package.
+        pub fn new(expected: u128, src: [u8; 32]) -> Self {
+            Self {
+                expected,
+                message_id: msg::id(),
+                package: shared::Package::new(src),
+            }
+        }
 
-    *pkg = reply;
+        /// Deref `Pacakge::calc`
+        pub fn calc(&mut self) {
+            self.package.calc();
+        }
 
-    // second checking finished in `Method::Calculate`
-    if pkg.finished() {
-        msg::reply(pkg.result, 0).expect("Send reply failed.");
+        /// Deref `Pacakge::finished`
+        ///
+        /// Check if calculation is finished.
+        pub fn finished(&self) -> bool {
+            self.package.finished(self.expected)
+        }
+
+        /// Wake the start message.
+        pub fn wake(&self) {
+            exec::wake(self.message_id);
+        }
+
+        /// The result of calculation.
+        pub fn result(&self) -> [u8; 32] {
+            self.package.result
+        }
     }
 }
