@@ -134,8 +134,12 @@ pub mod pallet {
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
+        ensure,
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+        traits::{
+            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency,
+            ReservableCurrency,
+        },
     };
     use frame_system::pallet_prelude::*;
 
@@ -369,6 +373,8 @@ pub mod pallet {
         CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
+        /// User contains mailboxed message from other user.
+        UserRepliesToUser,
     }
 
     #[pallet::hooks]
@@ -1427,6 +1433,7 @@ pub mod pallet {
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+            let origin = who.clone().into_origin();
 
             let numeric_value: u128 = value.unique_saturated_into();
             let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
@@ -1443,69 +1450,62 @@ pub mod pallet {
                 Error::<T>::ValueLessThanMinimal
             );
 
-            ensure!(
-                !Self::is_terminated(destination),
-                Error::<T>::ProgramIsTerminated
+            let message = HandleMessage::from_packet(
+                Self::next_message_id(origin),
+                HandlePacket::new_with_gas(
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.unique_saturated_into(),
+                ),
             );
-
-            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
-            // That's because destination can fail to be initialized, while this dispatch message is next
-            // in the queue.
-            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let origin = who.clone();
-
-            let message_id = Self::next_message_id(origin.clone().into_origin());
-            let packet = HandlePacket::new_with_gas(
-                destination,
-                payload,
-                gas_limit,
-                value.unique_saturated_into(),
-            );
-            let message = HandleMessage::from_packet(message_id, packet);
 
             if GearProgramPallet::<T>::program_exists(destination) {
+                ensure!(
+                    !Self::is_terminated(destination),
+                    Error::<T>::ProgramIsTerminated
+                );
+
+                // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+                // That's because destination can fail to be initialized, while this dispatch message is next
+                // in the queue.
+                <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
+                let _ = GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit);
 
-                let event = Event::MessageEnqueued {
+                let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+
+                Self::deposit_event(Event::MessageEnqueued {
                     id: message.id(),
                     source: who,
                     destination: message.destination(),
                     entry: Entry::Handle,
-                };
+                });
 
-                QueueOf::<T>::queue(
-                    message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())),
-                )
-                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
-
-                Self::deposit_event(event);
+                QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
             } else {
-                let mut expiration = None;
-                let message =
-                    message.into_stored(ProgramId::from_origin(origin.clone().into_origin()));
+                let message = message.into_stored(ProgramId::from_origin(origin));
 
-                if gas_limit >= T::MailboxThreshold::get() {
-                    expiration = Some(T::BlockNumber::zero());
-                    // TODO: update logic of insertion into mailbox following new
-                    // flow and deposit appropriate event (issue #1010).
-                    MailboxOf::<T>::insert(message.clone())?;
-                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
-                }
+                <T as Config>::Currency::transfer(
+                    &who,
+                    &<T as frame_system::Config>::AccountId::from_origin(
+                        message.destination().into_origin(),
+                    ),
+                    value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    expiration,
+                    expiration: None,
                 });
             }
 
@@ -1553,6 +1553,12 @@ pub mod pallet {
             let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
             let destination = original_message.source();
 
+            // There should be no possibility to modify mailbox if two users interact.
+            ensure!(
+                GearProgramPallet::<T>::program_exists(destination),
+                Error::<T>::UserRepliesToUser
+            );
+
             ensure!(
                 !Self::is_terminated(original_message.source()),
                 Error::<T>::ProgramIsTerminated
@@ -1571,59 +1577,34 @@ pub mod pallet {
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
             let message = ReplyMessage::from_packet(message_id, packet);
 
-            if GearProgramPallet::<T>::program_exists(destination) {
-                let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
-                // First we reserve enough funds on the account to pay for `gas_limit`
-                <T as Config>::Currency::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            <T as Config>::Currency::reserve(&who, gas_limit_reserve)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
+            let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
-                Self::deposit_event(Event::UserMessageRead {
-                    id: reply_to_id,
-                    reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
-                });
+            Self::deposit_event(Event::UserMessageRead {
+                id: reply_to_id,
+                reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
+            });
 
-                let event = Event::MessageEnqueued {
-                    id: message.id(),
-                    source: who,
-                    destination,
-                    entry: Entry::Reply(reply_to_id),
-                };
+            let event = Event::MessageEnqueued {
+                id: message.id(),
+                source: who,
+                destination,
+                entry: Entry::Reply(reply_to_id),
+            };
 
-                QueueOf::<T>::queue(message.into_stored_dispatch(
-                    ProgramId::from_origin(origin.into_origin()),
-                    destination,
-                    original_message.id(),
-                ))
-                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            QueueOf::<T>::queue(message.into_stored_dispatch(
+                ProgramId::from_origin(origin.into_origin()),
+                destination,
+                original_message.id(),
+            ))
+            .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-                Self::deposit_event(event);
-            } else {
-                let mut expiration = None;
-                let message = message.into_stored(
-                    ProgramId::from_origin(origin.clone().into_origin()),
-                    destination,
-                    original_message.id(),
-                );
-
-                if gas_limit >= T::MailboxThreshold::get() {
-                    expiration = Some(T::BlockNumber::zero());
-                    // TODO: update logic of insertion into mailbox following new
-                    // flow and deposit appropriate event (issue #1010).
-                    MailboxOf::<T>::insert(message.clone())?;
-                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
-                }
-
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration,
-                });
-            }
+            Self::deposit_event(event);
 
             Ok(().into())
         }

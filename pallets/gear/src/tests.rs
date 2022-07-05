@@ -19,9 +19,9 @@
 use crate::{
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, run_to_next_block, Event as MockEvent, Gear, GearProgram,
-        MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
-        USER_3,
+        new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
+        GearProgram, MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER,
+        USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
     GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
@@ -210,22 +210,14 @@ fn send_message_works() {
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - mail_value
         );
-        // The recipient has not received the funds, they are in the mailbox
-        assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_2),
-            user2_initial_balance
-        );
-
-        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
-            Origin::signed(USER_2),
-            message_id
-        ));
-
-        // The recipient has received funds
+        // The recipient has received the funds.
+        // Interaction between users doesn't affect mailbox.
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_2),
             user2_initial_balance + mail_value
         );
+
+        assert!(!MailboxOf::<Test>::contains(&USER_2, &message_id));
 
         // Ensure the message didn't burn any gas (i.e. never went through processing pipeline)
         let remaining_weight = 100_000;
@@ -235,8 +227,8 @@ fn send_message_works() {
         let actual_gas_burned = remaining_weight - GasAllowanceOf::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
 
-        // Ensure all created imbalances along the way cancel each other
-        assert_eq!(GasHandlerOf::<Test>::total_supply(), DEFAULT_GAS_LIMIT);
+        // Ensure that no gas handlers were created
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
     });
 }
 
@@ -343,10 +335,11 @@ fn send_message_expected_failure() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
+
         run_to_block(2, None);
 
         assert_noop!(
-            send_default_message(LOW_BALANCE_USER, program_id),
+            call_default_message(program_id).dispatch(Origin::signed(LOW_BALANCE_USER)),
             Error::<Test>::ProgramIsTerminated
         );
 
@@ -357,16 +350,14 @@ fn send_message_expected_failure() {
             res.expect("submit result was asserted")
         };
 
-        let send_message_call = crate::mock::Call::Gear(crate::Call::<Test>::send_message {
-            destination: program_id,
-            payload: EMPTY_PAYLOAD.to_vec(),
-            gas_limit: DEFAULT_GAS_LIMIT,
-            value: 0,
-        });
         assert_noop!(
-            send_message_call.dispatch(Origin::signed(LOW_BALANCE_USER)),
+            call_default_message(program_id).dispatch(Origin::signed(LOW_BALANCE_USER)),
             Error::<Test>::NotEnoughBalanceForReserve
         );
+
+        let low_balance_user_balance = Balances::free_balance(LOW_BALANCE_USER);
+        let user_1_balance = Balances::free_balance(USER_1);
+        let value = 1000;
 
         // Because destination is user, no gas will be reserved
         MailboxOf::<Test>::clear();
@@ -374,10 +365,19 @@ fn send_message_expected_failure() {
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
-            <Test as Config>::MailboxThreshold::get(),
-            1000
+            10,
+            value
         ));
-        assert!(!MailboxOf::<Test>::is_empty(&USER_1));
+
+        // And no message will be in mailbox
+        assert!(MailboxOf::<Test>::is_empty(&USER_1));
+
+        // Value transfers immediately.
+        assert_eq!(
+            low_balance_user_balance - value,
+            Balances::free_balance(LOW_BALANCE_USER)
+        );
+        assert_eq!(user_1_balance + value, Balances::free_balance(USER_1));
 
         // Gas limit too high
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
@@ -466,9 +466,11 @@ fn unused_gas_released_back_works() {
             huge_send_message_gas_limit,
             0
         ));
+
         // Spends for submit program with default gas limit and sending default message with a huge gas limit
         let user1_potential_msgs_spends =
             GasPrice::gas_price(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
+
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
@@ -479,8 +481,10 @@ fn unused_gas_released_back_works() {
         );
 
         run_to_block(2, None);
+
         let user1_actual_msgs_spends =
             GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
+
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
 
         let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
@@ -491,11 +495,7 @@ fn unused_gas_released_back_works() {
             user1_initial_balance - user1_actual_msgs_spends - mailbox_threshold_reserved
         );
 
-        // All created gas cancels out
-        //
-        // # TODO
-        //
-        // `total_supply` must be rechecked in #1010
+        // All created gas cancels out.
         assert_eq!(
             GasHandlerOf::<Test>::total_supply(),
             <Test as Config>::MailboxThreshold::get()
@@ -1152,10 +1152,6 @@ fn mailbox_works() {
         assert_eq!(mailbox_message.value(), 1000);
 
         // Gas is passed into mailboxed messages with reserved value `OUTGOING_WITH_VALUE_IN_HANDLE_VALUE`
-        //
-        // # TODO
-        //
-        // `total_supply` must be rechecked in #1010
         assert_eq!(
             <Test as Config>::GasPrice::gas_price(GasHandlerOf::<Test>::total_supply()),
             OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
@@ -1333,7 +1329,7 @@ fn events_logging_works() {
 
                 // Sending messages to failed-to-init programs shouldn't be allowed
                 assert_noop!(
-                    send_default_message(USER_1, program_id),
+                    call_default_message(program_id).dispatch(Origin::signed(USER_1)),
                     Error::<Test>::ProgramIsTerminated
                 );
 
@@ -1695,10 +1691,6 @@ fn distributor_distribute() {
         assert_eq!(initial_balance - mailbox_threshold_reserved, final_balance);
 
         // All gas cancelled out in the end
-        //
-        // # TODO
-        //
-        // `total_supply` must be rechecked in #1010
         assert_eq!(
             GasHandlerOf::<Test>::total_supply(),
             mailbox_threshold_gas_limit
@@ -3282,10 +3274,6 @@ fn test_two_contracts_composition_works() {
         run_to_block(4, None);
 
         // Gas total issuance should have gone back to 4 * MAILBOX_THRESHOLD
-        //
-        // # TODO
-        //
-        // `total_supply` must be rechecked in #1010
         assert_eq!(
             GasHandlerOf::<Test>::total_supply(),
             <Test as Config>::MailboxThreshold::get() * 4
@@ -4022,6 +4010,15 @@ mod utils {
             DEFAULT_GAS_LIMIT,
             0,
         )
+    }
+
+    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::Call {
+        crate::mock::Call::Gear(crate::Call::<Test>::send_message {
+            destination: to,
+            payload: EMPTY_PAYLOAD.to_vec(),
+            gas_limit: DEFAULT_GAS_LIMIT,
+            value: 0,
+        })
     }
 
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
