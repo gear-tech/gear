@@ -53,7 +53,8 @@ use common::{
     ProgramState,
 };
 use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, ExecutionErrorReason, JournalHandler,
+    Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, ExecutionErrorReason,
+    JournalHandler,
 };
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
@@ -158,7 +159,7 @@ where
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
+    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
@@ -182,10 +183,13 @@ where
             Default::default()
         };
 
-        Some(ExecutableActor {
-            program,
+        Some(Actor {
             balance,
-            pages_data,
+            destination_program: id,
+            executable_data: Some(ExecutableActorData {
+                program,
+                pages_data,
+            }),
         })
     }
 
@@ -258,7 +262,7 @@ where
             }
             MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
-                log::info!(
+                log::debug!(
                     "🪤 Program {} terminated with a trap: {}",
                     program_id.into_origin(),
                     trap
@@ -496,7 +500,7 @@ where
                         let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
                     }
                     Err(e) => {
-                        log::error!("{:?}", e);
+                        log::error!("mailbox insert error: {:?}", e);
                     }
                 }
             };
@@ -508,7 +512,7 @@ where
             } else {
                 let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
                     .unwrap_or_else(|e| {
-                        log::error!("{:?}", e);
+                        log::error!("get gas limit error: {:?}", e);
                         None
                     })
                     .map(|(g, _)| g)
@@ -591,7 +595,8 @@ where
                                             }
                                         }
                                         Err(e) => {
-                                            log::debug!(
+                                            // Reserved funds should be always repatriatable
+                                            log::error!(
                                                 target: "essential",
                                                 "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
                                                 charge,
@@ -603,7 +608,9 @@ where
                                     }
                                 }
                             } else {
-                                log::debug!(
+                                // The fact that gas tree exist without root node from which
+                                // "external" can be evaluated is an error
+                                log::error!(
                                     target: "essential",
                                     "Failed to get origin of {:?}",
                                     message_id,
@@ -721,7 +728,8 @@ where
                         Ok(())
                     }
                     Err(e) => {
-                        log::debug!(
+                        // This is a error, as reserved should always be repatriatable
+                        log::error!(
                             target: "essential",
                             "Failure to repatriate reserves of {:?} from 0x{:?} to 0x{:?}: {:?}",
                             value,

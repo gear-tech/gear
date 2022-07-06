@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::{Ext, ProcessorExt};
+use core_processor::{Ext, ProcessorContext, ProcessorExt};
 use gear_backend_common::TerminationReason;
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
@@ -128,30 +128,30 @@ impl WasmExecutor {
     }
 
     fn build_ext(program: &Program, payload: Payload) -> Ext {
-        Ext::new(
-            GasCounter::new(u64::MAX),
-            GasAllowanceCounter::new(u64::MAX),
-            ValueCounter::new(u128::MAX),
-            AllocationsContext::new(
+        Ext::new(ProcessorContext {
+            gas_counter: GasCounter::new(u64::MAX),
+            gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
+            value_counter: ValueCounter::new(u128::MAX),
+            allocations_context: AllocationsContext::new(
                 program.get_allocations().clone(),
                 program.static_pages(),
                 WasmPageNumber(512u32),
             ),
-            MessageContext::new(
+            message_context: MessageContext::new(
                 IncomingMessage::new(Default::default(), Default::default(), payload, 0, 0, None),
                 program.id(),
                 None,
             ),
-            Default::default(),
-            Default::default(),
-            0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            MAILBOX_THRESHOLD,
-        )
+            block_info: Default::default(),
+            config: Default::default(),
+            existential_deposit: 0,
+            origin: Default::default(),
+            program_id: Default::default(),
+            program_candidates_data: Default::default(),
+            host_fn_weights: Default::default(),
+            forbidden_funcs: Default::default(),
+            mailbox_threshold: MAILBOX_THRESHOLD,
+        })
     }
 
     fn get_function(&mut self, function_name: &str) -> Result<Func> {

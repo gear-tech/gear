@@ -127,10 +127,10 @@ pub struct HostFnWeights {
 #[macro_export]
 macro_rules! charge_gas_token {
     ($ext:expr, $costs:expr) => {{
-        let token = $costs.token(&$ext.host_fn_weights);
+        let token = $costs.token(&$ext.context.host_fn_weights);
         (
-            $ext.gas_counter.charge_token(token),
-            $ext.gas_allowance_counter.charge_token(token),
+            $ext.context.gas_counter.charge_token(token),
+            $ext.context.gas_allowance_counter.charge_token(token),
         )
     }};
 }

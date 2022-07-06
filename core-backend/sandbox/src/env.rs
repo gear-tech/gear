@@ -34,7 +34,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, WasmPageNumber},
+    memory::WasmPageNumber,
     message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
@@ -106,6 +106,7 @@ where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
+    type Memory = MemoryWrap;
     type Error = SandboxEnvironmentError;
 
     fn new(
@@ -207,11 +208,11 @@ where
         })
     }
 
-    fn get_mem(&self) -> &dyn Memory {
+    fn get_mem(&self) -> &Self::Memory {
         &self.runtime.memory
     }
 
-    fn get_mem_mut(&mut self) -> &mut dyn Memory {
+    fn get_mem_mut(&mut self) -> &mut Self::Memory {
         &mut self.runtime.memory
     }
 
@@ -221,7 +222,7 @@ where
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&dyn Memory) -> Result<(), T>,
+        F: FnOnce(&Self::Memory) -> Result<(), T>,
         T: fmt::Display,
     {
         let res = if self.entries.contains(entry_point) {
