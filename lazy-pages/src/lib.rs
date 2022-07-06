@@ -39,8 +39,8 @@
 //! in storage. But program may have some significant data for next execution - so we have a bug.
 //! To avoid this we restrict double releasing.
 //! You can also check another cases in test: memory_access_cases.
-//!
-//! TODO: remove all deprecated code before release (issue #1147)
+
+// TODO: remove all deprecated code before release (issue #1147)
 
 #![allow(useless_deprecated, deprecated)]
 

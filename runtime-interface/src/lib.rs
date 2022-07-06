@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Runtime interface for gear node
-//!
-//! TODO: remove all deprecated code before release (issue #1147)
+
+// TODO: remove all deprecated code before release (issue #1147)
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(useless_deprecated, deprecated)]
