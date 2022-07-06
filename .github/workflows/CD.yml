@@ -66,10 +66,11 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}}
+            ${{secrets.GEAR_NODE}} name=testnet-gear01
             [nodes]
-            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=no loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes loki=no loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_5}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
