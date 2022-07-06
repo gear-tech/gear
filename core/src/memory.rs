@@ -344,7 +344,7 @@ impl AllocationsContext {
     pub fn alloc(
         &mut self,
         pages: WasmPageNumber,
-        mem: &mut dyn Memory,
+        mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Error> {
         let last_static_page = self.static_pages.saturating_sub(1.into());
 
