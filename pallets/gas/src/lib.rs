@@ -16,14 +16,121 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Gear Gas Pallet
+//!
+//! The Gear Gas Pallet provides functionality for handling messages'
+//! execution resources.
+//!
+//! - [`Config`]
+//! - [`Pallet`]
+//!
+//! ## Overview
+//!
+//! The Gear Gas Pallet's main aim is to separate message's associated gas tree nodes storages out
+//! of Gear's execution logic and provide soft functionality to manage them.
+//!
+//! The Gear Gas Pallet provides functions for:
+//! - Obtaining maximum gas amount available within one block of execution.
+//! - Managing number of remaining gas, i.e. gas allowance.
+//! - Managing gas tree: create, split, cut, etc new nodes determining
+//! execution resources of messages.
+//!
+//! ## Interface
+//!
+//! The Gear Gas Pallet implements `gear_common::GasProvider` trait
+//! and shouldn't contain any other functionality, except this trait declares.
+//!
+//! ## Usage
+//!
+//! How to use the gas functionality from the Gear Gas Pallet:
+//!
+//! 1. Implement its `Config` for your runtime with specified `BlockGasLimit` type.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl pallet_gear_gas::Config for Runtime {
+//!     type BlockGasLimit = .. ;
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 2. Provide associated type for your pallet's `Config`, which implements
+//! `gear_common::GasProvider` trait, specifying associated types if needed.
+//!
+//! ```ignore
+//! // `some_pallet/src/lib.rs`
+//! // ... //
+//!
+//! use gear_common::GasProvider;
+//!
+//! #[pallet::config]
+//! pub trait Config: frame_system::Config {
+//!     // .. //
+//!
+//!     type GasProvider: GasProvider<Balance = u64, ...>;
+//!
+//!     // .. //
+//! }
+//! ```
+//!
+//! 3. Declare Gear Gas Pallet in your `construct_runtime!` macro.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! construct_runtime!(
+//!     pub enum Runtime
+//!         where // ... //
+//!     {
+//!         // ... //
+//!
+//!         GearGas: pallet_gear_gas,
+//!
+//!         // ... //
+//!     }
+//! );
+//!
+//! // ... //
+//! ```
+//! `GearGas: pallet_gear_gas,`
+//!
+//! 4. Set `GearGas` as your pallet `Config`'s `GasProvider` type.
+//!
+//! ```ignore
+//! // `runtime/src/lib.rs`
+//! // ... //
+//!
+//! impl some_pallet::Config for Runtime {
+//!     // ... //
+//!
+//!     type GasProvider = GearGas;
+//!
+//!     // ... //
+//! }
+//!
+//! // ... //
+//! ```
+//!
+//! 5. Work with Gear Gas Pallet in your pallet with provided
+//! associated type interface.
+//!
+//! ## Genesis config
+//!
+//! The Gear Gas Pallet doesn't depend on the `GenesisConfig`.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use self::imbalances::{NegativeImbalance, PositiveImbalance};
-use common::{Origin, ValueTree};
-use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalance};
+use common::{
+    storage::{MapStorage, ValueStorage},
+    BlockLimiter, GasProvider,
+};
+use frame_support::{dispatch::DispatchError, pallet_prelude::*};
 pub use pallet::*;
 pub use primitive_types::H256;
-use scale_info::TypeInfo;
 use sp_std::convert::TryInto;
 
 #[cfg(test)]
@@ -32,165 +139,17 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod property_tests;
-
-#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub enum ValueType {
-    External { id: H256, value: u64 },
-    SpecifiedLocal { parent: H256, value: u64 },
-    UnspecifiedLocal { parent: H256 },
-}
-
-impl Default for ValueType {
-    fn default() -> Self {
-        ValueType::External {
-            id: H256::default(),
-            value: 0,
-        }
-    }
-}
-
-#[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub struct ValueNode {
-    pub id: H256,
-    pub spec_refs: u32,
-    pub unspec_refs: u32,
-    pub inner: ValueType,
-    pub consumed: bool,
-}
-
-impl ValueNode {
-    pub fn new(origin: H256, id: H256, value: u64) -> Self {
-        Self {
-            id,
-            inner: ValueType::External { id: origin, value },
-            spec_refs: 0,
-            unspec_refs: 0,
-            consumed: false,
-        }
-    }
-
-    pub fn inner_value(&self) -> Option<u64> {
-        match self.inner {
-            ValueType::External { value, .. } => Some(value),
-            ValueType::SpecifiedLocal { value, .. } => Some(value),
-            ValueType::UnspecifiedLocal { .. } => None,
-        }
-    }
-
-    pub fn inner_value_mut(&mut self) -> Option<&mut u64> {
-        match self.inner {
-            ValueType::External { ref mut value, .. } => Some(value),
-            ValueType::SpecifiedLocal { ref mut value, .. } => Some(value),
-            ValueType::UnspecifiedLocal { .. } => None,
-        }
-    }
-
-    pub fn parent(&self) -> Option<H256> {
-        match self.inner {
-            ValueType::External { .. } => None,
-            ValueType::SpecifiedLocal { parent, .. } => Some(parent),
-            ValueType::UnspecifiedLocal { parent } => Some(parent),
-        }
-    }
-
-    pub fn refs(&self) -> u32 {
-        self.spec_refs.saturating_add(self.unspec_refs)
-    }
-
-    /// The first upstream node (self included), that is able to hold a concrete value, but doesn't
-    /// necessarily have a non-zero value.
-    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn node_with_value<T: Config>(self) -> Result<ValueNode, DispatchError> {
-        let mut ret_node = self;
-        while let ValueType::UnspecifiedLocal { parent } = ret_node.inner {
-            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
-        }
-
-        Ok(ret_node)
-    }
-
-    /// Returns the root node (as [`ValueNode`]) of the value tree, which contains `self` node.
-    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
-    pub fn root<T: Config>(self) -> Result<Self, DispatchError> {
-        let mut ret_node = self;
-        while let Some(parent) = ret_node.parent() {
-            ret_node = <Pallet<T>>::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
-        }
-        Ok(ret_node)
-    }
-
-    fn decrease_parents_ref<T: Config>(&self) -> DispatchResult {
-        if let Some(id) = self.parent() {
-            let mut parent = <Pallet<T>>::get_node(id).ok_or(Error::<T>::ParentIsLost)?;
-            ensure!(parent.refs() > 0, Error::<T>::ParentHasNoChildren,);
-
-            match self.inner {
-                ValueType::SpecifiedLocal { .. } => {
-                    parent.spec_refs = parent.spec_refs.saturating_sub(1)
-                }
-                ValueType::UnspecifiedLocal { .. } => {
-                    parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
-                }
-                ValueType::External { .. } => {
-                    unreachable!("node is guaranteed to have a parent, so can't be an external one")
-                }
-            }
-
-            // Update parent node
-            GasTree::<T>::insert(id, parent);
-        }
-
-        Ok(())
-    }
-
-    /// If `self` is of `ValueType::SpecifiedLocal` type, moves value upstream
-    /// to the first ancestor, that can hold the value, in case `self` has not
-    /// unspec children refs.
-    ///
-    /// This method is actually one of pre-delete procedures called when node is consumed.
-    ///
-    /// # Note
-    /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
-    fn move_value_upstream<T: Config>(&mut self) -> DispatchResult {
-        if let ValueType::SpecifiedLocal {
-            value: self_value,
-            parent,
-        } = self.inner
-        {
-            if self.unspec_refs == 0 {
-                // This is specified, so it needs to get to the first specified parent also
-                // going up until external or specified parent is found
-
-                // `parent` key is known to exist, hence there must be it's ancestor with value.
-                // If there isn't, the gas tree is considered corrupted (invalidated).
-                let mut parents_ancestor = <Pallet<T>>::get_node(parent)
-                    .ok_or(Error::<T>::ParentIsLost)?
-                    .node_with_value::<T>()?;
-
-                // NOTE: intentional expect. A parents_ancestor is guaranteed to have inner_value
-                let val = parents_ancestor
-                    .inner_value_mut()
-                    .expect("Querying parent with value");
-                *val = val.saturating_add(self_value);
-                *self
-                    .inner_value_mut()
-                    .expect("self is a type with a specified value") = 0;
-
-                GasTree::<T>::insert(parents_ancestor.id, parents_ancestor);
-            }
-        }
-        Ok(())
-    }
-}
-
-pub type ConsumeOutput<T> = Option<(NegativeImbalance<T>, H256)>;
+type BlockGasLimitOf<T> = <T as Config>::BlockGasLimit;
+type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::gas_provider::{
+        Error as GasError, GasNode, NegativeImbalance, PositiveImbalance, TreeImpl,
+    };
     use frame_system::pallet_prelude::*;
+    use gear_core::ids::MessageId;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -206,523 +165,138 @@ pub mod pallet {
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        /// Gas (gas tree) has already been created for the provided key.
+        Forbidden,
         NodeAlreadyExists,
-
-        /// Account doesn't have enough funds to complete operation.
         InsufficientBalance,
-
-        /// Value node doesn't exist for a key
         NodeNotFound,
-
-        /// Creating node with existing id
-        KeyAlreadyExists,
-
-        /// Procedure can't be called on consumed node
         NodeWasConsumed,
-
-        /// Errors stating that gas tree has been invalidated
-
-        /// Parent must be in the tree, but not found
-        ///
-        /// This differs from `Error::<T>::NodeNotFound`, because parent
-        /// node for local node types must be found, but was not. Thus,
-        /// tree is invalidated.
         ParentIsLost,
-
-        /// Parent node must have children, but they weren't found
-        ///
-        /// If node is a parent to some other node it must have at least
-        /// one child, otherwise it's id can't be used as a parent for
-        /// local nodes in the tree.
         ParentHasNoChildren,
     }
 
+    impl<T: Config> GasError for Error<T> {
+        fn node_already_exists() -> Self {
+            Self::NodeAlreadyExists
+        }
+
+        fn parent_is_lost() -> Self {
+            Self::ParentIsLost
+        }
+
+        fn parent_has_no_children() -> Self {
+            Self::ParentHasNoChildren
+        }
+
+        fn node_not_found() -> Self {
+            Self::NodeNotFound
+        }
+
+        fn node_was_consumed() -> Self {
+            Self::NodeWasConsumed
+        }
+
+        fn insufficient_balance() -> Self {
+            Self::InsufficientBalance
+        }
+
+        fn forbidden() -> Self {
+            Self::Forbidden
+        }
+    }
+
+    pub type Balance = u64;
+
+    // ----
+
+    // Private storage for total issuance of gas.
     #[pallet::storage]
-    #[pallet::getter(fn gas_allowance)]
-    pub type Allowance<T> = StorageValue<_, u64, ValueQuery, <T as Config>::BlockGasLimit>;
+    pub type TotalIssuance<T> = StorageValue<_, Balance>;
+
+    // Public wrap of the total issuance of gas.
+    common::wrap_storage_value!(
+        storage: TotalIssuance,
+        name: TotalIssuanceWrap,
+        value: Balance
+    );
+
+    // ----
+
+    pub type Key = MessageId;
+    pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
+
+    // Private storage for nodes of the gas tree.
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub type GasNodes<T> = StorageMap<_, Identity, Key, NodeOf<T>>;
+
+    // Public wrap of the nodes of the gas tree.
+    common::wrap_storage_map!(
+        storage: GasNodes,
+        name: GasNodesWrap,
+        key: Key,
+        value: NodeOf<T>
+    );
+
+    // ----
 
     #[pallet::storage]
-    #[pallet::getter(fn total_issuance)]
-    pub type TotalIssuance<T> = StorageValue<_, u64, ValueQuery, GetDefault>;
+    pub type Allowance<T> = StorageValue<_, Balance, ValueQuery, BlockGasLimitOf<T>>;
 
-    #[pallet::storage]
-    #[pallet::getter(fn get_node)]
-    pub type GasTree<T> = StorageMap<_, Identity, H256, ValueNode>;
+    pub struct GasAllowance<T: Config>(PhantomData<T>);
+
+    impl<T: Config> common::storage::Limiter for GasAllowance<T> {
+        type Value = Balance;
+
+        fn get() -> Self::Value {
+            Allowance::<T>::get()
+        }
+
+        fn put(gas: Self::Value) {
+            Allowance::<T>::put(gas);
+        }
+
+        fn decrease(gas: Self::Value) {
+            Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
+        }
+    }
+
+    impl<T: Config> GasProvider for Pallet<T> {
+        type ExternalOrigin = AccountIdOf<T>;
+        type Key = Key;
+        type Balance = Balance;
+        type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type NegativeImbalance = NegativeImbalance<Self::Balance, TotalIssuanceWrap<T>>;
+        type InternalError = Error<T>;
+        type Error = DispatchError;
+
+        type GasTree = TreeImpl<
+            TotalIssuanceWrap<T>,
+            Self::InternalError,
+            Self::Error,
+            Self::ExternalOrigin,
+            GasNodesWrap<T>,
+        >;
+    }
+
+    impl<T: Config> BlockLimiter for Pallet<T> {
+        type BlockGasLimit = BlockGasLimitOf<T>;
+
+        type Balance = Balance;
+
+        type GasAllowance = GasAllowance<T>;
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Reset block gas allowance
-            Allowance::<T>::put(T::BlockGasLimit::get());
+            Allowance::<T>::put(BlockGasLimitOf::<T>::get());
 
             T::DbWeight::get().writes(1)
         }
 
         /// Finalization
         fn on_finalize(_bn: BlockNumberFor<T>) {}
-    }
-
-    impl<T: Config> Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        pub fn update_gas_allowance(gas: u64) {
-            Allowance::<T>::put(gas);
-        }
-
-        pub fn decrease_gas_allowance(gas: u64) {
-            Allowance::<T>::mutate(|v| *v = v.saturating_sub(gas));
-        }
-
-        /// Performs, if possible, cascade deletion of multiple nodes on the same path from the node with `key` id
-        /// to the tree's root.
-        ///
-        /// There are two requirements for the node to be deleted:
-        /// 1. Marked as consumed.
-        /// 2. Has no child refs.
-        ///
-        /// If the node's type is `ValueType::External`, the locked value is released to the owner.
-        /// Otherwise pre-delete ops are executed, then the node is deleted and after that the same procedure
-        /// is repeated on the node's parent until it's marked consumed and has no child refs.
-        ///
-        /// Pre-delete ops are:
-        /// 1. Parents refs decrease.
-        /// 2. Value movement to the first parent, which can hold specified value.
-        ///
-        /// The latter op is required, because node can be marked as consumed, but still has non-zero inner value.
-        /// That is the case, when node was splitted without gas and then consumed. So when node's gas-less child
-        /// is consumed the [`Self::check_consumed`] function is called on the consumed parent with non-zero value.
-        pub(super) fn check_consumed(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
-            let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
-            while node.consumed && node.refs() == 0 {
-                node.decrease_parents_ref::<T>()?;
-                node.move_value_upstream::<T>()?;
-                GasTree::<T>::remove(node.id);
-
-                match node.inner {
-                    ValueType::External { id, value } => {
-                        return Ok(Some((NegativeImbalance::new(value), id)))
-                    }
-                    ValueType::SpecifiedLocal { parent, .. }
-                    | ValueType::UnspecifiedLocal { parent } => {
-                        node = Self::get_node(parent).ok_or(Error::<T>::ParentIsLost)?;
-                    }
-                }
-            }
-
-            Ok(None)
-        }
-    }
-}
-
-impl<T: Config> ValueTree for Pallet<T>
-where
-    T::AccountId: Origin,
-{
-    type ExternalOrigin = H256;
-    type Key = H256;
-    type Balance = u64;
-    type PositiveImbalance = PositiveImbalance<T>;
-    type NegativeImbalance = NegativeImbalance<T>;
-    type Error = DispatchError;
-
-    fn total_supply() -> u64 {
-        Self::total_issuance()
-    }
-
-    /// Releases in circulation a certain amount of newly created gas
-    fn create(origin: H256, key: H256, amount: u64) -> Result<PositiveImbalance<T>, DispatchError> {
-        ensure!(
-            !GasTree::<T>::contains_key(key),
-            Error::<T>::NodeAlreadyExists
-        );
-
-        let node = ValueNode::new(origin, key, amount);
-
-        // Save value node to storage
-        GasTree::<T>::insert(key, node);
-
-        Ok(PositiveImbalance::new(amount))
-    }
-
-    fn get_origin(key: H256) -> Result<Option<H256>, DispatchError> {
-        Ok(if let Some(node) = Self::get_node(key) {
-            // key known, must return the origin, unless corrupted
-            if let ValueNode {
-                inner: ValueType::External { id, .. },
-                ..
-            } = node.root::<T>()?
-            {
-                Some(id)
-            } else {
-                unreachable!("Guaranteed by ValueNode::root method");
-            }
-        } else {
-            // key unknown - legitimate result
-            None
-        })
-    }
-
-    fn get_origin_key(key: H256) -> Result<Option<H256>, DispatchError> {
-        Ok(if let Some(node) = Self::get_node(key) {
-            // key known, must return the origin, unless corrupted
-            node.root::<T>().map(|n| Some(n.id))?
-        } else {
-            // key unknown - legitimate result
-            None
-        })
-    }
-
-    fn get_limit(key: H256) -> Result<Option<u64>, DispatchError> {
-        if let Some(node) = Self::get_node(key) {
-            Ok({
-                let node_with_value = node.node_with_value::<T>()?;
-                // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-                let v = node_with_value
-                    .inner_value()
-                    .expect("The node here is either external or specified, hence the inner value");
-                Some(v)
-            })
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Marks a node with `key` as consumed and tries to delete it
-    /// and all the nodes on the path from it to the root.
-    ///
-    /// Deletion of a node happens only if:
-    /// 1. `Self::consume` was called on the node
-    /// 2. The node has no children, i.e. spec/unspec refs.
-    /// So if it's impossible to delete a node, then it's impossible to delete its parent in the current call.
-    /// Also if it's possible to delete a node, then it doesn't necessarily mean that its parent will be deleted.
-    /// An example here could be the case, when during async execution original message went to wait list, so wasn't consumed
-    /// but the one generated during the execution of the original message went to message queue and was successfully executed.
-    ///
-    /// If a node under the `key` is of a `ValueType::SpecifiedLocal` and it has no unspec refs,
-    /// then it moves the value up to the first ancestor, that can hold the value. If node has
-    /// unspec ref, it means the unspec children rely on the gas held by the node, therefore value
-    /// isn't moved up in this case.
-    fn consume(key: H256) -> Result<ConsumeOutput<T>, DispatchError> {
-        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
-
-        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
-
-        node.consumed = true;
-        node.move_value_upstream::<T>()?;
-
-        Ok(if node.refs() == 0 {
-            node.decrease_parents_ref::<T>()?;
-            GasTree::<T>::remove(key);
-            match node.inner {
-                ValueType::UnspecifiedLocal { parent }
-                | ValueType::SpecifiedLocal { parent, .. } => Self::check_consumed(parent)?,
-                ValueType::External { id, value } => Some((NegativeImbalance::new(value), id)),
-            }
-        } else {
-            // Save current node
-            GasTree::<T>::insert(key, node);
-            None
-        })
-    }
-
-    /// Spends `amount` of gas from the ancestor of node with `key` id.
-    ///
-    /// Calling the function is possible even if an ancestor is consumed.
-    ///
-    /// ### Note:
-    /// Node is considered as an ancestor of itself.
-    fn spend(key: H256, amount: u64) -> Result<NegativeImbalance<T>, DispatchError> {
-        // Upstream node with a concrete value exist for any node.
-        // If it doesn't, the tree is considered invalidated.
-        let mut node = Self::get_node(key)
-            .ok_or(Error::<T>::NodeNotFound)?
-            .node_with_value::<T>()?;
-
-        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-        ensure!(
-            node.inner_value().expect("Querying node with value") >= amount,
-            Error::<T>::InsufficientBalance
-        );
-        *node.inner_value_mut().expect("Querying node with value") -= amount;
-        log::debug!("Spent {} of gas", amount);
-
-        // Save node that delivers limit
-        GasTree::<T>::insert(node.id, node);
-
-        Ok(NegativeImbalance::new(amount))
-    }
-
-    fn split(key: H256, new_node_key: H256) -> DispatchResult {
-        let mut node = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
-
-        ensure!(!node.consumed, Error::<T>::NodeWasConsumed);
-        // This also checks if key == new_node_key
-        ensure!(
-            !GasTree::<T>::contains_key(new_node_key),
-            Error::<T>::NodeAlreadyExists
-        );
-
-        node.unspec_refs = node.unspec_refs.saturating_add(1);
-
-        let new_node = ValueNode {
-            id: new_node_key,
-            inner: ValueType::UnspecifiedLocal { parent: key },
-            spec_refs: 0,
-            unspec_refs: 0,
-            consumed: false,
-        };
-
-        // Save new node
-        GasTree::<T>::insert(new_node_key, new_node);
-        // Update current node
-        GasTree::<T>::insert(key, node);
-
-        Ok(())
-    }
-
-    fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
-        let mut parent = Self::get_node(key).ok_or(Error::<T>::NodeNotFound)?;
-
-        ensure!(!parent.consumed, Error::<T>::NodeWasConsumed);
-        // This also checks if key == new_node_key
-        ensure!(
-            !GasTree::<T>::contains_key(new_node_key),
-            Error::<T>::NodeAlreadyExists
-        );
-
-        // Upstream node with a concrete value exist for any node.
-        // If it doesn't, the tree is considered invalidated.
-        let mut ancestor_with_value = parent.clone().node_with_value::<T>()?;
-
-        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-        ensure!(
-            ancestor_with_value
-                .inner_value()
-                .expect("Querying node with value")
-                >= amount,
-            Error::<T>::InsufficientBalance
-        );
-
-        let new_node = ValueNode {
-            id: new_node_key,
-            inner: ValueType::SpecifiedLocal {
-                value: amount,
-                parent: key,
-            },
-            spec_refs: 0,
-            unspec_refs: 0,
-            consumed: false,
-        };
-        // Save new node
-        GasTree::<T>::insert(new_node_key, new_node);
-
-        parent.spec_refs = parent.spec_refs.saturating_add(1);
-        if parent.id == ancestor_with_value.id {
-            *parent.inner_value_mut().expect("Querying node with value") -= amount;
-            GasTree::<T>::insert(key, parent);
-        } else {
-            // Update current node
-            GasTree::<T>::insert(key, parent);
-            *ancestor_with_value
-                .inner_value_mut()
-                .expect("Querying node with value") -= amount;
-            GasTree::<T>::insert(ancestor_with_value.id, ancestor_with_value);
-        }
-
-        Ok(())
-    }
-}
-
-// Wrapping the imbalances in a private module to ensure privacy of the inner members.
-mod imbalances {
-    use super::{Config, Imbalance};
-    use frame_support::{
-        traits::{SameOrOther, TryDrop},
-        RuntimeDebug,
-    };
-    use sp_runtime::traits::Zero;
-    use sp_std::{marker::PhantomData, mem};
-
-    /// Opaque, move-only struct with private field to denote that value has been created
-    /// without any equal and opposite accounting
-    #[derive(RuntimeDebug, PartialEq, Eq)]
-    pub struct PositiveImbalance<T: Config>(u64, PhantomData<T>);
-
-    impl<T: Config> PositiveImbalance<T> {
-        /// Create a new positive imbalance from value amount.
-        pub fn new(amount: u64) -> Self {
-            PositiveImbalance(amount, PhantomData)
-        }
-    }
-
-    /// Opaque, move-only struct with private field to denote that value has been destroyed
-    /// without any equal and opposite accounting.
-    #[derive(RuntimeDebug, PartialEq, Eq)]
-    pub struct NegativeImbalance<T: Config>(u64, PhantomData<T>);
-
-    impl<T: Config> NegativeImbalance<T> {
-        /// Create a new negative imbalance from value amount.
-        pub fn new(amount: u64) -> Self {
-            NegativeImbalance(amount, PhantomData)
-        }
-    }
-
-    impl<T: Config> TryDrop for PositiveImbalance<T> {
-        fn try_drop(self) -> Result<(), Self> {
-            self.drop_zero()
-        }
-    }
-
-    impl<T: Config> Default for PositiveImbalance<T> {
-        fn default() -> Self {
-            Self::zero()
-        }
-    }
-
-    impl<T: Config> Imbalance<u64> for PositiveImbalance<T> {
-        type Opposite = NegativeImbalance<T>;
-
-        fn zero() -> Self {
-            Self(Zero::zero(), PhantomData)
-        }
-
-        fn drop_zero(self) -> Result<(), Self> {
-            if self.0.is_zero() {
-                Ok(())
-            } else {
-                Err(self)
-            }
-        }
-
-        fn split(self, amount: u64) -> (Self, Self) {
-            let first = self.0.min(amount);
-            let second = self.0 - first;
-
-            mem::forget(self);
-            (Self(first, PhantomData), Self(second, PhantomData))
-        }
-
-        fn merge(mut self, other: Self) -> Self {
-            self.0 = self.0.saturating_add(other.0);
-            mem::forget(other);
-
-            self
-        }
-
-        fn subsume(&mut self, other: Self) {
-            self.0 = self.0.saturating_add(other.0);
-            mem::forget(other);
-        }
-
-        #[allow(clippy::comparison_chain)]
-        fn offset(self, other: Self::Opposite) -> SameOrOther<Self, Self::Opposite> {
-            let (a, b) = (self.0, other.0);
-            mem::forget((self, other));
-
-            if a > b {
-                SameOrOther::Same(Self(a - b, PhantomData))
-            } else if b > a {
-                SameOrOther::Other(NegativeImbalance::new(b - a))
-            } else {
-                SameOrOther::None
-            }
-        }
-
-        fn peek(&self) -> u64 {
-            self.0
-        }
-    }
-
-    impl<T: Config> TryDrop for NegativeImbalance<T> {
-        fn try_drop(self) -> Result<(), Self> {
-            self.drop_zero()
-        }
-    }
-
-    impl<T: Config> Default for NegativeImbalance<T> {
-        fn default() -> Self {
-            Self::zero()
-        }
-    }
-
-    impl<T: Config> Imbalance<u64> for NegativeImbalance<T> {
-        type Opposite = PositiveImbalance<T>;
-
-        fn zero() -> Self {
-            Self(Zero::zero(), PhantomData)
-        }
-
-        fn drop_zero(self) -> Result<(), Self> {
-            if self.0.is_zero() {
-                Ok(())
-            } else {
-                Err(self)
-            }
-        }
-
-        fn split(self, amount: u64) -> (Self, Self) {
-            let first = self.0.min(amount);
-            let second = self.0 - first;
-
-            mem::forget(self);
-            (Self(first, PhantomData), Self(second, PhantomData))
-        }
-
-        fn merge(mut self, other: Self) -> Self {
-            self.0 = self.0.saturating_add(other.0);
-            mem::forget(other);
-
-            self
-        }
-
-        fn subsume(&mut self, other: Self) {
-            self.0 = self.0.saturating_add(other.0);
-            mem::forget(other);
-        }
-
-        #[allow(clippy::comparison_chain)]
-        fn offset(self, other: Self::Opposite) -> SameOrOther<Self, Self::Opposite> {
-            let (a, b) = (self.0, other.0);
-            mem::forget((self, other));
-
-            if a > b {
-                SameOrOther::Same(Self(a - b, PhantomData))
-            } else if b > a {
-                SameOrOther::Other(PositiveImbalance::new(b - a))
-            } else {
-                SameOrOther::None
-            }
-        }
-
-        fn peek(&self) -> u64 {
-            self.0
-        }
-    }
-
-    impl<T: Config> Drop for PositiveImbalance<T> {
-        /// Basic drop handler will just square up the total issuance.
-        fn drop(&mut self) {
-            <super::TotalIssuance<T>>::mutate(|v| *v = v.saturating_add(self.0));
-        }
-    }
-
-    impl<T: Config> Drop for NegativeImbalance<T> {
-        /// Basic drop handler will just square up the total issuance.
-        fn drop(&mut self) {
-            <super::TotalIssuance<T>>::mutate(|v| {
-                if self.0 > *v {
-                    log::debug!(
-                        target: "essential",
-                        "Unaccounted gas detected: burnt {:?}, known total supply was {:?}.",
-                        self.0,
-                        *v
-                    )
-                }
-                *v = v.saturating_sub(self.0)
-            });
-        }
     }
 }

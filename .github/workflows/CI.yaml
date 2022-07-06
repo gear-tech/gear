@@ -2,19 +2,21 @@ name: CI
 
 on:
   schedule:
-   - cron: "0 3 * * *"
+    - cron: "0 3 * * *"
   push:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
+  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
   spec_version:
-    runs-on: [self-hosted, cachepot]
+    runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -22,7 +24,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
@@ -30,7 +32,7 @@ jobs:
 
   check:
     needs: spec_version
-    runs-on: [self-hosted, cachepot]
+    runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -38,7 +40,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -49,6 +51,20 @@ jobs:
           toolchain: nightly
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Build deps"
         run: |
@@ -61,10 +77,9 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/check* /tmp/
-          tar -xf /tmp/check_cache.tar -C /
-          tar -xf /tmp/check_cargo_registry.tar -C /
-          tar -xf /tmp/check_target.tar
+          tar -xf /root/cache/check_cache.tar -C /
+          tar -xf /root/cache/check_cargo_registry.tar -C /
+          tar -xf /root/cache/check_target.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -87,12 +102,12 @@ jobs:
         run: |
           tar -cf /tmp/check_target.tar ./target
           tar -cf /tmp/check_cache.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
     needs: spec_version
-    runs-on: [self-hosted, cachepot]
+    runs-on: [self-hosted, cachepot, epyc]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
     steps:
@@ -102,7 +117,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -113,6 +128,20 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+          components: llvm-tools-preview
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -148,10 +177,9 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          cp /root/cache/build* /tmp/
-          tar -xf /tmp/build_cache.tar -C /
-          tar -xf /tmp/build_cargo_registry.tar -C /
-          tar -xf /tmp/build_target.tar
+          tar -xf /root/cache/build_cache.tar -C /
+          tar -xf /root/cache/build_cargo_registry.tar -C /
+          tar -xf /root/cache/build_target.tar
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
@@ -222,7 +250,7 @@ jobs:
         id: find_comment_id
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-author: 'github-actions[bot]'
+          comment-author: "github-actions[bot]"
           direction: last
 
       - name: "Create comment (performance)"
@@ -301,7 +329,7 @@ jobs:
         run: |
           tar -cf /tmp/build_target.tar ./target
           tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
       - name: Prepare artifacts
@@ -326,6 +354,56 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: artifact
+
+  build-win:
+    if: github.ref == 'refs/heads/master'
+    needs: spec_version
+    runs-on: ci-win
+    env:
+      RUSTC_WRAPPER: "cachepot"
+      CARGO_INCREMENTAL: 0
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: "Install: cargo-nextest"
+        run: |
+          $tmp = New-TemporaryFile | Rename-Item -NewName { $_ -replace 'tmp$', 'zip' } -PassThru
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+
+      - name: "Build: Node"
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p gear-node --features=lazy-pages
+
+      - name: "Test: Lazy pages"
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: >-
+            run
+            -p pallet-gear 
+            -p pallet-gear-debug
+            -p pallet-gear-payment
+            -p pallet-usage
+            -p gear-lazy-pages
+            -p gear-runtime-interface
+            --features=lazy-pages
 
   upload:
     if: github.event_name == 'push'

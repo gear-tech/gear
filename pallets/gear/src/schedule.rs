@@ -312,11 +312,17 @@ pub struct HostFnWeights<T: Config> {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: Weight,
 
-    /// Weight of calling `gr_reply`.
-    pub gr_reply: Weight,
+    /// Weight of calling `gr_reply_commit`.
+    pub gr_reply_commit: Weight,
 
-    /// Weight per payload byte by `gr_reply`.
-    pub gr_reply_per_byte: Weight,
+    /// Weight per payload byte by `gr_reply_commit`.
+    pub gr_reply_commit_per_byte: Weight,
+
+    /// Weight of calling `gr_reply_push`.
+    pub gr_reply_push: Weight,
+
+    /// Weight per payload byte by `gr_reply_push`.
+    pub gr_reply_push_per_byte: Weight,
 
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: Weight,
@@ -341,6 +347,9 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `create_program_wgas`.
     pub gr_create_program_wgas: Weight,
+
+    /// Weight per payload byte by `create_program_wgas`.
+    pub gr_create_program_wgas_per_byte: Weight,
 
     /// Weight of calling `gas`.
     pub gas: Weight,
@@ -476,7 +485,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 3,
+            version: 4,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 2),
             i64store: cost_instr!(instr_i64store, 2),
@@ -553,8 +562,10 @@ impl<T: Config> HostFnWeights<T> {
             gr_send_push_per_byte: self.gr_send_push_per_byte,
             gr_send_commit: self.gr_send_commit,
             gr_send_commit_per_byte: self.gr_send_commit_per_byte,
-            gr_reply: self.gr_reply,
-            gr_reply_per_byte: self.gr_reply_per_byte,
+            gr_reply_commit: self.gr_reply_commit,
+            gr_reply_commit_per_byte: self.gr_reply_commit_per_byte,
+            gr_reply_push: self.gr_reply_push,
+            gr_reply_push_per_byte: self.gr_reply_push_per_byte,
             gr_debug: self.gr_debug,
             gr_reply_to: self.gr_reply_to,
             gr_exit_code: self.gr_exit_code,
@@ -563,6 +574,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_wait: self.gr_wait,
             gr_wake: self.gr_wake,
             gr_create_program_wgas: self.gr_create_program_wgas,
+            gr_create_program_wgas_per_byte: self.gr_create_program_wgas_per_byte,
             gas: self.gas,
         }
     }
@@ -587,10 +599,12 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_init: cost_batched!(gr_send_init),
             gr_send_push: cost_batched!(gr_send_push),
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
-            gr_send_commit: cost!(gr_send_commit) - cost_batched!(gr_send_init),
+            gr_send_commit: cost_batched!(gr_send_commit) - cost_batched!(gr_send_init),
             gr_send_commit_per_byte: cost_byte!(gr_send_commit_per_kb),
-            gr_reply: cost_batched!(gr_reply),
-            gr_reply_per_byte: cost_byte_batched!(gr_reply_per_kb),
+            gr_reply_commit: cost_batched!(gr_reply_commit),
+            gr_reply_commit_per_byte: cost_byte_batched!(gr_reply_commit_per_kb),
+            gr_reply_push: cost_batched!(gr_reply_push),
+            gr_reply_push_per_byte: cost_byte_batched!(gr_reply_push_per_kb),
             gr_debug: cost_batched!(gr_debug),
             gr_reply_to: cost_batched!(gr_reply_to),
             gr_exit_code: cost_batched!(gr_exit_code),
@@ -599,6 +613,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_wait: cost!(gr_wait),
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
+            gr_create_program_wgas_per_byte: cost_byte_batched!(gr_create_program_wgas_per_kb),
             gas: cost_batched!(gas),
             _phantom: PhantomData,
         }

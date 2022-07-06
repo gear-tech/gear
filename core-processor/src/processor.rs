@@ -18,17 +18,17 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
-        ExecutionErrorReason, JournalNote,
+        Actor, DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActorData,
+        ExecutionErrorReason, JournalNote, WasmExecutionContext,
     },
-    configs::{AllocationsConfig, BlockInfo, ExecutionSettings},
+    configs::{BlockConfig, ExecutionSettings, MessageExecutionContext},
     executor,
     ext::ProcessorExt,
 };
-use alloc::{collections::BTreeSet, string::ToString, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
+use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
-    costs::HostFnWeights,
     env::Ext as EnvExt,
     ids::{MessageId, ProgramId},
     message::{
@@ -42,49 +42,46 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
-#[allow(clippy::too_many_arguments)]
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    maybe_actor: Option<ExecutableActor>,
-    dispatch: IncomingDispatch,
-    block_info: BlockInfo,
-    allocations_config: AllocationsConfig,
-    existential_deposit: u128,
-    origin: ProgramId,
-    // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
-    program_id: ProgramId,
-    gas_allowance: u64,
-    outgoing_limit: u32,
-    host_fn_weights: HostFnWeights,
-    forbidden_funcs: BTreeSet<&'static str>,
+    block_config: &BlockConfig,
+    execution_context: MessageExecutionContext,
 ) -> Vec<JournalNote> {
-    match check_is_executable(maybe_actor, &dispatch) {
-        Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
-        Ok(actor) => process_executable::<A, E>(
-            actor,
-            dispatch,
-            block_info,
-            allocations_config,
-            existential_deposit,
+    let MessageExecutionContext {
+        actor,
+        dispatch,
+        origin,
+        gas_allowance,
+    } = execution_context;
+    let Actor {
+        balance,
+        destination_program,
+        executable_data,
+    } = actor;
+
+    match check_is_executable(executable_data, &dispatch) {
+        Err(exit_code) => process_non_executable(dispatch, destination_program, exit_code),
+        Ok(data) => process_executable::<A, E>(
             origin,
             gas_allowance,
-            outgoing_limit,
-            host_fn_weights,
-            forbidden_funcs,
+            data,
+            dispatch,
+            balance,
+            block_config.clone(),
         ),
     }
 }
 
 fn check_is_executable(
-    maybe_actor: Option<ExecutableActor>,
+    executable_data: Option<ExecutableActorData>,
     dispatch: &IncomingDispatch,
-) -> Result<ExecutableActor, ExitCode> {
-    maybe_actor
-        .map(|a| {
-            if a.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
+) -> Result<ExecutableActorData, ExitCode> {
+    executable_data
+        .map(|data| {
+            if data.program.is_initialized() & matches!(dispatch.kind(), DispatchKind::Init) {
                 Err(crate::RE_INIT_EXIT_CODE)
             } else {
-                Ok(a)
+                Ok(data)
             }
         })
         .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
@@ -95,7 +92,7 @@ fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
-    err: Option<ExecutionErrorReason>,
+    err: ExecutionErrorReason,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -126,7 +123,7 @@ fn process_error(
 
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), crate::ERR_EXIT_CODE);
-        let packet = ReplyPacket::system(crate::ERR_EXIT_CODE);
+        let packet = ReplyPacket::system(err.encode(), crate::ERR_EXIT_CODE);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {
@@ -138,11 +135,11 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
-            reason: err.map(|e| e.to_string()),
+            reason: err.to_string(),
         },
         _ => DispatchOutcome::MessageTrap {
             program_id,
-            trap: err.map(|e| e.to_string()),
+            trap: err.to_string(),
         },
     };
 
@@ -272,20 +269,25 @@ fn process_success(
     journal
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    actor: ExecutableActor,
-    dispatch: IncomingDispatch,
-    block_info: BlockInfo,
-    allocations_config: AllocationsConfig,
-    existential_deposit: u128,
     origin: ProgramId,
     gas_allowance: u64,
-    outgoing_limit: u32,
-    host_fn_weights: HostFnWeights,
-    forbidden_funcs: BTreeSet<&'static str>,
+    data: ExecutableActorData,
+    dispatch: IncomingDispatch,
+    balance: u128,
+    block_config: BlockConfig,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
+
+    let BlockConfig {
+        block_info,
+        allocations_config,
+        existential_deposit,
+        outgoing_limit,
+        host_fn_weights,
+        forbidden_funcs,
+        mailbox_threshold,
+    } = block_config;
 
     let execution_settings = ExecutionSettings::new(
         block_info,
@@ -293,24 +295,26 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
         allocations_config,
         host_fn_weights,
         forbidden_funcs,
+        mailbox_threshold,
     );
-    let execution_context = ExecutionContext {
+    let execution_context = WasmExecutionContext {
         origin,
         gas_allowance,
     };
     let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
 
-    let program_id = actor.program.id();
+    let program_id = data.program.id();
 
     let exec_result = executor::execute_wasm::<A, E>(
-        actor,
+        balance,
+        data,
         dispatch.clone(),
         execution_context,
         execution_settings,
         msg_ctx_settings,
     )
     .map_err(|err| {
-        log::debug!("Wasm execution err: {}", err.reason);
+        log::debug!("Wasm execution error: {}", err.reason);
         err
     });
 
@@ -320,7 +324,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
-                reason.map(|e| e.to_string()).map(ExecutionErrorReason::Ext),
+                ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
             DispatchResultKind::Wait => process_success(Wait, res),
@@ -337,7 +341,7 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
             | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
                 process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
             }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
         },
     }
 }
@@ -386,7 +390,7 @@ fn process_non_executable(
     // Reply back to the message `source`
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), exit_code);
-        let packet = ReplyPacket::system(exit_code);
+        let packet = ReplyPacket::system(ExecutionErrorReason::NonExecutable.encode(), exit_code);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {

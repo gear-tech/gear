@@ -25,10 +25,7 @@ use gear_core::{
     memory::{HostPointer, Memory, PageBuf, PageNumber},
 };
 use gear_runtime_interface::{gear_ri, RIError};
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    vec::Vec,
-};
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
@@ -48,7 +45,7 @@ impl From<RIError> for Error {
     }
 }
 
-fn mprotect_lazy_pages(mem: &dyn Memory, protect: bool) -> Result<(), Error> {
+fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
     let wasm_mem_addr = match mem.get_buffer_host_addr() {
         None => return Ok(()),
         Some(addr) => addr,
@@ -80,17 +77,18 @@ pub fn is_lazy_pages_enabled() -> bool {
 
 /// Protect and save storage keys for pages which has no data
 pub fn protect_pages_and_init_info(
-    mem: &dyn Memory,
-    lazy_pages: &BTreeSet<PageNumber>,
+    mem: &impl Memory,
+    lazy_pages: impl Iterator<Item = PageNumber>,
     prog_id: ProgramId,
 ) -> Result<(), Error> {
     let prog_id_hash = prog_id.into_origin();
+    let mut lay_pages_peekable = lazy_pages.peekable();
 
     gear_ri::reset_lazy_pages_info();
 
     let addr = match mem.get_buffer_host_addr() {
         None => {
-            return if !lazy_pages.is_empty() {
+            return if lay_pages_peekable.peek().is_none() {
                 // In this case wasm buffer cannot be undefined
                 Err(Error::WasmMemBufferIsUndefined)
             } else {
@@ -104,16 +102,14 @@ pub fn protect_pages_and_init_info(
         e
     })?;
 
-    lazy_pages.iter().for_each(|p| {
-        crate::save_page_lazy_info(prog_id_hash, *p);
-    });
+    crate::save_page_lazy_info(prog_id_hash, lay_pages_peekable);
 
     mprotect_lazy_pages(mem, true)
 }
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
-    mem: &dyn Memory,
+    mem: &impl Memory,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), Error> {
     // Loads data for released lazy pages. Data which was before execution.
@@ -131,13 +127,13 @@ pub fn post_execution_actions(
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem: &dyn Memory) -> Result<(), Error> {
+pub fn remove_lazy_pages_prot(mem: &impl Memory) -> Result<(), Error> {
     mprotect_lazy_pages(mem, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
 pub fn protect_lazy_pages_and_update_wasm_mem_addr(
-    mem: &dyn Memory,
+    mem: &impl Memory,
     old_mem_addr: Option<HostPointer>,
 ) -> Result<(), Error> {
     struct PointerDisplay(HostPointer);
@@ -166,8 +162,16 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
 
 /// Returns list of current lazy pages numbers
 pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
-    gear_ri::get_wasm_lazy_pages_numbers()
+    gear_ri::get_lazy_pages_numbers()
         .iter()
         .map(|p| PageNumber(*p))
+        .collect()
+}
+
+/// Returns list of realeased pages numbers
+pub fn get_released_pages() -> Vec<PageNumber> {
+    gear_ri::get_released_pages()
+        .into_iter()
+        .map(PageNumber)
         .collect()
 }

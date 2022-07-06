@@ -48,7 +48,6 @@ fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 /// Program being tested and it's initialization data.
 ///
 /// In test nested structure *program* is one the highest fields. The other one is *fixture*.
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Program {
     /// Path to program's wasm blob.
@@ -91,7 +90,6 @@ pub struct Programs {
 }
 
 /// Expected data after running messages, defined in the fixture.
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
     /// Step number.
@@ -121,7 +119,6 @@ pub struct Expectation {
 /// 1) the set of messages sent to programs defined in the test;
 /// 2) expected results of message processing.
 /// Tests can have multiple `Fixtures`, which means we can define specialized "messages & expectation" block sets, each with its own `title`.
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Fixture {
     /// Fixture title
@@ -133,7 +130,6 @@ pub struct Fixture {
 }
 
 /// Payload data types being used in messages.
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value")]
 pub enum PayloadVariant {
@@ -219,7 +215,6 @@ pub enum AllocationFilter {
     Dynamic,
 }
 
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Message {
     pub source: Option<ChainAddress>,
@@ -234,7 +229,6 @@ pub struct Message {
 }
 
 /// Main model describing test structure
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
     /// Short name of the test describing its logic

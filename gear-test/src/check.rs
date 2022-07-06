@@ -18,13 +18,14 @@
 
 use crate::{
     js::{MetaData, MetaType},
+    manager::CollectState,
     proc,
     sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test},
 };
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::{
-    common::{CollectState, ExecutableActor, JournalHandler},
+    common::{ExecutableActorData, JournalHandler},
     Ext,
 };
 use derive_more::Display;
@@ -227,62 +228,73 @@ pub fn check_messages(
                 let source_n_dest = [msg.source(), msg.destination()];
                 let is_init = exp.init.unwrap_or(false);
 
-                if exp
-                    .payload
-                    .as_mut()
-                    .map(|payload| match payload {
-                        PayloadVariant::Custom(v) => {
-                            if let Some(&(path, prog_id)) = progs_n_paths
-                                .iter()
-                                .find(|(_, prog_id)| source_n_dest.contains(prog_id))
-                            {
-                                let is_outgoing = prog_id == source_n_dest[0];
+                match_or_else(
+                    exp.exit_code,
+                    msg.exit_code().unwrap_or(0),
+                    |expected, actual| {
+                        errors.push(MessagesError::exit_code(position, expected, actual))
+                    },
+                );
 
-                                let meta_type = match (is_init, is_outgoing) {
-                                    (true, true) => MetaType::InitOutput,
-                                    (true, false) => MetaType::InitInput,
-                                    (false, true) => MetaType::HandleOutput,
-                                    (false, false) => MetaType::HandleInput,
+                if msg.exit_code().unwrap_or(0) == 0
+                    && exp
+                        .payload
+                        .as_mut()
+                        .map(|payload| match payload {
+                            PayloadVariant::Custom(v) => {
+                                if let Some(&(path, prog_id)) = progs_n_paths
+                                    .iter()
+                                    .find(|(_, prog_id)| source_n_dest.contains(prog_id))
+                                {
+                                    let is_outgoing = prog_id == source_n_dest[0];
+
+                                    let meta_type = match (is_init, is_outgoing) {
+                                        (true, true) => MetaType::InitOutput,
+                                        (true, false) => MetaType::InitInput,
+                                        (false, true) => MetaType::HandleOutput,
+                                        (false, false) => MetaType::HandleInput,
+                                    };
+
+                                    let path: String =
+                                        crate::sample::get_meta_wasm_path(String::from(path));
+
+                                    let json = MetaData::Json(proc::parse_payload(
+                                        serde_json::to_string(&v)
+                                            .expect("Cannot convert to string"),
+                                    ));
+
+                                    let bytes = json
+                                        .convert(&path, &meta_type)
+                                        .expect("Unable to get bytes");
+
+                                    *payload = PayloadVariant::Utf8(
+                                        bytes
+                                            .convert(&path, &meta_type)
+                                            .expect("Unable to get json")
+                                            .into_json(),
+                                    );
+
+                                    let new_payload =
+                                        MetaData::CodecBytes((*msg.payload()).to_vec())
+                                            .convert(&path, &meta_type)
+                                            .expect("Unable to get bytes")
+                                            .into_bytes();
+
+                                    *msg = StoredMessage::new(
+                                        msg.id(),
+                                        msg.source(),
+                                        msg.destination(),
+                                        new_payload,
+                                        msg.value(),
+                                        msg.reply(),
+                                    );
                                 };
 
-                                let path: String =
-                                    crate::sample::get_meta_wasm_path(String::from(path));
-
-                                let json = MetaData::Json(proc::parse_payload(
-                                    serde_json::to_string(&v).expect("Cannot convert to string"),
-                                ));
-
-                                let bytes = json
-                                    .convert(&path, &meta_type)
-                                    .expect("Unable to get bytes");
-
-                                *payload = PayloadVariant::Utf8(
-                                    bytes
-                                        .convert(&path, &meta_type)
-                                        .expect("Unable to get json")
-                                        .into_json(),
-                                );
-
-                                let new_payload = MetaData::CodecBytes((*msg.payload()).to_vec())
-                                    .convert(&path, &meta_type)
-                                    .expect("Unable to get bytes")
-                                    .into_bytes();
-
-                                *msg = StoredMessage::new(
-                                    msg.id(),
-                                    msg.source(),
-                                    msg.destination(),
-                                    new_payload,
-                                    msg.value(),
-                                    msg.reply(),
-                                );
-                            };
-
-                            !payload.equals(msg.payload())
-                        }
-                        _ => !payload.equals(msg.payload()),
-                    })
-                    .unwrap_or(false)
+                                !payload.equals(msg.payload())
+                            }
+                            _ => !payload.equals(msg.payload()),
+                        })
+                        .unwrap_or(false)
                 {
                     errors.push(MessagesError::payload(
                         position,
@@ -312,14 +324,6 @@ pub fn check_messages(
                 match_or_else(exp.value, msg.value(), |expected, actual| {
                     errors.push(MessagesError::value(position, expected, actual))
                 });
-
-                match_or_else(
-                    exp.exit_code,
-                    msg.exit_code().unwrap_or(0),
-                    |expected, actual| {
-                        errors.push(MessagesError::exit_code(position, expected, actual))
-                    },
-                );
             });
     }
 
@@ -410,15 +414,15 @@ pub fn check_allocations(
 }
 
 pub fn check_memory(
-    actors: &Vec<ExecutableActor>,
+    actors_data: &Vec<ExecutableActorData>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for actor in actors {
-            if actor.program.id() == case.id.to_program_id() {
+        for data in actors_data {
+            if data.program.id() == case.id.to_program_id() {
                 let page = PageNumber::new_from_addr(case.address);
-                if let Some(page_buf) = actor.pages_data.get(&page) {
+                if let Some(page_buf) = data.pages_data.get(&page) {
                     let begin_byte = case.address - page.offset();
                     let end_byte = begin_byte + case.bytes.len();
                     if page_buf[begin_byte..end_byte] != case.bytes {
@@ -546,7 +550,9 @@ where
                 if let Some(log) = &exp.log {
                     for message in &final_state.log {
                         if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                            log::debug!("log({})", utf8)
+                            log::debug!("log(text: {})", utf8);
+                        } else {
+                            log::debug!("log(<binary>)");
                         }
                     }
 
@@ -580,7 +586,7 @@ where
                     let actual_prog_ids = final_state
                         .actors
                         .iter()
-                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .map(|(id, actor)| (*id, actor.executable_data.is_none()))
                         .collect();
 
                     if let Err(prog_id_errors) = check_programs_state(
@@ -602,7 +608,8 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
+                            .filter_map(|(_, actor)| actor.executable_data)
+                            .map(|data| data.program)
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
@@ -612,12 +619,12 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let actors: Vec<ExecutableActor> = final_state
+                        let data = final_state
                             .actors
                             .into_iter()
-                            .filter_map(|(_, actor_opt)| actor_opt)
+                            .filter_map(|(_, actor)| actor.executable_data)
                             .collect();
-                        if let Err(mem_errors) = check_memory(&actors, mem) {
+                        if let Err(mem_errors) = check_memory(&data, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
                         }

@@ -18,18 +18,21 @@
 
 use super::*;
 use crate::mock::*;
-use frame_support::{assert_noop, assert_ok};
+use common::{GasTree as _, Origin};
+use frame_support::{assert_noop, assert_ok, traits::Imbalance};
+use gear_core::ids::MessageId;
 use primitive_types::H256;
 
-type Gas = Pallet<Test>;
+type Gas = <Pallet<Test> as common::GasProvider>::GasTree;
+type GasTree = GasNodes<Test>;
 
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
-        let new_root = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
 
         {
-            let pos = Gas::create(ALICE.into_origin(), new_root, 1000).unwrap();
+            let pos = Gas::create(ALICE, new_root, 1000).unwrap();
 
             assert_eq!(pos.peek(), 1000);
         }
@@ -39,7 +42,7 @@ fn simple_value_tree() {
         {
             let (_neg, owner) = Gas::consume(new_root).unwrap().unwrap();
 
-            assert_eq!(owner, ALICE.into_origin());
+            assert_eq!(owner, ALICE);
         }
         // Total supply back to original value
         assert_eq!(Gas::total_supply(), 0);
@@ -47,13 +50,113 @@ fn simple_value_tree() {
 }
 
 #[test]
+fn can_cut_nodes() {
+    new_test_ext().execute_with(|| {
+        let (root, specified, unspecified, cut_a, cut_b, cut_c) = (
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+        );
+        let (total_supply, specified_value, cut_a_value, cut_b_value, cut_c_value) =
+            (1000, 500, 300, 200, 100);
+
+        // create nodes
+        {
+            assert_ok!(Gas::create(ALICE, root, total_supply));
+            assert_ok!(Gas::cut(root, cut_a, cut_a_value));
+            assert_ok!(Gas::split_with_value(root, specified, specified_value));
+            assert_ok!(Gas::cut(specified, cut_b, cut_b_value));
+            assert_ok!(Gas::split(root, unspecified));
+            assert_ok!(Gas::cut(unspecified, cut_c, cut_c_value));
+        }
+
+        assert_eq!(Gas::total_supply(), total_supply);
+
+        assert_eq!(
+            Gas::get_limit(root).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(
+                total_supply - specified_value - cut_a_value - cut_c_value
+            ))
+        );
+
+        assert_eq!(
+            Gas::get_limit(specified).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(specified_value - cut_b_value))
+        );
+
+        assert_eq!(
+            Gas::get_limit(cut_a).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(cut_a_value))
+        );
+        assert_eq!(
+            Gas::get_limit(cut_b).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(cut_b_value))
+        );
+        assert_eq!(
+            Gas::get_limit(cut_c).map(|gas_limit| gas_limit.map(|(g, _)| g)),
+            Ok(Some(cut_c_value))
+        );
+    })
+}
+
+#[test]
+fn value_tree_with_all_kinds_of_nodes() {
+    new_test_ext().execute_with(|| {
+        let total_supply = 1000;
+        let cut_value = 300;
+        let specified_value = total_supply - cut_value;
+        let (root, cut, specified, unspecfied) = (
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+            MessageId::from_origin(H256::random()),
+        );
+
+        // create nodes
+        {
+            assert_ok!(Gas::create(ALICE, root, total_supply));
+            assert_ok!(Gas::cut(root, cut, cut_value));
+            assert_ok!(Gas::split_with_value(root, specified, specified_value));
+            assert_ok!(Gas::split(root, unspecfied));
+        }
+
+        assert_eq!(Gas::total_supply(), total_supply);
+
+        // consume nodes
+        {
+            assert_eq!(Gas::consume(unspecfied), Ok(None));
+            assert_eq!(Gas::consume(specified), Ok(None));
+            assert_eq!(
+                Gas::consume(root),
+                Ok(Some((
+                    common::gas_provider::NegativeImbalance::new(specified_value),
+                    ALICE
+                )))
+            );
+            assert_eq!(
+                Gas::consume(cut),
+                Ok(Some((
+                    common::gas_provider::NegativeImbalance::new(cut_value),
+                    ALICE
+                )))
+            );
+        }
+
+        assert_eq!(Gas::total_supply(), 0);
+    })
+}
+
+#[test]
 fn test_consume_procedure() {
     new_test_ext().execute_with(|| {
-        let origin = H256::random();
-        let root = H256::random();
-        let node_1 = H256::random();
-        let node_2 = H256::random();
-        let node_3 = H256::random();
+        let origin = ALICE;
+        let root = MessageId::from_origin(H256::random());
+        let node_1 = MessageId::from_origin(H256::random());
+        let node_2 = MessageId::from_origin(H256::random());
+        let node_3 = MessageId::from_origin(H256::random());
 
         // Chain of nodes, that form more likely a path rather then a tree
         assert_ok!(Gas::create(origin, root, 300));
@@ -63,37 +166,40 @@ fn test_consume_procedure() {
 
         assert_eq!(Gas::consume(root).unwrap(), None);
         // Consumed root still has a balance. Root is not deleted.
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(100));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some((100, root)));
 
         assert_eq!(Gas::consume(node_1).unwrap(), None);
         // Consumed node without unspec refs moves value up
-        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(0));
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some((0, node_1)));
         // Check value moved up to the root
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some((200, root)));
 
         assert_eq!(Gas::consume(node_2).unwrap(), None);
         // Consumed node with unspec refs doesn't moves value up
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((100, node_2)));
 
         // Check that spending from unspec `node_3` actually decreases balance from the ancestor with value - `node_2`.
         assert_ok!(Gas::spend(node_3, 100));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(0));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((0, node_2)));
 
         // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.
         assert_noop!(Gas::consume(node_2), Error::<Test>::NodeWasConsumed,);
 
         // Impossible to consume non-existing node.
-        assert_noop!(Gas::consume(H256::random()), Error::<Test>::NodeNotFound,);
+        assert_noop!(
+            Gas::consume(MessageId::from_origin(H256::random())),
+            Error::<Test>::NodeNotFound,
+        );
 
         // Before consuming blockage `node_3`
-        assert!(Gas::get_node(root).is_some());
-        assert!(Gas::get_node(node_1).is_some());
-        assert!(Gas::get_node(node_2).is_some());
+        assert!(GasTree::get(root).is_some());
+        assert!(GasTree::get(node_1).is_some());
+        assert!(GasTree::get(node_2).is_some());
 
         assert!(matches!(Gas::consume(node_3).unwrap(), Some(_)));
 
         // After consuming blockage `node_3`
-        assert!(super::GasTree::<Test>::iter_keys().next().is_none());
+        assert!(GasTree::iter_keys().next().is_none());
     })
 }
 
@@ -113,11 +219,11 @@ fn splits_fail() {
     //            (specified: 250)    (unspecified)
     //
     new_test_ext().execute_with(|| {
-        let origin = H256::random();
-        let root = H256::random();
-        let node_1 = H256::random();
-        let node_2 = H256::random();
-        let node_3 = H256::random();
+        let origin = ALICE;
+        let root = MessageId::from_origin(H256::random());
+        let node_1 = MessageId::from_origin(H256::random());
+        let node_2 = MessageId::from_origin(H256::random());
+        let node_3 = MessageId::from_origin(H256::random());
 
         // Prepare the initial configuration
         assert_ok!(Gas::create(origin, root, 1000));
@@ -128,11 +234,11 @@ fn splits_fail() {
         assert_eq!(Gas::consume(node_1).unwrap(), None);
         // Can't split consumed node with/without value.
         assert_noop!(
-            Gas::split(node_1, H256::random()),
+            Gas::split(node_1, MessageId::from_origin(H256::random())),
             Error::<Test>::NodeWasConsumed,
         );
         assert_noop!(
-            Gas::split_with_value(node_1, H256::random(), 100),
+            Gas::split_with_value(node_1, MessageId::from_origin(H256::random()), 100),
             Error::<Test>::NodeWasConsumed,
         );
 
@@ -141,7 +247,7 @@ fn splits_fail() {
         // Special case is when provided 2 existing equal ids
         assert_noop!(Gas::split(node_2, node_2), Error::<Test>::NodeAlreadyExists,);
         // Not equal ids can be caught as well
-        let node_4 = H256::random();
+        let node_4 = MessageId::from_origin(H256::random());
         assert_noop!(Gas::split(node_4, node_4), Error::<Test>::NodeNotFound,);
     })
 }
@@ -149,16 +255,17 @@ fn splits_fail() {
 #[test]
 fn sub_nodes_tree() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
         assert_eq!(pos_imb.peek(), 1000);
 
         assert_ok!(Gas::split_with_value(new_root, split_1, 500));
         assert_ok!(Gas::split_with_value(new_root, split_2, 500));
+
         // No new value created - total supply not affected
         assert_eq!(pos_imb.peek(), 1000);
 
@@ -166,12 +273,12 @@ fn sub_nodes_tree() {
         drop(pos_imb);
         assert_eq!(Gas::total_supply(), 1000);
 
-        assert!(matches!(Gas::consume(new_root).unwrap(), None));
-        assert!(matches!(Gas::consume(split_1).unwrap(), None));
+        assert!(matches!(Gas::consume(new_root), Ok(None)));
+        assert!(matches!(Gas::consume(split_1), Ok(None)));
 
         let consume_result = Gas::consume(split_2).unwrap();
-        assert!(consume_result.is_some());
-        assert_eq!(consume_result.unwrap().0.peek(), 1000);
+        assert_eq!(consume_result.map(|r| r.0.peek()), Some(1000));
+
         // Negative imbalance moved and dropped above - total supply decreased
         assert_eq!(Gas::total_supply(), 0);
     });
@@ -180,14 +287,19 @@ fn sub_nodes_tree() {
 #[test]
 fn value_tree_known_errors() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
+        let cut = MessageId::from_origin(H256::random());
+        let cut_1 = MessageId::from_origin(H256::random());
 
         {
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
             assert_eq!(pos_imb.peek(), 1000);
+
+            // Cut a reserved node
+            assert_ok!(Gas::cut(new_root, cut, 100));
 
             // Attempt to re-create an existing node
             assert_noop!(
@@ -206,6 +318,18 @@ fn value_tree_known_errors() {
                 Gas::split_with_value(new_root, split_1, 5000),
                 Error::<Test>::InsufficientBalance
             );
+
+            // Try to split the reserved node
+            assert_noop!(Gas::split(cut, split_1), Error::<Test>::Forbidden);
+
+            // Try to split the reserved node with value
+            assert_noop!(
+                Gas::split_with_value(cut, split_1, 50),
+                Error::<Test>::Forbidden
+            );
+
+            // Try to cut the reserved node
+            assert_noop!(Gas::cut(cut, cut_1, 50), Error::<Test>::Forbidden);
 
             // Total supply not affected so far - imbalance is not yet dropped
             assert_eq!(pos_imb.peek(), 1000);
@@ -228,10 +352,10 @@ fn value_tree_known_errors() {
 #[test]
 fn sub_nodes_tree_with_spends() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
 
@@ -261,9 +385,11 @@ fn sub_nodes_tree_with_spends() {
 #[test]
 fn all_keys_are_cleared() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let root = H256::random();
-        let origin = H256::random();
-        let sub_keys = (0..5).map(|_| H256::random()).collect::<Vec<_>>();
+        let root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let sub_keys = (0..5)
+            .map(|_| MessageId::from_origin(H256::random()))
+            .collect::<Vec<_>>();
 
         Gas::create(origin, root, 2000).unwrap();
         for key in sub_keys.iter() {
@@ -273,13 +399,13 @@ fn all_keys_are_cleared() {
         assert_ok!(Gas::consume(root));
         for key in sub_keys.iter() {
             // here we have not yet consumed everything
-            assert!(GasTree::<Test>::contains_key(*key));
+            assert!(GasTree::contains_key(*key));
 
             assert_ok!(Gas::consume(*key));
         }
 
         // here we consumed everything
-        let key_count = GasTree::<Test>::iter_keys().fold(0, |k, _| k + 1);
+        let key_count = GasTree::iter_keys().fold(0, |k, _| k + 1);
         assert_eq!(key_count, 0);
     });
 }
@@ -287,11 +413,11 @@ fn all_keys_are_cleared() {
 #[test]
 fn split_with_no_value() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
-        let split_1_2 = H256::random();
+        let new_root = MessageId::from_origin(H256::random());
+        let origin = ALICE;
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
+        let split_1_2 = MessageId::from_origin(H256::random());
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
 
@@ -320,12 +446,12 @@ fn split_with_no_value() {
 #[test]
 fn long_chain() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let root = H256::random();
-        let m1 = H256::random();
-        let m2 = H256::random();
-        let m3 = H256::random();
-        let m4 = H256::random();
-        let origin = H256::random();
+        let root = MessageId::from_origin(H256::random());
+        let m1 = MessageId::from_origin(H256::random());
+        let m2 = MessageId::from_origin(H256::random());
+        let m3 = MessageId::from_origin(H256::random());
+        let m4 = MessageId::from_origin(H256::random());
+        let origin = ALICE;
 
         assert_ok!(Gas::create(origin, root, 2000));
 
@@ -356,47 +482,53 @@ fn long_chain() {
 #[test]
 fn limit_vs_origin() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let origin = H256::random();
-        let root_node = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
-        let split_1_1 = H256::random();
-        let split_1_2 = H256::random();
-        let split_1_1_1 = H256::random();
+        let origin = BOB;
+        let root_node = MessageId::from_origin(H256::random());
+        let cut = MessageId::from_origin(H256::random());
+        let split_1 = MessageId::from_origin(H256::random());
+        let split_2 = MessageId::from_origin(H256::random());
+        let split_1_1 = MessageId::from_origin(H256::random());
+        let split_1_2 = MessageId::from_origin(H256::random());
+        let split_1_1_1 = MessageId::from_origin(H256::random());
 
-        assert_ok!(Gas::create(origin, root_node, 1000));
+        assert_ok!(Gas::create(origin, root_node, 1100));
 
+        assert_ok!(Gas::cut(root_node, cut, 300));
         assert_ok!(Gas::split(root_node, split_1));
         assert_ok!(Gas::split(root_node, split_2));
         assert_ok!(Gas::split_with_value(split_1, split_1_1, 600));
         assert_ok!(Gas::split(split_1, split_1_2));
         assert_ok!(Gas::split(split_1_1, split_1_1_1));
 
-        // Original 1000 less 600 that were `split_with_value`
-        assert_eq!(Gas::get_limit(root_node).unwrap(), Some(400));
+        // Original 1100 less 200 that were `cut` and `split_with_value`
+        assert_eq!(Gas::get_limit(root_node).unwrap(), Some((200, root_node)));
 
-        // Parent's 400
-        assert_eq!(Gas::get_limit(split_1).unwrap(), Some(400));
+        // 300 cut from the root node
+        assert_eq!(Gas::get_limit(cut).unwrap(), Some((300, cut)));
 
-        // Parent's 400
-        assert_eq!(Gas::get_limit(split_2).unwrap(), Some(400));
+        // Parent's 200
+        assert_eq!(Gas::get_limit(split_1).unwrap(), Some((200, root_node)));
+
+        // Parent's 200
+        assert_eq!(Gas::get_limit(split_2).unwrap(), Some((200, root_node)));
 
         // Propriatery 600
-        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some(600));
+        assert_eq!(Gas::get_limit(split_1_1).unwrap(), Some((600, split_1_1)));
 
-        // Grand-parent's 400
-        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some(400));
+        // Grand-parent's 200
+        assert_eq!(Gas::get_limit(split_1_2).unwrap(), Some((200, root_node)));
 
         // Parent's 600
-        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some(600));
+        assert_eq!(Gas::get_limit(split_1_1_1).unwrap(), Some((600, split_1_1)));
 
         // All nodes origin is `origin`
-        assert_eq!(Gas::get_origin(root_node).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_2).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_1).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_2).unwrap(), Some(origin));
-        assert_eq!(Gas::get_origin(split_1_1_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(root_node).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(cut).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_2).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1_1).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1_2).unwrap(), Some(origin));
+        assert_eq!(Gas::get_external(split_1_1_1).unwrap(), Some(origin));
     });
 }
 
@@ -428,13 +560,13 @@ fn subtree_gas_limit_remains_intact() {
     // In the test scenario node_1 is consumed first, and then node_2 is consumed.
     // Also an ability to spend value by "unspec" child from "spec" parent will be tested.
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let origin = H256::random();
-        let root = H256::random();
-        let node_1 = H256::random();
-        let node_2 = H256::random();
-        let node_3 = H256::random();
-        let node_4 = H256::random();
-        let node_5 = H256::random();
+        let origin = BOB;
+        let root = MessageId::from_origin(H256::random());
+        let node_1 = MessageId::from_origin(H256::random());
+        let node_2 = MessageId::from_origin(H256::random());
+        let node_3 = MessageId::from_origin(H256::random());
+        let node_4 = MessageId::from_origin(H256::random());
+        let node_5 = MessageId::from_origin(H256::random());
 
         // Prepare the initial configuration
         assert_ok!(Gas::create(origin, root, 1000));
@@ -445,47 +577,49 @@ fn subtree_gas_limit_remains_intact() {
         assert_ok!(Gas::split_with_value(node_2, node_5, 250));
 
         // Check gas limits in the beginning
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
-        assert_eq!(Gas::get_limit(node_1).unwrap(), Some(300));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(250));
-        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300)); // defined by parent
-        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250)); // defined by parent
-        assert_eq!(Gas::get_limit(node_5).unwrap(), Some(250));
+        assert_eq!(Gas::get_limit(root).unwrap(), Some((200, root)));
+        assert_eq!(Gas::get_limit(node_1).unwrap(), Some((300, node_1)));
+        assert_eq!(Gas::get_limit(node_2).unwrap(), Some((250, node_2)));
+        // defined by parent
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some((300, node_1)));
+        // defined by parent
+        assert_eq!(Gas::get_limit(node_4).unwrap(), Some((250, node_2)));
+        assert_eq!(Gas::get_limit(node_5).unwrap(), Some((250, node_5)));
 
         // Consume node_1
         assert!(matches!(Gas::consume(node_1).unwrap(), None));
         // Expect gas limit of the node_3 to remain unchanged
-        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(node_3).unwrap().map(|(g, _)| g), Some(300));
 
         // Consume node_2
         assert!(matches!(Gas::consume(node_2).unwrap(), None));
         // Marked as consumed
-        assert!(Gas::get_node(node_2).map(|node| node.consumed).unwrap());
+        assert!(GasTree::get(node_2).map(|node| node.consumed).unwrap());
         // Expect gas limit of the node_4 to remain unchanged
-        assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
+        assert_eq!(Gas::get_limit(node_4).unwrap().map(|(g, _)| g), Some(250));
 
         // Consume node 5
         assert!(matches!(Gas::consume(node_5).unwrap(), None));
         // node_5 was removed
         assert_eq!(Gas::get_limit(node_5).unwrap(), None);
         // Expect gas limit from node_5 sent to upstream node with a value (node_2, which is consumed)
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(500));
+        assert_eq!(Gas::get_limit(node_2).unwrap().map(|(g, _)| g), Some(500));
 
         // Spend from unspecified node_4, which actually spends gas from node_2 (ancestor with value)
         assert_ok!(Gas::spend(node_4, 200));
         // Expect gas limit of consumed node_2 to decrease by 200 (thus checking we can spend from consumed node)
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(300));
+        assert_eq!(Gas::get_limit(node_2).unwrap().map(|(g, _)| g), Some(300));
         // Or explicitly spend from consumed node_2 by calling "spend"
         assert_ok!(Gas::spend(node_2, 200));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
+        assert_eq!(Gas::get_limit(node_2).unwrap().map(|(g, _)| g), Some(100));
     });
 }
 
 #[test]
 fn gas_free_after_consumed() {
     sp_io::TestExternalities::new_empty().execute_with(|| {
-        let origin = H256::random();
-        let root_msg_id = H256::random();
+        let origin = BOB;
+        let root_msg_id = MessageId::from_origin(H256::random());
 
         assert_ok!(Gas::create(origin, root_msg_id, 1000));
         assert_ok!(Gas::spend(root_msg_id, 300));

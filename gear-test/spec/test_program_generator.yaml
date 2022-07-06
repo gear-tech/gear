@@ -1,4 +1,4 @@
-title: Program_id test
+title: Program generator
 
 codes:
   - path: examples/program_generator/child_contract.wasm

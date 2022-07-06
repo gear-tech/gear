@@ -3,7 +3,7 @@
 use gstd::{debug, exec, msg};
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     debug!("Starting program id");
     let program_id = exec::program_id();
     debug!("My program id: {:?}", program_id);

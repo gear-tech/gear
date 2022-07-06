@@ -18,9 +18,12 @@
 
 //! Configurations.
 
+use crate::common::Actor;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use gear_core::{costs::HostFnWeights, memory::WasmPageNumber};
+use gear_core::{
+    costs::HostFnWeights, ids::ProgramId, memory::WasmPageNumber, message::IncomingDispatch,
+};
 
 const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
@@ -70,12 +73,14 @@ pub struct ExecutionSettings {
     pub block_info: BlockInfo,
     /// Allocation config.
     pub allocations_config: AllocationsConfig,
-    /// Minimal amount of existance for account.
+    /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<&'static str>,
+    /// Threshold for inserting into mailbox
+    pub mailbox_threshold: u64,
 }
 
 impl ExecutionSettings {
@@ -86,6 +91,7 @@ impl ExecutionSettings {
         allocations_config: AllocationsConfig,
         host_fn_weights: HostFnWeights,
         forbidden_funcs: BTreeSet<&'static str>,
+        mailbox_threshold: u64,
     ) -> Self {
         Self {
             block_info,
@@ -93,6 +99,7 @@ impl ExecutionSettings {
             allocations_config,
             host_fn_weights,
             forbidden_funcs,
+            mailbox_threshold,
         }
     }
 
@@ -120,4 +127,36 @@ impl ExecutionSettings {
     pub fn load_page_cost(&self) -> u64 {
         self.allocations_config.load_page_cost
     }
+}
+
+/// Stable parameters for the whole block across processing runs.
+#[derive(Clone)]
+pub struct BlockConfig {
+    /// Block info.
+    pub block_info: BlockInfo,
+    /// Allocations config.
+    pub allocations_config: AllocationsConfig,
+    /// Existential deposit.
+    pub existential_deposit: u128,
+    /// Outgoing limit.
+    pub outgoing_limit: u32,
+    /// Host function weights.
+    pub host_fn_weights: HostFnWeights,
+    /// Forbidden functions.
+    pub forbidden_funcs: BTreeSet<&'static str>,
+    /// Mailbox threshold.
+    pub mailbox_threshold: u64,
+}
+
+/// Unstable parameters for message execution across processing runs.
+#[derive(Clone)]
+pub struct MessageExecutionContext {
+    /// Executable actor.
+    pub actor: Actor,
+    /// Incoming dispatch.
+    pub dispatch: IncomingDispatch,
+    /// The ID of the user who started interaction with programs.
+    pub origin: ProgramId,
+    /// Gas allowance.
+    pub gas_allowance: u64,
 }

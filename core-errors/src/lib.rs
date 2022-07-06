@@ -82,6 +82,22 @@ pub enum MessageError {
         existential_deposit: u128,
     },
 
+    /// Everything less than mailbox threshold but greater than 0 is not considered as available gas limit and
+    /// not inserted in mailbox.
+    ///
+    /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
+    #[display(
+        fmt = "In case of non-zero message gas limit {}, it must be greater than mailbox threshold {}",
+        message_gas_limit,
+        mailbox_threshold
+    )]
+    InsufficientGasLimit {
+        /// Message's gas limit.
+        message_gas_limit: u64,
+        /// Minimal amount of gas limit on a message that can be inserted in mailbox.
+        mailbox_threshold: u64,
+    },
+
     /// The error occurs when program's balance is less than value in message it tries to send.
     #[display(
         fmt = "Existing value {} is not enough to send a message with value {}",
@@ -97,13 +113,13 @@ pub enum MessageError {
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum MemoryError {
     /// The error occurs when a program tries to allocate more memory  than
     /// allowed.
-    #[display(fmt = "Maximum possible memory has been allocated")]
-    OutOfMemory,
+    #[display(fmt = "Memory memory out of maximal bounds")]
+    OutOfBounds,
 
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
@@ -121,7 +137,7 @@ pub enum MemoryError {
 }
 
 /// Execution error.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available during execution.
@@ -133,7 +149,9 @@ pub enum ExecutionError {
 }
 
 /// An error occurred in API.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display, derive_more::From)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, derive_more::Display, derive_more::From,
+)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
 pub enum ExtError {
     /// We got some error but don't know which exactly because of disabled gcore's `codec` feature

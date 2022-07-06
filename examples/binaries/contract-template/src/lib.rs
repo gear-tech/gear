@@ -220,7 +220,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         let programs: Vec<ActorId> =
             msg::load().expect("Malformed input: expecting vectors of program IDs and random IDs");
         STATE = State::new(programs);

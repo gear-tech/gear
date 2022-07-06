@@ -6,12 +6,12 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.57"
+anyhow = "1.0.58"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 colored = "2.0.0"
 clap = { version = "3.2", features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
-serde_json = "1.0.81"
+serde_json = "1.0.82"
 quick-xml = { version = "0.23", features = [ "serialize" ] }
 rayon = "1.5"
 
@@ -31,7 +31,7 @@ gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime", features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }
 pallet-gear = { path = "../../pallets/gear" }
-pallet-gas = { path = "../../pallets/gas" }
+pallet-gear-gas = { path = "../../pallets/gas" }
 pallet-gear-debug = { path = "../../pallets/gear-debug" }
 gear-core-processor = { path = "../../core-processor" }
 junit-common = { path = "../junit-common" }

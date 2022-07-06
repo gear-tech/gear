@@ -29,6 +29,7 @@ members = [
     "multiping",
     "mutex",
     "panicker",
+    "piggy-bank",
     "ping",
     "ping-gas",
     "program_generator",

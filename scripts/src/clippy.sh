@@ -27,7 +27,6 @@ gear_clippy() {
 examples_clippy() {
   cd "$1"/examples
   SKIP_WASM_BUILD=1 cargo +nightly hack clippy --workspace --release -- --no-deps \
-    -A clippy::missing_safety_doc \
 	  -A clippy::stable_sort_primitive \
     -D warnings
   cd "$1"

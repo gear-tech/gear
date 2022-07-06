@@ -35,7 +35,7 @@ mod wasm {
     use gstd::{debug, exec, msg};
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle() {
+    unsafe extern "C" fn handle() {
         let (x, y): (u64, u64) = msg::load().expect("Expected a pair of u64 numbers");
         let z: u64 = x.checked_mul(y).expect("Multiplication overflow");
         debug!(
@@ -47,7 +47,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         msg::reply_bytes([], 0).unwrap();
     }
 }

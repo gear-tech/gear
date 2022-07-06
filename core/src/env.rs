@@ -51,7 +51,7 @@ pub trait Ext {
     fn alloc(
         &mut self,
         pages: WasmPageNumber,
-        mem: &mut dyn Memory,
+        mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error>;
 
     /// Get the current block height.
@@ -97,7 +97,7 @@ pub trait Ext {
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
 
     /// Terminate the program and transfer all available value to the address.
-    fn exit(&mut self, value_destination: ProgramId) -> Result<(), Self::Error>;
+    fn exit(&mut self) -> Result<(), Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -274,7 +274,7 @@ mod tests {
         fn alloc(
             &mut self,
             _pages: WasmPageNumber,
-            _mem: &mut dyn Memory,
+            _mem: &mut impl Memory,
         ) -> Result<WasmPageNumber, Self::Error> {
             Err(AllocError)
         }
@@ -312,7 +312,7 @@ mod tests {
         fn source(&mut self) -> Result<ProgramId, Self::Error> {
             Ok(ProgramId::from(0))
         }
-        fn exit(&mut self, _value_destination: ProgramId) -> Result<(), Self::Error> {
+        fn exit(&mut self) -> Result<(), Self::Error> {
             Ok(())
         }
         fn message_id(&mut self) -> Result<MessageId, Self::Error> {

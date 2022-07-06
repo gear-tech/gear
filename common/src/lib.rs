@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![cfg_attr(not(feature = "std"), feature(thread_local))]
+#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
@@ -28,14 +30,16 @@ pub mod storage;
 pub mod code_storage;
 pub use code_storage::{CodeStorage, Error as CodeStorageError};
 
+pub mod gas_provider;
+
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use core::fmt;
+use core::{fmt, mem};
 use frame_support::{
-    dispatch::{DispatchError, DispatchResult},
-    traits::Imbalance,
+    dispatch::DispatchError,
+    traits::Get,
     weights::{IdentityFee, WeightToFee},
 };
 use gear_core::{
@@ -51,6 +55,9 @@ use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
+use storage::ValueStorage;
+
+pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -148,104 +155,17 @@ pub trait PaymentProvider<AccountId> {
     ) -> Result<(), DispatchError>;
 }
 
-/// Abstraction for a chain of value items each piece of which has an attributed owner and
-/// can be traced up to some root origin.
-/// The definition is largely inspired by the `frame_support::traits::Currency` -
-/// <https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs>,
-/// however, the intended use is very close to the UTxO based ledger model.
-pub trait ValueTree {
-    /// Type representing the external owner of a value (gas) item.
-    type ExternalOrigin;
-
-    /// Type that identifies a particular value item.
-    type Key;
+/// Contains various limits for the block.
+pub trait BlockLimiter {
+    /// The maximum amount of gas that can be used within a single block.
+    type BlockGasLimit: Get<u64>;
 
     /// Type representing a quantity of value.
     type Balance;
 
-    /// Types to denote a result of some unbalancing operation - that is operations that create
-    /// inequality between the underlying value supply and some hypothetical "collateral" asset.
-
-    /// `PositiveImbalance` indicates that some value has been created, which will eventually
-    /// lead to an increase in total supply.
-    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
-
-    /// `NegativeImbalance` indicates that some value has been removed from circulation
-    /// leading to a decrease in the total supply of the underlying value.
-    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
-
-    /// Error type
-    type Error;
-
-    /// The total amount of value currently in circulation.
-    fn total_supply() -> Self::Balance;
-
-    /// Increase the total issuance of the underlying value by creating some `amount` of it
-    /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
-    /// In case the `key` already identifies some other piece of value an error is returned.
-    fn create(
-        origin: Self::ExternalOrigin,
-        key: Self::Key,
-        amount: Self::Balance,
-    ) -> Result<Self::PositiveImbalance, Self::Error>;
-
-    /// The external origin for a key, if the latter exists, `None` otherwise.
-    ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_origin(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error>;
-
-    /// The id of external node for a key, if the latter exists, `None` otherwise.
-    ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error>;
-
-    /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
-    ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_limit(key: Self::Key) -> Result<Option<Self::Balance>, Self::Error>;
-
-    /// Consume underlying value.
-    ///
-    /// If `key` does not identify any value or the value can't be fully consumed due to
-    /// being a part of other value or itself having unconsumed parts, return `None`,
-    /// else the corresponding piece of value is destroyed and imbalance is created.
-    ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn consume(
-        key: Self::Key,
-    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>;
-
-    /// Burns underlying value.
-    ///
-    /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
-    /// In case of a success, this indicates the entire value supply becomes over-collateralized,
-    /// hence negative imbalance.
-    fn spend(key: Self::Key, amount: Self::Balance)
-        -> Result<Self::NegativeImbalance, Self::Error>;
-
-    /// Split underlying value.
-    ///
-    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
-    /// an error is returned.
-    /// This can't create imbalance as no value is burned or created.
-    fn split_with_value(
-        key: Self::Key,
-        new_key: Self::Key,
-        amount: Self::Balance,
-    ) -> DispatchResult;
-
-    /// Split underlying value.
-    ///
-    /// If `key` does not identify any value an error is returned.
-    /// This can't create imbalance as no value is burned or created.
-    fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
+    /// Type manages a gas that is available at the moment of call.
+    type GasAllowance: storage::Limiter<Value = Self::Balance>;
 }
-
-type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
@@ -347,17 +267,26 @@ pub fn program_key(id: H256) -> Vec<u8> {
 }
 
 pub fn pages_prefix(program_id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
+    let id_bytes = program_id.as_fixed_bytes();
+    let mut key = Vec::with_capacity(STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2);
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    program_id.encode_to(&mut key);
+    key.extend(program_id.as_fixed_bytes());
+    key.extend(b"::");
 
     key
 }
 
 fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
-    let mut key = pages_prefix(id);
+    // try to avoid realloc
+    let id_bytes = id.as_fixed_bytes();
+    let mut key = Vec::with_capacity(
+        STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2 + mem::size_of::<u32>(),
+    );
+    key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
+    key.extend(id.as_fixed_bytes());
     key.extend(b"::");
-    page.0.encode_to(&mut key);
+    key.extend(page.0.to_le_bytes());
+
     key
 }
 
@@ -401,9 +330,11 @@ pub fn get_program_page_data(
 }
 
 /// Save page data key in storage
-pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
-    let key = page_key(id, page_num);
-    gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
+pub fn save_page_lazy_info(id: H256, page_nums: impl Iterator<Item = PageNumber>) {
+    let prefix = pages_prefix(id);
+    let pages = page_nums.map(|p| p.0).collect();
+    log::trace!("lazy pages = {:?}", &pages);
+    gear_ri::gear_ri::save_page_lazy_info(pages, prefix);
 }
 
 pub fn get_program_pages_data(

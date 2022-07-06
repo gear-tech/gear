@@ -19,8 +19,7 @@
 //! Common structures for processing.
 
 use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::{self, Debug, Formatter},
+    collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
@@ -30,10 +29,11 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
+    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
 };
 use gear_core_errors::MemoryError;
+use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -41,7 +41,7 @@ pub enum DispatchResultKind {
     /// Successful dispatch
     Success,
     /// Trap dispatch.
-    Trap(Option<TrapExplanation>),
+    Trap(TrapExplanation),
     /// Wait dispatch.
     Wait,
     /// Exit dispatch.
@@ -114,14 +114,14 @@ pub enum DispatchOutcome {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        reason: Option<String>,
+        reason: String,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed initializing.
         program_id: ProgramId,
         /// Reason of the fail.
-        trap: Option<String>,
+        trap: String,
     },
     /// Message was a success.
     Success,
@@ -280,7 +280,7 @@ pub struct ExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Debug, derive_more::Display)]
+#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub enum ExecutionErrorReason {
     /// Memory error
     #[display(fmt = "{}", _0)]
@@ -290,7 +290,10 @@ pub enum ExecutionErrorReason {
     Backend(String),
     /// Ext error
     #[display(fmt = "{}", _0)]
-    Ext(String),
+    Ext(TrapExplanation),
+    /// Not executable actor.
+    #[display(fmt = "Not executable actor")]
+    NonExecutable,
     /// Program's max page is not last page in wasm page
     #[display(fmt = "Program's max page is not last page in wasm page")]
     NotLastPage,
@@ -328,70 +331,38 @@ pub enum ExecutionErrorReason {
     #[display(fmt = "Cannot read data for {:?}: {}", _0, _1)]
     InitialMemoryReadFailed(PageNumber, MemoryError),
     /// Cannot write initial data to wasm memory.
-    #[display(fmt = "Cannot write intial data for {:?}: {}", _0, _1)]
+    #[display(fmt = "Cannot write initial data for {:?}: {}", _0, _1)]
     InitialDataWriteFailed(PageNumber, MemoryError),
+    /// Message killed from storage as out of rent.
+    #[display(fmt = "Out of rent")]
+    OutOfRent,
 }
 
-/// Executable actor.
+/// Actor.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ExecutableActor {
-    /// Program.
-    pub program: Program,
+pub struct Actor {
     /// Program value balance.
     pub balance: u128,
+    /// Destination program.
+    pub destination_program: ProgramId,
+    /// Executable actor data
+    pub executable_data: Option<ExecutableActorData>,
+}
+
+/// Executable actor data.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ExecutableActorData {
+    /// Program.
+    pub program: Program,
     /// Data which some program allocated pages may have.
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
 }
 
 /// Execution context.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ExecutionContext {
+pub struct WasmExecutionContext {
     /// Original user.
     pub origin: ProgramId,
     /// Gas allowance of the block.
     pub gas_allowance: u64,
-}
-
-#[derive(Clone, Default)]
-/// In-memory state.
-pub struct State {
-    /// Message queue.
-    pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
-    /// Log records.
-    pub log: Vec<StoredMessage>,
-    /// State of each executable actor.
-    pub actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
-    /// Is current state failed.
-    pub current_failed: bool,
-}
-
-impl Debug for State {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("State")
-            .field("dispatch_queue", &self.dispatch_queue)
-            .field("log", &self.log)
-            .field(
-                "actors",
-                &self
-                    .actors
-                    .iter()
-                    .filter_map(|(id, actor)| {
-                        actor.as_ref().map(|actor| {
-                            (
-                                *id,
-                                (actor.balance, actor.program.get_allocations().clone()),
-                            )
-                        })
-                    })
-                    .collect::<BTreeMap<ProgramId, (u128, BTreeSet<WasmPageNumber>)>>(),
-            )
-            .field("current_failed", &self.current_failed)
-            .finish()
-    }
-}
-
-/// Something that can return in-memory state.
-pub trait CollectState {
-    /// Collect the state from self.
-    fn collect(&self) -> State;
 }

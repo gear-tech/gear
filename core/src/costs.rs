@@ -79,11 +79,17 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_send_commit`.
     pub gr_send_commit_per_byte: u64,
 
-    /// Weight of calling `gr_reply`.
-    pub gr_reply: u64,
+    /// Weight of calling `gr_reply_commit`.
+    pub gr_reply_commit: u64,
 
-    /// Weight per payload byte by `gr_reply`.
-    pub gr_reply_per_byte: u64,
+    /// Weight per payload byte by `gr_reply_commit`.
+    pub gr_reply_commit_per_byte: u64,
+
+    /// Weight of calling `gr_reply_push`.
+    pub gr_reply_push: u64,
+
+    /// Weight per payload byte by `gr_reply_push`.
+    pub gr_reply_push_per_byte: u64,
 
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
@@ -109,6 +115,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_create_program_wgas`.
     pub gr_create_program_wgas: u64,
 
+    /// Weight per payload byte by `gr_create_program_wgas`.
+    pub gr_create_program_wgas_per_byte: u64,
+
     /// Weight of calling `gas`.
     pub gas: u64,
 }
@@ -118,10 +127,10 @@ pub struct HostFnWeights {
 #[macro_export]
 macro_rules! charge_gas_token {
     ($ext:expr, $costs:expr) => {{
-        let token = $costs.token(&$ext.host_fn_weights);
+        let token = $costs.token(&$ext.context.host_fn_weights);
         (
-            $ext.gas_counter.charge_token(token),
-            $ext.gas_allowance_counter.charge_token(token),
+            $ext.context.gas_counter.charge_token(token),
+            $ext.context.gas_allowance_counter.charge_token(token),
         )
     }};
 }
@@ -174,8 +183,10 @@ pub enum RuntimeCosts {
     SendPush(u32),
     /// Weight of calling `gr_send_commit`.
     SendCommit(u32),
-    /// Weight of calling `gr_reply`.
-    Reply(u32),
+    /// Weight of calling `gr_reply_commit`.
+    ReplyCommit(u32),
+    /// Weight of calling `gr_reply_push`.
+    ReplyPush(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
     /// Weight of calling `gr_debug`.
@@ -191,7 +202,7 @@ pub enum RuntimeCosts {
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
-    CreateProgram,
+    CreateProgram(u32),
 }
 
 impl RuntimeCosts {
@@ -221,9 +232,12 @@ impl RuntimeCosts {
             SendCommit(len) => s
                 .gr_send_commit
                 .saturating_add(s.gr_send_commit_per_byte.saturating_mul(len.into())),
-            Reply(len) => s
-                .gr_reply
-                .saturating_add(s.gr_reply_per_byte.saturating_mul(len.into())),
+            ReplyCommit(len) => s
+                .gr_reply_commit
+                .saturating_add(s.gr_reply_commit_per_byte.saturating_mul(len.into())),
+            ReplyPush(len) => s
+                .gr_reply_push
+                .saturating_add(s.gr_reply_push_per_byte.saturating_mul(len.into())),
             ReplyTo => s.gr_reply_to,
             Debug => s.gr_debug,
             ExitCode => s.gr_exit_code,
@@ -231,7 +245,9 @@ impl RuntimeCosts {
             Leave => s.gr_leave,
             Wait => s.gr_wait,
             Wake => s.gr_wake,
-            CreateProgram => s.gr_create_program_wgas, // todo #924 charge for payload length
+            CreateProgram(len) => s
+                .gr_create_program_wgas
+                .saturating_add(s.gr_create_program_wgas_per_byte.saturating_mul(len.into())),
         };
         RuntimeToken { weight }
     }
