@@ -18,7 +18,7 @@
 
 //! Program creation API for Gear programs.
 
-use crate::{error::Result, ActorId, CodeHash};
+use crate::{error::Result, ActorId, CodeHash, MessageId};
 
 mod sys {
     use crate::error::SyscallError;
@@ -32,6 +32,7 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             program_id_ptr: *mut u8,
+            init_message_id_ptr: *mut u8,
         ) -> SyscallError;
 
         pub fn gr_create_program_wgas(
@@ -43,6 +44,7 @@ mod sys {
             gas_limit: u64,
             value_ptr: *const u8,
             program_id_ptr: *mut u8,
+            init_message_id_ptr: *mut u8,
         ) -> SyscallError;
     }
 }
@@ -53,9 +55,10 @@ pub fn create_program(
     salt: &[u8],
     payload: &[u8],
     value: u128,
-) -> Result<ActorId> {
+) -> Result<(ActorId, MessageId)> {
     unsafe {
         let mut program_id = ActorId::default();
+        let mut init_message_id = MessageId::default();
         sys::gr_create_program(
             code_hash.as_slice().as_ptr(),
             salt.as_ptr(),
@@ -64,9 +67,10 @@ pub fn create_program(
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
+            init_message_id.as_mut_slice().as_mut_ptr()
         )
         .into_result()?;
-        Ok(program_id)
+        Ok((program_id, init_message_id))
     }
 }
 
@@ -106,7 +110,7 @@ pub fn create_program(
 ///     let submitted_code: CodeHash =
 ///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
 ///             .into();
-///     let new_program_id =
+///     let (new_program_id, init_message_id) =
 ///         prog::create_program_with_gas(submitted_code, &get().to_le_bytes(), b"", 10_000, 0)
 ///             .unwrap();
 /// }
@@ -120,7 +124,7 @@ pub fn create_program(
 ///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
 ///     let mut salt = vec![0u8; msg::size()];
 ///     msg::load(&mut salt[..]);
-///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
+///     let (new_program_id, init_message_id) = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
 /// }
 /// ```
 ///
@@ -133,7 +137,7 @@ pub fn create_program(
 ///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
 ///     # let mut salt = vec![0u8; msg::size()];
 ///     # msg::load(&mut salt[..]);
-///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
+///     let (new_program_id, init_message_id) = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0).unwrap();
 ///     msg::send_with_gas(new_program_id, b"payload for a new program", 10_000, 0).unwrap();
 /// }
 /// ```
@@ -143,9 +147,10 @@ pub fn create_program_with_gas(
     payload: &[u8],
     gas_limit: u64,
     value: u128,
-) -> Result<ActorId> {
+) -> Result<(ActorId, MessageId)> {
     unsafe {
         let mut program_id = ActorId::default();
+        let mut init_message_id = MessageId::default();
         sys::gr_create_program_wgas(
             code_hash.as_slice().as_ptr(),
             salt.as_ptr(),
@@ -155,8 +160,9 @@ pub fn create_program_with_gas(
             gas_limit,
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
+            init_message_id.as_mut_slice().as_mut_ptr()
         )
         .into_result()?;
-        Ok(program_id)
+        Ok((program_id, init_message_id))
     }
 }

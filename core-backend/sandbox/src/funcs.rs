@@ -807,6 +807,7 @@ where
         let payload_len = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
         let program_id_ptr = pop_i32(&mut args)?;
+        let init_message_id_ptr = pop_i32(&mut args)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -819,8 +820,9 @@ where
                 .create_program(InitPacket::new(code_hash.into(), salt, payload, value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|new_actor_id| {
-                    wto(memory, program_id_ptr, new_actor_id.as_ref())
+                .error_len_on_success(|(new_actor_id, init_message_id)| {
+                    wto(memory, program_id_ptr, new_actor_id.as_ref())?;
+                    wto(memory, init_message_id_ptr, init_message_id.as_ref())
                 })?;
             Ok(error_len)
         })
@@ -842,6 +844,7 @@ where
         let gas_limit = pop_i64(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
         let program_id_ptr = pop_i32(&mut args)?;
+        let init_message_id_ptr = pop_i32(&mut args)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -860,8 +863,9 @@ where
                 ))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|new_actor_id| {
-                    wto(memory, program_id_ptr, new_actor_id.as_ref())
+                .error_len_on_success(|(new_actor_id, init_message_id)| {
+                    wto(memory, program_id_ptr, new_actor_id.as_ref())?;
+                    wto(memory, init_message_id_ptr, init_message_id.as_ref())
                 })?;
             Ok(error_len)
         })

@@ -404,7 +404,7 @@ impl EnvExt for LazyPagesExt {
     fn create_program(
         &mut self,
         packet: gear_core::message::InitPacket,
-    ) -> Result<ProgramId, Self::Error> {
+    ) -> Result<(ProgramId, MessageId), Self::Error> {
         self.inner.create_program(packet).map_err(Error::Processor)
     }
 

@@ -640,7 +640,8 @@ where
                          payload_ptr: i32,
                          payload_len: i32,
                          value_ptr: i32,
-                         program_id_ptr: i32| {
+                         program_id_ptr: i32,
+                         init_message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
             ext.with_fallible(|ext: &mut E| -> Result<u32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
@@ -652,12 +653,18 @@ where
                     .create_program(InitPacket::new(code_hash.into(), salt, payload, value))
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .error_len_on_success(|new_actor_id| {
+                    .error_len_on_success(|(new_actor_id, init_message_id)| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
                             program_id_ptr as isize as _,
                             new_actor_id.as_ref(),
+                        )?;
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            init_message_id_ptr as isize as _,
+                            init_message_id.as_ref(),
                         )
                     })?;
                 Ok(error_len)
@@ -676,7 +683,8 @@ where
                          payload_len: i32,
                          gas_limit: i64,
                          value_ptr: i32,
-                         program_id_ptr: i32| {
+                         program_id_ptr: i32,
+                         init_message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
             ext.with_fallible(|ext| -> Result<u32, FuncError<E::Error>> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
@@ -694,12 +702,18 @@ where
                     ))
                     .process_error()
                     .map_err(FuncError::Core)?
-                    .error_len_on_success(|new_actor_id| {
+                    .error_len_on_success(|(new_actor_id, init_message_id)| {
                         write_to_caller_memory(
                             &mut caller,
                             &mem,
                             program_id_ptr as isize as _,
                             new_actor_id.as_ref(),
+                        )?;
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            init_message_id_ptr as isize as _,
+                            init_message_id.as_ref(),
                         )
                     })?;
                 Ok(error_len)

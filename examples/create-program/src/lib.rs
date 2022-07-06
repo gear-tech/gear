@@ -26,7 +26,7 @@ unsafe extern "C" fn handle() {
         "default" => {
             // Assume that the code of the deploying program was submitted by `submit_code`
             // extrinsic and we got its hash. For more details please read README file.
-            let new_program_id = prog::create_program_with_gas(
+            let (new_program_id, _) = prog::create_program_with_gas(
                 submitted_code,
                 COUNTER.to_le_bytes(),
                 b"unique",
@@ -42,7 +42,7 @@ unsafe extern "C" fn handle() {
             COUNTER += 1;
         }
         "duplicate" => {
-            let new_program_id = prog::create_program_with_gas(
+            let (new_program_id, _) = prog::create_program_with_gas(
                 submitted_code,
                 (COUNTER - 1).to_le_bytes(),
                 b"not_unique",
