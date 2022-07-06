@@ -36,7 +36,7 @@ unsafe extern "C" fn handle() {
                 panic!("Invalid caller, this is a private method reserved for the program itself.");
             }
 
-            let mut pkg = state::REGISTRY
+            let pkg = state::REGISTRY
                 .get_mut(&id)
                 .expect("Calculation not found, please run start first.");
 
