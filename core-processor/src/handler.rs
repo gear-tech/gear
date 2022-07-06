@@ -22,7 +22,7 @@ use alloc::{collections::BTreeMap, vec};
 /// Handle some journal records passing them to the journal handler.
 pub fn handle_journal(
     journal: impl IntoIterator<Item = JournalNote>,
-    handler: &mut dyn JournalHandler,
+    handler: &mut impl JournalHandler,
 ) {
     let mut page_updates = BTreeMap::new();
     let mut exit_list = vec![];

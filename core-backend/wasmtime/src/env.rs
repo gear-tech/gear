@@ -33,7 +33,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{ClonedExtCarrier, Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, WasmPageNumber},
+    memory::WasmPageNumber,
     message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
@@ -79,6 +79,7 @@ where
     E: Ext + IntoExtInfo,
     E::Error: AsTerminationReason + IntoExtError,
 {
+    type Memory = MemoryWrapExternal<E>;
     type Error = WasmtimeEnvironmentError;
 
     fn new(
@@ -190,11 +191,11 @@ where
             })
     }
 
-    fn get_mem(&self) -> &dyn Memory {
+    fn get_mem(&self) -> &Self::Memory {
         &self.memory_wrap
     }
 
-    fn get_mem_mut(&mut self) -> &mut dyn Memory {
+    fn get_mem_mut(&mut self) -> &mut Self::Memory {
         &mut self.memory_wrap
     }
 
@@ -204,7 +205,7 @@ where
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&dyn Memory) -> Result<(), T>,
+        F: FnOnce(&Self::Memory) -> Result<(), T>,
         T: fmt::Display,
     {
         struct PreparedInfo<E: Ext> {
