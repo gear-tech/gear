@@ -74,3 +74,4 @@ jobs:
             ${{secrets.GEAR_NODE_5}} name=testnet-gear04 bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            
