@@ -304,6 +304,11 @@ fn soft_into() {
     let log: Log = (1, "payload").into();
     assert_eq!(Log::builder().dest(1).payload_bytes("payload"), log);
 
+    assert_eq!(
+        Log::builder().source(1).dest(2).payload_bytes("payload"),
+        Log::from((1, 2, "payload")),
+    );
+
     let v = vec![1; 32];
     assert_eq!(
         Log::builder().source(1).dest(&v).payload_bytes("payload"),
