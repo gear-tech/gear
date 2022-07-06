@@ -21,10 +21,10 @@ jobs:
           key: ${{secrets.SSH_PRIVATE_KEY}}
           inventory: |
             [gearNodes:children]
-            bootnode
-            nodes
+            #bootnode
+            #nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} 
+            #${{secrets.GEAR_NODE}} 
             [nodes]
             #${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=no loki_url=${{secrets.LOKI_URL}}
             #${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=yes loki=no loki_url=${{secrets.LOKI_URL}}
