@@ -150,7 +150,8 @@ pub trait Ext {
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error>;
 
     /// Send init message to create a new program
-    fn create_program(&mut self, packet: InitPacket) -> Result<(ProgramId, MessageId), Self::Error>;
+    fn create_program(&mut self, packet: InitPacket)
+        -> Result<(ProgramId, MessageId), Self::Error>;
 
     /// Return the set of functions that are forbidden to be called.
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
@@ -360,7 +361,10 @@ mod tests {
         fn wake(&mut self, _waker_id: MessageId) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn create_program(&mut self, _packet: InitPacket) -> Result<(ProgramId, MessageId), Self::Error> {
+        fn create_program(
+            &mut self,
+            _packet: InitPacket,
+        ) -> Result<(ProgramId, MessageId), Self::Error> {
             Ok(Default::default())
         }
         fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {

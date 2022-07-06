@@ -67,7 +67,7 @@ pub fn create_program(
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
-            init_message_id.as_mut_slice().as_mut_ptr()
+            init_message_id.as_mut_slice().as_mut_ptr(),
         )
         .into_result()?;
         Ok((program_id, init_message_id))
@@ -160,7 +160,7 @@ pub fn create_program_with_gas(
             gas_limit,
             value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
-            init_message_id.as_mut_slice().as_mut_ptr()
+            init_message_id.as_mut_slice().as_mut_ptr(),
         )
         .into_result()?;
         Ok((program_id, init_message_id))

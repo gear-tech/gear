@@ -30,7 +30,8 @@ pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
     payload: T2,
     value: u128,
 ) -> Result<(ActorId, MessageId)> {
-    let (actor_id, init_message_id) = gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value)?;
+    let (actor_id, init_message_id) =
+        gcore::prog::create_program(code_hash.into(), salt.as_ref(), payload.as_ref(), value)?;
     Ok((actor_id.into(), init_message_id.into()))
 }
 

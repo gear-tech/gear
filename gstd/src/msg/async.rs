@@ -22,7 +22,7 @@ use crate::{
     async_runtime::{signals, ReplyPoll},
     errors::{ContractError, Result},
     prelude::{convert::AsRef, Vec},
-    ActorId, MessageId,
+    ActorId, CodeHash, MessageId,
 };
 use codec::{Decode, Encode};
 use core::{
@@ -158,4 +158,73 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     signals().register_signal(waiting_reply_to);
 
     Ok(MessageFuture { waiting_reply_to })
+}
+
+#[deprecated(note = "please use `gstd::proc::create_program` instead")]
+pub fn create_program_and_wait_for_reply<E: Encode, D: Decode>(
+    code_hash: CodeHash,
+    payload: E,
+    value: u128,
+) -> Result<CodecMessageFuture<D>> {
+    let (_, init_message_id) =
+        crate::prog::ProgramGenerator::create_program(code_hash, payload.encode(), value)?;
+    signals().register_signal(init_message_id);
+
+    Ok(CodecMessageFuture::<D> {
+        waiting_reply_to: init_message_id,
+        _marker: PhantomData,
+    })
+}
+
+#[deprecated(note = "please use `gstd::proc::create_program` instead")]
+pub fn create_program_with_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    payload: T,
+    value: u128,
+) -> Result<MessageFuture> {
+    let (_, init_message_id) =
+        crate::prog::ProgramGenerator::create_program(code_hash, payload, value)?;
+    signals().register_signal(init_message_id);
+
+    Ok(MessageFuture {
+        waiting_reply_to: init_message_id,
+    })
+}
+
+#[deprecated(note = "please use `gstd::proc::create_program_with_gas` instead")]
+pub fn create_program_with_gas_and_wait_for_reply<E: Encode, D: Decode>(
+    code_hash: CodeHash,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> Result<CodecMessageFuture<D>> {
+    let (_, init_message_id) = crate::prog::ProgramGenerator::create_program_with_gas(
+        code_hash,
+        payload.encode(),
+        gas_limit,
+        value,
+    )?;
+    signals().register_signal(init_message_id);
+
+    Ok(CodecMessageFuture::<D> {
+        waiting_reply_to: init_message_id,
+        _marker: PhantomData,
+    })
+}
+
+#[deprecated(note = "please use `gstd::proc::create_program_with_gas` instead")]
+pub fn create_program_with_gas_with_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    payload: T,
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageFuture> {
+    let (_, init_message_id) = crate::prog::ProgramGenerator::create_program_with_gas(
+        code_hash, payload, gas_limit, value,
+    )?;
+    signals().register_signal(init_message_id);
+
+    Ok(MessageFuture {
+        waiting_reply_to: init_message_id,
+    })
 }
