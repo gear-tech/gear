@@ -4377,15 +4377,16 @@ mod utils {
         SystemPallet::<Test>::events()
             .into_iter()
             .rev()
-            .find_map(|e| match e.event {
-                MockEvent::Gear(Event::UserMessageSent { message, .. }) => {
+            .find_map(|e| {
+                if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                     if message.destination() == account.into() {
                         Some(message)
                     } else {
                         None
                     }
+                } else {
+                    None
                 }
-                _ => None,
             })
     }
 
