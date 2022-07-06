@@ -37,7 +37,7 @@ impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
         self.mem
             .grow(&mut self.store, pages.0 as u64)
             .map(|offset| (offset as u32).into())
-            .map_err(|_| Error::OutOfMemory)
+            .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {
@@ -75,7 +75,7 @@ impl<E: Ext> Memory for MemoryWrapExternal<E> {
         self.mem
             .grow(&mut self.store, pages.0 as u64)
             .map(|offset| (offset as u32).into())
-            .map_err(|_| Error::OutOfMemory)
+            .map_err(|_| Error::OutOfBounds)
     }
 
     fn size(&self) -> WasmPageNumber {

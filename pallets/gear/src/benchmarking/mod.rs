@@ -37,11 +37,8 @@ use crate::{
     MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, Origin, ValueTree};
-use core_processor::{
-    common::ExecutableActor,
-    configs::{AllocationsConfig, BlockInfo},
-};
+use common::{benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasTree, Origin};
+use core_processor::configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get};
 use frame_system::RawOrigin;
@@ -127,15 +124,8 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
-    maybe_actor: Option<ExecutableActor>,
-    dispatch: IncomingDispatch,
-    block_info: BlockInfo,
-    existential_deposit: u128,
-    origin: ProgramId,
-    program_id: ProgramId,
-    gas_allowance: u64,
-    outgoing_limit: u32,
-    mailbox_threshold: u64,
+    block_config: BlockConfig,
+    message_execution_context: MessageExecutionContext,
 }
 
 fn prepare<T>(
@@ -219,13 +209,10 @@ where
         }
     };
 
-    let initial_gas = T::BlockGasLimit::get();
-    T::GasHandler::create(
-        source.into_origin(),
-        root_message_id.into_origin(),
-        initial_gas,
-    )
-    .map_err(|_| "Internal error: unable to create gas handler")?;
+    let initial_gas = BlockGasLimitOf::<T>::get();
+    let origin = <T::AccountId as Origin>::from_origin(source);
+    GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
+        .map_err(|_| "Internal error: unable to create gas handler")?;
 
     let dispatch = dispatch.into_stored();
 
@@ -241,23 +228,40 @@ where
     let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
 
+    let block_config = BlockConfig {
+        block_info,
+        allocations_config: AllocationsConfig {
+            max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
+            init_cost: T::Schedule::get().memory_weights.initial_cost,
+            alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
+            mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
+            load_page_cost: T::Schedule::get().memory_weights.load_cost,
+        },
+        existential_deposit,
+        outgoing_limit: 2048,
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold,
+    };
+
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
-            .get_executable_actor(actor_id, false)
+            .get_actor(actor_id, false)
             .ok_or("Program not found in the storage")?;
+
+        let message_execution_context = MessageExecutionContext {
+            actor,
+            dispatch: queued_dispatch.into_incoming(initial_gas),
+            origin: ProgramId::from_origin(source),
+            gas_allowance: u64::MAX,
+        };
+
         Ok(Exec {
             ext_manager,
-            maybe_actor: Some(actor),
-            dispatch: queued_dispatch.into_incoming(initial_gas),
-            block_info,
-            existential_deposit,
-            origin: ProgramId::from_origin(source),
-            program_id: actor_id,
-            gas_allowance: u64::MAX,
-            outgoing_limit: 2048,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         })
     } else {
         Err("Dispatch not found")
@@ -419,40 +423,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold,
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     // TODO: benchmark batches and size is bigger than memory limits
@@ -507,40 +485,15 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
+
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold,
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_gas_available {
@@ -562,40 +515,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold,
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_msg_id {
@@ -605,40 +532,14 @@ benchmarks! {
         ), vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold,
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_origin {
@@ -648,40 +549,14 @@ benchmarks! {
         ), vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_program_id {
@@ -691,40 +566,14 @@ benchmarks! {
         ), vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_source {
@@ -735,41 +584,14 @@ benchmarks! {
 
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
-
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_value {
@@ -779,40 +601,14 @@ benchmarks! {
         ), vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_value_available {
@@ -822,40 +618,14 @@ benchmarks! {
         ), vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_size {
@@ -877,40 +647,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_read {
@@ -943,40 +687,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_read_per_kb {
@@ -1013,40 +731,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_block_height {
@@ -1068,40 +760,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_block_timestamp {
@@ -1123,40 +789,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_send_init {
@@ -1179,40 +819,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-            Default::default(),
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1247,40 +861,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1315,40 +903,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1394,42 +956,14 @@ benchmarks! {
 
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
-
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1475,41 +1009,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1545,41 +1052,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1613,41 +1093,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1682,40 +1135,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_reply_push_per_kb {
@@ -1747,40 +1174,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
     }
 
     gr_reply_to {
@@ -1805,41 +1206,14 @@ benchmarks! {
         MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1863,41 +1237,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1923,41 +1270,14 @@ benchmarks! {
         MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
-
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -1990,40 +1310,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -2047,40 +1341,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -2104,40 +1372,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -2176,40 +1418,14 @@ benchmarks! {
         }
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
 
@@ -2266,40 +1482,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }
@@ -2357,40 +1547,14 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let Exec {
             mut ext_manager,
-            maybe_actor,
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-            program_id,
-            gas_allowance,
-            outgoing_limit,
-            mailbox_threshold,
+            block_config,
+            message_execution_context,
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_actor,
-                    dispatch,
-                    block_info,
-                    AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(T::Schedule::get().limits.memory_pages),
-                        init_cost: T::Schedule::get().memory_weights.initial_cost,
-                        alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
-                        mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
-                        load_page_cost: T::Schedule::get().memory_weights.load_cost,
-                    },
-                    existential_deposit,
-                    origin,
-                    program_id,
-                    gas_allowance,
-                    outgoing_limit,
-                    Default::default(),
-                    Default::default(),
-                    mailbox_threshold
-                );
+            ext::LazyPagesExt,
+            SandboxEnvironment<ext::LazyPagesExt>,
+        >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
 
     }

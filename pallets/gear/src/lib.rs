@@ -57,7 +57,7 @@ use gear_core::{
     message::*,
     program::Program as NativeProgram,
 };
-use pallet_gas::Pallet as GasPallet;
+use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
 use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
@@ -77,8 +77,9 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-
-use pallet_gear_program::Pallet as GearProgramPallet;
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::GasAllowance;
+pub type GasHandlerOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasTree;
+pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::BlockGasLimit;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -124,12 +125,11 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, CodeMetadata, GasPrice, Origin, Program, ProgramState,
-        ValueTree,
+        self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
     };
     use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
-        configs::{AllocationsConfig, BlockInfo},
+        common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+        configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
         Ext,
     };
     use frame_support::{
@@ -145,7 +145,6 @@ pub mod pallet {
         + pallet_authorship::Config
         + pallet_timestamp::Config
         + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
-        + pallet_gas::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -155,14 +154,6 @@ pub mod pallet {
 
         /// Gas to Currency converter
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
-
-        /// Implementation of a ledger to account for gas creation and consumption
-        type GasHandler: ValueTree<
-            ExternalOrigin = H256,
-            Key = H256,
-            Balance = u64,
-            Error = DispatchError,
-        >;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -205,6 +196,16 @@ pub mod pallet {
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
         >;
+
+        /// Implementation of a ledger to account for gas creation and consumption
+        type GasProvider: common::GasProvider<
+            ExternalOrigin = Self::AccountId,
+            Key = MessageId,
+            Balance = u64,
+            Error = DispatchError,
+        >;
+
+        type BlockLimiter: common::BlockLimiter<Balance = u64>;
     }
 
     #[pallet::pallet]
@@ -415,7 +416,7 @@ pub mod pallet {
             //
             // This field already was affected by gas pallet within the block,
             // so we don't need to include that db write.
-            GasPallet::<T>::update_gas_allowance(remaining_weight);
+            GasAllowanceOf::<T>::put(remaining_weight);
 
             Self::process_queue()
         }
@@ -499,9 +500,9 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = T::GasHandler::create(
-                origin,
-                message_id.into_origin(),
+            let _ = GasHandlerOf::<T>::create(
+                who.clone(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -560,7 +561,7 @@ pub mod pallet {
             Self::calculate_gas_info_impl(
                 source,
                 kind,
-                initial_gas.unwrap_or_else(<T as pallet_gas::Config>::BlockGasLimit::get),
+                initial_gas.unwrap_or_else(BlockGasLimitOf::<T>::get),
                 payload,
                 value,
                 allow_other_panics,
@@ -576,7 +577,7 @@ pub mod pallet {
             allow_other_panics: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
-                let initial_gas = <T as pallet_gas::Config>::BlockGasLimit::get();
+                let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
                     source,
                     kind.clone(),
@@ -706,11 +707,30 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
+            let schedule = T::Schedule::get();
+
+            let allocations_config = AllocationsConfig {
+                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                init_cost: schedule.memory_weights.initial_cost,
+                alloc_cost: schedule.memory_weights.allocation_cost,
+                mem_grow_cost: schedule.memory_weights.grow_cost,
+                load_page_cost: schedule.memory_weights.load_cost,
+            };
+
+            let block_config = BlockConfig {
+                block_info,
+                allocations_config,
+                existential_deposit,
+                outgoing_limit: T::OutgoingLimit::get(),
+                host_fn_weights: schedule.host_fn_weights.into_core(),
+                forbidden_funcs: ["gr_gas_available"].into(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+            };
+
             let mut min_limit = 0;
             let mut reserved = 0;
             let mut burned = 0;
 
-            let schedule = T::Schedule::get();
             let mut ext_manager = ExtManager::<T>::default();
 
             while let Some(queued_dispatch) =
@@ -722,54 +742,33 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_executable_actor(actor_id, !lazy_pages_enabled)
+                    .get_actor(actor_id, !lazy_pages_enabled)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-                let allocations_config = AllocationsConfig {
-                    max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
-                    init_cost: schedule.memory_weights.initial_cost,
-                    alloc_cost: schedule.memory_weights.allocation_cost,
-                    mem_grow_cost: schedule.memory_weights.grow_cost,
-                    load_page_cost: schedule.memory_weights.load_cost,
-                };
-
-                let dispatch_id = queued_dispatch.id().into_origin();
-                let gas_limit = T::GasHandler::get_limit(dispatch_id)
+                let dispatch_id = queued_dispatch.id();
+                let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
                     .ok()
                     .flatten()
                     .ok_or_else(|| {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
+                let message_execution_context = MessageExecutionContext {
+                    actor,
+                    dispatch: queued_dispatch.into_incoming(gas_limit),
+                    origin: ProgramId::from_origin(source),
+                    gas_allowance: u64::MAX,
+                };
+
                 let journal = if lazy_pages_enabled {
                     core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(gas_limit),
-                        block_info,
-                        allocations_config,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                        ["gr_gas_available"].into(),
-                        T::MailboxThreshold::get(),
+                        &block_config,
+                        message_execution_context,
                     )
                 } else {
                     core_processor::process::<Ext, SandboxEnvironment<_>>(
-                        Some(actor),
-                        queued_dispatch.into_incoming(gas_limit),
-                        block_info,
-                        allocations_config,
-                        existential_deposit,
-                        ProgramId::from_origin(source),
-                        actor_id,
-                        u64::MAX,
-                        T::OutgoingLimit::get(),
-                        schedule.host_fn_weights.clone().into_core(),
-                        ["gr_gas_available"].into(),
-                        T::MailboxThreshold::get(),
+                        &block_config,
+                        message_execution_context,
                     )
                 };
 
@@ -777,10 +776,10 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some(remaining_gas) = T::GasHandler::get_origin_key(dispatch_id)
+                    if let Some((remaining_gas, _)) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
                         .and_then(|root_dispatch_id| {
-                            T::GasHandler::get_limit(root_dispatch_id)
+                            GasHandlerOf::<T>::get_limit(root_dispatch_id)
                                 .map_err(|_| {
                                     b"Internal error: unable to get gas limit after execution"
                                         .to_vec()
@@ -858,7 +857,8 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let weight = GasPallet::<T>::gas_allowance() as Weight;
+            let weight = GasAllowanceOf::<T>::get() as Weight;
+            let schedule = T::Schedule::get();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -868,6 +868,24 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
+            let allocations_config = AllocationsConfig {
+                max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
+                init_cost: schedule.memory_weights.initial_cost,
+                alloc_cost: schedule.memory_weights.allocation_cost,
+                mem_grow_cost: schedule.memory_weights.grow_cost,
+                load_page_cost: schedule.memory_weights.load_cost,
+            };
+
+            let block_config = BlockConfig {
+                block_info,
+                allocations_config,
+                existential_deposit,
+                outgoing_limit: T::OutgoingLimit::get(),
+                host_fn_weights: schedule.host_fn_weights.into_core(),
+                forbidden_funcs: Default::default(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+            };
+
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
@@ -876,11 +894,11 @@ pub mod pallet {
                 if let Some(dispatch) = QueueOf::<T>::dequeue()
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
-                    let msg_id = dispatch.id().into_origin();
+                    let msg_id = dispatch.id();
                     let gas_limit: u64;
-                    match T::GasHandler::get_limit(msg_id) {
+                    match GasHandlerOf::<T>::get_limit(msg_id) {
                         Ok(maybe_limit) => {
-                            if let Some(limit) = maybe_limit {
+                            if let Some((limit, _)) = maybe_limit {
                                 gas_limit = limit;
                             } else {
                                 log::debug!(
@@ -900,9 +918,9 @@ pub mod pallet {
                                 let consumed =
                                     T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
 
-                                GasPallet::<T>::decrease_gas_allowance(consumed);
+                                GasAllowanceOf::<T>::decrease(consumed);
 
-                                if GasPallet::<T>::gas_allowance() < consumed {
+                                if GasAllowanceOf::<T>::get() < consumed {
                                     break;
                                 }
 
@@ -921,17 +939,16 @@ pub mod pallet {
                         dispatch.id(),
                         dispatch.destination(),
                         gas_limit,
-                        GasPallet::<T>::gas_allowance(),
+                        GasAllowanceOf::<T>::get(),
                     );
 
-                    let schedule = T::Schedule::get();
                     let lazy_pages_enabled =
                         cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
                     let program_id = dispatch.destination();
                     let current_message_id = dispatch.id();
                     let maybe_message_reply = dispatch.reply();
 
-                    let maybe_active_actor = if let Some(maybe_active_program) =
+                    let active_actor_data = if let Some(maybe_active_program) =
                         common::get_program(program_id.into_origin())
                     {
                         // Check whether message should be added to the wait list
@@ -970,12 +987,9 @@ pub mod pallet {
                                 && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
                             {
                                 let origin = if let Some(origin) =
-                                    GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
-                                        .unwrap_or_else(|e| {
-                                            unreachable!("ValueTree corrupted: {:?}!", e)
-                                        })
-                                        .map(MessageId::from_origin)
-                                {
+                                    GasHandlerOf::<T>::get_origin_key(dispatch.id()).unwrap_or_else(
+                                        |e| unreachable!("ValueTree corrupted: {:?}!", e),
+                                    ) {
                                     if origin == dispatch.id() {
                                         None
                                     } else {
@@ -1012,11 +1026,6 @@ pub mod pallet {
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
-                            let balance = <T as Config>::Currency::free_balance(
-                                &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
-                            )
-                            .unique_saturated_into();
-
                             let pages_data = if lazy_pages_enabled {
                                 Default::default()
                             } else {
@@ -1035,9 +1044,8 @@ pub mod pallet {
                                 }
                             };
 
-                            Some(ExecutableActor {
+                            Some(ExecutableActorData {
                                 program,
-                                balance,
                                 pages_data,
                             })
                         } else {
@@ -1056,7 +1064,12 @@ pub mod pallet {
                         None
                     };
 
-                    let origin = match <T as Config>::GasHandler::get_origin(msg_id) {
+                    let balance = <T as Config>::Currency::free_balance(
+                        &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                    )
+                    .unique_saturated_into();
+
+                    let origin = match GasHandlerOf::<T>::get_external(msg_id) {
                         Ok(maybe_origin) => {
                             // NOTE: intentional expect.
                             // Given gas tree is valid, a node with such id exists and has origin
@@ -1071,43 +1084,26 @@ pub mod pallet {
                         }
                     };
 
-                    let allocations_config = AllocationsConfig {
-                        max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
-                        init_cost: schedule.memory_weights.initial_cost,
-                        alloc_cost: schedule.memory_weights.allocation_cost,
-                        mem_grow_cost: schedule.memory_weights.grow_cost,
-                        load_page_cost: schedule.memory_weights.load_cost,
+                    let message_execution_context = MessageExecutionContext {
+                        actor: Actor {
+                            balance,
+                            destination_program: program_id,
+                            executable_data: active_actor_data,
+                        },
+                        dispatch: dispatch.into_incoming(gas_limit),
+                        origin: ProgramId::from_origin(origin.into_origin()),
+                        gas_allowance: GasAllowanceOf::<T>::get(),
                     };
 
                     let journal = if lazy_pages_enabled {
                         core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                            maybe_active_actor,
-                            dispatch.into_incoming(gas_limit),
-                            block_info,
-                            allocations_config,
-                            existential_deposit,
-                            ProgramId::from_origin(origin),
-                            program_id,
-                            GasPallet::<T>::gas_allowance(),
-                            T::OutgoingLimit::get(),
-                            schedule.host_fn_weights.into_core(),
-                            Default::default(),
-                            T::MailboxThreshold::get(),
+                            &block_config,
+                            message_execution_context,
                         )
                     } else {
                         core_processor::process::<Ext, SandboxEnvironment<_>>(
-                            maybe_active_actor,
-                            dispatch.into_incoming(gas_limit),
-                            block_info,
-                            allocations_config,
-                            existential_deposit,
-                            ProgramId::from_origin(origin),
-                            program_id,
-                            GasPallet::<T>::gas_allowance(),
-                            T::OutgoingLimit::get(),
-                            schedule.host_fn_weights.into_core(),
-                            Default::default(),
-                            T::MailboxThreshold::get(),
+                            &block_config,
+                            message_execution_context,
                         )
                     };
 
@@ -1136,7 +1132,7 @@ pub mod pallet {
                 });
             }
 
-            weight.saturating_sub(GasPallet::<T>::gas_allowance())
+            weight.saturating_sub(GasAllowanceOf::<T>::get())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
@@ -1301,7 +1297,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1378,9 +1374,9 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = T::GasHandler::create(
-                origin,
-                message_id.into_origin(),
+            let _ = GasHandlerOf::<T>::create(
+                who.clone(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -1435,7 +1431,7 @@ pub mod pallet {
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1456,9 +1452,9 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.clone().into_origin();
+            let origin = who.clone();
 
-            let message_id = Self::next_message_id(origin);
+            let message_id = Self::next_message_id(origin.clone().into_origin());
             let packet = HandlePacket::new_with_gas(
                 destination,
                 payload,
@@ -1473,7 +1469,8 @@ pub mod pallet {
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+
+                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
                 let event = Event::MessageEnqueued {
                     id: message.id(),
@@ -1482,20 +1479,23 @@ pub mod pallet {
                     entry: Entry::Handle,
                 };
 
-                QueueOf::<T>::queue(message.into_stored_dispatch(ProgramId::from_origin(origin)))
-                    .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+                QueueOf::<T>::queue(
+                    message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())),
+                )
+                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
                 Self::deposit_event(event);
             } else {
                 let mut expiration = None;
-                let message = message.into_stored(ProgramId::from_origin(origin));
+                let message =
+                    message.into_stored(ProgramId::from_origin(origin.clone().into_origin()));
 
                 if gas_limit >= T::MailboxThreshold::get() {
                     expiration = Some(T::BlockNumber::zero());
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
-                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
                 }
 
                 // TODO: replace this temporary (zero) value for expiration
@@ -1537,7 +1537,7 @@ pub mod pallet {
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
-                gas_limit <= <T as pallet_gas::Config>::BlockGasLimit::get(),
+                gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
@@ -1562,7 +1562,7 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let origin = who.clone().into_origin();
+            let origin = who.clone();
 
             let message_id = MessageId::generate_reply(original_message.id(), 0);
             let packet =
@@ -1576,7 +1576,7 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
                 Self::deposit_event(Event::UserMessageRead {
                     id: reply_to_id,
@@ -1591,7 +1591,7 @@ pub mod pallet {
                 };
 
                 QueueOf::<T>::queue(message.into_stored_dispatch(
-                    ProgramId::from_origin(origin),
+                    ProgramId::from_origin(origin.into_origin()),
                     destination,
                     original_message.id(),
                 ))
@@ -1601,7 +1601,7 @@ pub mod pallet {
             } else {
                 let mut expiration = None;
                 let message = message.into_stored(
-                    ProgramId::from_origin(origin),
+                    ProgramId::from_origin(origin.clone().into_origin()),
                     destination,
                     original_message.id(),
                 );
@@ -1611,7 +1611,7 @@ pub mod pallet {
                     // TODO: update logic of insertion into mailbox following new
                     // flow and deposit appropriate event (issue #1010).
                     MailboxOf::<T>::insert(message.clone())?;
-                    let _ = T::GasHandler::create(origin, message_id.into_origin(), gas_limit);
+                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
                 }
 
                 // TODO: replace this temporary (zero) value for expiration

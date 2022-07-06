@@ -16,14 +16,14 @@ serde = "1"
 env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.4"
-wasmparser = "0.86.0"
+wasm-mutate = "0.2.5"
+wasmparser = "0.87.0"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
 gear-core = { path = "../../core", default-features = false }
 gear-runtime = { path = "../../runtime", default-features = false }
-pallet-gas = { path = "../../pallets/gas", default-features = false }
+pallet-gear-gas = { path = "../../pallets/gas", default-features = false }
 pallet-gear = { path = "../../pallets/gear", default-features = false }
 pallet-usage = { path = "../../pallets/usage", default-features = false }
 demo-contract-template = { path = "../../examples/binaries/contract-template", default-features = false }
@@ -44,7 +44,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.36"
+wasmprinter = "0.2.37"
 demo-compose = { path = "../../examples/binaries/compose" }
 
 [features]
@@ -62,7 +62,7 @@ std = [
     "primitive-types/std",
     "common/std",
     "gear-runtime/std",
-    "pallet-gas/std",
+    "pallet-gear-gas/std",
     "pallet-gear/std",
     "pallet-usage/std",
     "demo-contract-template/std",

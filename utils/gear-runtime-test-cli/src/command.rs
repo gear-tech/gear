@@ -23,14 +23,14 @@ use crate::{
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{storage::*, CodeStorage, Origin as _, ValueTree};
+use gear_common::{storage::*, CodeStorage, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
-use gear_core_processor::common::ExecutableActor;
+use gear_core_processor::common::ExecutableActorData;
 use gear_runtime::{Origin, Runtime, System};
 use gear_test::{
     check::read_test_from_file,
@@ -38,8 +38,7 @@ use gear_test::{
     proc::*,
     sample::{self, ChainProgram, PayloadVariant},
 };
-use pallet_gas::Pallet as GasPallet;
-use pallet_gear::Pallet as GearPallet;
+use pallet_gear::{GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
 use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
@@ -297,20 +296,17 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
         let gas_limit = message
             .gas_limit
-            .unwrap_or_else(GasPallet::<Runtime>::gas_allowance);
+            .unwrap_or_else(GasAllowanceOf::<Runtime>::get);
 
         let value = message.value.unwrap_or(0);
 
         // Force push to MQ if msg.source.is_some()
         if let Some(source) = &message.source {
             let source = H256::from_slice(source.to_program_id().as_ref());
+            let origin = <AccountId32 as gear_common::Origin>::from_origin(source);
             let id = GearPallet::<Runtime>::next_message_id(source);
 
-            let _ = <Runtime as pallet_gear::Config>::GasHandler::create(
-                source,
-                id.into_origin(),
-                gas_limit,
-            );
+            let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit);
 
             let msg = StoredMessage::new(
                 id,
@@ -420,36 +416,31 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
         }
 
-        let actors: Vec<ExecutableActor> = snapshot
+        let actors_data: Vec<ExecutableActorData> = snapshot
             .programs
             .iter()
             .filter_map(|p| {
                 if let ProgramState::Active(info) = &p.state {
-                    if let Some((pid, _)) = programs
+                    let (pid, _) = programs
                         .iter()
-                        .find(|(_, &v)| ProgramId::from_origin(v) == p.id)
-                    {
-                        let code_id = CodeId::from_origin(info.code_hash);
-                        let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
-                            .expect("code should be in the storage");
-                        let pages = info
-                            .persistent_pages
-                            .keys()
-                            .copied()
-                            .map(|p| p.to_wasm_page())
-                            .collect();
-                        let program = CoreProgram::from_parts(*pid, code, pages, true);
-                        Some(ExecutableActor {
-                            program,
-                            balance: 0,
-                            pages_data: vec_page_data_map_to_page_buf_map(
-                                info.persistent_pages.clone(),
-                            )
-                            .unwrap(),
-                        })
-                    } else {
-                        None
-                    }
+                        .find(|(_, &v)| ProgramId::from_origin(v) == p.id)?;
+                    let code_id = CodeId::from_origin(info.code_hash);
+                    let code = <Runtime as pallet_gear::Config>::CodeStorage::get_code(code_id)
+                        .expect("code should be in the storage");
+                    let pages = info
+                        .persistent_pages
+                        .keys()
+                        .copied()
+                        .map(|p| p.to_wasm_page())
+                        .collect();
+                    let program = CoreProgram::from_parts(*pid, code, pages, true);
+                    Some(ExecutableActorData {
+                        program,
+                        pages_data: vec_page_data_map_to_page_buf_map(
+                            info.persistent_pages.clone(),
+                        )
+                        .unwrap(),
+                    })
                 } else {
                     None
                 }
@@ -457,7 +448,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             .collect();
 
         if let Some(expected_memory) = &exp.memory {
-            if let Err(mem_errors) = gear_test::check::check_memory(&actors, expected_memory) {
+            if let Err(mem_errors) = gear_test::check::check_memory(&actors_data, expected_memory) {
                 errors.push(format!("step: {:?}", exp.step));
                 errors.extend(mem_errors);
             }
@@ -465,7 +456,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
         if let Some(alloc) = &exp.allocations {
             if let Err(alloc_errors) = gear_test::check::check_allocations(
-                &actors
+                &actors_data
                     .into_iter()
                     .map(|a| a.program)
                     .collect::<Vec<gear_core::program::Program>>(),

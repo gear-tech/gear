@@ -112,7 +112,7 @@ pub struct ExtInfo {
 pub trait IntoExtInfo {
     fn into_ext_info(
         self,
-        memory: &dyn Memory,
+        memory: &impl Memory,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
@@ -133,7 +133,10 @@ pub struct BackendError<T> {
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
-    /// An error issues in environment
+    /// Memory type for current environment.
+    type Memory: Memory;
+
+    /// An error issues in environment.
     type Error: fmt::Display;
 
     /// Creates new external environment to execute wasm binary:
@@ -151,10 +154,10 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Get ref to mem wrapper
-    fn get_mem(&self) -> &dyn Memory;
+    fn get_mem(&self) -> &Self::Memory;
 
     /// Get mut ref to mem wrapper
-    fn get_mem_mut(&mut self) -> &mut dyn Memory;
+    fn get_mem_mut(&mut self) -> &mut Self::Memory;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
@@ -164,7 +167,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&dyn Memory) -> Result<(), T>,
+        F: FnOnce(&Self::Memory) -> Result<(), T>,
         T: fmt::Display;
 
     /// Consumes environment and returns gas state.

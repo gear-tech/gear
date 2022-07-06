@@ -20,7 +20,7 @@
 
 use core::{
     convert::TryFrom,
-    ops::{Deref, DerefMut},
+    ops::{Add, Deref, DerefMut, Sub},
 };
 
 use alloc::{
@@ -144,6 +144,16 @@ impl PageNumber {
         (self.0 / PageNumber::num_in_one_wasm_page()).into()
     }
 
+    /// Saturating addition.
+    pub const fn saturating_add(self, other: Self) -> Self {
+        Self(self.0.saturating_add(other.0))
+    }
+
+    /// Saturating subtraction.
+    pub const fn saturating_sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0))
+    }
+
     /// Return page size in bytes.
     pub const fn size() -> usize {
         GEAR_PAGE_SIZE
@@ -155,16 +165,18 @@ impl PageNumber {
     }
 }
 
-impl core::ops::Add<PageNumber> for PageNumber {
+impl Add for PageNumber {
     type Output = Self;
-    fn add(self, other: Self) -> Self {
+
+    fn add(self, other: Self) -> Self::Output {
         Self(self.0 + other.0)
     }
 }
 
-impl core::ops::Sub<PageNumber> for PageNumber {
+impl Sub for PageNumber {
     type Output = Self;
-    fn sub(self, other: Self) -> Self {
+
+    fn sub(self, other: Self) -> Self::Output {
         Self(self.0 - other.0)
     }
 }
@@ -203,6 +215,16 @@ impl WasmPageNumber {
         PageNumber::from(self.0 * PageNumber::num_in_one_wasm_page())
     }
 
+    /// Saturating addition.
+    pub const fn saturating_add(self, other: Self) -> Self {
+        Self(self.0.saturating_add(other.0))
+    }
+
+    /// Saturating subtraction.
+    pub const fn saturating_sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0))
+    }
+
     /// Return page size in bytes.
     pub const fn size() -> usize {
         WASM_PAGE_SIZE
@@ -215,19 +237,19 @@ impl WasmPageNumber {
     }
 }
 
-impl core::ops::Add for WasmPageNumber {
+impl Add for WasmPageNumber {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self {
-        Self(self.0.saturating_add(other.0))
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0 + other.0)
     }
 }
 
-impl core::ops::Sub for WasmPageNumber {
+impl Sub for WasmPageNumber {
     type Output = Self;
 
-    fn sub(self, other: Self) -> Self {
-        Self(self.0.saturating_sub(other.0))
+    fn sub(self, other: Self) -> Self::Output {
+        Self(self.0 - other.0)
     }
 }
 
@@ -322,54 +344,68 @@ impl AllocationsContext {
     pub fn alloc(
         &mut self,
         pages: WasmPageNumber,
-        mem: &mut dyn Memory,
+        mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Error> {
-        // silly allocator, brute-forces first continuous sector
-        let mut candidate = self.static_pages;
-        let mut found = WasmPageNumber(0);
+        let last_static_page = self.static_pages.saturating_sub(1.into());
 
-        while found < pages {
-            if candidate + pages > self.max_pages {
-                log::debug!(
-                    "candidate: {:?}, pages: {:?}, max_pages: {:?}",
-                    candidate,
-                    pages,
-                    self.max_pages
-                );
-                return Err(Error::OutOfMemory);
+        let iter = self
+            .allocations
+            .iter()
+            .skip_while(|&page| page < &last_static_page);
+
+        let mut previous = None;
+        let mut current = None;
+
+        let mut at = None;
+
+        for page in iter {
+            if current.is_some() {
+                previous = current;
             }
 
-            if self.allocations.contains(&(candidate + found)) {
-                candidate = candidate + WasmPageNumber(1);
-                found = WasmPageNumber(0);
-                continue;
-            }
+            current = Some(page);
 
-            found = found + WasmPageNumber(1);
+            if let Some(&previous) = previous {
+                if (*page).saturating_sub(previous) > pages {
+                    at = Some((previous).saturating_add(1.into()));
+                    break;
+                }
+            }
         }
 
-        if candidate + found > mem.size() {
-            let extra_grow = candidate + found - mem.size();
+        let at = at
+            .or_else(|| current.map(|v| (*v).saturating_add(1.into())))
+            .unwrap_or(self.static_pages);
+
+        let final_page = at.saturating_add(pages);
+
+        if final_page > self.max_pages {
+            return Err(Error::OutOfBounds);
+        }
+
+        let extra_grow = final_page.saturating_sub(mem.size());
+        if extra_grow > 0.into() {
             mem.grow(extra_grow)?;
         }
 
-        for page_num in candidate.0..(candidate + found).0 {
+        for page_num in at.0..final_page.0 {
             self.allocations.insert(WasmPageNumber(page_num));
         }
 
-        Ok(candidate)
+        Ok(at)
     }
 
     /// Free specific page.
     ///
     /// Currently running program should own this page.
     pub fn free(&mut self, page: WasmPageNumber) -> Result<(), Error> {
-        if page < self.static_pages || page > self.max_pages {
-            return Err(Error::InvalidFree(page.0));
+        if page > self.max_pages {
+            Err(Error::OutOfBounds)
+        } else if page < self.static_pages || !self.allocations.remove(&page) {
+            Err(Error::InvalidFree(page.0))
+        } else {
+            Ok(())
         }
-        self.allocations.remove(&page);
-
-        Ok(())
     }
 
     /// Return reference to the allocation manager.

@@ -19,8 +19,7 @@
 //! Common structures for processing.
 
 use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::{self, Debug, Formatter},
+    collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
@@ -30,7 +29,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
+    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
 };
 use gear_core_errors::MemoryError;
@@ -339,66 +338,31 @@ pub enum ExecutionErrorReason {
     OutOfRent,
 }
 
-/// Executable actor.
+/// Actor.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ExecutableActor {
-    /// Program.
-    pub program: Program,
+pub struct Actor {
     /// Program value balance.
     pub balance: u128,
+    /// Destination program.
+    pub destination_program: ProgramId,
+    /// Executable actor data
+    pub executable_data: Option<ExecutableActorData>,
+}
+
+/// Executable actor data.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ExecutableActorData {
+    /// Program.
+    pub program: Program,
     /// Data which some program allocated pages may have.
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
 }
 
 /// Execution context.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct ExecutionContext {
+pub struct WasmExecutionContext {
     /// Original user.
     pub origin: ProgramId,
     /// Gas allowance of the block.
     pub gas_allowance: u64,
-}
-
-#[derive(Clone, Default)]
-/// In-memory state.
-pub struct State {
-    /// Message queue.
-    pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
-    /// Log records.
-    pub log: Vec<StoredMessage>,
-    /// State of each executable actor.
-    pub actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
-    /// Is current state failed.
-    pub current_failed: bool,
-}
-
-impl Debug for State {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("State")
-            .field("dispatch_queue", &self.dispatch_queue)
-            .field("log", &self.log)
-            .field(
-                "actors",
-                &self
-                    .actors
-                    .iter()
-                    .filter_map(|(id, actor)| {
-                        actor.as_ref().map(|actor| {
-                            (
-                                *id,
-                                (actor.balance, actor.program.get_allocations().clone()),
-                            )
-                        })
-                    })
-                    .collect::<BTreeMap<ProgramId, (u128, BTreeSet<WasmPageNumber>)>>(),
-            )
-            .field("current_failed", &self.current_failed)
-            .finish()
-    }
-}
-
-/// Something that can return in-memory state.
-pub trait CollectState {
-    /// Collect the state from self.
-    fn collect(&self) -> State;
 }

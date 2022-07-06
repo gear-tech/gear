@@ -35,14 +35,14 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
-serde = "1.0.137"
+serde = "1.0.138"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 hex-literal = "0.3.3"
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-gas = { path = "../gas" }
+pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-program = { path = "../gear-program", default-features = false }
 
