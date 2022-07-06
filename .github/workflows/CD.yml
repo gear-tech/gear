@@ -66,7 +66,7 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} name=testnet-gear01
+            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}}
             [nodes]
             ${{secrets.GEAR_NODE_2}} name=testnet-gear02 bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
