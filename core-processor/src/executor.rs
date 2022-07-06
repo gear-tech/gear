@@ -109,12 +109,12 @@ fn make_checks_and_charge_gas_for_pages<'a>(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
-fn prepare_memory<A: ProcessorExt>(
+fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
     allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
-    mem: &mut dyn Memory,
+    mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
@@ -302,7 +302,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         mem_size,
     )
     .map_err(|err| {
-        log::debug!("Setup instance err = {}", err);
+        log::debug!("Setup instance error: {}", err);
         ExecutionError {
             program_id,
             gas_amount: err.gas_amount.clone(),
@@ -310,7 +310,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     })?;
 
-    if let Err(reason) = prepare_memory::<A>(
+    if let Err(reason) = prepare_memory::<A, E::Memory>(
         program_id,
         &mut pages_initial_data,
         &allocations,
@@ -347,7 +347,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    log::debug!("term reason = {:?}", termination);
+    log::debug!("Termination reason: {:?}", termination);
 
     // Parsing outcome.
     let kind = match termination {

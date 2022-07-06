@@ -92,7 +92,7 @@ pub struct LazyPagesExt {
 impl IntoExtInfo for LazyPagesExt {
     fn into_ext_info(
         self,
-        memory: &dyn Memory,
+        memory: &impl Memory,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
@@ -166,7 +166,7 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_protect_and_init_info(
-        mem: &dyn Memory,
+        mem: &impl Memory,
         memory_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
@@ -175,7 +175,7 @@ impl ProcessorExt for LazyPagesExt {
     }
 
     fn lazy_pages_post_execution_actions(
-        mem: &dyn Memory,
+        mem: &impl Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error> {
         lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
@@ -188,7 +188,7 @@ impl EnvExt for LazyPagesExt {
     fn alloc(
         &mut self,
         pages_num: WasmPageNumber,
-        mem: &mut dyn Memory,
+        mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
         self.charge_gas(

@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram, TestActor},
+    manager::{Balance, ExtManager, Program as InnerProgram, TestActor},
     system::System,
     Result,
 };
@@ -356,7 +356,7 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
-        if system.actors.contains_key(&source) {
+        if !system.is_user(&source) {
             panic!("Sending messages allowed only from users id");
         }
 
@@ -423,6 +423,14 @@ impl<'a> Program<'a> {
             .call_meta(&self.id, None, "meta_state")
     }
 
+    pub fn mint(&mut self, value: Balance) {
+        self.manager.borrow_mut().mint_to(&self.id(), value)
+    }
+
+    pub fn balance(&self) -> Balance {
+        self.manager.borrow().balance_of(&self.id())
+    }
+
     fn wasm_path(extension: &str) -> PathBuf {
         let current_dir = env::current_dir().expect("Unable to get current dir");
         let path_file = current_dir.join(".binpath");
@@ -465,5 +473,74 @@ mod tests {
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));
+    }
+
+    #[test]
+    fn simple_balance() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        sys.mint_to(user_id, 5000);
+        assert_eq!(sys.balance_of(user_id), 5000);
+
+        let mut prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
+        );
+
+        prog.mint(1000);
+        assert_eq!(prog.balance(), 1000);
+
+        prog.send_with_value(user_id, "init".to_string(), 500);
+        assert_eq!(prog.balance(), 1500);
+        assert_eq!(sys.balance_of(user_id), 4500);
+
+        prog.send_with_value(user_id, "PING".to_string(), 1000);
+        assert_eq!(prog.balance(), 2500);
+        assert_eq!(sys.balance_of(user_id), 3500);
+    }
+
+    #[test]
+    fn piggy_bank() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let receiver = 42;
+        let sender0 = 43;
+        let sender1 = 44;
+        let sender2 = 45;
+
+        // Top-up senders balances
+        sys.mint_to(sender0, 10000);
+        sys.mint_to(sender1, 10000);
+        sys.mint_to(sender2, 10000);
+
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        prog.send_bytes(receiver, b"init");
+        assert_eq!(prog.balance(), 0);
+
+        // Send values to the program
+        prog.send_bytes_with_value(sender0, b"insert", 1000);
+        assert_eq!(sys.balance_of(sender0), 9000);
+        prog.send_bytes_with_value(sender1, b"insert", 2000);
+        assert_eq!(sys.balance_of(sender1), 8000);
+        prog.send_bytes_with_value(sender2, b"insert", 3000);
+        assert_eq!(sys.balance_of(sender2), 7000);
+
+        // Check program's balance
+        assert_eq!(prog.balance(), 1000 + 2000 + 3000);
+
+        // Request to smash the piggy bank and send the value to the receiver address
+        prog.send_bytes(receiver, b"smash");
+        sys.claim_value_from_mailbox(receiver);
+        assert_eq!(sys.balance_of(receiver), 1000 + 2000 + 3000);
+
+        // Check program's balance is empty
+        assert_eq!(prog.balance(), 0);
     }
 }

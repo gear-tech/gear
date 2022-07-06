@@ -89,14 +89,14 @@ pub trait ProcessorExt {
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_protect_and_init_info(
-        mem: &dyn Memory,
+        mem: &impl Memory,
         lazy_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
-        mem: &dyn Memory,
+        mem: &impl Memory,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error>;
 }
@@ -200,7 +200,7 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_protect_and_init_info(
-        _mem: &dyn Memory,
+        _mem: &impl Memory,
         _memory_pages: impl Iterator<Item = PageNumber>,
         _prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
@@ -208,7 +208,7 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(
-        _mem: &dyn Memory,
+        _mem: &impl Memory,
         _memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error> {
         unreachable!()
@@ -218,7 +218,7 @@ impl ProcessorExt for Ext {
 impl IntoExtInfo for Ext {
     fn into_ext_info(
         self,
-        memory: &dyn Memory,
+        memory: &impl Memory,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
@@ -334,7 +334,7 @@ impl EnvExt for Ext {
     fn alloc(
         &mut self,
         pages_num: WasmPageNumber,
-        mem: &mut dyn Memory,
+        mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
         self.charge_gas(

@@ -421,13 +421,13 @@ pub mod pallet {
                                     }
                                 };
 
-                                if MailboxOf::<T>::insert(message).is_err() {
+                                if let Err(e) = MailboxOf::<T>::insert(message) {
                                     // TODO: update logic of insertion into mailbox following new
                                     // flow and deposit appropriate event (issue #1010).
 
                                     // TODO: deposit appropriate (Gear) event,
                                     // instead of silent insertion.
-                                    log::debug!("Duplicate mailbox message");
+                                    log::error!("Mailbox insert error: {:?}", e);
                                 }
                             }
 
