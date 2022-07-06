@@ -549,7 +549,9 @@ where
                 if let Some(log) = &exp.log {
                     for message in &final_state.log {
                         if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                            log::debug!("log({})", utf8)
+                            log::debug!("log(text: {})", utf8);
+                        } else {
+                            log::debug!("log(<binary>)");
                         }
                     }
 

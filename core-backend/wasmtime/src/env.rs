@@ -259,7 +259,7 @@ where
         };
 
         let res = entry_func.call(&mut self.memory_wrap.store, &[], &mut []);
-        log::debug!("execution res = {:?}", res);
+        log::debug!("execution result: {:?}", res);
 
         let termination_reason = self.memory_wrap.store.data().termination_reason.clone();
 
