@@ -594,8 +594,8 @@ impl EnvExt for Ext {
                         .or_default();
                     entry.push((new_prog_id, init_msg_id));
 
-                (new_prog_id, init_msg_id)
-            });
+                    (new_prog_id, init_msg_id)
+                });
 
         self.return_and_store_err(result)
     }
