@@ -53,7 +53,7 @@ const listenToProgramChanged = async (api) => {
     if (success.includes(programId)) {
       return true;
     } else {
-      throw new Error('Program initialization failed');
+      throw new Error('JS_TEST: Program initialization failed');
     }
   };
 };
@@ -61,10 +61,13 @@ const listenToProgramChanged = async (api) => {
 const messageDispatchedIsOccurred = async (api, hash) => {
   const apiAt = await api.at(hash);
   const events = await apiAt.query.system.events();
+  console.log(`JS_TEST: blockHash next for block with setCode ${hash}`);
   return new Promise((resolve) => {
     if (events.filter(({ event }) => api.events.gear.MessagesDispatched.is(event)).length > 0) {
+      console.log(`JS_TEST: messagesDispatched occured`);
       resolve(true);
     } else {
+      console.log(`JS_TEST: messagesDispatched didn't occur`);
       resolve(false);
     }
   });
@@ -115,13 +118,17 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
     });
   });
 
-  assert.notEqual(messages[0], messages[1], 'both sendMessage txs were processed in the same block');
-  assert.notStrictEqual(codeUpdatedBlock, undefined, 'setCode was not processed successfully');
+  assert.notEqual(messages[0], messages[1], 'JS_TEST: both sendMessage txs were processed in the same block');
+  console.log(`JS_TEST: message[0]: ${message[0]}, message[1]: ${message[1]}`);
+  console.log(`JS_TEST: 1st assert passed`);
+  assert.notStrictEqual(codeUpdatedBlock, undefined, 'JS_TEST: setCode was not processed successfully');
+  console.log(`JS_TEST: 2nd assert passed`);
   assert.notEqual(
     await messageDispatchedIsOccurred(api, await getNextBlock(api, codeUpdatedBlock)),
     true,
-    'A message was processed in the next block after CodeUpdated event',
+    'JS_TEST: A message was processed in the next block after CodeUpdated event',
   );
+  console.log(`JS_TEST: 3rd assert passed`);
 };
 
 const args = process.argv.slice(2);
@@ -134,21 +141,21 @@ main(pathToRuntimeCode, pathToDemoPing)
     exitCode = 0;
   })
   .catch((error) => {
-    console.error(error);
+    console.error(`JS_TEST: ${error}`);
     exitCode = 1;
   })
   .finally(() => {
     exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
       if (err) {
-        console.log(`Unable to execute kill command`);
+        console.log(`JS_TEST: Unable to execute kill command`);
       }
 
-    if (exitCode == 0) {
-      console.log('✅ Test passed');
-    } else {
-      console.log('❌ Test failed');
-    }
+      if (exitCode == 0) {
+        console.log('JS_TEST: ✅ Test passed');
+      } else {
+        console.log('JS_TEST: ❌ Test failed');
+      }
 
-    process.exit(exitCode);
+      process.exit(exitCode);
     });
   });
