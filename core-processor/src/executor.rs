@@ -253,11 +253,33 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
+    let is_initial = program.get_allocations().is_empty();
+
+    let exports = program.code().exports();
+    if !exports.contains(&dispatch.kind()) {
+        return Ok(DispatchResult {
+            kind: DispatchResultKind::Success,
+            dispatch,
+            program_id,
+            context_store: Default::default(),
+            generated_dispatches: Default::default(),
+            awakening: Default::default(),
+            program_candidates: Default::default(),
+            gas_amount: gas_counter.into(),
+            page_update: Default::default(),
+            allocations: if is_initial {
+                Some((0..static_pages.0).map(WasmPageNumber).collect())
+            } else {
+                None
+            },
+        });
+    }
+
     // Getting wasm pages allocations.
-    let (allocations, is_initial) = if program.get_allocations().is_empty() {
-        ((0..static_pages.0).map(WasmPageNumber).collect(), true)
+    let allocations = if is_initial {
+        (0..static_pages.0).map(WasmPageNumber).collect()
     } else {
-        (program.get_allocations().clone(), false)
+        program.get_allocations().clone()
     };
 
     // Creating allocations context.
