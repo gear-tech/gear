@@ -323,11 +323,11 @@ impl ExtManager {
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
-        !self.actors.contains_key(id) || matches!(self.actors.get(id), Some((Actor::User, _)))
+        !self.actors.contains_key(id) || matches!(self.actors.get(id), Some((TestActor::User, _)))
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
-        let (_, balance) = self.actors.entry(*id).or_insert((Actor::User, 0));
+        let (_, balance) = self.actors.entry(*id).or_insert((TestActor::User, 0));
         *balance = balance.saturating_add(value);
     }
 
