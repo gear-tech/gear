@@ -12,6 +12,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
+  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
   spec_version:
@@ -51,17 +52,19 @@ jobs:
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
-      - name: "Install: Nightly-2022-06-30 toolchain"
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-06-30
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
-      - name: "Install: pin to nightly-2022-06-30"
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
           rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s /root/.rustup/toolchains/nightly-2022-06-30-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Build deps"
         run: |
@@ -126,17 +129,19 @@ jobs:
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
-      - name: "Install: Nightly-2022-06-30 toolchain"
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-06-30
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
-      - name: "Install: pin to nightly-2022-06-30"
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
           rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s /root/.rustup/toolchains/nightly-2022-06-30-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2

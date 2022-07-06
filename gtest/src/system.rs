@@ -19,7 +19,7 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::ExtManager,
+    manager::{Balance, ExtManager},
     program::{Program, ProgramIdWrapper},
 };
 use colored::Colorize;
@@ -97,7 +97,7 @@ impl System {
 
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        self.0.borrow().actors.contains_key(&program_id)
+        !self.0.borrow().is_user(&program_id)
     }
 
     /// Saves code to the storage and returns it's code hash
@@ -119,8 +119,8 @@ impl System {
 
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
-        if self.0.borrow_mut().actors.contains_key(&program_id) {
-            panic!("Such program id is already in actors list");
+        if !self.0.borrow().is_user(&program_id) {
+            panic!("Mailbox available only for users");
         }
         self.0
             .borrow_mut()
@@ -128,5 +128,23 @@ impl System {
             .entry(program_id)
             .or_insert_with(Vec::default);
         Mailbox::new(program_id, &self.0)
+    }
+
+    /// Add value to the actor.
+    pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
+        let actor_id = id.into().0;
+        self.0.borrow_mut().mint_to(&actor_id, value);
+    }
+
+    /// Return actor balance (value) if exists.
+    pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Balance {
+        let actor_id = id.into().0;
+        self.0.borrow().balance_of(&actor_id)
+    }
+
+    /// Claim the user's value from the mailbox.
+    pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
+        let actor_id = id.into().0;
+        self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
     }
 }
