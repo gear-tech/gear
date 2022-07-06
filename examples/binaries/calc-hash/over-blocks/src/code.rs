@@ -95,7 +95,7 @@ mod types {
             self.package.calc();
         }
 
-        /// Deref `Pacakge::finished`
+        /// Deref `Package::finished`
         ///
         /// Check if calculation is finished.
         pub fn finished(&self) -> bool {
