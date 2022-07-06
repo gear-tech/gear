@@ -34,6 +34,12 @@ unsafe extern "C" fn handle() {
                     .expect("Send message failed.");
             }
             Method::Calculate(id) => {
+                if msg::source() != exec::program_id() {
+                    panic!(
+                        "Invalid caller, this is a private method reserved for the program itself."
+                    );
+                }
+
                 let mut pkg = state::REGISTRY
                     .get_mut(&id)
                     .expect("Calculation not found, please run start first.");
@@ -48,7 +54,6 @@ unsafe extern "C" fn handle() {
 
                     // Second checking if finished in `Method::Calculate`.
                     if pkg.finished() {
-                        gstd::debug!("go wake");
                         pkg.wake();
                         return;
                     }

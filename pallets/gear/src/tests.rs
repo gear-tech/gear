@@ -3737,7 +3737,7 @@ fn execution_over_blocks() {
         )
         .expect("Failed to get gas spent");
 
-        // deploy demo-calc-hash-over-blocks
+        // deploy demo-calc-in-one-block
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -4394,10 +4394,6 @@ mod utils {
                 }
                 _ => None,
             })
-    }
-
-    pub(super) fn maybe_last_mail(account: AccountId) -> Option<StoredMessage> {
-        MailboxOf::<Test>::iter_key(account).last()
     }
 
     pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
