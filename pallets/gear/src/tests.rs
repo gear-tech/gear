@@ -856,27 +856,10 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        // let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_lazy_pages_numbers()
-        //     .iter()
-        //     .map(|p| PageNumber(*p))
-        //     .collect();
         let released_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_released_pages()
             .iter()
             .map(|p| PageNumber(*p))
             .collect();
-
-        // Checks that released pages + lazy pages == all pages
-        // let all_pages = {
-        //     let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
-        //     all_wasm_pages
-        //         .iter()
-        //         .flat_map(|p| p.to_gear_pages_iter())
-        //         .collect()
-        // };
-        // let mut res_pages = lazy_pages;
-        // res_pages.extend(released_pages.iter());
-
-        // assert_eq!(res_pages, all_pages);
 
         // checks accessed pages set
         let native_size = page_size::get();
