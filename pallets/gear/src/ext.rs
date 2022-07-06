@@ -20,24 +20,20 @@ use ::common::Origin;
 use alloc::collections::BTreeSet;
 use common::{lazy_pages, save_page_lazy_info};
 use core::fmt;
-use core_processor::{
-    configs::{AllocationsConfig, BlockInfo},
-    Ext, ProcessorError, ProcessorExt,
-};
+use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
     TrapExplanation,
 };
 use gear_core::{
-    costs::HostFnWeights,
     env::Ext as EnvExt,
-    gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
-    ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{HandlePacket, MessageContext, ReplyPacket},
+    gas::GasAmount,
+    ids::{MessageId, ProgramId},
+    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    message::{HandlePacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
-use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
+use sp_std::collections::btree_map::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -98,8 +94,16 @@ impl IntoExtInfo for LazyPagesExt {
         self,
         memory: &dyn Memory,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
+        let ProcessorContext {
+            allocations_context,
+            message_context,
+            gas_counter,
+            program_candidates_data,
+            ..
+        } = self.inner.context;
+
         // Accessed pages are all pages except current lazy pages
-        let allocations = self.inner.allocations_context.allocations().clone();
+        let allocations = allocations_context.allocations().clone();
         let mut accessed_pages = lazy_pages::get_released_pages();
         accessed_pages.retain(|p| allocations.contains(&p.to_wasm_page()));
 
@@ -109,22 +113,22 @@ impl IntoExtInfo for LazyPagesExt {
         for page in accessed_pages {
             let mut buf = PageBuf::new_zeroed();
             if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
-                return Err((err, self.into_gas_amount()));
+                return Err((err, gas_counter.into()));
             }
             accessed_pages_data.insert(page, buf);
         }
 
-        let (outcome, context_store) = self.inner.message_context.drain();
+        let (outcome, context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
         let info = ExtInfo {
-            gas_amount: self.inner.gas_counter.into(),
+            gas_amount: gas_counter.into(),
             allocations,
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,
             context_store,
-            program_candidates_data: self.inner.program_candidates_data,
+            program_candidates_data,
         };
         let trap_explanation = self
             .inner
@@ -134,7 +138,7 @@ impl IntoExtInfo for LazyPagesExt {
     }
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
-        self.inner.gas_counter.into()
+        self.inner.context.gas_counter.into()
     }
 
     fn last_error(&self) -> Option<&ExtError> {
@@ -145,41 +149,10 @@ impl IntoExtInfo for LazyPagesExt {
 impl ProcessorExt for LazyPagesExt {
     type Error = Error;
 
-    fn new(
-        gas_counter: GasCounter,
-        gas_allowance_counter: GasAllowanceCounter,
-        value_counter: ValueCounter,
-        allocations_context: AllocationsContext,
-        message_context: MessageContext,
-        block_info: BlockInfo,
-        config: AllocationsConfig,
-        existential_deposit: u128,
-        origin: ProgramId,
-        program_id: ProgramId,
-        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
-        host_fn_weights: HostFnWeights,
-        forbidden_funcs: BTreeSet<&'static str>,
-        mailbox_threshold: u64,
-    ) -> Self {
+    fn new(context: ProcessorContext) -> Self {
         assert!(cfg!(feature = "lazy-pages"));
         Self {
-            inner: Ext {
-                gas_counter,
-                gas_allowance_counter,
-                value_counter,
-                allocations_context,
-                message_context,
-                block_info,
-                config,
-                existential_deposit,
-                error_explanation: None,
-                origin,
-                program_id,
-                program_candidates_data,
-                host_fn_weights,
-                forbidden_funcs,
-                mailbox_threshold,
-            },
+            inner: Ext::new(context),
             fresh_allocations: Default::default(),
         }
     }
@@ -221,13 +194,13 @@ impl EnvExt for LazyPagesExt {
         self.charge_gas(
             pages_num
                 .0
-                .saturating_mul(self.inner.config.alloc_cost as u32),
+                .saturating_mul(self.inner.context.config.alloc_cost as u32),
         )?;
         // Greedily charge gas for grow
         self.charge_gas(
             pages_num
                 .0
-                .saturating_mul(self.inner.config.mem_grow_cost as u32),
+                .saturating_mul(self.inner.context.config.mem_grow_cost as u32),
         )?;
 
         let old_mem_size = mem.size();
@@ -241,6 +214,7 @@ impl EnvExt for LazyPagesExt {
 
         let result = self
             .inner
+            .context
             .allocations_context
             .alloc(pages_num, mem)
             .map_err(ExtError::Memory);
@@ -252,10 +226,14 @@ impl EnvExt for LazyPagesExt {
         // during current execution.
         // This is because only such pages contains Default (zeros in WebAsm) page data.
         // Pages which has been already allocated may contain garbage.
-        let id = self.inner.program_id.into_origin();
+        let id = self.inner.context.program_id.into_origin();
         let new_allocated_pages = (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
         for wasm_page in new_allocated_pages {
-            if self.inner.allocations_context.is_init_page(wasm_page)
+            if self
+                .inner
+                .context
+                .allocations_context
+                .is_init_page(wasm_page)
                 || self.fresh_allocations.contains(&wasm_page)
             {
                 continue;
@@ -272,6 +250,7 @@ impl EnvExt for LazyPagesExt {
         let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back = self
             .inner
+            .context
             .config
             .mem_grow_cost
             .saturating_mul((pages_num - grow_pages_num).0 as u64);
@@ -281,12 +260,18 @@ impl EnvExt for LazyPagesExt {
         let last_page = first_page + pages_num - 1.into();
         let mut new_allocated_pages_num = WasmPageNumber(0);
         for page in first_page.0..=last_page.0 {
-            if !self.inner.allocations_context.is_init_page(page.into()) {
+            if !self
+                .inner
+                .context
+                .allocations_context
+                .is_init_page(page.into())
+            {
                 new_allocated_pages_num = new_allocated_pages_num + 1.into();
             }
         }
         gas_to_return_back = gas_to_return_back.saturating_add(
             self.inner
+                .context
                 .config
                 .alloc_cost
                 .saturating_mul((pages_num - new_allocated_pages_num).0 as u64),
@@ -418,6 +403,6 @@ impl EnvExt for LazyPagesExt {
     }
 
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str> {
-        &self.inner.forbidden_funcs
+        &self.inner.context.forbidden_funcs
     }
 }

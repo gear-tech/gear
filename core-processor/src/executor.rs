@@ -22,7 +22,7 @@ use crate::{
         ExecutionErrorReason, WasmExecutionContext,
     },
     configs::ExecutionSettings,
-    ext::ProcessorExt,
+    ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -275,23 +275,25 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
-    // Creating externalities.
-    let ext = A::new(
+    let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
         value_counter,
         allocations_context,
         message_context,
-        settings.block_info,
-        settings.allocations_config,
-        settings.existential_deposit,
-        context.origin,
+        block_info: settings.block_info,
+        config: settings.allocations_config,
+        existential_deposit: settings.existential_deposit,
+        origin: context.origin,
         program_id,
-        Default::default(),
-        settings.host_fn_weights,
-        settings.forbidden_funcs,
-        settings.mailbox_threshold,
-    );
+        program_candidates_data: Default::default(),
+        host_fn_weights: settings.host_fn_weights,
+        forbidden_funcs: settings.forbidden_funcs,
+        mailbox_threshold: settings.mailbox_threshold,
+    };
+
+    // Creating externalities.
+    let ext = A::new(context);
 
     let mut env = E::new(
         ext,
