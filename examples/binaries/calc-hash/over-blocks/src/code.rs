@@ -10,53 +10,48 @@ unsafe extern "C" fn init() {
 
 #[no_mangle]
 unsafe extern "C" fn handle() {
-    unsafe {
-        let threshold = state::THRESHOLD.expect("Threshold has not been set.");
-        let method = msg::load::<Method>().expect("Invalid contract method.");
+    let threshold = state::THRESHOLD.expect("Threshold has not been set.");
+    let method = msg::load::<Method>().expect("Invalid contract method.");
 
-        match method {
-            Method::Start { expected, id, src } => {
-                if !state::REGISTRY.contains_key(&id) {
-                    state::REGISTRY.insert(id, Package::new(expected, src));
-                }
-
-                let pkg = state::REGISTRY.get(&id).expect("Calculation not found.");
-
-                if pkg.finished() {
-                    msg::reply(pkg.result(), 0).expect("send reply failed");
-                } else {
-                    exec::wait();
-                }
+    match method {
+        Method::Start { expected, id, src } => {
+            if !state::REGISTRY.contains_key(&id) {
+                state::REGISTRY.insert(id, Package::new(expected, src));
             }
-            // Proxy the `Calculate` method for mocking aggregator && calculator.
-            Method::Refuel(id) => {
-                msg::send(exec::program_id(), Method::Calculate(id), 0)
-                    .expect("Send message failed.");
+
+            let pkg = state::REGISTRY.get(&id).expect("Calculation not found.");
+
+            if pkg.finished() {
+                msg::reply(pkg.result(), 0).expect("send reply failed");
+            } else {
+                exec::wait();
             }
-            Method::Calculate(id) => {
-                if msg::source() != exec::program_id() {
-                    panic!(
-                        "Invalid caller, this is a private method reserved for the program itself."
-                    );
-                }
+        }
+        // Proxy the `Calculate` method for mocking aggregator && calculator.
+        Method::Refuel(id) => {
+            msg::send(exec::program_id(), Method::Calculate(id), 0).expect("Send message failed.");
+        }
+        Method::Calculate(id) => {
+            if msg::source() != exec::program_id() {
+                panic!("Invalid caller, this is a private method reserved for the program itself.");
+            }
 
-                let mut pkg = state::REGISTRY
-                    .get_mut(&id)
-                    .expect("Calculation not found, please run start first.");
+            let mut pkg = state::REGISTRY
+                .get_mut(&id)
+                .expect("Calculation not found, please run start first.");
 
-                // First check here for saving gas and making `wake` operation standalone.
+            // First check here for saving gas and making `wake` operation standalone.
+            if pkg.finished() {
+                return;
+            }
+
+            while exec::gas_available() > threshold {
+                pkg.calc();
+
+                // Second checking if finished in `Method::Calculate`.
                 if pkg.finished() {
+                    pkg.wake();
                     return;
-                }
-
-                while exec::gas_available() > threshold {
-                    pkg.calc();
-
-                    // Second checking if finished in `Method::Calculate`.
-                    if pkg.finished() {
-                        pkg.wake();
-                        return;
-                    }
                 }
             }
         }
@@ -81,7 +76,7 @@ mod types {
         pub expected: u128,
         /// Id of the start message.
         pub message_id: MessageId,
-        /// The calculation pacakge.
+        /// The calculation package.
         pub package: shared::Package,
     }
 
@@ -95,7 +90,7 @@ mod types {
             }
         }
 
-        /// Deref `Pacakge::calc`
+        /// Deref `Package::calc`
         pub fn calc(&mut self) {
             self.package.calc();
         }

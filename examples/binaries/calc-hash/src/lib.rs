@@ -33,7 +33,7 @@ impl Package {
 
     /// Check if the calculation is finished.
     pub fn finished(&self, expected: u128) -> bool {
-        self.counter.eq(&expected)
+        self.counter >= expected
     }
 }
 

@@ -3848,7 +3848,7 @@ fn execution_over_blocks() {
         ));
         let in_one_block = get_last_program_id();
 
-        assert!(program_exists(in_one_block.into_origin()));
+        assert!(common::program_exists(in_one_block.into_origin()));
 
         let src = [0; 32];
 
@@ -4375,17 +4375,10 @@ mod utils {
 
     pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
         SystemPallet::<Test>::events()
-            .iter()
+            .into_iter()
             .rev()
-            .filter_map(|r| {
-                if let MockEvent::Gear(e) = r.event.clone() {
-                    Some(e)
-                } else {
-                    None
-                }
-            })
-            .find_map(|e| match e {
-                Event::UserMessageSent { message, .. } => {
+            .find_map(|e| match e.event {
+                MockEvent::Gear(Event::UserMessageSent { message, .. }) => {
                     if message.destination() == account.into() {
                         Some(message)
                     } else {

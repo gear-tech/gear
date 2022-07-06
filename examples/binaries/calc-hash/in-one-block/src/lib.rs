@@ -49,12 +49,12 @@ impl Package {
         }
     }
 
-    /// Deref `Pacakge::calc`
+    /// Deref `Package::calc`
     pub fn calc(&mut self) {
         self.package.calc();
     }
 
-    /// Deref `Pacakge::finished`
+    /// Deref `Package::finished`
     ///
     /// Check if calculation is finished.
     pub fn finished(&self) -> bool {
