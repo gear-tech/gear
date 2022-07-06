@@ -1,76 +1,34 @@
-name: CD
+name: test_CD
 
 on:
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
-  Docker:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v2
-        with:
-          file: ../../docker/Dockerfile
-          push: true
-          tags: schernovgear/gear:nightly
   Deploy:
     runs-on: ubuntu-latest
-    needs: Docker
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Install Info
-        run: |
-            ls -l .
-            ls -l ../..
-            pwd
-
-      - name: Send telegram notify before run playbook
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message: |
-            Attention! Instances will be temporarily unavailable!
-            ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
-            Build number: ${{ github.run_number }}
+        uses: actions/checkout@v2
 
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v2
         with:
-          # Required, playbook filepath
           directory: ./ansible/
           playbook: main.yaml
-          # Optional, SSH private key
           key: ${{secrets.SSH_PRIVATE_KEY}}
-          # Optional, literal inventory file contents
           inventory: |
             [gearNodes:children]
-            bootnode
-            nodes
+            #bootnode
+            #nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}}
+            #${{secrets.GEAR_NODE}} 
             [nodes]
-            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=no loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=yes loki=no loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            #${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=no loki_url=${{secrets.LOKI_URL}}
+            #${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=yes loki=no loki_url=${{secrets.LOKI_URL}}
+            #${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.GEAR_NODE_5}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_RPC_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            #${{secrets.ARCHIVE_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            #${{secrets.ARCHIVE_RPC_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
