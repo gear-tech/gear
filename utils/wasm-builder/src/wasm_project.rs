@@ -33,7 +33,6 @@ pub struct WasmProject {
     out_dir: PathBuf,
     target_dir: PathBuf,
     file_base_name: Option<String>,
-    profile: String,
 }
 
 impl WasmProject {
@@ -47,14 +46,6 @@ impl WasmProject {
             .expect("`OUT_DIR` is always set in build scripts")
             .into();
 
-        let profile = out_dir
-            .components()
-            .rev()
-            .take_while(|c| c.as_os_str() != "target")
-            .last()
-            .expect("Path should have subdirs in the `target` dir")
-            .as_os_str();
-
         let mut target_dir = out_dir.clone();
         while target_dir.pop() {
             if target_dir.ends_with("target") {
@@ -62,20 +53,12 @@ impl WasmProject {
             }
         }
         target_dir.push("wasm-projects");
-        target_dir.push(profile);
-
-        let profile = if profile == "debug" {
-            "dev".to_string()
-        } else {
-            profile.to_string_lossy().into()
-        };
 
         WasmProject {
             original_dir,
             out_dir,
             target_dir,
             file_base_name: None,
-            profile,
         }
     }
 
@@ -87,11 +70,6 @@ impl WasmProject {
     /// Return the path to the target directory.
     pub fn target_dir(&self) -> PathBuf {
         self.target_dir.clone()
-    }
-
-    /// Return the profile name based on the `OUT_DIR` path.
-    pub fn profile(&self) -> &str {
-        &self.profile
     }
 
     /// Generate a temporary cargo project that includes the original package as a dependency.

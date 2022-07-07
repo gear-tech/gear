@@ -26,7 +26,6 @@ pub struct CargoCommand {
     path: String,
     manifest_path: PathBuf,
     args: Vec<&'static str>,
-    profile: String,
     rustc_flags: Vec<&'static str>,
     target_dir: PathBuf,
 }
@@ -38,7 +37,6 @@ impl CargoCommand {
             path: "cargo".to_string(),
             manifest_path: "Cargo.toml".into(),
             args: vec!["+nightly", "rustc", "--target=wasm32-unknown-unknown"],
-            profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
             target_dir: "target".into(),
         }
@@ -52,13 +50,6 @@ impl CargoCommand {
     /// Set path to the `target` directory.
     pub fn set_target_dir(&mut self, path: PathBuf) {
         self.target_dir = path;
-    }
-
-    /// Set profile.
-    ///
-    /// Possible values: `dev`, `release`.
-    pub fn set_profile(&mut self, profile: String) {
-        self.profile = profile;
     }
 
     /// Execute the `cargo` command with invoking supplied arguments.
