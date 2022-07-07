@@ -64,7 +64,7 @@ impl WasmProject {
 
         let mut wasm_target_dir = target_dir.clone();
         wasm_target_dir.push("wasm32-unknown-unknown");
-        wasm_target_dir.push("release"); // we always build WASM projects in release mode
+        wasm_target_dir.push(profile);
 
         target_dir.push("wasm-projects");
 
