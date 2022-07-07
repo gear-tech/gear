@@ -18,13 +18,14 @@
 
 use crate::{
     js::{MetaData, MetaType},
+    manager::CollectState,
     proc,
     sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test},
 };
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::{
-    common::{CollectState, ExecutableActor, JournalHandler},
+    common::{ExecutableActorData, JournalHandler},
     Ext,
 };
 use derive_more::Display;
@@ -413,15 +414,15 @@ pub fn check_allocations(
 }
 
 pub fn check_memory(
-    actors: &Vec<ExecutableActor>,
+    actors_data: &Vec<ExecutableActorData>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for actor in actors {
-            if actor.program.id() == case.id.to_program_id() {
+        for data in actors_data {
+            if data.program.id() == case.id.to_program_id() {
                 let page = PageNumber::new_from_addr(case.address);
-                if let Some(page_buf) = actor.pages_data.get(&page) {
+                if let Some(page_buf) = data.pages_data.get(&page) {
                     let begin_byte = case.address - page.offset();
                     let end_byte = begin_byte + case.bytes.len();
                     if page_buf[begin_byte..end_byte] != case.bytes {
@@ -585,7 +586,7 @@ where
                     let actual_prog_ids = final_state
                         .actors
                         .iter()
-                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .map(|(id, actor)| (*id, actor.executable_data.is_none()))
                         .collect();
 
                     if let Err(prog_id_errors) = check_programs_state(
@@ -607,7 +608,8 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
+                            .filter_map(|(_, actor)| actor.executable_data)
+                            .map(|data| data.program)
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
@@ -617,12 +619,12 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let actors: Vec<ExecutableActor> = final_state
+                        let data = final_state
                             .actors
                             .into_iter()
-                            .filter_map(|(_, actor_opt)| actor_opt)
+                            .filter_map(|(_, actor)| actor.executable_data)
                             .collect();
-                        if let Err(mem_errors) = check_memory(&actors, mem) {
+                        if let Err(mem_errors) = check_memory(&data, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
                         }
