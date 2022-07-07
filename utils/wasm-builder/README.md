@@ -47,17 +47,17 @@ mod code {
 }
 
 #[test]
-fn assert_wasm() {
+fn debug_wasm() {
     assert_eq!(
-        std::fs::read("target/wasm32-unknown-unknown/release/test_program.wasm").unwrap(),
+        std::fs::read("target/wasm32-unknown-unknown/debug/test_program.wasm").unwrap(),
         code::WASM_BINARY,
     );
     assert_eq!(
-        std::fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
+        std::fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
         code::WASM_BINARY_OPT,
     );
     assert_eq!(
-        std::fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").unwrap(),
+        std::fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").unwrap(),
         code::WASM_BINARY_META,
     );
 }
