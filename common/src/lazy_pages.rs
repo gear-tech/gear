@@ -37,6 +37,8 @@ pub enum Error {
     ReleasedPageHasInitialData(PageNumber),
     #[display(fmt = "RUNTIME ERROR: wasm memory buffer is undefined")]
     WasmMemBufferIsUndefined,
+    #[display(fmt = "wasm memory buffer size is bigger then u32::MAX")]
+    WasmMemorySizeOverflow,
 }
 
 impl From<RIError> for Error {
@@ -91,7 +93,13 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
         return Ok(());
     }
 
-    let size = (mem.size().0 + 1) * WasmPageNumber::size() as u32;
+    let size = mem
+        .size()
+        .0
+        .checked_add(1)
+        .ok_or(Error::WasmMemorySizeOverflow)?
+        .checked_mul(WasmPageNumber::size() as u32)
+        .ok_or(Error::WasmMemorySizeOverflow)?;
     gear_ri::set_wasm_mem_size(size)?;
 
     mprotect_lazy_pages(mem, true)
@@ -151,7 +159,12 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        let size = (new_mem_size.0 + 1) * WasmPageNumber::size() as u32;
+        let size = new_mem_size
+            .0
+            .checked_add(1)
+            .ok_or(Error::WasmMemorySizeOverflow)?
+            .checked_mul(WasmPageNumber::size() as u32)
+            .ok_or(Error::WasmMemorySizeOverflow)?;
         gear_ri::set_wasm_mem_size(size)?;
     }
 
