@@ -20,7 +20,7 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
-use frame_system::{Pallet as SystemPallet};
+use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
