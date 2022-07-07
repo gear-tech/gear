@@ -30,6 +30,7 @@ const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
+const SECOND_LOAD_PAGE_COST: u64 = 0;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -53,6 +54,8 @@ pub struct AllocationsConfig {
     pub mem_grow_cost: u64,
     /// Load page cost.
     pub load_page_cost: u64,
+    /// Second load page cost.
+    pub second_load_page_cost: u64,
 }
 
 impl Default for AllocationsConfig {
@@ -63,6 +66,7 @@ impl Default for AllocationsConfig {
             alloc_cost: ALLOC_COST,
             mem_grow_cost: MEM_GROW_COST,
             load_page_cost: LOAD_PAGE_COST,
+            second_load_page_cost: SECOND_LOAD_PAGE_COST,
         }
     }
 }
@@ -126,6 +130,11 @@ impl ExecutionSettings {
     /// Load gear page cost.
     pub fn load_page_cost(&self) -> u64 {
         self.allocations_config.load_page_cost
+    }
+
+    /// Cost for loading gear page for the second and next times.
+    pub fn second_load_page_cost(&self) -> u64 {
+        self.allocations_config.second_load_page_cost
     }
 }
 

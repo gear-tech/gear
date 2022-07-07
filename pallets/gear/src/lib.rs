@@ -565,6 +565,7 @@ pub mod pallet {
                 payload,
                 value,
                 allow_other_panics,
+                false,
             )
         }
 
@@ -575,6 +576,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            subsequent_execution: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
@@ -585,6 +587,7 @@ pub mod pallet {
                     payload.clone(),
                     value,
                     allow_other_panics,
+                    subsequent_execution,
                 )
             })?;
 
@@ -596,6 +599,7 @@ pub mod pallet {
                     payload,
                     value,
                     allow_other_panics,
+                    subsequent_execution,
                 )
                 .map(
                     |GasInfo {
@@ -633,6 +637,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            subsequent_execution: bool,
         ) -> Result<GasInfo, Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
@@ -715,6 +720,7 @@ pub mod pallet {
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
                 load_page_cost: schedule.memory_weights.load_cost,
+                second_load_page_cost: 0,
             };
 
             let block_config = BlockConfig {
@@ -742,7 +748,11 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_actor(actor_id, !lazy_pages_enabled)
+                    .get_actor(
+                        actor_id,
+                        !lazy_pages_enabled,
+                        main_program_id == actor_id && subsequent_execution,
+                    )
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
@@ -874,6 +884,7 @@ pub mod pallet {
                 alloc_cost: schedule.memory_weights.allocation_cost,
                 mem_grow_cost: schedule.memory_weights.grow_cost,
                 load_page_cost: schedule.memory_weights.load_cost,
+                second_load_page_cost: 0,
             };
 
             let block_config = BlockConfig {
@@ -1044,9 +1055,13 @@ pub mod pallet {
                                 }
                             };
 
+                            let subsequent_execution = ext_manager.contains_program_id(&program_id);
+                            ext_manager.insert_program_id(program_id);
+
                             Some(ExecutableActorData {
                                 program,
                                 pages_data,
+                                subsequent_execution,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages

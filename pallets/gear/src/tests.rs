@@ -76,6 +76,20 @@ fn unstoppable_block_execution_works() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        let GasInfo {
+            burned: subsequent_burned_gas,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
         )
         .expect("calculate_gas_info failed");
 
@@ -91,7 +105,8 @@ fn unstoppable_block_execution_works() {
             ));
         }
 
-        let real_gas_to_burn = expected_burned_gas * executions_amount;
+        let real_gas_to_burn =
+            expected_burned_gas + executions_amount.saturating_sub(1) * subsequent_burned_gas;
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
@@ -1011,6 +1026,7 @@ fn block_gas_limit_works() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .expect("calculate_gas_info failed");
         let GasInfo {
@@ -1022,6 +1038,7 @@ fn block_gas_limit_works() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .expect("calculate_gas_info failed");
 
@@ -1586,6 +1603,7 @@ fn claim_value_from_mailbox_works() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .expect("calculate_gas_info failed");
         let gas_burned = GasPrice::gas_price(gas_burned);
@@ -2681,6 +2699,7 @@ fn no_redundant_gas_value_after_exiting() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .expect("calculate_gas_info failed");
         assert_ok!(GearPallet::<Test>::send_message(
@@ -3114,6 +3133,7 @@ fn gas_spent_vs_balance() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
@@ -3143,6 +3163,7 @@ fn gas_spent_vs_balance() {
             request,
             0,
             true,
+            false,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
@@ -3190,6 +3211,7 @@ fn gas_spent_precalculated() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
@@ -3222,6 +3244,7 @@ fn gas_spent_precalculated() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .expect("calculate_gas_info failed");
 
@@ -3645,6 +3668,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             payload.clone(),
             value,
             true,
+            false,
         )
         .expect("Failed to get gas spent");
 
@@ -3734,6 +3758,7 @@ fn execution_over_blocks() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .expect("Failed to get gas spent");
 
@@ -3758,6 +3783,7 @@ fn execution_over_blocks() {
             pkg.encode(),
             0,
             true,
+            false,
         )
         .expect("Failed to get gas spent");
 
@@ -3776,6 +3802,7 @@ fn execution_over_blocks() {
             0u64.encode(),
             0,
             true,
+            false,
         )
         .expect("Failed to get gas spent");
 
@@ -3801,6 +3828,7 @@ fn execution_over_blocks() {
             Method::Start { expected, src, id }.encode(),
             0,
             true,
+            false,
         )
         .expect("Failed to get gas spent");
 
@@ -3820,6 +3848,7 @@ fn execution_over_blocks() {
             Method::Start { expected, src, id }.encode(),
             0,
             true,
+            false,
         )
         .expect("Failed to get gas spent");
 
@@ -3962,6 +3991,7 @@ fn call_forbidden_function() {
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
+            false,
         )
         .map_err(|e| String::from_utf8(e).unwrap());
 

@@ -152,6 +152,16 @@ where
         }
     }
 
+    pub fn contains_program_id(&self, id: &ProgramId) -> bool {
+        self.programs.contains(id)
+    }
+
+    pub fn insert_program_id(&mut self, id: ProgramId) {
+        assert!(self.check_program_id(&id));
+
+        self.programs.insert(id);
+    }
+
     /// Check if id is user and save result.
     pub fn check_user_id(&mut self, id: &ProgramId) -> bool {
         !self.check_program_id(id)
@@ -159,7 +169,12 @@ where
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
+    pub fn get_actor(
+        &mut self,
+        id: ProgramId,
+        with_pages: bool,
+        subsequent_execution: bool,
+    ) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
@@ -183,12 +198,16 @@ where
             Default::default()
         };
 
+        let subsequent_execution = subsequent_execution || self.programs.contains(&id);
+        self.programs.insert(id);
+
         Some(Actor {
             balance,
             destination_program: id,
             executable_data: Some(ExecutableActorData {
                 program,
                 pages_data,
+                subsequent_execution,
             }),
         })
     }

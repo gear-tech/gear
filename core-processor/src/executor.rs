@@ -47,6 +47,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     allocations: &BTreeSet<WasmPageNumber>,
     pages_with_data: impl Iterator<Item = &'a PageNumber>,
     static_pages: WasmPageNumber,
+    subsequent_execution: bool,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
@@ -56,29 +57,6 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     }
 
     let mem_size = if let Some(max_wasm_page) = allocations.iter().next_back() {
-        // Charging gas for loaded pages
-        let amount = settings.load_page_cost() * allocations.len() as u64;
-
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
-        }
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
-        }
-
-        // Charging gas for mem size
-        let amount =
-            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
-
-        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
-        }
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionErrorReason::GrowMemoryGasExceeded);
-        }
-
         // +1 because pages numeration begins from 0
         *max_wasm_page + 1.into()
     } else {
@@ -93,8 +71,35 @@ fn make_checks_and_charge_gas_for_pages<'a>(
             return Err(ExecutionErrorReason::InitialMemoryGasExceeded);
         }
 
-        static_pages
+        return Ok(static_pages);
     };
+
+    // Charging gas for loaded pages
+    let cost = if subsequent_execution {
+        settings.second_load_page_cost()
+    } else {
+        settings.load_page_cost()
+    };
+    let amount = cost * allocations.len() as u64;
+
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+    }
+
+    // Charging gas for mem size
+    let amount = settings.mem_grow_cost() * (mem_size.0 as u64 - static_pages.0 as u64);
+
+    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
+    }
+
+    if gas_counter.charge(amount) != ChargeResult::Enough {
+        return Err(ExecutionErrorReason::GrowMemoryGasExceeded);
+    }
 
     if mem_size < static_pages {
         log::error!(
@@ -221,6 +226,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let ExecutableActorData {
         program,
         pages_data: mut pages_initial_data,
+        subsequent_execution,
     } = data;
 
     let program_id = program.id();
@@ -242,6 +248,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program.get_allocations(),
         pages_initial_data.keys(),
         static_pages,
+        subsequent_execution,
     ) {
         Ok(mem_size) => mem_size,
         Err(reason) => {

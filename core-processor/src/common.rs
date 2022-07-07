@@ -356,6 +356,9 @@ pub struct ExecutableActorData {
     pub program: Program,
     /// Data which some program allocated pages may have.
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
+    /// Determines if the program is being executed for the second or next time
+    /// in a block.
+    pub subsequent_execution: bool,
 }
 
 /// Execution context.
