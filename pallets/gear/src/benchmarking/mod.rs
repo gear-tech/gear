@@ -143,7 +143,7 @@ where
         "Suppose to run benches only with lazy pages"
     );
 
-    let ext_manager = ExtManager::<T>::default();
+    let mut ext_manager = ExtManager::<T>::default();
     let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
 
@@ -236,6 +236,7 @@ where
             alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
             mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
             load_page_cost: T::Schedule::get().memory_weights.load_cost,
+            second_load_page_cost: 0,
         },
         existential_deposit,
         outgoing_limit: 2048,
@@ -248,7 +249,7 @@ where
         let actor_id = queued_dispatch.destination();
         let actor = ext_manager
             // get actor without pages data because of lazy pages enabled
-            .get_actor(actor_id, false)
+            .get_actor(actor_id, false, false)
             .ok_or("Program not found in the storage")?;
 
         let message_execution_context = MessageExecutionContext {
