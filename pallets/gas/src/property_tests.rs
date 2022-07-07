@@ -46,173 +46,175 @@ mod utils;
 
 type Gas = Pallet<Test>;
 
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(600))]
-    #[test]
-    fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
-    {
-        new_test_ext().execute_with(|| {
-            // `actions` can consist only from tree splits. Then it's length will
-            // represent a potential amount of nodes in the tree.
-            let mut node_ids = Vec::with_capacity(actions.len() + 1); // +1 for the root
-            let root_node = H256::random();
-            node_ids.push(root_node);
+// todo [sab] all nodes have the same origin
 
-            // Only root has a max balance
-            assert_ok!(Gas::create(H256::random(), root_node, max_balance));
+// proptest! {
+//     #![proptest_config(ProptestConfig::with_cases(600))]
+//     #[test]
+//     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
+//     {
+//         new_test_ext().execute_with(|| {
+//             // `actions` can consist only from tree splits. Then it's length will
+//             // represent a potential amount of nodes in the tree.
+//             let mut node_ids = Vec::with_capacity(actions.len() + 1); // +1 for the root
+//             let root_node = H256::random();
+//             node_ids.push(root_node);
 
-            // Nodes on which `consume` was called
-            let mut marked_consumed = BTreeSet::new();
-            // Nodes that were created with `split` procedure
-            let mut unspec_ref_nodes = BTreeSet::new();
-            // Nodes that were created with `split_with_value` procedure
-            let mut spec_ref_nodes = BTreeSet::new();
-            // Total spent amount with `spent` procedure
-            let mut spent = 0;
+//             // Only root has a max balance
+//             assert_ok!(Gas::create(H256::random(), root_node, max_balance));
 
-            for action in actions {
-                match action {
-                    GasTreeAction::SplitWithValue(parent_idx, amount) => {
-                        let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
-                        let child = H256::random();
+//             // Nodes on which `consume` was called
+//             let mut marked_consumed = BTreeSet::new();
+//             // Nodes that were created with `split` procedure
+//             let mut unspec_ref_nodes = BTreeSet::new();
+//             // Nodes that were created with `split_with_value` procedure
+//             let mut spec_ref_nodes = BTreeSet::new();
+//             // Total spent amount with `spent` procedure
+//             let mut spent = 0;
 
-                        if Gas::split_with_value(parent, child, amount).is_ok() {
-                            spec_ref_nodes.insert(child);
-                            node_ids.push(child)
-                        }
-                    }
-                    GasTreeAction::Split(parent_idx) => {
-                        let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
-                        let child = H256::random();
+//             for action in actions {
+//                 match action {
+//                     GasTreeAction::SplitWithValue(parent_idx, amount) => {
+//                         let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
+//                         let child = H256::random();
 
-                        if Gas::split(parent, child).is_ok() {
-                            unspec_ref_nodes.insert(child);
-                            node_ids.push(child);
-                        }
-                    }
-                    GasTreeAction::Spend(from, amount) => {
-                        let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
-                        let limit = Gas::get_limit(from).unwrap().unwrap();
-                        let res = Gas::spend(from, amount);
+//                         if Gas::split_with_value(parent, child, amount).is_ok() {
+//                             spec_ref_nodes.insert(child);
+//                             node_ids.push(child)
+//                         }
+//                     }
+//                     GasTreeAction::Split(parent_idx) => {
+//                         let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
+//                         let child = H256::random();
 
-                        if limit < amount {
-                            assert_eq!(res, Err(Error::<Test>::InsufficientBalance.into()));
-                        } else {
-                            assert_ok!(res);
-                            spent += amount;
-                        }
-                    }
-                    GasTreeAction::Consume(id) => {
-                        let consuming = node_ids.ring_get(id).copied().expect("before each iteration there is at least 1 element; qed");
-                        match utils::consume_node(consuming) {
-                            Ok(removed_nodes) => {
-                                marked_consumed.insert(consuming);
-                                // Update ids
-                                node_ids.retain(|id| !removed_nodes.contains_key(id));
+//                         if Gas::split(parent, child).is_ok() {
+//                             unspec_ref_nodes.insert(child);
+//                             node_ids.push(child);
+//                         }
+//                     }
+//                     GasTreeAction::Spend(from, amount) => {
+//                         let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+//                         let limit = Gas::get_limit(from).unwrap().unwrap();
+//                         let res = Gas::spend(from, amount);
 
-                                // Search operation in a set is faster, then in a vector
-                                let remaining_ids = BTreeSet::from_iter(node_ids.iter().copied());
-                                assertions::assert_removed_nodes_props(
-                                    consuming,
-                                    removed_nodes,
-                                    &remaining_ids,
-                                    &marked_consumed,
-                                );
-                                assertions::assert_root_removed_last(root_node, &remaining_ids);
-                            }
-                            Err(e) => {
-                                // double consume has happened
-                                assert!(marked_consumed.contains(&consuming));
-                                assert_eq!(e, Error::<Test>::NodeWasConsumed.into());
-                            }
-                        }
-                    }
-                }
+//                         if limit < amount {
+//                             assert_eq!(res, Err(Error::<Test>::InsufficientBalance.into()));
+//                         } else {
+//                             assert_ok!(res);
+//                             spent += amount;
+//                         }
+//                     }
+//                     GasTreeAction::Consume(id) => {
+//                         let consuming = node_ids.ring_get(id).copied().expect("before each iteration there is at least 1 element; qed");
+//                         match utils::consume_node(consuming) {
+//                             Ok(removed_nodes) => {
+//                                 marked_consumed.insert(consuming);
+//                                 // Update ids
+//                                 node_ids.retain(|id| !removed_nodes.contains_key(id));
 
-                if node_ids.is_empty() {
-                    // Nodes were consumed, no need to process `actions` anymore
-                    break;
-                }
-            }
+//                                 // Search operation in a set is faster, then in a vector
+//                                 let remaining_ids = BTreeSet::from_iter(node_ids.iter().copied());
+//                                 assertions::assert_removed_nodes_props(
+//                                     consuming,
+//                                     removed_nodes,
+//                                     &remaining_ids,
+//                                     &marked_consumed,
+//                                 );
+//                                 assertions::assert_root_removed_last(root_node, &remaining_ids);
+//                             }
+//                             Err(e) => {
+//                                 // double consume has happened
+//                                 assert!(marked_consumed.contains(&consuming));
+//                                 assert_eq!(e, Error::<Test>::NodeWasConsumed.into());
+//                             }
+//                         }
+//                     }
+//                 }
 
-            let gas_tree_ids = BTreeSet::from_iter(GasTree::<Test>::iter_keys());
+//                 if node_ids.is_empty() {
+//                     // Nodes were consumed, no need to process `actions` anymore
+//                     break;
+//                 }
+//             }
 
-            // Self check, that in-memory view on gas tree ids is the same as persistent view.
-            assert_eq!(gas_tree_ids, BTreeSet::from_iter(node_ids));
+//             let gas_tree_ids = BTreeSet::from_iter(GasTree::<Test>::iter_keys());
 
-            let mut rest_value = 0;
-            for (node_id, node) in GasTree::<Test>::iter() {
-                if let Some(value) = node.inner_value() {
-                    rest_value += value;
-                }
+//             // Self check, that in-memory view on gas tree ids is the same as persistent view.
+//             assert_eq!(gas_tree_ids, BTreeSet::from_iter(node_ids));
 
-                // Check property: all nodes have parents
-                if let Some(parent) = node.parent() {
-                    assert!(gas_tree_ids.contains(&parent));
-                }
+//             let mut rest_value = 0;
+//             for (node_id, node) in GasTree::<Test>::iter() {
+//                 if let Some(value) = node.inner_value() {
+//                     rest_value += value;
+//                 }
 
-                // Check property: specified local nodes are created only with `split_with_value` call
-                if matches!(node.inner, ValueType::SpecifiedLocal { .. }) {
-                    assert!(spec_ref_nodes.contains(&node_id));
-                } else if matches!(node.inner, ValueType::UnspecifiedLocal { .. }) {
-                    // Check property: unspecified local nodes are created only with `split` call
-                    assert!(unspec_ref_nodes.contains(&node_id));
-                }
+//                 // Check property: all nodes have parents
+//                 if let Some(parent) = node.parent() {
+//                     assert!(gas_tree_ids.contains(&parent));
+//                 }
 
-                // Check property: for all the consumed nodes currently existing in the tree...
-                if node.consumed {
-                    // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
-                    assert!(node.refs() != 0);
-                    // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
-                    assert!(marked_consumed.contains(&node_id));
-                } else {
-                    // If is not consumed, then no consume calls should have been called on it
-                    assert!(!marked_consumed.contains(&node_id));
-                }
+//                 // Check property: specified local nodes are created only with `split_with_value` call
+//                 if matches!(node.inner, ValueType::SpecifiedLocal { .. }) {
+//                     assert!(spec_ref_nodes.contains(&node_id));
+//                 } else if matches!(node.inner, ValueType::UnspecifiedLocal { .. }) {
+//                     // Check property: unspecified local nodes are created only with `split` call
+//                     assert!(unspec_ref_nodes.contains(&node_id));
+//                 }
 
-                // Check property: all nodes have ancestor (node is a self-ancestor too) with value
-                let (ancestor_with_value, _) = node.node_with_value::<Test>().expect("tree is invalidated");
-                assert!(ancestor_with_value.inner_value().is_some());
-            }
+//                 // Check property: for all the consumed nodes currently existing in the tree...
+//                 if node.consumed {
+//                     // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
+//                     assert!(node.refs() != 0);
+//                     // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
+//                     assert!(marked_consumed.contains(&node_id));
+//                 } else {
+//                     // If is not consumed, then no consume calls should have been called on it
+//                     assert!(!marked_consumed.contains(&node_id));
+//                 }
 
-            if !gas_tree_ids.is_empty() {
-                // Check trees imbalance
-                assert!(max_balance == spent + rest_value)
-            }
-        })
-    }
+//                 // Check property: all nodes have ancestor (node is a self-ancestor too) with value
+//                 let (ancestor_with_value, _) = node.node_with_value::<Test>().expect("tree is invalidated");
+//                 assert!(ancestor_with_value.inner_value().is_some());
+//             }
 
-    #[test]
-    fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
-        new_test_ext().execute_with(|| {
-            // Tree can be created only with external root
+//             if !gas_tree_ids.is_empty() {
+//                 // Check trees imbalance
+//                 assert!(max_balance == spent + rest_value)
+//             }
+//         })
+//     }
 
-            let mut nodes = Vec::with_capacity(actions.len());
-            for node in &mut nodes {
-                *node = H256::random();
-            }
+//     #[test]
+//     fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
+//         new_test_ext().execute_with(|| {
+//             // Tree can be created only with external root
 
-            for action in actions {
-                match action {
-                    GasTreeAction::SplitWithValue(parent_idx, amount) => {
-                        if let Some(&parent) = nodes.ring_get(parent_idx) {
-                            let child = H256::random();
+//             let mut nodes = Vec::with_capacity(actions.len());
+//             for node in &mut nodes {
+//                 *node = H256::random();
+//             }
 
-                            let _ = Gas::split_with_value(parent, child, amount);
-                        }
-                    }
-                    GasTreeAction::Split(parent_idx) => {
-                        if let Some(&parent) = nodes.ring_get(parent_idx) {
-                            let child = H256::random();
+//             for action in actions {
+//                 match action {
+//                     GasTreeAction::SplitWithValue(parent_idx, amount) => {
+//                         if let Some(&parent) = nodes.ring_get(parent_idx) {
+//                             let child = H256::random();
 
-                            let _ = Gas::split(parent, child);
-                        }
-                    }
-                    _ => {}
-                }
-            }
+//                             let _ = Gas::split_with_value(parent, child, amount);
+//                         }
+//                     }
+//                     GasTreeAction::Split(parent_idx) => {
+//                         if let Some(&parent) = nodes.ring_get(parent_idx) {
+//                             let child = H256::random();
 
-            assert!(GasTree::<Test>::iter_values().count() == 0);
-        })
-    }
-}
+//                             let _ = Gas::split(parent, child);
+//                         }
+//                     }
+//                     _ => {}
+//                 }
+//             }
+
+//             assert!(GasTree::<Test>::iter_values().count() == 0);
+//         })
+//     }
+// }

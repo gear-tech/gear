@@ -23,6 +23,8 @@ use primitive_types::H256;
 
 type Gas = Pallet<Test>;
 
+// todo [sab] new edge cases with new invariants
+
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
@@ -48,51 +50,89 @@ fn simple_value_tree() {
     });
 }
 
+// todo [sab] tets case
+// pos imb not dropped
+// tree created
+// consumed successfully some node + spend from some nodes
+// what happens to imbalance?
 #[test]
-fn test_consume_procedure() {
+fn test_consume_procedure_with_subnodes() {
     new_test_ext().execute_with(|| {
         let origin = H256::random();
         let root = H256::random();
         let node_1 = H256::random();
         let node_2 = H256::random();
         let node_3 = H256::random();
+        let node_4 = H256::random();
 
+        let pos_imb = Gas::create(origin, root, 300).unwrap();
+        assert_eq!(pos_imb.peek(), 300);
         // Chain of nodes, that form more likely a path rather then a tree
-        assert_ok!(Gas::create(origin, root, 300));
         assert_ok!(Gas::split_with_value(root, node_1, 200));
-        assert_ok!(Gas::split_with_value(node_1, node_2, 100));
-        assert_ok!(Gas::split(node_2, node_3));
+        assert_ok!(Gas::split_with_value(root, node_2, 100));
+        assert_ok!(Gas::split_with_value(node_1, node_3, 100));
+        assert_ok!(Gas::split(node_3, node_4));
 
-        assert_eq!(Gas::consume(root).unwrap(), None);
-        // Consumed root still has a balance. Root is not deleted.
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(100));
+        assert_eq!(Gas::total_supply(), 0);
 
-        assert_eq!(Gas::consume(node_1).unwrap(), None);
-        // Consumed node without unspec refs moves value up
+        // We must drop the imbalance to reflect changes in total supply
+        drop(pos_imb);
+        assert_eq!(Gas::total_supply(), 300);
+
+        // Consume root
+        let consume_root = Gas::consume(root);
+        assert!(consume_root.is_ok());
+        assert_eq!(consume_root.unwrap().unwrap().0.peek(), 0);
+        // total supply mustn't be affected, because root sponsored all it's balance
+        assert_eq!(Gas::total_supply(), 300);
+        // Consumed still exists, but has no balance.
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(0));
+
+        // Consume node_1
+        let consume_node_1 = Gas::consume(node_1);
+        assert!(consume_node_1.is_ok());
+        // Consumed node without unspec refs returns value,
+        assert_eq!(consume_node_1.unwrap().unwrap().0.peek(), 100);
+        // So it has no balance, but exists due to having children
         assert_eq!(Gas::get_limit(node_1).unwrap(), Some(0));
-        // Check value moved up to the root
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(200));
+        // total supply is affected
+        assert_eq!(Gas::total_supply(), 200);
+        // Check value wasn't moved up to the root
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(0));
 
-        assert_eq!(Gas::consume(node_2).unwrap(), None);
+        // Consume node_2 independently
+        let consume_node_2 = Gas::consume(node_2);
+        assert!(consume_node_2.is_ok());
+        // The node is not a patron, so value should be returned
+        assert_eq!(consume_node_2.unwrap().unwrap().0.peek(), 100);
+        // It has no children, so should be removed
+        assert_eq!(Gas::get_limit(node_2).unwrap(), None);
+        // Total supply is affected
+        assert_eq!(Gas::total_supply(), 100);
+
+        // Consume node_3
+        assert_eq!(Gas::consume(node_3).unwrap(), None);
         // Consumed node with unspec refs doesn't moves value up
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(100));
-
-        // Check that spending from unspec `node_3` actually decreases balance from the ancestor with value - `node_2`.
-        assert_ok!(Gas::spend(node_3, 100));
-        assert_eq!(Gas::get_limit(node_2).unwrap(), Some(0));
-
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(100));
+        // Check that spending from unspec `node_4` actually decreases balance from the ancestor with value - `node_3`.
+        assert_eq!(Gas::spend(node_4, 100).unwrap().peek(), 100);
+        assert_eq!(Gas::get_limit(node_3).unwrap(), Some(0));
+        // total supply is affected after spending all of the blockage `node_3`
+        assert_eq!(Gas::total_supply(), 0);
         // Still exists, although is consumed and has a zero balance. The only way to remove it is to remove children.
-        assert_noop!(Gas::consume(node_2), Error::<Test>::NodeWasConsumed,);
+        assert_noop!(Gas::consume(node_3), Error::<Test>::NodeWasConsumed,);
 
         // Impossible to consume non-existing node.
         assert_noop!(Gas::consume(H256::random()), Error::<Test>::NodeNotFound,);
 
-        // Before consuming blockage `node_3`
+        // Before consuming blockage `node_4`
         assert!(Gas::get_node(root).is_some());
         assert!(Gas::get_node(node_1).is_some());
-        assert!(Gas::get_node(node_2).is_some());
+        assert!(Gas::get_node(node_3).is_some());
 
-        assert!(matches!(Gas::consume(node_3).unwrap(), Some(_)));
+        let consume_node_4 = Gas::consume(node_4);
+        assert!(consume_node_4.is_ok());
+        assert_eq!(consume_node_4.unwrap().unwrap().0.peek(), 0);
 
         // After consuming blockage `node_3`
         assert!(super::GasTree::<Test>::iter_keys().next().is_none());
@@ -139,37 +179,6 @@ fn splits_fail() {
         let node_4 = H256::random();
         assert_noop!(Gas::split(node_4, node_4), Error::<Test>::NodeNotFound,);
     })
-}
-
-#[test]
-fn sub_nodes_tree() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
-        let new_root = H256::random();
-        let origin = H256::random();
-        let split_1 = H256::random();
-        let split_2 = H256::random();
-
-        let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
-        assert_eq!(pos_imb.peek(), 1000);
-
-        assert_ok!(Gas::split_with_value(new_root, split_1, 500));
-        assert_ok!(Gas::split_with_value(new_root, split_2, 500));
-        // No new value created - total supply not affected
-        assert_eq!(pos_imb.peek(), 1000);
-
-        // We must drop the imbalance to reflect changes in total supply
-        drop(pos_imb);
-        assert_eq!(Gas::total_supply(), 1000);
-
-        assert!(matches!(Gas::consume(new_root).unwrap(), None));
-        assert!(matches!(Gas::consume(split_1).unwrap(), None));
-
-        let consume_result = Gas::consume(split_2).unwrap();
-        assert!(consume_result.is_some());
-        assert_eq!(consume_result.unwrap().0.peek(), 1000);
-        // Negative imbalance moved and dropped above - total supply decreased
-        assert_eq!(Gas::total_supply(), 0);
-    });
 }
 
 #[test]
@@ -239,6 +248,7 @@ fn sub_nodes_tree_with_spends() {
             .unwrap();
         assert_eq!(offset1.peek(), 900);
 
+        // Because root is not consumed, it is considered as a patron
         assert!(matches!(Gas::consume(split_1).unwrap(), None));
         assert!(matches!(Gas::consume(split_2).unwrap(), None));
 
@@ -270,7 +280,8 @@ fn all_keys_are_cleared() {
             // here we have not yet consumed everything
             assert!(GasTree::<Test>::contains_key(*key));
 
-            assert_ok!(Gas::consume(*key));
+            // There are no patron nodes in the tree after root was consumed
+            assert!(matches!(Gas::consume(*key).unwrap(), Some(_)));
         }
 
         // here we consumed everything
@@ -307,6 +318,7 @@ fn split_with_no_value() {
         assert!(Gas::get_node(split_1).is_none());
         assert!(Gas::get_node(split_2).is_none());
 
+        // Returns None, because root is not consumed, so considered as a patron
         assert!(matches!(Gas::consume(split_1_2).unwrap(), None));
 
         let final_imb = Gas::consume(new_root).unwrap().unwrap().0;
@@ -339,21 +351,27 @@ fn long_chain() {
         assert_ok!(Gas::spend(m3, 50));
         assert_ok!(Gas::spend(m4, 50));
 
-        assert_eq!(Gas::get_limit(root).unwrap(), Some(450));
-        assert_eq!(Gas::get_limit(m1).unwrap(), Some(450));
-        assert_eq!(Gas::get_limit(m2).unwrap(), Some(450));
+        let root_expected_limit = 450;
+        let m1_expected_limit = 450;
+        let m2_expected_limit = 450;
+        assert_eq!(Gas::get_limit(root).unwrap(), Some(root_expected_limit));
+        assert_eq!(Gas::get_limit(m1).unwrap(), Some(m1_expected_limit));
+        assert_eq!(Gas::get_limit(m2).unwrap(), Some(m2_expected_limit));
         assert_eq!(Gas::get_limit(m3).unwrap(), Some(200));
         assert_eq!(Gas::get_limit(m4).unwrap(), Some(200));
 
+        // Send their value to the root, which is not consumed. therefore considered as a patron
         assert!(matches!(Gas::consume(m1).unwrap(), None));
         assert!(matches!(Gas::consume(m2).unwrap(), None));
-        assert!(matches!(Gas::consume(root).unwrap(), None));
+        // Doesn't have any unspec refs. so not a patron
+        assert!(matches!(Gas::consume(root).unwrap(), Some(_)));
+        // Has a patron parent m3
         assert!(matches!(Gas::consume(m4).unwrap(), None));
 
         let (neg_imb, payee) = Gas::consume(m3).unwrap().unwrap();
 
         // 2000 initial, 5*50 spent
-        assert_eq!(neg_imb.peek(), 1750);
+        assert_eq!(neg_imb.peek(), 1750 - root_expected_limit - m1_expected_limit - m2_expected_limit);
         assert_eq!(payee, origin);
     });
 }
@@ -470,10 +488,10 @@ fn subtree_gas_limit_remains_intact() {
         assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
 
         // Consume node 5
-        assert!(matches!(Gas::consume(node_5).unwrap(), None));
+        assert!(matches!(Gas::consume(node_5).unwrap(), None));  
         // node_5 was removed
         assert_eq!(Gas::get_limit(node_5).unwrap(), None);
-        // Expect gas limit from node_5 sent to upstream node with a value (node_2, which is consumed)
+        // Expect gas limit from node_5 sent to upstream patron (node_2)
         assert_eq!(Gas::get_limit(node_2).unwrap(), Some(500));
 
         // Spend from unspecified node_4, which actually spends gas from node_2 (ancestor with value)
@@ -498,5 +516,21 @@ fn gas_free_after_consumed() {
         let (v, _) = Gas::consume(root_msg_id).unwrap().unwrap();
         assert_eq!(v.peek(), 700);
         assert_eq!(Gas::get_limit(root_msg_id), Ok(None));
+    })
+}
+
+#[test]
+fn test_imbalances_drop() {
+    new_test_ext().execute_with(|| {
+        let pos_imb = PositiveImbalance::<Test>::new(100);
+        assert_eq!(super::TotalIssuance::<Test>::get(), 0);
+        drop(pos_imb);
+        assert_eq!(super::TotalIssuance::<Test>::get(), 100);
+        let neg_imb = NegativeImbalance::<Test>::new(50);
+        assert_eq!(super::TotalIssuance::<Test>::get(), 100);
+        let new_neg = NegativeImbalance::<Test>::new(30).merge(neg_imb);
+        assert_eq!(super::TotalIssuance::<Test>::get(), 100);
+        drop(new_neg);
+        assert_eq!(super::TotalIssuance::<Test>::get(), 20);
     })
 }
