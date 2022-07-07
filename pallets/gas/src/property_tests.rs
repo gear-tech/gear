@@ -48,7 +48,7 @@ type Gas = Pallet<Test>;
 
 // todo [sab] all nodes have the same origin
 
-// proptest! {
+proptest! {
 //     #![proptest_config(ProptestConfig::with_cases(600))]
 //     #[test]
 //     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
@@ -184,37 +184,37 @@ type Gas = Pallet<Test>;
 //         })
 //     }
 
-//     #[test]
-//     fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
-//         new_test_ext().execute_with(|| {
-//             // Tree can be created only with external root
+    #[test]
+    fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
+        new_test_ext().execute_with(|| {
+            // Tree can be created only with external root
 
-//             let mut nodes = Vec::with_capacity(actions.len());
-//             for node in &mut nodes {
-//                 *node = H256::random();
-//             }
+            let mut nodes = Vec::with_capacity(actions.len());
+            for node in &mut nodes {
+                *node = H256::random();
+            }
 
-//             for action in actions {
-//                 match action {
-//                     GasTreeAction::SplitWithValue(parent_idx, amount) => {
-//                         if let Some(&parent) = nodes.ring_get(parent_idx) {
-//                             let child = H256::random();
+            for action in actions {
+                match action {
+                    GasTreeAction::SplitWithValue(parent_idx, amount) => {
+                        if let Some(&parent) = nodes.ring_get(parent_idx) {
+                            let child = H256::random();
 
-//                             let _ = Gas::split_with_value(parent, child, amount);
-//                         }
-//                     }
-//                     GasTreeAction::Split(parent_idx) => {
-//                         if let Some(&parent) = nodes.ring_get(parent_idx) {
-//                             let child = H256::random();
+                            let _ = Gas::split_with_value(parent, child, amount);
+                        }
+                    }
+                    GasTreeAction::Split(parent_idx) => {
+                        if let Some(&parent) = nodes.ring_get(parent_idx) {
+                            let child = H256::random();
 
-//                             let _ = Gas::split(parent, child);
-//                         }
-//                     }
-//                     _ => {}
-//                 }
-//             }
+                            let _ = Gas::split(parent, child);
+                        }
+                    }
+                    _ => {}
+                }
+            }
 
-//             assert!(GasTree::<Test>::iter_values().count() == 0);
-//         })
-//     }
-// }
+            assert!(GasTree::<Test>::iter_values().count() == 0);
+        })
+    }
+}
