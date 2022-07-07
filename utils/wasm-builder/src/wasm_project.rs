@@ -61,7 +61,7 @@ impl WasmProject {
                 break;
             }
         }
-        target_dir.push("wasm-projects");
+        target_dir.push("wasm32-unknown-unknown");
         target_dir.push(profile);
 
         let profile = if profile == "debug" {
