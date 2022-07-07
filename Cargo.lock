@@ -6131,6 +6131,7 @@ dependencies = [
  "clap",
  "junit-common",
  "quick-xml",
+ "serde",
  "serde_json",
  "tabled",
  "thousands",

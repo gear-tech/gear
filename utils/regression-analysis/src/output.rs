@@ -24,6 +24,7 @@ pub struct Test {
     pub current_time: u64,
     pub median: u64,
     pub average: u64,
+    pub std: u64,
     pub quartile_lower: u64,
     pub quartile_upper: u64,
     pub min: u64,

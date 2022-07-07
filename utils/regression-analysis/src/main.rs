@@ -19,6 +19,7 @@
 use clap::{Parser, Subcommand};
 use common::TestSuites;
 use quick_xml::de::from_str;
+use serde::Serialize;
 use std::{
     collections::BTreeMap,
     fs,
@@ -68,6 +69,14 @@ enum Commands {
         #[clap(long, value_parser)]
         disable_filter: bool,
     },
+    Convert {
+        #[clap(long, value_parser)]
+        input_file: PathBuf,
+        #[clap(long, value_parser)]
+        output_file: PathBuf,
+        #[clap(long, value_parser)]
+        current_junit_path: PathBuf,
+    },
 }
 
 fn build_tree<P: AsRef<Path>>(
@@ -82,7 +91,7 @@ fn build_tree<P: AsRef<Path>>(
         PALLET_NAMES.iter().any(|&name| name == pallet_name)
     };
 
-    let junit_xml = std::fs::read_to_string(path).unwrap();
+    let junit_xml = fs::read_to_string(path).unwrap();
     let test_suites: TestSuites = from_str(&junit_xml).unwrap();
     let total_time = [(
         String::from("Total time"),
@@ -104,6 +113,20 @@ fn median(values: &[u64]) -> u64 {
     } else {
         values[len / 2]
     }
+}
+
+fn average(values: &[u64]) -> u64 {
+    values.iter().sum::<u64>() / values.len() as u64
+}
+
+fn std(values: &[u64]) -> u64 {
+    let average = average(values);
+    let sum = values
+        .iter()
+        .map(|x| x.abs_diff(average).pow(2))
+        .sum::<u64>();
+    let div = sum / values.len() as u64;
+    (div as f64).sqrt() as u64
 }
 
 fn collect_data<P: AsRef<Path>>(
@@ -145,11 +168,13 @@ fn collect_data<P: AsRef<Path>>(
     serde_json::to_writer_pretty(writer, &statistics).unwrap();
 }
 
-fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: bool) {
-    let mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
-        serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
+fn output_from_stats(
+    mut statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>>,
+    current_junit_path: PathBuf,
+    disable_filter: bool,
+) -> BTreeMap<String, Vec<output::Test>> {
     let executions = build_tree(disable_filter, current_junit_path);
-    let mut compared = executions
+    executions
         .iter()
         .filter_map(|(key, tests)| {
             statistics.get_mut(key).map(|test_times| {
@@ -164,13 +189,15 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
                             let quartile_lower = median(&times[..len / 2]);
                             let quartile_upper = median(&times[len / 2 + len_remainder..]);
                             let median = median(times.as_ref());
-                            let average = times.iter().sum::<u64>() / (len as u64);
+                            let average = average(times);
+                            let std = std(times);
 
                             output::Test {
                                 name: key.clone(),
                                 current_time: (1_000_000_000.0 * time) as u64,
                                 median,
                                 average,
+                                std,
                                 quartile_lower,
                                 quartile_upper,
                                 min: *times.first().unwrap(),
@@ -183,7 +210,13 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
                 (key.clone(), test_stats)
             })
         })
-        .collect::<BTreeMap<_, _>>();
+        .collect::<BTreeMap<_, _>>()
+}
+
+fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool) {
+    let statistics: BTreeMap<String, BTreeMap<String, Vec<u64>>> =
+        serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
+    let mut compared = output_from_stats(statistics, current_junit_path, disable_filter);
 
     if let Some(total_time) = compared.remove(TEST_SUITES_TEXT) {
         println!("Total execution time");
@@ -200,23 +233,62 @@ fn compare<P: AsRef<Path>>(data_path: P, current_junit_path: P, disable_filter: 
     }
 }
 
+fn convert(input_file: PathBuf, output_file: PathBuf, current_junit_path: PathBuf) {
+    #[derive(Debug, Serialize)]
+    struct GithubActionBenchmark {
+        name: String,
+        unit: String,
+        value: u64,
+        range: Option<String>,
+        extra: Option<String>,
+    }
+
+    let input_file = fs::read_to_string(input_file).unwrap();
+    let stats = serde_json::from_str(&input_file).unwrap();
+    let outputs = output_from_stats(stats, current_junit_path, false);
+
+    let mut benchmarks = vec![];
+    for (section_name, tests) in outputs {
+        for test in tests {
+            let benchmark = GithubActionBenchmark {
+                name: test.name,
+                unit: "ns".to_string(),
+                value: test.current_time,
+                range: Some(format!("± {}", test.std)),
+                extra: Some(section_name.clone()),
+            };
+            benchmarks.push(benchmark);
+        }
+    }
+
+    let output = serde_json::to_string(&benchmarks).unwrap();
+    fs::write(output_file, output).unwrap();
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    match &cli.command {
+    match cli.command {
         Commands::CollectData {
             data_folder_path,
             disable_filter,
             output_path,
         } => {
-            collect_data(data_folder_path, output_path, *disable_filter, PREALLOCATE);
+            collect_data(data_folder_path, output_path, disable_filter, PREALLOCATE);
         }
         Commands::Compare {
             data_path,
             current_junit_path,
             disable_filter,
         } => {
-            compare(data_path, current_junit_path, *disable_filter);
+            compare(data_path, current_junit_path, disable_filter);
+        }
+        Commands::Convert {
+            input_file,
+            output_file,
+            current_junit_path,
+        } => {
+            convert(input_file, output_file, current_junit_path);
         }
     }
 }
