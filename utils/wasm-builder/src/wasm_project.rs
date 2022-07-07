@@ -32,6 +32,7 @@ pub struct WasmProject {
     original_dir: PathBuf,
     out_dir: PathBuf,
     target_dir: PathBuf,
+    wasm_target_dir: PathBuf,
     file_base_name: Option<String>,
 }
 
@@ -52,12 +53,18 @@ impl WasmProject {
                 break;
             }
         }
+
+        let mut wasm_target_dir = target_dir.clone();
+        wasm_target_dir.push("wasm32-unknown-unknown");
+        wasm_target_dir.push("release"); // we always build WASM projects in release mode
+
         target_dir.push("wasm-projects");
 
         WasmProject {
             original_dir,
             out_dir,
             target_dir,
+            wasm_target_dir,
             file_base_name: None,
         }
     }
@@ -147,12 +154,15 @@ impl WasmProject {
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
+        fs::create_dir_all(&self.wasm_target_dir)?;
 
-        let to_path = self.target_dir.join(format!("{}.wasm", &file_base_name));
+        let to_path = self
+            .wasm_target_dir
+            .join(format!("{}.wasm", &file_base_name));
         fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
 
         let to_opt_path = self
-            .target_dir
+            .wasm_target_dir
             .join(format!("{}.opt.wasm", &file_base_name));
 
         let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
@@ -160,7 +170,7 @@ impl WasmProject {
         Self::generate_opt(from_path.clone(), &to_opt_path)?;
 
         let to_meta_path = self
-            .target_dir
+            .wasm_target_dir
             .join(format!("{}.meta.wasm", &file_base_name));
         Self::generate_meta(from_path, &to_meta_path)?;
 
