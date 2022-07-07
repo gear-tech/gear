@@ -47,6 +47,14 @@ impl WasmProject {
             .expect("`OUT_DIR` is always set in build scripts")
             .into();
 
+        let profile = out_dir
+            .components()
+            .rev()
+            .take_while(|c| c.as_os_str() != "target")
+            .last()
+            .expect("Path should have subdirs in the `target` dir")
+            .as_os_str();
+
         let mut target_dir = out_dir.clone();
         while target_dir.pop() {
             if target_dir.ends_with("target") {

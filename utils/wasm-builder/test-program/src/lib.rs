@@ -49,17 +49,35 @@ mod tests {
     }
 
     #[test]
-    fn assert_wasm() {
+    #[cfg(debug_assertions)]
+    fn debug_wasm() {
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.wasm").unwrap(),
+            fs::read("target/wasm-projects/debug/test_program.wasm").unwrap(),
             code::WASM_BINARY,
         );
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
+            fs::read("target/wasm-projects/debug/test_program.opt.wasm").unwrap(),
             code::WASM_BINARY_OPT,
         );
         assert_eq!(
-            fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").unwrap(),
+            fs::read("target/wasm-projects/debug/test_program.meta.wasm").unwrap(),
+            code::WASM_BINARY_META,
+        );
+    }
+
+    #[test]
+    #[cfg(not(debug_assertions))]
+    fn release_wasm() {
+        assert_eq!(
+            fs::read("target/wasm-projects/release/test_program.wasm").unwrap(),
+            code::WASM_BINARY,
+        );
+        assert_eq!(
+            fs::read("target/wasm-projects/release/test_program.opt.wasm").unwrap(),
+            code::WASM_BINARY_OPT,
+        );
+        assert_eq!(
+            fs::read("target/wasm-projects/release/test_program.meta.wasm").unwrap(),
             code::WASM_BINARY_META,
         );
     }
