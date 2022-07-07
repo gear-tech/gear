@@ -90,7 +90,6 @@ pub trait ProcessorExt {
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_protect_and_init_info(
         mem: &impl Memory,
-        lazy_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error>;
 
@@ -201,7 +200,6 @@ impl ProcessorExt for Ext {
 
     fn lazy_pages_protect_and_init_info(
         _mem: &impl Memory,
-        _memory_pages: impl Iterator<Item = PageNumber>,
         _prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
         unreachable!()

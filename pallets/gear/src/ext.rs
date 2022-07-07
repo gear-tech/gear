@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ::common::Origin;
 use alloc::collections::BTreeSet;
-use common::{lazy_pages, save_page_lazy_info};
+use common::lazy_pages;
 use core::fmt;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
@@ -85,8 +84,6 @@ impl fmt::Display for Error {
 /// Ext with lazy pages support.
 pub struct LazyPagesExt {
     inner: Ext,
-    // Pages which has been allocated during current execution.
-    fresh_allocations: BTreeSet<WasmPageNumber>,
 }
 
 impl IntoExtInfo for LazyPagesExt {
@@ -153,7 +150,6 @@ impl ProcessorExt for LazyPagesExt {
         assert!(cfg!(feature = "lazy-pages"));
         Self {
             inner: Ext::new(context),
-            fresh_allocations: Default::default(),
         }
     }
 
@@ -167,11 +163,9 @@ impl ProcessorExt for LazyPagesExt {
 
     fn lazy_pages_protect_and_init_info(
         mem: &impl Memory,
-        memory_pages: impl Iterator<Item = PageNumber>,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
-        lazy_pages::protect_pages_and_init_info(mem, memory_pages, prog_id)
-            .map_err(Error::LazyPages)
+        lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Error::LazyPages)
     }
 
     fn lazy_pages_post_execution_actions(
@@ -222,28 +216,8 @@ impl EnvExt for LazyPagesExt {
         let page_number = self.inner.return_and_store_err(result)?;
 
         // Add new allocations to lazy pages.
-        // All pages except ones which has been already allocated,
-        // during current execution.
-        // This is because only such pages contains Default (zeros in WebAsm) page data.
-        // Pages which has been already allocated may contain garbage.
-        let id = self.inner.context.program_id.into_origin();
-        let new_allocated_pages = (page_number.0..(page_number + pages_num).0).map(WasmPageNumber);
-        for wasm_page in new_allocated_pages {
-            if self
-                .inner
-                .context
-                .allocations_context
-                .is_init_page(wasm_page)
-                || self.fresh_allocations.contains(&wasm_page)
-            {
-                continue;
-            }
-            self.fresh_allocations.insert(wasm_page);
-            save_page_lazy_info(id, wasm_page.to_gear_pages_iter());
-        }
-
-        // Protect all lazy pages including new allocations
-        lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(mem, old_mem_addr)?;
+        // Protect all lazy pages including new allocations.
+        lazy_pages::update_lazy_pages_and_protect_again(mem, old_mem_addr, old_mem_size)?;
 
         // Returns back greedily used gas for grow
         let new_mem_size = mem.size();
