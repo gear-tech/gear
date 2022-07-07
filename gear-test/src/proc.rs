@@ -110,6 +110,7 @@ where
             executable_data: Some(ExecutableActorData {
                 program,
                 pages_data: Default::default(),
+                subsequent_execution: false,
             }),
         },
         dispatch: message.into(),

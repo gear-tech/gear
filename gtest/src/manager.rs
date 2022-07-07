@@ -133,6 +133,7 @@ impl TestActor {
         Some(ExecutableActorData {
             program,
             pages_data,
+            subsequent_execution: false,
         })
     }
 }

@@ -144,6 +144,7 @@ impl ExecutionContext for InMemoryExtManager {
                 executable_data: Some(ExecutableActorData {
                     program: program.clone(),
                     pages_data: Default::default(),
+                    subsequent_execution: false,
                 }),
             },
         );

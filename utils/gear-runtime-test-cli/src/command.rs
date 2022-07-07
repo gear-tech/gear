@@ -440,6 +440,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                             info.persistent_pages.clone(),
                         )
                         .unwrap(),
+                        subsequent_execution: false,
                     })
                 } else {
                     None
