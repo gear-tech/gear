@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Deprecated backend for runtime interface.
-//! TODO: remove before release
+
+// TODO: remove before release (issue #1147)
 
 use crate::RIError;
 use codec::{Decode, Encode};

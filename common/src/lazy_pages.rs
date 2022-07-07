@@ -82,16 +82,14 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
     let prog_prefix = crate::pages_prefix(prog_id.into_origin());
     gear_ri::set_program_prefix(prog_prefix);
 
-    let addr = if let Some(addr) = mem.get_buffer_host_addr() {
-        addr
+    if let Some(addr) = mem.get_buffer_host_addr() {
+        gear_ri::set_wasm_mem_begin_addr(addr).map_err(|e| {
+            log::error!("{} (it's better to stop node now)", e);
+            e
+        })?;
     } else {
         return Ok(());
-    };
-
-    gear_ri::set_wasm_mem_begin_addr(addr).map_err(|e| {
-        log::error!("{} (it's better to stop node now)", e);
-        e
-    })?;
+    }
 
     let size = (mem.size().0 + 1) * WasmPageNumber::size() as u32;
     gear_ri::set_wasm_mem_size(size)?;

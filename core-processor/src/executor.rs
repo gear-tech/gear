@@ -123,7 +123,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 
     if A::is_lazy_pages_enabled() {
         if !pages_data.is_empty() {
-            return Err(ExecutionErrorReason::InitialPagesDataWhenLazyPages);
+            return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
         A::lazy_pages_protect_and_init_info(mem, program_id)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;

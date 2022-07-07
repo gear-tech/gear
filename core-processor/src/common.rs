@@ -338,7 +338,7 @@ pub enum ExecutionErrorReason {
     OutOfRent,
     /// Initial pages data must be empty when execute with lazy pages
     #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
-    InitialPagesDataWhenLazyPages,
+    InitialPagesContainsDataInLazyPagesMode,
 }
 
 /// Actor.

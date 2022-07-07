@@ -114,7 +114,7 @@ pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
             let buffer_as_slice = std::slice::from_raw_parts_mut(ptr, gear_ps);
 
             // TODO: simplify before release (issue #1147). Currently we must support here all old runtimes.
-            // In new runtimes we have to clalc page key from program page key.
+            // For new runtimes we have to calc page key from program pages prefix.
             let page_key = if let Some(prefix) = &ctx.program_storage_prefix {
                 page_key_in_storage(prefix, page)
             } else {
