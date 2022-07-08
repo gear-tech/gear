@@ -90,7 +90,10 @@ impl TestActor {
 
     fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<PageNumber, PageBuf>> {
         match self {
-            TestActor::Initialized(Program::Genuine { pages_data, .. }) => Some(pages_data),
+            TestActor::Initialized(Program::Genuine { pages_data, .. })
+            | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
+                Some(pages_data)
+            }
             _ => None,
         }
     }
@@ -560,7 +563,7 @@ impl ExtManager {
         let code_id = actor.code_id();
         let data = actor
             .get_executable_actor_data()
-            .ok_or(TestError::ActorIsntExecutable(*program_id))?;
+            .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
         let pages_initial_data = data
             .pages_data
             .into_iter()
@@ -659,10 +662,11 @@ impl JournalHandler for ExtManager {
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
+
         if let Some(actor_pages_data) = actor.get_pages_data_mut() {
             actor_pages_data.append(&mut pages_data);
         } else {
-            unreachable!("No pages update for non-initialized program")
+            unreachable!("No pages data found for program")
         }
     }
 
@@ -672,22 +676,30 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let TestActor::Initialized(Program::Genuine {
-            program,
-            pages_data,
-            ..
-        }) = actor
-        {
-            for page in program
-                .get_allocations()
-                .difference(&allocations)
-                .flat_map(|p| p.to_gear_pages_iter())
-            {
-                pages_data.remove(&page);
+        match actor {
+            TestActor::Initialized(Program::Genuine {
+                program,
+                pages_data,
+                ..
+            })
+            | TestActor::Uninitialized(
+                _,
+                Some(Program::Genuine {
+                    program,
+                    pages_data,
+                    ..
+                }),
+            ) => {
+                for page in program
+                    .get_allocations()
+                    .difference(&allocations)
+                    .flat_map(|p| p.to_gear_pages_iter())
+                {
+                    pages_data.remove(&page);
+                }
+                *program.get_allocations_mut() = allocations;
             }
-            *program.get_allocations_mut() = allocations;
-        } else {
-            unreachable!("No pages update for non-initialized program")
+            _ => unreachable!("No pages data found for program"),
         }
     }
 
