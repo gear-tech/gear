@@ -45,7 +45,7 @@ pub enum TestError {
     /// Actor is not executable.
     #[from(ignore)]
     #[display(fmt = "Actor is not executable: `{}`", _0)]
-    ActorIsntExecutable(ProgramId),
+    ActorIsNotExecutable(ProgramId),
 
     /// Meta WASM binary hasn't been provided.
     #[display(fmt = "Meta WASM binary hasn't been provided")]
