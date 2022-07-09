@@ -30,6 +30,7 @@ use tabled::{Style, Table};
 
 mod junit_tree;
 mod output;
+mod stats;
 
 const PALLET_NAMES: [&str; 7] = [
     "pallet-gear-gas",
@@ -101,32 +102,6 @@ fn build_tree<P: AsRef<Path>>(
     let mut result = junit_tree::build_tree(filter, test_suites);
     result.insert(String::from(TEST_SUITES_TEXT), total_time);
     result
-}
-
-fn median(values: &[u64]) -> u64 {
-    assert!(!values.is_empty());
-
-    let len = values.len();
-    if len % 2 == 0 {
-        let i = len / 2;
-        values[i - 1] / 2 + values[i] / 2 + values[i - 1] % 2 + values[i] % 2
-    } else {
-        values[len / 2]
-    }
-}
-
-fn average(values: &[u64]) -> u64 {
-    values.iter().sum::<u64>() / values.len() as u64
-}
-
-fn std_dev(values: &[u64]) -> u64 {
-    let average = average(values);
-    let sum = values
-        .iter()
-        .map(|x| x.abs_diff(average).pow(2))
-        .sum::<u64>();
-    let div = sum / values.len() as u64;
-    (div as f64).sqrt() as u64
 }
 
 fn collect_data<P: AsRef<Path>>(
