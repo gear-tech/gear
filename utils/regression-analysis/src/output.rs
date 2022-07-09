@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{average, median, std_dev};
 use thousands::Separable;
 
 #[derive(Debug)]
@@ -24,11 +25,44 @@ pub struct Test {
     pub current_time: u64,
     pub median: u64,
     pub average: u64,
-    pub std: u64,
+    pub std_dev: u64,
     pub quartile_lower: u64,
     pub quartile_upper: u64,
     pub min: u64,
     pub max: u64,
+}
+
+impl Test {
+    pub fn new_for_stats(name: String, time: f64, times: &mut [u64]) -> Self {
+        let mut this = Self::new_for_github(name, times);
+        this.current_time = (1_000_000_000.0 * time) as u64;
+        this
+    }
+
+    pub fn new_for_github(name: String, times: &mut [u64]) -> Self {
+        // this is necessary as the order may be wrong after deserialization
+        times.sort_unstable();
+
+        let len = times.len();
+        let len_remainder = len % 2;
+        let quartile_lower = median(&times[..len / 2]);
+        let quartile_upper = median(&times[len / 2 + len_remainder..]);
+        let median = median(times);
+        let average = average(times);
+        let std_dev = std_dev(times);
+
+        Self {
+            name,
+            current_time: average,
+            median,
+            average,
+            std_dev,
+            quartile_lower,
+            quartile_upper,
+            min: *times.first().unwrap(),
+            max: *times.last().unwrap(),
+        }
+    }
 }
 
 impl tabled::Tabled for Test {
