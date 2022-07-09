@@ -79,7 +79,7 @@ jobs:
         run: >-
           ./target/release/regression-analysis convert 
           --data-folder-path-without-filter ./target/runtime-tests/
-          --data-folder-path ./target/pallet-tests/
+          --data-folder-path ./target/tests/
           --output-file ./target/action-output.json
 
       - name: Store benchmark result
