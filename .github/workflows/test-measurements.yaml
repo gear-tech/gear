@@ -61,13 +61,12 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
-# TODO: uncomment
-#      - name: "Collect: Gear workspace tests"
-#        run: |
-#          mkdir ./target/tests/
-#          mkdir ./target/tests-output/
-#          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --release > ./target/tests-output/$i 2>&1; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
-#          ./target/release/regression-analysis collect-data --data-folder-path ./target/tests/ --output-path ./target/pallet-tests.json
+      - name: "Collect: Gear workspace tests"
+        run: |
+          mkdir ./target/tests/
+          mkdir ./target/tests-output/
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --release > ./target/tests-output/$i 2>&1; mv ./target/nextest/ci/junit.xml ./target/tests/$i; done
+          ./target/release/regression-analysis collect-data --data-folder-path ./target/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Collect: Node runtime tests"
         run: |
