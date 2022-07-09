@@ -2,7 +2,7 @@ name: Test measurements
 
 on:
   schedule:
-    - cron:  '10 21 * * *'
+    - cron: '10 21 * * *'
   workflow_dispatch:
 
 env:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build:
-    runs-on: [self-hosted, cachepot]
+    runs-on: [ self-hosted, cachepot ]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
@@ -72,16 +72,16 @@ jobs:
         run: |
           mkdir ./target/runtime-tests/
           mkdir ./target/runtime-tests-output/
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i 2>&1; cp ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i 2>&1; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
           ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/runtime-tests/ --output-path ./target/runtime-tests.json
-          
+
       - name: "Generate report for action"
         run: >-
           ./target/release/regression-analysis convert 
-          --input-file ./target/runtime-tests.json
+          --data-folder-path-without-filter ./target/runtime-tests/
+          --data-folder-path ./target/pallet-tests/
           --output-file ./target/action-output.json
-          --current-junit-path ./target/runtime-test-junit.xml
-          
+
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
@@ -96,6 +96,5 @@ jobs:
 
       - name: "Cache: collected data"
         run: |
-          mv ./target/action-output.json /root/cache/
           mv ./target/pallet-tests.json /root/cache/
           mv ./target/runtime-tests.json /root/cache/

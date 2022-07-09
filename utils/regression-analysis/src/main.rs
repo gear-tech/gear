@@ -71,11 +71,11 @@ enum Commands {
     },
     Convert {
         #[clap(long, value_parser)]
-        input_file: PathBuf,
+        data_folder_path_without_filter: Vec<PathBuf>,
+        #[clap(long, value_parser)]
+        data_folder_path: Vec<PathBuf>,
         #[clap(long, value_parser)]
         output_file: PathBuf,
-        #[clap(long, value_parser)]
-        current_junit_path: PathBuf,
     },
 }
 
@@ -131,10 +131,8 @@ fn std(values: &[u64]) -> u64 {
 
 fn collect_data<P: AsRef<Path>>(
     data_folder_path: P,
-    output_path: P,
     disable_filter: bool,
-    preallocate: usize,
-) {
+) -> BTreeMap<String, BTreeMap<String, Vec<u64>>> {
     let mut statistics: BTreeMap<_, BTreeMap<_, Vec<_>>> = BTreeMap::default();
     for entry in fs::read_dir(data_folder_path).unwrap() {
         let executions = build_tree(disable_filter, &entry.unwrap().path());
@@ -155,7 +153,7 @@ fn collect_data<P: AsRef<Path>>(
 
                     time_vec.insert(i, time);
                 } else {
-                    let mut time_vec = Vec::with_capacity(preallocate);
+                    let mut time_vec = Vec::with_capacity(PREALLOCATE);
                     time_vec.push(time);
 
                     previous_times.insert(key.clone(), time_vec);
@@ -164,8 +162,7 @@ fn collect_data<P: AsRef<Path>>(
         }
     }
 
-    let writer = std::fs::File::create(output_path).unwrap();
-    serde_json::to_writer_pretty(writer, &statistics).unwrap();
+    statistics
 }
 
 fn output_from_stats(
@@ -233,7 +230,11 @@ fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool
     }
 }
 
-fn convert(input_file: PathBuf, output_file: PathBuf, current_junit_path: PathBuf) {
+fn convert(
+    data_folder_path_without_filter: Vec<PathBuf>,
+    data_folder_path: Vec<PathBuf>,
+    output_file: PathBuf,
+) {
     #[derive(Debug, Serialize)]
     struct GithubActionBenchmark {
         name: String,
@@ -243,24 +244,47 @@ fn convert(input_file: PathBuf, output_file: PathBuf, current_junit_path: PathBu
         extra: Option<String>,
     }
 
-    let input_file = fs::read_to_string(input_file).unwrap();
-    let stats = serde_json::from_str(&input_file).unwrap();
-    let outputs = output_from_stats(stats, current_junit_path, false);
+    let data_folder_path = data_folder_path.into_iter().map(|x| (x, false));
+    let data_folder_path_without_filter = data_folder_path_without_filter
+        .into_iter()
+        .map(|x| (x, true));
+    let files = data_folder_path.chain(data_folder_path_without_filter);
 
     let mut benchmarks = vec![];
-    for (section_name, tests) in outputs {
-        for test in tests {
-            let benchmark = GithubActionBenchmark {
-                name: test.name,
-                unit: "ns".to_string(),
-                value: test.current_time,
-                range: Some(format!("± {}", test.std)),
-                extra: Some(section_name.clone()),
-            };
-            benchmarks.push(benchmark);
+    for (data_folder_path, disable_filter) in files {
+        for entry in fs::read_dir(&data_folder_path).unwrap() {
+            let entry = entry.unwrap();
+            let statistics = collect_data(data_folder_path.clone(), disable_filter);
+            let outputs = output_from_stats(statistics, entry.path(), false);
+
+            for (section_name, tests) in outputs {
+                let section_name = if section_name == TEST_SUITES_TEXT {
+                    let component = data_folder_path
+                        .components()
+                        .last()
+                        .unwrap()
+                        .as_os_str()
+                        .to_string_lossy();
+                    format!("{}-{}", section_name, component)
+                } else {
+                    section_name
+                };
+
+                for test in tests {
+                    let benchmark = GithubActionBenchmark {
+                        name: test.name,
+                        unit: "ns".to_string(),
+                        value: test.current_time,
+                        range: Some(format!("± {}", test.std)),
+                        extra: Some(section_name.clone()),
+                    };
+                    benchmarks.push(benchmark);
+                }
+            }
         }
     }
 
+    dbg!(&benchmarks);
     let output = serde_json::to_string(&benchmarks).unwrap();
     fs::write(output_file, output).unwrap();
 }
@@ -274,7 +298,9 @@ fn main() {
             disable_filter,
             output_path,
         } => {
-            collect_data(data_folder_path, output_path, disable_filter, PREALLOCATE);
+            let statistics = collect_data(data_folder_path, disable_filter);
+            let writer = fs::File::create(output_path).unwrap();
+            serde_json::to_writer_pretty(writer, &statistics).unwrap();
         }
         Commands::Compare {
             data_path,
@@ -284,11 +310,15 @@ fn main() {
             compare(data_path, current_junit_path, disable_filter);
         }
         Commands::Convert {
-            input_file,
+            data_folder_path_without_filter,
+            data_folder_path,
             output_file,
-            current_junit_path,
         } => {
-            convert(input_file, output_file, current_junit_path);
+            convert(
+                data_folder_path_without_filter,
+                data_folder_path,
+                output_file,
+            );
         }
     }
 }
