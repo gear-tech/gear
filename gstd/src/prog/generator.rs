@@ -18,7 +18,7 @@
 
 //! Program generation module
 
-use crate::{common::errors::Result, prog, ActorId, CodeHash};
+use crate::{common::errors::Result, prog, ActorId, CodeHash, MessageId};
 use codec::alloc::vec::Vec;
 
 /// `ProgramGenerator` allows you to create programs
@@ -49,7 +49,7 @@ impl ProgramGenerator {
         payload: T,
         gas_limit: u64,
         value: u128,
-    ) -> Result<ActorId> {
+    ) -> Result<(ActorId, MessageId)> {
         prog::create_program_with_gas(code_hash, Self::get_salt(), payload, gas_limit, value)
     }
 
@@ -57,7 +57,7 @@ impl ProgramGenerator {
         code_hash: CodeHash,
         payload: T,
         value: u128,
-    ) -> Result<ActorId> {
+    ) -> Result<(ActorId, MessageId)> {
         prog::create_program(code_hash, Self::get_salt(), payload, value)
     }
 }

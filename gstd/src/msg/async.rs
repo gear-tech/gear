@@ -22,7 +22,7 @@ use crate::{
     async_runtime::{signals, ReplyPoll},
     errors::{ContractError, Result},
     prelude::{convert::AsRef, Vec},
-    ActorId, MessageId,
+    ActorId, CodeHash, MessageId,
 };
 use codec::{Decode, Encode};
 use core::{
@@ -145,7 +145,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 /// Send a message and wait for reply.
 ///
 /// This function works similarly to [`send_and_wait_for_reply`],
-/// with one difference - it works with raw bytes as a paylod.
+/// with one difference - it works with raw bytes as a payload.
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `MessageFuture` object returned by the function.
 #[deprecated(note = "please use `gstd::msg::basic::send_bytes_for_reply` instead")]
@@ -158,4 +158,100 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     signals().register_signal(waiting_reply_to);
 
     Ok(MessageFuture { waiting_reply_to })
+}
+
+/// Create a program and wait for reply.
+///
+/// This function works similarly to
+/// [`create_program_wbytes_and_wait_for_reply`], with one difference - it takes
+/// the structure in, then encodes it and sends it in bytes. The program will be
+/// interrupted (waiting for a reply) if an `.await` has been called on the
+/// `CodecMessageFuture` object returned by the function.
+#[deprecated(note = "please use `gstd::proc::create_program` instead")]
+pub fn create_program_and_wait_for_reply<E: Encode, D: Decode>(
+    code_hash: CodeHash,
+    payload: E,
+    value: u128,
+) -> Result<CodecMessageFuture<D>> {
+    let (_, init_message_id) =
+        crate::prog::ProgramGenerator::create_program(code_hash, payload.encode(), value)?;
+    signals().register_signal(init_message_id);
+
+    Ok(CodecMessageFuture::<D> {
+        waiting_reply_to: init_message_id,
+        _marker: PhantomData,
+    })
+}
+
+/// Create a program with bytes payload and wait for reply.
+///
+/// This function works similarly to [`create_program_and_wait_for_reply`],
+/// with one difference - it works with raw bytes as a payload.
+/// The program will be interrupted (waiting for a reply) if an `.await`
+/// has been called on the `MessageFuture` object returned by the function.
+#[deprecated(note = "please use `gstd::proc::create_program` instead")]
+pub fn create_program_wbytes_and_wait_for_reply<T: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    payload: T,
+    value: u128,
+) -> Result<MessageFuture> {
+    let (_, init_message_id) =
+        crate::prog::ProgramGenerator::create_program(code_hash, payload, value)?;
+    signals().register_signal(init_message_id);
+
+    Ok(MessageFuture {
+        waiting_reply_to: init_message_id,
+    })
+}
+
+/// Create a program with gas and wait for reply.
+///
+/// This function works similarly to
+/// [`create_program_wgas_wbytes_and_wait_for_reply`], with one difference - it
+/// takes the structure in, then encodes it and sends it in bytes. The program
+/// will be interrupted (waiting for a reply) if an `.await` has been called on
+/// the `CodecMessageFuture` object returned by the function.
+#[deprecated(note = "please use `gstd::proc::create_program_with_gas` instead")]
+pub fn create_program_wgas_and_wait_for_reply<E: Encode, D: Decode>(
+    code_hash: CodeHash,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> Result<CodecMessageFuture<D>> {
+    let (_, init_message_id) = crate::prog::ProgramGenerator::create_program_with_gas(
+        code_hash,
+        payload.encode(),
+        gas_limit,
+        value,
+    )?;
+    signals().register_signal(init_message_id);
+
+    Ok(CodecMessageFuture::<D> {
+        waiting_reply_to: init_message_id,
+        _marker: PhantomData,
+    })
+}
+
+/// Create a program with gas with init message payload in bytes and wait for
+/// reply.
+///
+/// This function works similarly to [`create_program_wgas_and_wait_for_reply`],
+/// with one difference - it works with raw bytes as a payload.
+/// The program will be interrupted (waiting for a reply) if an `.await`
+/// has been called on the `MessageFuture` object returned by the function.
+#[deprecated(note = "please use `gstd::proc::create_program_with_gas` instead")]
+pub fn create_program_wgas_wbytes_and_wait_for_reply<T: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    payload: T,
+    gas_limit: u64,
+    value: u128,
+) -> Result<MessageFuture> {
+    let (_, init_message_id) = crate::prog::ProgramGenerator::create_program_with_gas(
+        code_hash, payload, gas_limit, value,
+    )?;
+    signals().register_signal(init_message_id);
+
+    Ok(MessageFuture {
+        waiting_reply_to: init_message_id,
+    })
 }
