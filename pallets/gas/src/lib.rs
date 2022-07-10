@@ -38,7 +38,7 @@ mod tests;
 #[cfg(test)]
 mod property_tests;
 
-#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
+#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub enum ValueType {
     External { id: H256, value: u64 },
     SpecifiedLocal { parent: H256, value: u64 },
@@ -74,7 +74,7 @@ impl Default for ValueType {
 // todo [sab] explore and extensively test cases when imbalances are used externally
 // todo [sab] remove explicit errors if necessary (and invariant checks, or move invariant checks to separate checker fns)
 // todo [sab] refactoring for consume/check_consumed idea - separate to 2 fns attemt to catch value and an attempt to remove node
-#[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
+#[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub struct ValueNode {
     pub spec_refs: u32,
     pub unspec_refs: u32,
