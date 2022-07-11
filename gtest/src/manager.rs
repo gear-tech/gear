@@ -248,7 +248,37 @@ impl ExtManager {
         self.id_nonce
     }
 
+    fn validate_dispatch(&mut self, dispatch: &Dispatch) {
+        if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "Value greater than 0, but less than \
+                required existential deposit ({})",
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
+        if !self.is_user(&dispatch.source()) {
+            panic!("Sending messages allowed only from users id");
+        }
+
+        let (_, balance) = self
+            .actors
+            .entry(dispatch.source())
+            .or_insert((TestActor::User, 0));
+
+        if *balance < dispatch.value() {
+            panic!(
+                "Insufficient value: user ({}) tries to send \
+                ({}) value, while his balance ({})",
+                dispatch.source(),
+                dispatch.value(),
+                balance
+            );
+        }
+    }
+
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.validate_dispatch(&dispatch);
         self.prepare_for(&dispatch);
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
@@ -330,6 +360,14 @@ impl ExtManager {
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
+        if value < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "An attempt to mint value ({}) less than existential deposit ({})",
+                value,
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
         let (_, balance) = self.actors.entry(*id).or_insert((TestActor::User, 0));
         *balance = balance.saturating_add(value);
     }
