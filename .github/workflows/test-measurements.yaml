@@ -8,7 +8,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
-  COUNT: 100
+  COUNT: 10
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
