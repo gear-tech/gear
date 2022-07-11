@@ -112,7 +112,6 @@ fn make_checks_and_charge_gas_for_pages<'a>(
 fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
-    allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
@@ -123,12 +122,10 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     }
 
     if A::is_lazy_pages_enabled() {
-        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
-        let lazy_pages = allocations
-            .iter()
-            .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_data.contains_key(page));
-        A::lazy_pages_protect_and_init_info(mem, lazy_pages, program_id)
+        if !pages_data.is_empty() {
+            return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
+        }
+        A::lazy_pages_protect_and_init_info(mem, program_id)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
@@ -313,7 +310,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     if let Err(reason) = prepare_memory::<A, E::Memory>(
         program_id,
         &mut pages_initial_data,
-        &allocations,
         static_pages,
         env.get_mem_mut(),
     ) {
