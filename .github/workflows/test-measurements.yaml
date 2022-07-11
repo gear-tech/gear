@@ -98,6 +98,7 @@ jobs:
           auto-push: true
           gh-repository: github.com/gear-tech/performance-charts
           gh-pages-branch: master
+          benchmark-data-dir-path: ./
 
       - name: "Cache: collected data"
         run: |
