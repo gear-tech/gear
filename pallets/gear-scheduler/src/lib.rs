@@ -173,13 +173,13 @@ pub mod pallet {
     // ----
 
     /// Callback function for success `add` and `delete` actions.
-    pub struct OnAffect<T: crate::Config>(PhantomData<T>);
+    pub struct OnChange<T: crate::Config>(PhantomData<T>);
 
     // Callback trait implementation.
     //
     // Addition to or deletion from task scope represented with single DB write.
     // This callback reduces block gas allowance by that value.
-    impl<T: crate::Config> EmptyCallback for OnAffect<T> {
+    impl<T: crate::Config> EmptyCallback for OnChange<T> {
         fn call() {
             let weight = T::DbWeight::get().writes(1);
             GasAllowanceOf::<T>::decrease(weight);
@@ -193,8 +193,8 @@ pub mod pallet {
 
     // Callbacks store for task pool trait implementation.
     impl<T: crate::Config> TaskPoolCallbacks for TaskPoolCallbacksImpl<T> {
-        type OnAdd = OnAffect<T>;
-        type OnDelete = OnAffect<T>;
+        type OnAdd = OnChange<T>;
+        type OnDelete = OnChange<T>;
     }
 
     // ----
