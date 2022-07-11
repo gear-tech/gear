@@ -19,7 +19,7 @@
 use crate::{
     manager::{ExtManager, TOL},
     Authorship, Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
-    MailboxOf, Pallet, QueueOf, SentOf, TasksScopeOf, WaitlistOf,
+    MailboxOf, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
 use common::{event::*, scheduler::*, storage::*, CodeStorage, GasPrice, GasTree, Origin, Program};
 use core_processor::common::{
@@ -376,7 +376,7 @@ where
             let deadline = current_bn.saturating_add(duration);
             let deadline: T::BlockNumber = deadline.unique_saturated_into();
 
-            TasksScopeOf::<T>::add(
+            TaskPoolOf::<T>::add(
                 deadline,
                 ScheduledTask::RemoveFromWaitlist(program_id, message_id),
             )

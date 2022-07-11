@@ -32,7 +32,7 @@ use sp_core::H256;
 
 type GA = GasAllowanceOf<Test>;
 type GH = GasHandlerOf<Test>;
-type TS = <Pallet<Test> as Scheduler>::TasksScope;
+type TS = <Pallet<Test> as Scheduler>::TaskPool;
 type WL = <<Test as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
 
 pub(crate) fn init_logger() {

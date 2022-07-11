@@ -40,7 +40,7 @@ pub mod pallet {
     pub use frame_support::weights::Weight;
 
     use common::{
-        scheduler::{SchedulingCostsPerBlock, TasksScopeImpl, *},
+        scheduler::{SchedulingCostsPerBlock, TaskPoolImpl, *},
         storage::*,
         BlockLimiter, Origin,
     };
@@ -82,7 +82,7 @@ pub mod pallet {
     // Used as inner error type for `Scheduler` implementation.
     #[pallet::error]
     pub enum Error<T> {
-        /// Occurs when given task already exists in tasks scope.
+        /// Occurs when given task already exists in task pool.
         DuplicateTask,
         /// Occurs when task wasn't found in storage.
         TaskNotFound,
@@ -90,7 +90,7 @@ pub mod pallet {
 
     // Implementation of `DequeueError` for `Error<T>`
     // usage as `Queue::Error`.
-    impl<T: crate::Config> TasksScopeError for Error<T> {
+    impl<T: crate::Config> TaskPoolError for Error<T> {
         fn duplicate_task() -> Self {
             Self::DuplicateTask
         }
@@ -136,18 +136,18 @@ pub mod pallet {
 
     // ----
 
-    // Private storage for tasks scope elements.
+    // Private storage for task pool elements.
     // Primary item stored as second key of double map for optimization.
     // Value here is useless, so unit type used as space saver:
     // `assert_eq!(().encode().len(), 0)`
     #[pallet::storage]
-    type TasksScope<T: Config> =
+    type TaskPool<T: Config> =
         StorageDoubleMap<_, Identity, BlockNumberFor<T>, Identity, Task<T>, ()>;
 
     // Public wrap of the mailbox elements.
     common::wrap_extended_storage_double_map!(
-        storage: TasksScope,
-        name: TasksScopeWrap,
+        storage: TaskPool,
+        name: TaskPoolWrap,
         key1: BlockNumberFor<T>,
         key2: Task<T>,
         value: (),
@@ -180,10 +180,10 @@ pub mod pallet {
     // ----
 
     /// Store of queue action's callbacks.
-    pub struct TasksScopeCallbacksImpl<T: crate::Config>(PhantomData<T>);
+    pub struct TaskPoolCallbacksImpl<T: crate::Config>(PhantomData<T>);
 
-    // Callbacks store for tasks scope trait implementation.
-    impl<T: crate::Config> TasksScopeCallbacks for TasksScopeCallbacksImpl<T> {
+    // Callbacks store for task pool trait implementation.
+    impl<T: crate::Config> TaskPoolCallbacks for TaskPoolCallbacksImpl<T> {
         type OnAdd = OnAffect<T>;
         type OnDelete = OnAffect<T>;
     }
@@ -242,12 +242,12 @@ pub mod pallet {
 
         type MissedBlocks = MissedBlocksWrap<T>;
 
-        type TasksScope = TasksScopeImpl<
-            TasksScopeWrap<T>,
+        type TaskPool = TaskPoolImpl<
+            TaskPoolWrap<T>,
             Self::Task,
             Self::Error,
             DispatchError,
-            TasksScopeCallbacksImpl<T>,
+            TaskPoolCallbacksImpl<T>,
         >;
     }
 }

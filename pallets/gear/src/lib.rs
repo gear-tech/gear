@@ -75,7 +75,7 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-pub(crate) type TasksScopeOf<T> = <<T as Config>::Scheduler as Scheduler>::TasksScope;
+pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
@@ -904,7 +904,7 @@ pub mod pallet {
             // Iterating over blocks.
             for bn in &missed_blocks {
                 // Tasks drain iterator.
-                let tasks = TasksScopeOf::<T>::drain_prefix_keys(*bn);
+                let tasks = TaskPoolOf::<T>::drain_prefix_keys(*bn);
 
                 // Checking gas allowance.
                 //
@@ -1157,7 +1157,7 @@ pub mod pallet {
                                 let deadline = current_bn.saturating_add(duration);
                                 let deadline: T::BlockNumber = deadline.unique_saturated_into();
 
-                                TasksScopeOf::<T>::add(
+                                TaskPoolOf::<T>::add(
                                     deadline,
                                     ScheduledTask::RemoveFromWaitlist(program_id, message_id),
                                 )

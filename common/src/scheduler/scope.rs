@@ -20,71 +20,71 @@ use crate::storage::{CountedByKey, DoubleMapStorage, EmptyCallback, KeyIterableB
 use core::marker::PhantomData;
 
 /// Represents tasks managing logic.
-pub trait TasksScope {
+pub trait TaskPool {
     /// Block number type.
     type BlockNumber;
     /// Task type.
     type Task;
     /// Inner error type of queue storing algorithm.
-    type Error: TasksScopeError;
+    type Error: TaskPoolError;
     /// Output error type of the queue.
     type OutputError: From<Self::Error>;
 
-    /// Inserts given task in tasks scope.
+    /// Inserts given task in task pool.
     fn add(bn: Self::BlockNumber, task: Self::Task) -> Result<(), Self::OutputError>;
 
-    /// Removes all tasks from tasks scope.
+    /// Removes all tasks from task pool.
     fn clear();
 
-    /// Returns bool, defining does task exist in tasks scope.
+    /// Returns bool, defining does task exist in task pool.
     fn contains(bn: &Self::BlockNumber, task: &Self::Task) -> bool;
 
-    /// Removes task from tasks scope by given keys,
+    /// Removes task from task pool by given keys,
     /// if present, else returns error.
     fn delete(bn: Self::BlockNumber, task: Self::Task) -> Result<(), Self::OutputError>;
 }
 
-/// Represents store of tasks scope's action callbacks.
-pub trait TasksScopeCallbacks {
+/// Represents store of task pool's action callbacks.
+pub trait TaskPoolCallbacks {
     /// Callback on success `add`.
     type OnAdd: EmptyCallback;
     /// Callback on success `delete`.
     type OnDelete: EmptyCallback;
 }
 
-/// Represents tasks scope error type.
+/// Represents task pool error type.
 ///
 /// Contains constructors for all existing errors.
-pub trait TasksScopeError {
-    /// Occurs when given task already exists in tasks scope.
+pub trait TaskPoolError {
+    /// Occurs when given task already exists in task pool.
     fn duplicate_task() -> Self;
 
     /// Occurs when task wasn't found in storage.
     fn task_not_found() -> Self;
 }
 
-/// `TasksScope` implementation based on `DoubleMapStorage`.
+/// `TaskPool` implementation based on `DoubleMapStorage`.
 ///
-/// Generic parameter `Error` requires `TasksScopeError` implementation.
+/// Generic parameter `Error` requires `TaskPoolError` implementation.
 /// Generic parameter `Callbacks` presents actions for success operations
-/// over tasks scope.
-pub struct TasksScopeImpl<T, Task, Error, OutputError, Callbacks>(
+/// over task pool.
+pub struct TaskPoolImpl<T, Task, Error, OutputError, Callbacks>(
     PhantomData<(T, Task, Error, OutputError, Callbacks)>,
 )
 where
     T: DoubleMapStorage<Key2 = Task, Value = ()>,
-    Error: TasksScopeError,
+    Error: TaskPoolError,
     OutputError: From<Error>,
-    Callbacks: TasksScopeCallbacks;
+    Callbacks: TaskPoolCallbacks;
 
-// Implementation of `TasksScope` for `TasksScopeImpl`.
-impl<T, Task, Error, OutputError, Callbacks> TasksScope
-    for TasksScopeImpl<T, Task, Error, OutputError, Callbacks>
+// Implementation of `TaskPool` for `TaskPoolImpl`.
+impl<T, Task, Error, OutputError, Callbacks> TaskPool
+    for TaskPoolImpl<T, Task, Error, OutputError, Callbacks>
 where
     T: DoubleMapStorage<Key2 = Task, Value = ()>,
-    Error: TasksScopeError,
+    Error: TaskPoolError,
     OutputError: From<Error>,
-    Callbacks: TasksScopeCallbacks,
+    Callbacks: TaskPoolCallbacks,
 {
     type BlockNumber = T::Key1;
     type Task = T::Key2;
@@ -120,15 +120,15 @@ where
     }
 }
 
-// Implementation of `CountedByKey` trait for `TasksScopeImpl` in case,
+// Implementation of `CountedByKey` trait for `TaskPoolImpl` in case,
 // when inner `DoubleMapStorage` implements `CountedByKey`.
 impl<T, Task, Error, OutputError, Callbacks> CountedByKey
-    for TasksScopeImpl<T, Task, Error, OutputError, Callbacks>
+    for TaskPoolImpl<T, Task, Error, OutputError, Callbacks>
 where
     T: DoubleMapStorage<Key2 = Task, Value = ()> + CountedByKey<Key = T::Key1>,
-    Error: TasksScopeError,
+    Error: TaskPoolError,
     OutputError: From<Error>,
-    Callbacks: TasksScopeCallbacks,
+    Callbacks: TaskPoolCallbacks,
 {
     type Key = T::Key1;
     type Length = T::Length;
@@ -138,15 +138,15 @@ where
     }
 }
 
-// Implementation of `KeyIterableByKeyMap` trait for `TasksScopeImpl` in case,
+// Implementation of `KeyIterableByKeyMap` trait for `TaskPoolImpl` in case,
 // when inner `DoubleMapStorage` implements `KeyIterableByKeyMap`.
 impl<T, Task, Error, OutputError, Callbacks> KeyIterableByKeyMap
-    for TasksScopeImpl<T, Task, Error, OutputError, Callbacks>
+    for TaskPoolImpl<T, Task, Error, OutputError, Callbacks>
 where
     T: DoubleMapStorage<Key2 = Task, Value = ()> + KeyIterableByKeyMap,
-    Error: TasksScopeError,
+    Error: TaskPoolError,
     OutputError: From<Error>,
-    Callbacks: TasksScopeCallbacks,
+    Callbacks: TaskPoolCallbacks,
 {
     type Key1 = <T as KeyIterableByKeyMap>::Key1;
     type Key2 = <T as KeyIterableByKeyMap>::Key2;
