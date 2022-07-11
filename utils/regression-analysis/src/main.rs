@@ -193,10 +193,10 @@ fn convert(
         extra: Option<String>,
     }
 
-    let data_folder_path = data_folder_path.into_iter().map(|x| (x, true));
+    let data_folder_path = data_folder_path.into_iter().map(|x| (x, false));
     let data_folder_path_without_filter = data_folder_path_without_filter
         .into_iter()
-        .map(|x| (x, false));
+        .map(|x| (x, true));
     let files = data_folder_path.chain(data_folder_path_without_filter);
 
     let mut benchmarks = vec![];
