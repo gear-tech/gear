@@ -229,7 +229,7 @@ fn convert(
             unit: "ns".to_string(),
             value: test.current_time,
             range: Some(format!("± {}", test.std_dev)),
-            extra: Some(section_name.clone()),
+            extra: Some(section_name),
         }));
     }
 
