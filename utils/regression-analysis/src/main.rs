@@ -189,7 +189,7 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
         extra: Option<String>,
     }
 
-    let statistics = collect_data(data_folder_path.clone(), disable_filter);
+    let statistics = collect_data(data_folder_path, disable_filter);
     let benchmarks = statistics
         .into_iter()
         .flat_map(|(section_name, test_times)| iter::repeat(section_name).zip(test_times))
