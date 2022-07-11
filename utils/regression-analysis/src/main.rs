@@ -213,22 +213,20 @@ fn convert(
                         .to_string_lossy();
                     format!("{} - {}", test_name, component)
                 } else {
-                    test_name
+                    format!("{} - {}", section_name, test_name)
                 };
 
-                (
-                    section_name,
-                    output::Test::new_for_github(test_name, &mut times),
-                )
+                output::Test::new_for_github(test_name, &mut times)
+            })
+            .map(|test| GithubActionBenchmark {
+                name: test.name,
+                unit: "ns".to_string(),
+                value: test.current_time,
+                range: Some(format!("± {}", test.std_dev)),
+                extra: None,
             });
 
-        benchmarks.extend(outputs.map(|(section_name, test)| GithubActionBenchmark {
-            name: test.name,
-            unit: "ns".to_string(),
-            value: test.current_time,
-            range: Some(format!("± {}", test.std_dev)),
-            extra: Some(section_name),
-        }));
+        benchmarks.extend(outputs);
     }
 
     let output = serde_json::to_string_pretty(&benchmarks).unwrap();
