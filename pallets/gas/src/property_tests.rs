@@ -57,8 +57,6 @@ mod utils;
 
 type Gas = Pallet<Test>;
 
-// todo [sab] all nodes have the same origin
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(600))]
     #[test]
@@ -67,12 +65,14 @@ proptest! {
         new_test_ext().execute_with(|| {
             // `actions` can consist only from tree splits. Then it's length will
             // represent a potential amount of nodes in the tree.
+            let origin = H256::random();
             let mut node_ids = Vec::with_capacity(actions.len() + 1); // +1 for the root
             let root_node = H256::random();
             node_ids.push(root_node);
 
             // Only root has a max balance
-            assert_ok!(Gas::create(H256::random(), root_node, max_balance));
+            let _ = Gas::create(origin, root_node, max_balance);
+            assert_eq!(Gas::total_supply(), max_balance);
 
             // Nodes on which `consume` was called
             let mut marked_consumed = BTreeSet::new();
@@ -172,6 +172,13 @@ proptest! {
 
             let mut rest_value = 0;
             for (node_id, node) in GasTree::<Test>::iter() {
+                // All nodes from one tree have the same origin
+                // todo [sab] can be invalid after Tiany's changes
+                assert_eq!(
+                    Gas::get_origin(node_id).unwrap(),
+                    Some(origin)
+                );
+
                 if let Some(value) = node.inner_value() {
                     rest_value += value;
                 }
@@ -216,7 +223,7 @@ proptest! {
                 // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
                 if let Some(value) = node.inner_value() {
                     if value != 0 {
-                        assert!(node.unspec_refs != 0 || !node.consumed);
+                        assert!(node.is_patron());
                     }
                 }
 

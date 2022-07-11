@@ -23,8 +23,6 @@ use primitive_types::H256;
 
 type Gas = Pallet<Test>;
 
-// todo [sab] new edge cases with new invariants
-
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
@@ -50,11 +48,6 @@ fn simple_value_tree() {
     });
 }
 
-// todo [sab] tets case
-// pos imb not dropped
-// tree created
-// consumed successfully some node + spend from some nodes
-// what happens to imbalance?
 #[test]
 fn test_consume_procedure_with_subnodes() {
     new_test_ext().execute_with(|| {
@@ -210,6 +203,14 @@ fn value_tree_known_errors() {
                 Gas::split_with_value(new_root, split_1, 5000),
                 Error::<Test>::InsufficientBalance
             );
+
+            assert_ok!(Gas::split(new_root, split_1));
+            assert_ok!(Gas::split(new_root, split_2));
+
+            assert_ok!(Gas::spend(split_1, 100));
+            assert_ok!(Gas::spend(split_2, 100));
+
+            assert_eq!(Gas::get_limit(new_root), Ok(Some(800)));
 
             // Total supply not affected so far - imbalance is not yet dropped
             assert_eq!(pos_imb.peek(), 1000);
@@ -535,5 +536,68 @@ fn test_imbalances_drop() {
         assert_eq!(super::TotalIssuance::<Test>::get(), 100);
         drop(new_neg);
         assert_eq!(super::TotalIssuance::<Test>::get(), 20);
+    })
+}
+
+#[test]
+fn catch_value_all_blocked() {
+    new_test_ext().execute_with(|| {
+        // All nodes are blocked
+        let root = H256::random();
+        let spec_1 = H256::random();
+        let spec_2 = H256::random();
+        let spec_3 = H256::random();
+
+        let res = Gas::create(H256::random(), root, 10000);
+        assert!(res.is_ok());
+        drop(res);
+        assert_eq!(Gas::total_supply(), 10000);
+        assert_ok!(Gas::split(root, H256::random()));
+        assert_ok!(Gas::split(root, H256::random()));
+
+        assert_ok!(Gas::split_with_value(root, spec_1, 100));
+        assert_ok!(Gas::split(spec_1, H256::random()));
+        assert_ok!(Gas::split(spec_1, H256::random()));
+
+        assert_ok!(Gas::split_with_value(root, spec_2, 100));
+        assert_ok!(Gas::split(spec_2, H256::random()));
+        assert_ok!(Gas::split(spec_2, H256::random()));
+
+        assert_ok!(Gas::split_with_value(root, spec_3, 100));
+        assert_ok!(Gas::split(spec_3, H256::random()));
+        assert_ok!(Gas::split(spec_3, H256::random()));
+
+        assert!(matches!(Gas::consume(root).unwrap(), None));
+        assert!(matches!(Gas::consume(spec_1).unwrap(), None));
+        assert!(matches!(Gas::consume(spec_2).unwrap(), None));
+        assert!(matches!(Gas::consume(spec_3).unwrap(), None));
+
+        assert_eq!(Gas::total_supply(), 10000);
+    })
+}
+
+#[test]
+fn catch_value_all_catch() {
+    new_test_ext().execute_with(|| {
+        // All nodes are blocked
+        let root = H256::random();
+        let spec_1 = H256::random();
+        let spec_2 = H256::random();
+        let spec_3 = H256::random();
+
+        let res = Gas::create(H256::random(), root, 10000);
+        assert!(res.is_ok());
+        drop(res);
+        assert_eq!(Gas::total_supply(), 10000);
+        assert_ok!(Gas::split_with_value(root, spec_1, 100));
+        assert_ok!(Gas::split_with_value(root, spec_2, 100));
+        assert_ok!(Gas::split_with_value(root, spec_3, 100));
+
+        assert!(matches!(Gas::consume(root).unwrap(), Some(_)));
+        assert!(matches!(Gas::consume(spec_1).unwrap(), Some(_)));
+        assert!(matches!(Gas::consume(spec_2).unwrap(), Some(_)));
+        assert!(matches!(Gas::consume(spec_3).unwrap(), Some(_)));
+
+        assert_eq!(Gas::total_supply(), 0);
     })
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // todo [sab] refactoring ideas
-// 1. Change value node types (no need for spec refs for unspecified nodes)
+// 1. Change value node types (no need for refs for unspecified nodes)
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -68,12 +68,6 @@ impl Default for ValueType {
     }
 }
 
-// todo [sab] UnspecifiedLocal don't need refs
-// todo [sab] Check if ok to remove check key not consumed during split/split_with_value
-// todo [sab] test splits with zero amount
-// todo [sab] explore and extensively test cases when imbalances are used externally
-// todo [sab] remove explicit errors if necessary (and invariant checks, or move invariant checks to separate checker fns)
-// todo [sab] refactoring for consume/check_consumed idea - separate to 2 fns attemt to catch value and an attempt to remove node
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub struct ValueNode {
     pub spec_refs: u32,
@@ -178,9 +172,8 @@ impl ValueNode {
                 ValueType::UnspecifiedLocal { .. } => {
                     parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
                 }
-                ValueType::External { .. } => {
-                    unreachable!("node is guaranteed to have a parent, so can't be an external one")
-                }
+                // todo [sab] maybe invalid after Tiany's PR
+                _ => return Err(Error::<T>::UnexpectedNodeType.into()),
             }
 
             // Update parent node
@@ -337,6 +330,9 @@ pub mod pallet {
         /// Procedure can't be called on consumed node
         NodeWasConsumed,
 
+        /// Expected non-zero amount during the `ValueTree::split_with_value` operation
+        ZeroSplitAmount,
+
         /// Errors stating that gas tree has been invalidated
 
         /// Parent must be in the tree, but not found
@@ -353,16 +349,21 @@ pub mod pallet {
         /// local nodes in the tree.
         ParentHasNoChildren,
 
+        /// Outputs of `Pallet::<T>::try_consume_ancestors` procedure are determined.
+        /// The error is returned when unexpected one occurred. That signals, that
+        /// algorithm works wrong and expected invariants are not correct.
         UnexpectedConsumeOutput,
 
+        /// Node type that can't occur if algorithm work well 
         UnexpectedNodeType,
 
-        NodeIsNotPatron,
-
+        /// Value must have been caught, but was missed or blocked (for more info see `ValueNode::catch_value`).
         ValueIsNotCaught,
 
+        /// Value must have been caught or moved upstream, but was blocked (for more info see `ValueNode::catch_value`).
         ValueIsBlocked,
 
+        /// Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`).
         ValueIsNotBlocked,
     }
 
@@ -426,7 +427,6 @@ pub mod pallet {
         /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.
         /// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.
         /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
-        // todo [sab] check with proptest guarantees that ret_value !=0 (or == 0)
         pub(super) fn try_remove_consumed_ancestors(
             key: H256,
         ) -> Result<ConsumeOutput<T>, DispatchError> {
@@ -440,7 +440,6 @@ pub mod pallet {
                 // The node is not a patron and can't be of unspecified type.
                 ensure!(!catch_output.is_blocked(), Error::<T>::ValueIsBlocked,);
 
-                // todo [sab] пойми, что ничего не упустил (вэлью не потерял) тут на тестах
                 consume_output =
                     consume_output.or_else(|| catch_output.into_consume_output(origin));
 

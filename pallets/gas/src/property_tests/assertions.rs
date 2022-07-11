@@ -120,24 +120,19 @@ pub(super) fn assert_root_removed_last(root_node: H256, remaining_nodes: Remaini
 
 // Check that returned dispatch error is not of invariant error variants
 pub(super) fn assert_not_invariant_error(dispatch_err: DispatchError) {
-    // todo [sab] don't like strs, maybe some other canonical way?
     if let DispatchError::Module(module_err) = dispatch_err {
         let pallet_err = module_err
             .message
             .expect("internal error: no error message");
-        let has_invariant_error = matches!(
-            pallet_err,
+        match pallet_err {
             "ParentIsLost"
                 | "ParentHasNoChildren"
                 | "UnexpectedConsumeOutput"
                 | "UnexpectedNodeType"
-                | "NodeIsNotPatron"
                 | "ValueIsNotCaught"
                 | "ValueIsBlocked"
-                | "ValueIsNotBlocked"
-        );
-        if has_invariant_error {
-            panic!("invariant error occurred {:?}", pallet_err)
+                | "ValueIsNotBlocked" => panic!("invariant error occurred {:?}", pallet_err),
+            _ => log::error!("Non invariant error occurred: {:?}", pallet_err),
         }
     }
 }
