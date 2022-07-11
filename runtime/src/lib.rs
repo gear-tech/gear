@@ -367,6 +367,9 @@ impl pallet_gear_debug::Config for Runtime {
 
 impl pallet_gear_scheduler::Config for Runtime {
     type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU32<1>;
+    type WaitlistCost = ConstU64<100>;
+
 }
 
 impl pallet_gear_gas::Config for Runtime {

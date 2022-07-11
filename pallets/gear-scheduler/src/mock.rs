@@ -18,7 +18,7 @@
 
 use crate as pallet_gear_scheduler;
 use frame_support::{
-    construct_runtime, pallet_prelude::*, parameter_types, traits::FindAuthor,
+    construct_runtime, pallet_prelude::*, parameter_types, traits::{FindAuthor, ConstU64},
     weights::constants::RocksDbWeight,
 };
 use frame_system as system;
@@ -142,6 +142,8 @@ impl pallet_gear::Config for Test {
 
 impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU64<1>;
+    type WaitlistCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {

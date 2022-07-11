@@ -47,12 +47,13 @@ pub mod pallet {
     use frame_support::{
         dispatch::DispatchError,
         pallet_prelude::*,
-        sp_runtime::traits::UniqueSaturatedInto,
         storage::PrefixIterator,
         traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
     use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, marker::PhantomData};
+
+    pub type Cost = u64;
 
     pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
@@ -64,6 +65,14 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = u64>;
+
+        /// Amount of blocks for extra delay used to secure from outdated tasks.
+        #[pallet::constant]
+        type ReserveThreshold: Get<Self::BlockNumber>;
+
+        /// Cost for storing in waitlist per block.
+        #[pallet::constant]
+        type WaitlistCost: Get<Cost>;
     }
 
     // Gear Scheduler Pallet itself.
@@ -197,10 +206,10 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type BlockNumber = BlockNumberFor<T>;
-        type Cost = u64;
+        type Cost = Cost;
 
         fn reserve_for() -> Self::BlockNumber {
-            3u32.unique_saturated_into()
+            T::ReserveThreshold::get()
         }
 
         fn code() -> Self::Cost {
@@ -216,7 +225,7 @@ pub mod pallet {
         }
 
         fn waitlist() -> Self::Cost {
-            100
+            T::WaitlistCost::get()
         }
     }
 

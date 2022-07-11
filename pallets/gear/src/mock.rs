@@ -18,7 +18,7 @@
 
 use crate as pallet_gear;
 use crate::*;
-use frame_support::{construct_runtime, pallet_prelude::*, parameter_types, traits::FindAuthor};
+use frame_support::{construct_runtime, pallet_prelude::*, parameter_types, traits::{FindAuthor, ConstU64}};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -138,6 +138,8 @@ impl pallet_gear::Config for Test {
 
 impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU64<1>;
+    type WaitlistCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {
