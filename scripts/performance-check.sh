@@ -5,6 +5,8 @@
 # Activate virtual environment before running this script: $ source /path/to/venv/bin/activate.
 # Prerequisites: (venv) $ pip3 install seaborn pandas
 #
+# ./scripts/performance-check.sh [COUNT [BOXPLOT [BRANCH]]]
+#
 
 set -e
 
@@ -18,7 +20,12 @@ if [ -z "$COUNT" ]; then
     COUNT=100
 fi
 
-CURRENT_BRANCH=$2
+BOXPLOT=$2
+if [ -z "$BOXPLOT" ] || [ "$BOXPLOT" == "0" ]; then
+    BOXPLOT=0
+fi
+
+CURRENT_BRANCH=$3
 if [ -z "$CURRENT_BRANCH" ]; then
     CURRENT_BRANCH=`git branch --show-current`
 fi
@@ -93,8 +100,11 @@ mkdir -p $ROOT_DIR/target/current_branch/
 cargo run --package regression-analysis --release -- collect-data --data-folder-path $ROOT_DIR/target/tests/ --output-path $ROOT_DIR/target/current_branch/pallet-tests.json
 cargo run --package regression-analysis --release -- collect-data --disable-filter --data-folder-path $ROOT_DIR/target/runtime-tests/ --output-path $ROOT_DIR/target/current_branch/runtime-tests.json
 
-python3 $ROOT_DIR/scripts/performance-boxplot.py $ROOT_DIR/target/main_branch/pallet-tests.json $ROOT_DIR/target/current_branch/pallet-tests.json
-mv ./results $ROOT_DIR/target/performance-pallet-tests
+if [ "$BOXPLOT" != "0" ]; then
+    python3 $ROOT_DIR/scripts/performance-boxplot.py $ROOT_DIR/target/main_branch/pallet-tests.json $ROOT_DIR/target/current_branch/pallet-tests.json
+    mv ./results $ROOT_DIR/target/performance-pallet-tests
 
-python3 $ROOT_DIR/scripts/performance-boxplot.py $ROOT_DIR/target/main_branch/runtime-tests.json $ROOT_DIR/target/current_branch/runtime-tests.json
-mv ./results $ROOT_DIR/target/performance-runtime-tests
+    python3 $ROOT_DIR/scripts/performance-boxplot.py $ROOT_DIR/target/main_branch/runtime-tests.json $ROOT_DIR/target/current_branch/runtime-tests.json
+    mv ./results $ROOT_DIR/target/performance-runtime-tests
+fi
+
