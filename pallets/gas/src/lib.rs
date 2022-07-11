@@ -420,6 +420,12 @@ pub mod pallet {
         /// in this procedure can still result in catching non-zero value. That's possible for example, when
         /// Gas-ful parent is consumed and has a gas-less child. When gas-less child is consumed in `ValueTree::consume`
         /// call, the gas-ful parent's value is caught in this function.
+        ///
+        /// # Invariants
+        /// Internal invariant of the procedure:
+        /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.
+        /// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.
+        /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
         // todo [sab] check with proptest guarantees that ret_value !=0 (or == 0)
         pub(super) fn try_remove_consumed_ancestors(
             key: H256,

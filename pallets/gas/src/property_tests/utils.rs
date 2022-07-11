@@ -19,6 +19,7 @@
 use super::*;
 
 pub type MaybeCaughtValue = Option<u64>;
+pub type RemainingNodes = BTreeMap<H256, ValueNode>;
 pub type RemovedNodes = BTreeMap<H256, ValueNode>;
 
 pub(super) trait RingGet<T> {
@@ -35,19 +36,21 @@ impl<T> RingGet<T> for Vec<T> {
 }
 
 /// Consumes node with `consuming` id and returns a map of removed nodes
-pub(super) fn consume_node(consuming: H256) -> Result<(MaybeCaughtValue, RemovedNodes), DispatchError> {
+pub(super) fn consume_node(
+    consuming: H256,
+) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), DispatchError> {
     let nodes_before_consume = BTreeMap::from_iter(super::GasTree::<Test>::iter());
     Gas::consume(consuming).map(|maybe_output| {
         let maybe_caught_value = maybe_output.map(|(imb, _)| imb.peek());
-        let nodes_after_consume = BTreeSet::from_iter(super::GasTree::<Test>::iter_keys());
+        let nodes_after_consume = BTreeMap::from_iter(super::GasTree::<Test>::iter());
         let mut removed_nodes = BTreeMap::new();
         for (id, node) in nodes_before_consume {
-            if !nodes_after_consume.contains(&id) {
+            if !nodes_after_consume.contains_key(&id) {
                 // was removed
                 removed_nodes.insert(id, node);
             }
         }
 
-        (maybe_caught_value, removed_nodes)
+        (maybe_caught_value, nodes_after_consume, removed_nodes)
     })
 }

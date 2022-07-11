@@ -17,17 +17,27 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Properties and invariants that are checked:
-//! 1. All non-external nodes have a parent in GasTree storage. (todo [sab] can be wrong after Tiany's changes)
-//! 
-//! 2. All non-external nodes have ancestor with value (i.e., ValueNode::node_with_value procedure always return Ok),
-//! however this value can be equal to 0. This ancestor is either a parent or the node itself.
-//! 3. All nodes can't have consumed parent with zero refs (there can't be any nodes like that in storage) between calls to `ValueTree::consume`.
+//! 1. Nodes can become consumed only after `ValueTree::consume` call.
+//! 2. Unspec refs counter for the current node is incremented only after `ValueTree::split` which creates a node with `ValueType::UnspecifiedLocal` type.
+//! 3. Spec refs counter for the current node is incremented only after `ValueTree::split_with_value`, which creates a node with `ValueType::SpecifiedLocal` type.
+//! 4. All non-external nodes have a parent in GasTree storage. (todo [sab] can be wrong after Tiany's changes).
+//! 5. All nodes with parent point to a parent with value (todo [sab] can be wrong after Tiany's changes). So If a `key` is an id of specified local or external node,
+//! the node under this `key` will always be a parent of the newly generated node after `split`/`split_with_value` call.
+//! However, there is no such guarantee if key is an id of the unspecified node.
+//! 6. All non-external nodes have ancestor with value (i.e., ValueNode::node_with_value procedure always return Ok), however this value can be equal to 0.
+//! This ancestor is either a parent or the node itself.
+//! 7. All nodes can't have consumed parent with zero refs (there can't be any nodes like that in storage) between calls to `ValueTree::consume`.
 //! Therefore, if node is deleted, it is consumed and has zero refs (and zero value).
-//! So if there is an existing consumed node, then it has non-zero refs counter and a value >= 0 (between calls to `ValueTree::consume`)
-//! 4. If a sub-tree of `GasTree` is a tree, where root has `ValueType::External` type, then sub-tree's root is always deleted last.
-//! 5. Nodes can become consumed only after `ValueTree::consume` call.
-//! 6. Unspec refs counter for the current node is incremented only after `ValueTree::split` which creates a node with `ValueType::UnspecifiedLocal` type.
-//! 7. Spec refs counter for the current node is incremented only after `ValueTree::split_with_value`, which creates a node with `ValueType::SpecifiedLocal` type is.
+//! 8. Unspecified nodes are always leaves in the tree (they have no children), so they are always deleted after consume call.
+//! So there can't be any unspecified local node in the tree with consumed field set to true.
+//! So if there is an **existing consumed** node, then it has non-zero refs counter and a value >= 0 (between calls to `ValueTree::consume`)
+//! 9. If a sub-tree of `GasTree` is a tree, where root has `ValueType::External` type, then sub-tree's root is always deleted last.
+//! 10. If node wasn't removed after `consume` it's `SpecifiedLocal` or `External` node. This is pretty same as the previous invariant,
+//! but focuses more on consume procedure, while the other focuses on the all tree invariant. (checked in `consume` call assertions).
+//! 11. `UnspecifiedLocal` nodes can't be removed, nor mutated during cascade removal. So after `consume` call not more than one node is of `UnspecifiedLocal` type.
+//! 12. Between calls to `consume` if node is consumed and has no unspec refs, it's internal gas value is zero.
+//! 13. Between calls to `consume` if node has value, it's either not consumed or it has unspecified children.
+//! 14. Value catch can be performed only on consumed nodes (not tested).
 
 use super::*;
 use crate::mock::*;
@@ -116,20 +126,25 @@ proptest! {
                     GasTreeAction::Consume(id) => {
                         let consuming = node_ids.ring_get(id).copied().expect("before each iteration there is at least 1 element; qed");
                         match utils::consume_node(consuming) {
-                            Ok((maybe_caught, removed_nodes)) => {
+                            Ok((maybe_caught, remaining_nodes, removed_nodes)) => {
                                 marked_consumed.insert(consuming);
+
                                 // Update ids
                                 node_ids.retain(|id| !removed_nodes.contains_key(id));
+                                
+                                // Self check
+                                assert_eq!(
+                                    remaining_nodes.keys().copied().collect::<Vec<_>>().sort(),
+                                    node_ids.clone().sort()
+                                );
 
-                                // Search operation in a set is faster, then in a vector
-                                let remaining_ids = BTreeSet::from_iter(node_ids.iter().copied());
                                 assertions::assert_removed_nodes_props(
                                     consuming,
                                     removed_nodes,
-                                    &remaining_ids,
+                                    &remaining_nodes,
                                     &marked_consumed,
                                 );
-                                assertions::assert_root_removed_last(root_node, &remaining_ids);
+                                assertions::assert_root_removed_last(root_node, remaining_nodes);
 
                                 caught += maybe_caught.unwrap_or_default();
                             }
@@ -164,7 +179,7 @@ proptest! {
                 // Check property: all nodes have parents (todo [sab] maybe should be changed after Tiany's pr)
                 if let Some(parent) = node.parent() {
                     assert!(gas_tree_ids.contains(&parent));
-                    // All nodes with parent have parent with value
+                    // All nodes with parent point to a parent with value
                     let parent_node = GasTree::<Test>::get(parent).expect("checked");
                     assert!(parent_node.inner_value().is_some());
                 }
@@ -183,9 +198,26 @@ proptest! {
                     assert!(node.refs() != 0);
                     // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
                     assert!(marked_consumed.contains(&node_id));
+                    // ...there can't be any existing consumed unspecified local nodes, because they are immediately removed after the call
+                    assert!(node.inner.is_external() || node.inner.is_specified_local());
+                    // ...existing consumed node with no unspec children has 0 inner value.
+                    // That's because anytime node becomes consumed without unspec children, it's no longer a patron.
+                    // So `consume` call on non-patron leads a value to be moved upstream or returned to the `origin`.
+                    if node.unspec_refs == 0 {
+                        let value = node.inner_value().expect("node with value, checked");
+                        assert!(value == 0);
+                    }
                 } else {
                     // If is not consumed, then no consume calls should have been called on it
                     assert!(!marked_consumed.contains(&node_id));
+                }
+
+                // Check property: if node has non-zero value, it's a patron node (either not consumed or with unspec refs)
+                // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
+                if let Some(value) = node.inner_value() {
+                    if value != 0 {
+                        assert!(node.unspec_refs != 0 || !node.consumed);
+                    }
                 }
 
                 // Check property: all nodes have ancestor (node is a self-ancestor too) with value

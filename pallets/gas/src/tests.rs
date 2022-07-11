@@ -371,7 +371,10 @@ fn long_chain() {
         let (neg_imb, payee) = Gas::consume(m3).unwrap().unwrap();
 
         // 2000 initial, 5*50 spent
-        assert_eq!(neg_imb.peek(), 1750 - root_expected_limit - m1_expected_limit - m2_expected_limit);
+        assert_eq!(
+            neg_imb.peek(),
+            1750 - root_expected_limit - m1_expected_limit - m2_expected_limit
+        );
         assert_eq!(payee, origin);
     });
 }
@@ -488,7 +491,7 @@ fn subtree_gas_limit_remains_intact() {
         assert_eq!(Gas::get_limit(node_4).unwrap(), Some(250));
 
         // Consume node 5
-        assert!(matches!(Gas::consume(node_5).unwrap(), None));  
+        assert!(matches!(Gas::consume(node_5).unwrap(), None));
         // node_5 was removed
         assert_eq!(Gas::get_limit(node_5).unwrap(), None);
         // Expect gas limit from node_5 sent to upstream patron (node_2)

@@ -19,20 +19,40 @@
 //! Module contains assertion checks that are used during property tests.
 
 use super::*;
+use utils::{RemainingNodes, RemovedNodes};
 
 /// Check that removed nodes invariants are met
 pub(super) fn assert_removed_nodes_props(
     consumed: H256,
-    removed_nodes: BTreeMap<H256, ValueNode>,
-    remaining_ids: &BTreeSet<H256>,
+    removed_nodes: RemovedNodes,
+    remaining_nodes: &RemainingNodes,
     marked_consumed_nodes: &BTreeSet<H256>,
 ) {
     if removed_nodes.is_empty() {
         return;
     }
-
+    assert_not_removed_node_type(consumed, &remaining_nodes);
+    assert_unspec_nodes_amount(&removed_nodes);
     assert_removed_nodes_are_consumed(consumed, marked_consumed_nodes, &removed_nodes);
-    assert_removed_nodes_form_path(consumed, remaining_ids, removed_nodes);
+    assert_removed_nodes_form_path(consumed, remaining_nodes, removed_nodes);
+}
+
+// Check that if node was consumed, but not removed, it's of `SpecifiedLocal` or `External` types.
+fn assert_not_removed_node_type(consumed: H256, remaining_nodes: &RemainingNodes) {
+    if let Some(consumed) = remaining_nodes.get(&consumed) {
+        // Node was not removed after consume, so should be of specific types
+        assert!(consumed.inner.is_external() || consumed.inner.is_specified_local());
+    }
+}
+
+// Check cascade consumption can't remove unspec nodes, they are removed only from `consume` call,
+// so not more than one unspec node is removed after `consume` call.
+fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
+    let removed_unspec_count = removed_nodes
+        .values()
+        .filter(|node| node.inner.is_unspecified_local())
+        .count();
+    assert!(removed_unspec_count <= 1);
 }
 
 // Check that for all the removed nodes:
@@ -66,8 +86,8 @@ fn assert_removed_nodes_are_consumed(
 // Check that removed nodes form a path (if more than one was removed).
 fn assert_removed_nodes_form_path(
     consumed: H256,
-    remaining_ids: &BTreeSet<H256>,
-    removed_nodes: BTreeMap<H256, ValueNode>,
+    remaining_nodes: &RemainingNodes,
+    removed_nodes: RemovedNodes,
 ) {
     let mut not_checked_parents_count = removed_nodes.len();
     let mut node = removed_nodes
@@ -76,7 +96,7 @@ fn assert_removed_nodes_form_path(
 
     while not_checked_parents_count > 1 {
         if let Some(parent) = node.parent() {
-            assert!(!remaining_ids.contains(&parent));
+            assert!(!remaining_nodes.contains_key(&parent));
             assert!(removed_nodes.contains_key(&parent));
 
             not_checked_parents_count -= 1;
@@ -84,7 +104,7 @@ fn assert_removed_nodes_form_path(
         }
     }
     if let Some(parent) = node.parent() {
-        assert!(remaining_ids.contains(&parent));
+        assert!(remaining_nodes.contains_key(&parent));
     }
 }
 
@@ -92,9 +112,9 @@ fn assert_removed_nodes_form_path(
 // That is done the following way. Each time `consume` procedure is called we check `root_node` for existence.
 // If it was removed after a new `consume` call, then all the tree must be empty. So no nodes can be removed
 // after root was removed in the `consume` call.
-pub(super) fn assert_root_removed_last(root_node: H256, remaining_ids: &BTreeSet<H256>) {
+pub(super) fn assert_root_removed_last(root_node: H256, remaining_nodes: RemainingNodes) {
     if Gas::get_node(&root_node).is_none() {
-        assert!(remaining_ids.is_empty());
+        assert!(remaining_nodes.is_empty());
     }
 }
 
@@ -102,12 +122,19 @@ pub(super) fn assert_root_removed_last(root_node: H256, remaining_ids: &BTreeSet
 pub(super) fn assert_not_invariant_error(dispatch_err: DispatchError) {
     // todo [sab] don't like strs, maybe some other canonical way?
     if let DispatchError::Module(module_err) = dispatch_err {
-        let pallet_err = module_err.message.expect("internal error: no error message");
+        let pallet_err = module_err
+            .message
+            .expect("internal error: no error message");
         let has_invariant_error = matches!(
             pallet_err,
-            "ParentIsLost" | "ParentHasNoChildren" | "UnexpectedConsumeOutput" |
-            "UnexpectedNodeType" | "NodeIsNotPatron" | "ValueIsNotCaught" |
-            "ValueIsBlocked" | "ValueIsNotBlocked"
+            "ParentIsLost"
+                | "ParentHasNoChildren"
+                | "UnexpectedConsumeOutput"
+                | "UnexpectedNodeType"
+                | "NodeIsNotPatron"
+                | "ValueIsNotCaught"
+                | "ValueIsBlocked"
+                | "ValueIsNotBlocked"
         );
         if has_invariant_error {
             panic!("invariant error occurred {:?}", pallet_err)
