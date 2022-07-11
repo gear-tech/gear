@@ -24,6 +24,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
 extern crate alloc;
+
 use gear_core::message::ExitCode;
 
 pub mod common;
@@ -50,6 +51,6 @@ pub const UNAVAILABLE_DEST_EXIT_CODE: ExitCode = 2;
 pub const RE_INIT_EXIT_CODE: ExitCode = 3;
 
 pub use executor::execute_wasm;
-pub use ext::{Ext, ProcessorError, ProcessorExt};
+pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
 pub use processor::process;

@@ -71,7 +71,7 @@ pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
         .map_err(|_| HostError)
 }
 
-fn wto<E>(memory: &mut dyn Memory, ptr: usize, buff: &[u8]) -> Result<(), FuncError<E>> {
+fn wto<E>(memory: &mut impl Memory, ptr: usize, buff: &[u8]) -> Result<(), FuncError<E>> {
     memory.write(ptr, buff).map_err(FuncError::Memory)
 }
 

@@ -175,7 +175,7 @@ where
             if let Err(err) =
                 ext.with_fallible(|ext| ext.free(page.into()).map_err(FuncError::Core))
             {
-                log::error!("FREE PAGE ERROR: {}", err);
+                log::debug!("FREE PAGE ERROR: {}", err);
                 Err(Trap::new(err))
             } else {
                 log::debug!("FREE PAGE: {}", page);

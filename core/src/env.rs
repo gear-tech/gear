@@ -51,7 +51,7 @@ pub trait Ext {
     fn alloc(
         &mut self,
         pages: WasmPageNumber,
-        mem: &mut dyn Memory,
+        mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error>;
 
     /// Get the current block height.
@@ -274,7 +274,7 @@ mod tests {
         fn alloc(
             &mut self,
             _pages: WasmPageNumber,
-            _mem: &mut dyn Memory,
+            _mem: &mut impl Memory,
         ) -> Result<WasmPageNumber, Self::Error> {
             Err(AllocError)
         }

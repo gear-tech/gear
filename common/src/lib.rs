@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), feature(thread_local))]
-#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
@@ -47,7 +45,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
@@ -328,14 +325,6 @@ pub fn get_program_page_data(
     let key = page_key(id, page_idx);
     let data = sp_io::storage::get(&key)?;
     Some(PageBuf::new_from_vec(data))
-}
-
-/// Save page data key in storage
-pub fn save_page_lazy_info(id: H256, page_nums: impl Iterator<Item = PageNumber>) {
-    let prefix = pages_prefix(id);
-    let pages = page_nums.map(|p| p.0).collect();
-    log::trace!("lazy pages = {:?}", &pages);
-    gear_ri::gear_ri::save_page_lazy_info(pages, prefix);
 }
 
 pub fn get_program_pages_data(

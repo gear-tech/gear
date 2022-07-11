@@ -55,7 +55,7 @@ use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin,
     ProgramState,
 };
-use core_processor::common::ExecutableActor;
+use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{BalanceStatus, Currency, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -153,7 +153,7 @@ where
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
+    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
@@ -177,10 +177,13 @@ where
             Default::default()
         };
 
-        Some(ExecutableActor {
-            program,
+        Some(Actor {
             balance,
-            pages_data,
+            destination_program: id,
+            executable_data: Some(ExecutableActorData {
+                program,
+                pages_data,
+            }),
         })
     }
 

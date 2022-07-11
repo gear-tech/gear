@@ -1,7 +1,26 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::{
     log::RunResult,
-    manager::{Actor, ExtManager, Program as InnerProgram},
+    manager::{Balance, ExtManager, Program as InnerProgram, TestActor},
     system::System,
+    Result,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
@@ -69,6 +88,7 @@ pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn meta_state(&mut self, payload: Option<Vec<u8>>) -> Result<Vec<u8>, &'static str>;
     fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
     }
@@ -336,7 +356,7 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
-        if system.actors.contains_key(&source) {
+        if !system.is_user(&source) {
             panic!("Sending messages allowed only from users id");
         }
 
@@ -363,7 +383,7 @@ impl<'a> Program<'a> {
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
-        let kind = if let Actor::Uninitialized(id, _) = actor {
+        let kind = if let TestActor::Uninitialized(id, _) = actor {
             if id.is_none() {
                 *id = Some(message.id());
                 DispatchKind::Init
@@ -383,26 +403,32 @@ impl<'a> Program<'a> {
         self.id
     }
 
-    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> D {
-        D::decode(&mut self.meta_state_with_bytes(payload.encode()).as_slice())
-            .expect("Failed to decode result")
+    pub fn meta_state<E: Encode, D: Decode>(&self, payload: E) -> Result<D> {
+        D::decode(&mut self.meta_state_with_bytes(payload.encode())?.as_slice()).map_err(Into::into)
     }
 
-    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Vec<u8> {
+    pub fn meta_state_with_bytes(&self, payload: impl AsRef<[u8]>) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, Some(payload.as_ref().into()), "meta_state")
     }
 
-    pub fn meta_state_empty<D: Decode>(&self) -> D {
-        D::decode(&mut self.meta_state_empty_with_bytes().as_slice())
-            .expect("Failed to decode result")
+    pub fn meta_state_empty<D: Decode>(&self) -> Result<D> {
+        D::decode(&mut self.meta_state_empty_with_bytes()?.as_slice()).map_err(Into::into)
     }
 
-    pub fn meta_state_empty_with_bytes(&self) -> Vec<u8> {
+    pub fn meta_state_empty_with_bytes(&self) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, None, "meta_state")
+    }
+
+    pub fn mint(&mut self, value: Balance) {
+        self.manager.borrow_mut().mint_to(&self.id(), value)
+    }
+
+    pub fn balance(&self) -> Balance {
+        self.manager.borrow().balance_of(&self.id())
     }
 
     fn wasm_path(extension: &str) -> PathBuf {
@@ -447,5 +473,74 @@ mod tests {
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));
+    }
+
+    #[test]
+    fn simple_balance() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        sys.mint_to(user_id, 5000);
+        assert_eq!(sys.balance_of(user_id), 5000);
+
+        let mut prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
+        );
+
+        prog.mint(1000);
+        assert_eq!(prog.balance(), 1000);
+
+        prog.send_with_value(user_id, "init".to_string(), 500);
+        assert_eq!(prog.balance(), 1500);
+        assert_eq!(sys.balance_of(user_id), 4500);
+
+        prog.send_with_value(user_id, "PING".to_string(), 1000);
+        assert_eq!(prog.balance(), 2500);
+        assert_eq!(sys.balance_of(user_id), 3500);
+    }
+
+    #[test]
+    fn piggy_bank() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let receiver = 42;
+        let sender0 = 43;
+        let sender1 = 44;
+        let sender2 = 45;
+
+        // Top-up senders balances
+        sys.mint_to(sender0, 10000);
+        sys.mint_to(sender1, 10000);
+        sys.mint_to(sender2, 10000);
+
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        prog.send_bytes(receiver, b"init");
+        assert_eq!(prog.balance(), 0);
+
+        // Send values to the program
+        prog.send_bytes_with_value(sender0, b"insert", 1000);
+        assert_eq!(sys.balance_of(sender0), 9000);
+        prog.send_bytes_with_value(sender1, b"insert", 2000);
+        assert_eq!(sys.balance_of(sender1), 8000);
+        prog.send_bytes_with_value(sender2, b"insert", 3000);
+        assert_eq!(sys.balance_of(sender2), 7000);
+
+        // Check program's balance
+        assert_eq!(prog.balance(), 1000 + 2000 + 3000);
+
+        // Request to smash the piggy bank and send the value to the receiver address
+        prog.send_bytes(receiver, b"smash");
+        sys.claim_value_from_mailbox(receiver);
+        assert_eq!(sys.balance_of(receiver), 1000 + 2000 + 3000);
+
+        // Check program's balance is empty
+        assert_eq!(prog.balance(), 0);
     }
 }

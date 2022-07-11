@@ -64,6 +64,9 @@ demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
+demo-calc-hash = { path = "../../examples/binaries/calc-hash" }
+demo-calc-hash-over-blocks = { path = "../../examples/binaries/calc-hash/over-blocks" }
+demo-calc-hash-in-one-block = { path = "../../examples/binaries/calc-hash/in-one-block" }
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 page_size = "0.4.2"
