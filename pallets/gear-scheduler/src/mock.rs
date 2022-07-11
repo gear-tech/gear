@@ -18,7 +18,10 @@
 
 use crate as pallet_gear_scheduler;
 use frame_support::{
-    construct_runtime, pallet_prelude::*, parameter_types, traits::{FindAuthor, ConstU64},
+    construct_runtime,
+    pallet_prelude::*,
+    parameter_types,
+    traits::{ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
 };
 use frame_system as system;

@@ -18,7 +18,12 @@
 
 use crate as pallet_gear;
 use crate::*;
-use frame_support::{construct_runtime, pallet_prelude::*, parameter_types, traits::{FindAuthor, ConstU64}};
+use frame_support::{
+    construct_runtime,
+    pallet_prelude::*,
+    parameter_types,
+    traits::{ConstU64, FindAuthor},
+};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{

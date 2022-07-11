@@ -48,10 +48,7 @@ pub trait Scheduler {
     type OutputError: From<Self::Error> + Debug;
 
     /// Storing costs per block.
-    type CostsPerBlock: SchedulingCostsPerBlock<
-        BlockNumber = Self::BlockNumber,
-        Cost = Self::Cost
-    >;
+    type CostsPerBlock: SchedulingCostsPerBlock<BlockNumber = Self::BlockNumber, Cost = Self::Cost>;
 
     /// Block numbers, which have already passed,
     /// but still contain tasks to deal with.

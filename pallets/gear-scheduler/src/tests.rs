@@ -69,7 +69,8 @@ fn populate_wl_from(
     let mid = dispatch.id();
     let pid = dispatch.destination();
 
-    TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid)).expect("Failed to insert task");
+    TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
+        .expect("Failed to insert task");
     WaitlistOf::<Test>::insert(dispatch).expect("Failed to insert to waitlist");
     Balances::reserve(&src, DEFAULT_GAS as u128).expect("Cannot reserve gas");
     GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
