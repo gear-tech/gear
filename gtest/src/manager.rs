@@ -756,6 +756,10 @@ impl JournalHandler for ExtManager {
                 }
 
                 *balance -= value;
+
+                if *balance < crate::EXISTENTIAL_DEPOSIT {
+                    *balance = 0;
+                }
             }
 
             self.mint_to(to, value);
