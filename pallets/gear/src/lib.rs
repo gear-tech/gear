@@ -899,7 +899,7 @@ pub mod pallet {
                     ([bn].into(), true)
                 });
 
-            // Where we were had to stop processing due to zeroed gas allowance.
+            // When we had to stop processing due to insufficient gas allowance.
             let mut stopped_at = None;
 
             // Iterating over blocks.
