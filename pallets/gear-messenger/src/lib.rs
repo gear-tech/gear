@@ -409,7 +409,7 @@ pub mod pallet {
     // Below goes callbacks, used for queue algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     // ----
 
@@ -479,7 +479,7 @@ pub mod pallet {
     // Below goes callbacks, used for mailbox algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     /// Callback function for success `remove` action.
     pub struct OnRemove<T: crate::Config>(PhantomData<T>)
@@ -536,7 +536,7 @@ pub mod pallet {
     // Below goes callbacks, used for waitlist algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     // ----
 

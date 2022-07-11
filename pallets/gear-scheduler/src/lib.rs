@@ -159,7 +159,7 @@ pub mod pallet {
     // Below goes callbacks, used for task scope algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     // ----
 
