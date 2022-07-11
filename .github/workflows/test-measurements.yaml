@@ -92,7 +92,7 @@ jobs:
         with:
           tool: 'customSmallerIsBetter'
           output-file-path: ./target/action-output.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
           fail-on-alert: true
           # Push and deploy GitHub pages branch automatically
           auto-push: true
