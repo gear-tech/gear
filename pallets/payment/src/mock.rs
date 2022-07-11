@@ -158,7 +158,7 @@ impl common::GasPrice for GasConverter {
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
-    pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
 impl pallet_gear::Config for Test {
@@ -166,7 +166,7 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
-    type Schedule = MySchedule;
+    type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
