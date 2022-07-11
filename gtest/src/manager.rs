@@ -274,6 +274,11 @@ impl ExtManager {
                 dispatch.value(),
                 balance
             );
+        } else {
+            *balance -= dispatch.value();
+            if *balance < crate::EXISTENTIAL_DEPOSIT {
+                *balance = 0;
+            }
         }
     }
 
@@ -743,15 +748,19 @@ impl JournalHandler for ExtManager {
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
         if let Some(ref to) = to {
-            if let Some((_, balance)) = self.actors.get_mut(&from) {
+            if !self.is_user(&from) {
+                let (_, balance) = self.actors.get_mut(&from).expect("Can't fail");
+
                 if *balance < value {
-                    panic!("Actor {:?} balance is less then sent value", from);
+                    unreachable!("Actor {:?} balance is less then sent value", from);
                 }
 
                 *balance -= value;
-            };
+            }
 
             self.mint_to(to, value);
+        } else {
+            self.mint_to(&from, value);
         }
     }
 
