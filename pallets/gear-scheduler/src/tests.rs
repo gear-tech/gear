@@ -30,10 +30,8 @@ use gear_core::{ids::*, message::*};
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
 
-type GA = GasAllowanceOf<Test>;
-type GH = GasHandlerOf<Test>;
-type TS = <Pallet<Test> as Scheduler>::TaskPool;
-type WL = <<Test as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
+type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
+type TaskPoolOf<T> = <<T as pallet_gear::Config>::Scheduler as Scheduler>::TaskPool;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -71,10 +69,10 @@ fn populate_wl_from(
     let mid = dispatch.id();
     let pid = dispatch.destination();
 
-    TS::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid)).expect("Failed to insert task");
-    WL::insert(dispatch).expect("Failed to insert to waitlist");
+    TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid)).expect("Failed to insert task");
+    WaitlistOf::<Test>::insert(dispatch).expect("Failed to insert to waitlist");
     Balances::reserve(&src, DEFAULT_GAS as u128).expect("Cannot reserve gas");
-    GH::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
+    GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
 
     (mid, pid)
 }
@@ -87,8 +85,8 @@ fn task_and_wl_message_exist(
     let mid = mid.into();
     let pid = pid.into();
 
-    let ts = TS::contains(&bn, &ScheduledTask::RemoveFromWaitlist(pid, mid));
-    let wl = WL::contains(&pid, &mid);
+    let ts = TaskPoolOf::<Test>::contains(&bn, &ScheduledTask::RemoveFromWaitlist(pid, mid));
+    let wl = WaitlistOf::<Test>::contains(&pid, &mid);
 
     if ts != wl {
         panic!("Logic invalidated");
@@ -97,8 +95,7 @@ fn task_and_wl_message_exist(
     ts
 }
 
-// oor: out of rent
-fn oor_reply_exists(
+fn out_of_rent_reply_exists(
     user_id: <Test as frame_system::Config>::AccountId,
     mid: impl Into<MessageId>,
     pid: impl Into<ProgramId>,
@@ -139,7 +136,7 @@ fn gear_handles_tasks() {
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
         // Read of missed blocks.
-        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
 
         // Block producer initial balance.
         let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
@@ -153,7 +150,7 @@ fn gear_handles_tasks() {
         let bn = 5;
         let (mid, pid) = populate_wl_from(USER_1, bn);
         assert!(task_and_wl_message_exist(mid, pid, bn));
-        assert!(!oor_reply_exists(USER_1, mid, pid));
+        assert!(!out_of_rent_reply_exists(USER_1, mid, pid));
 
         // Balance checking.
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
@@ -166,11 +163,11 @@ fn gear_handles_tasks() {
         // Check if task and message exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
         // Read of missed blocks.
-        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
 
         // Storages checking.
         assert!(task_and_wl_message_exist(mid, pid, bn));
-        assert!(!oor_reply_exists(USER_1, mid, pid));
+        assert!(!out_of_rent_reply_exists(USER_1, mid, pid));
 
         // Balance checking.
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
@@ -183,11 +180,11 @@ fn gear_handles_tasks() {
         // Check if task and message got processed in block `bn`.
         run_to_block(bn, Some(u64::MAX));
         // Read of missed blocks and write for removal of task.
-        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 1));
+        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 1));
 
         // Storages checking.
         assert!(!task_and_wl_message_exist(mid, pid, bn));
-        assert!(oor_reply_exists(USER_1, mid, pid));
+        assert!(out_of_rent_reply_exists(USER_1, mid, pid));
 
         // Balance checking.
         let cost = wl_cost_for(bn - initial_block); // Diff of blocks of insertion and removal.
@@ -212,7 +209,7 @@ fn gear_handles_outdated_tasks() {
         let initial_block = 2;
         run_to_block(initial_block, Some(u64::MAX));
         // Read of missed blocks.
-        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
 
         // Block producer initial balance.
         let block_author_balance = Balances::free_balance(BLOCK_AUTHOR);
@@ -232,8 +229,8 @@ fn gear_handles_outdated_tasks() {
         let (mid2, pid2) = populate_wl_from(USER_2, bn);
         assert!(task_and_wl_message_exist(mid1, pid1, bn));
         assert!(task_and_wl_message_exist(mid2, pid2, bn));
-        assert!(!oor_reply_exists(USER_1, mid1, pid1));
-        assert!(!oor_reply_exists(USER_2, mid2, pid2));
+        assert!(!out_of_rent_reply_exists(USER_1, mid1, pid1));
+        assert!(!out_of_rent_reply_exists(USER_2, mid2, pid2));
 
         // Balance checking.
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
@@ -250,13 +247,13 @@ fn gear_handles_outdated_tasks() {
 
         // Check if tasks and messages exist before start of block `bn`.
         run_to_block(bn - 1, Some(u64::MAX));
-        assert_eq!(GA::get(), u64::MAX - db_r_w(1, 0));
+        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(1, 0));
 
         // Storages checking.
         assert!(task_and_wl_message_exist(mid1, pid1, bn));
         assert!(task_and_wl_message_exist(mid2, pid2, bn));
-        assert!(!oor_reply_exists(USER_1, mid1, pid1));
-        assert!(!oor_reply_exists(USER_2, mid2, pid2));
+        assert!(!out_of_rent_reply_exists(USER_1, mid1, pid1));
+        assert!(!out_of_rent_reply_exists(USER_2, mid2, pid2));
 
         // Balance checking.
         assert_eq!(Balances::free_balance(BLOCK_AUTHOR), block_author_balance);
@@ -275,21 +272,21 @@ fn gear_handles_outdated_tasks() {
         // But due to the low gas allowance, we may process the only first task.
         run_to_block(bn, Some(db_r_w(1, 2) + 1));
         // Read of missed blocks, write to it afterwards + single task processing.
-        assert_eq!(GA::get(), 1);
+        assert_eq!(GasAllowanceOf::<Test>::get(), 1);
 
         let cost1 = wl_cost_for(bn - initial_block);
 
         // Storages checking (order isn't guaranteed).
         if task_and_wl_message_exist(mid1, pid1, bn) {
             assert!(!task_and_wl_message_exist(mid2, pid2, bn));
-            assert!(!oor_reply_exists(USER_1, mid1, pid1));
-            assert!(oor_reply_exists(USER_2, mid2, pid2));
+            assert!(!out_of_rent_reply_exists(USER_1, mid1, pid1));
+            assert!(out_of_rent_reply_exists(USER_2, mid2, pid2));
             assert_eq!(Balances::free_balance(USER_2), user2_balance - cost1);
             assert_eq!(Balances::reserved_balance(USER_2), 0);
         } else {
             assert!(task_and_wl_message_exist(mid2, pid2, bn));
-            assert!(oor_reply_exists(USER_1, mid1, pid1));
-            assert!(!oor_reply_exists(USER_2, mid2, pid2));
+            assert!(out_of_rent_reply_exists(USER_1, mid1, pid1));
+            assert!(!out_of_rent_reply_exists(USER_2, mid2, pid2));
             assert_eq!(Balances::free_balance(USER_1), user1_balance - cost1);
             assert_eq!(Balances::reserved_balance(USER_1), 0);
         }
@@ -302,15 +299,15 @@ fn gear_handles_outdated_tasks() {
         // Check if missed task and message got processed in block `bn`.
         run_to_block(bn + 1, Some(u64::MAX));
         // Delete of missed blocks + single task processing.
-        assert_eq!(GA::get(), u64::MAX - db_r_w(0, 2));
+        assert_eq!(GasAllowanceOf::<Test>::get(), u64::MAX - db_r_w(0, 2));
 
         let cost2 = wl_cost_for(bn + 1 - initial_block);
 
         // Storages checking.
         assert!(!task_and_wl_message_exist(mid1, pid1, bn));
         assert!(!task_and_wl_message_exist(mid2, pid2, bn));
-        assert!(oor_reply_exists(USER_1, mid1, pid1));
-        assert!(oor_reply_exists(USER_2, mid2, pid2));
+        assert!(out_of_rent_reply_exists(USER_1, mid1, pid1));
+        assert!(out_of_rent_reply_exists(USER_2, mid2, pid2));
 
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
