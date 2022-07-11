@@ -115,6 +115,9 @@ jobs:
           gh-repository: github.com/gear-tech/performance-charts
           gh-pages-branch: master
           benchmark-data-dir-path: ./
+          
+      - name: "Store result: Clean after 1 run"
+        run: rm -r ./benchmark-data-repository
        
       - name: "Store result: Node runtime tests"
         uses: benchmark-action/github-action-benchmark@v1
