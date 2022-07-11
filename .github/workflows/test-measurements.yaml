@@ -96,7 +96,7 @@ jobs:
           fail-on-alert: true
           # Push and deploy GitHub pages branch automatically
           auto-push: true
-          gh-repository: https://github.com/gear-tech/performance-charts
+          gh-repository: github.com/gear-tech/performance-charts
           gh-pages-branch: master
 
       - name: "Cache: collected data"
