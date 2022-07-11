@@ -197,24 +197,25 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type BlockNumber = BlockNumberFor<T>;
+        type Cost = u64;
 
         fn reserve_for() -> Self::BlockNumber {
             3u32.unique_saturated_into()
         }
 
-        fn code() -> u64 {
+        fn code() -> Self::Cost {
             todo!("#646");
         }
 
-        fn mailbox() -> u64 {
+        fn mailbox() -> Self::Cost {
             todo!("#646");
         }
 
-        fn program() -> u64 {
+        fn program() -> Self::Cost {
             todo!("#646");
         }
 
-        fn waitlist() -> u64 {
+        fn waitlist() -> Self::Cost {
             100
         }
     }
@@ -234,6 +235,7 @@ pub mod pallet {
     {
         type BlockNumber = BlockNumberFor<T>;
         type Task = Task<T>;
+        type Cost = u64;
         type MissedBlocksCollection = MissedBlocksCollection<T>;
         type Error = Error<T>;
         type OutputError = DispatchError;

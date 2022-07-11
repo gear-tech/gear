@@ -211,6 +211,7 @@ pub mod pallet {
         /// Scheduler.
         type Scheduler: Scheduler<
             BlockNumber = Self::BlockNumber,
+            Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
             MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
         >;
