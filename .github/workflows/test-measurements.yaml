@@ -89,18 +89,39 @@ jobs:
           for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i 2>&1; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
           ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/runtime-tests/ --output-path ./target/runtime-tests.json
 
-      - name: "Generate report for action"
+      - name: "Generate report: Gear workspace tests"
         run: >-
-          ./target/release/regression-analysis convert 
-          --data-folder-path-without-filter ./target/runtime-tests/
+          ./target/release/regression-analysis convert
           --data-folder-path ./target/tests/
-          --output-file ./target/action-output.json
+          --output-file ./target/action-pallet-output.json
 
-      - name: Store benchmark result
+      - name: "Generate report: Node runtime tests"
+        run: >-
+          ./target/release/regression-analysis convert
+          --disable-filter
+          --data-folder-path ./target/runtime-tests/
+          --output-file ./target/action-runtime-output.json
+
+      - name: "Store result: Gear workspace tests"
         uses: benchmark-action/github-action-benchmark@v1
         with:
+          name: Gear workspace tests
           tool: 'customSmallerIsBetter'
-          output-file-path: ./target/action-output.json
+          output-file-path: ./target/action-pallet-output.json
+          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
+          fail-on-alert: true
+          # Push and deploy GitHub pages branch automatically
+          auto-push: true
+          gh-repository: github.com/gear-tech/performance-charts
+          gh-pages-branch: master
+          benchmark-data-dir-path: ./
+       
+      - name: "Store result: Node runtime tests"
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Node runtime tests
+          tool: 'customSmallerIsBetter'
+          output-file-path: ./target/action-runtime-output.json
           github-token: ${{ secrets.PERFORMANCE_CHARTS }}
           fail-on-alert: true
           # Push and deploy GitHub pages branch automatically
