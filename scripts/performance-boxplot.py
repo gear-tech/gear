@@ -25,7 +25,6 @@ seaborn.set_theme(style="ticks", palette="pastel")
 for pallet in data_master:
     dataframe_master = pandas.DataFrame(data_master[pallet])
     dataframe_master = pandas.melt(dataframe_master, var_name='Test', value_name='Time')
-    
     dataframe_master['branch'] = 'master'
     
     dataframe_current = pandas.DataFrame(data_current[pallet])

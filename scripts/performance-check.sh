@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+#
+# It is highly recommended to use python3 virtualenv for managing required dependencies.
+# Activate virtual environment before running this script: $ source /path/to/venv/bin/activate.
+# Prerequisites: (venv) $ pip3 install seaborn pandas
+#
+
 set -e
 
 SELF="$0"
@@ -86,12 +92,6 @@ rm -rf $ROOT_DIR/target/current_branch/
 mkdir -p $ROOT_DIR/target/current_branch/
 cargo run --package regression-analysis --release -- collect-data --data-folder-path $ROOT_DIR/target/tests/ --output-path $ROOT_DIR/target/current_branch/pallet-tests.json
 cargo run --package regression-analysis --release -- collect-data --disable-filter --data-folder-path $ROOT_DIR/target/runtime-tests/ --output-path $ROOT_DIR/target/current_branch/runtime-tests.json
-
-#
-# It is highly recommended to use python3 virtualenv for managing required dependencies.
-# Activate virtual environment before running this script: $ source /path/to/venv/bin/activate.
-# Prerequisites: $ pip3 install seaborn pandas
-#
 
 python3 $ROOT_DIR/scripts/performance-boxplot.py $ROOT_DIR/target/main_branch/pallet-tests.json $ROOT_DIR/target/current_branch/pallet-tests.json
 mv ./results $ROOT_DIR/target/performance-pallet-tests
