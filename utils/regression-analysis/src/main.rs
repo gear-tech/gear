@@ -202,22 +202,20 @@ fn convert(
         let statistics = collect_data(data_folder_path.clone(), disable_filter);
         let outputs = statistics
             .into_iter()
-            .flat_map(|(section_name, test_times)| {
-                let section_name = if section_name == TEST_SUITES_TEXT {
+            .flat_map(|(section_name, test_times)| iter::repeat(section_name).zip(test_times))
+            .map(|(section_name, (test_name, mut times))| {
+                let test_name = if section_name == TEST_SUITES_TEXT {
                     let component = data_folder_path
                         .components()
                         .last()
                         .unwrap()
                         .as_os_str()
                         .to_string_lossy();
-                    format!("{} - {}", section_name, component)
+                    format!("{} - {}", test_name, component)
                 } else {
-                    section_name
+                    test_name
                 };
 
-                iter::repeat(section_name).zip(test_times)
-            })
-            .map(|(section_name, (test_name, mut times))| {
                 (
                     section_name,
                     output::Test::new_for_github(test_name, &mut times),
