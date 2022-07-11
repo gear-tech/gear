@@ -23,8 +23,13 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-06-29
           target: wasm32-unknown-unknown
+
+      - name: "Install: Pin to specific nightly toolchain"
+        run: |
+          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-2022-06-29-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
