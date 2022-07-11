@@ -104,8 +104,8 @@ fn build_tree<P: AsRef<Path>>(
     result
 }
 
-fn collect_data<P: AsRef<Path>>(
-    data_folder_path: P,
+fn collect_data(
+    data_folder_path: PathBuf,
     disable_filter: bool,
 ) -> BTreeMap<String, BTreeMap<String, Vec<u64>>> {
     let mut statistics: BTreeMap<_, BTreeMap<_, Vec<_>>> = BTreeMap::default();
@@ -191,10 +191,10 @@ fn convert(
         extra: Option<String>,
     }
 
-    let data_folder_path = data_folder_path.into_iter().map(|x| (x, false));
+    let data_folder_path = data_folder_path.into_iter().map(|x| (x, true));
     let data_folder_path_without_filter = data_folder_path_without_filter
         .into_iter()
-        .map(|x| (x, true));
+        .map(|x| (x, false));
     let files = data_folder_path.chain(data_folder_path_without_filter);
 
     let mut benchmarks = vec![];
@@ -231,8 +231,7 @@ fn convert(
         }));
     }
 
-    dbg!(&benchmarks);
-    let output = serde_json::to_string(&benchmarks).unwrap();
+    let output = serde_json::to_string_pretty(&benchmarks).unwrap();
     fs::write(output_file, output).unwrap();
 }
 

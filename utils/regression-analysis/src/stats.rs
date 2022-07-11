@@ -38,8 +38,8 @@ pub fn std_dev(values: &[u64]) -> u64 {
     let average = average(values);
     let sum = values
         .iter()
-        .map(|x| x.abs_diff(average).pow(2))
-        .sum::<u64>();
-    let div = sum / values.len() as u64;
+        .map(|x| (x.abs_diff(average) as u128).pow(2))
+        .sum::<u128>();
+    let div = sum / values.len() as u128;
     (div as f64).sqrt() as u64
 }
