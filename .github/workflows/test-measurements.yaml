@@ -13,7 +13,7 @@ env:
 
 jobs:
   build:
-    runs-on: [ self-hosted, cachepot ]
+    runs-on: [ self-hosted, cachepot, xeon ]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
