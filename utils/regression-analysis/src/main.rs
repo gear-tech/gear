@@ -72,11 +72,11 @@ enum Commands {
     },
     Convert {
         #[clap(long, value_parser)]
-        data_folder_path_without_filter: Vec<PathBuf>,
-        #[clap(long, value_parser)]
-        data_folder_path: Vec<PathBuf>,
+        data_folder_path: PathBuf,
         #[clap(long, value_parser)]
         output_file: PathBuf,
+        #[clap(long, value_parser)]
+        disable_filter: bool,
     },
 }
 
@@ -177,11 +177,7 @@ fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool
     }
 }
 
-fn convert(
-    data_folder_path_without_filter: Vec<PathBuf>,
-    data_folder_path: Vec<PathBuf>,
-    output_file: PathBuf,
-) {
+fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool) {
     #[derive(Debug, Serialize)]
     struct GithubActionBenchmark {
         name: String,
@@ -193,43 +189,27 @@ fn convert(
         extra: Option<String>,
     }
 
-    let data_folder_path = data_folder_path.into_iter().map(|x| (x, false));
-    let data_folder_path_without_filter = data_folder_path_without_filter
+    let statistics = collect_data(data_folder_path.clone(), disable_filter);
+    let benchmarks = statistics
         .into_iter()
-        .map(|x| (x, true));
-    let files = data_folder_path.chain(data_folder_path_without_filter);
+        .flat_map(|(section_name, test_times)| iter::repeat(section_name).zip(test_times))
+        .map(|(section_name, (test_name, mut times))| {
+            let test_name = if section_name == TEST_SUITES_TEXT {
+                test_name
+            } else {
+                format!("{} - {}", section_name, test_name)
+            };
 
-    let mut benchmarks = vec![];
-    for (data_folder_path, disable_filter) in files {
-        let statistics = collect_data(data_folder_path.clone(), disable_filter);
-        let outputs = statistics
-            .into_iter()
-            .flat_map(|(section_name, test_times)| iter::repeat(section_name).zip(test_times))
-            .map(|(section_name, (test_name, mut times))| {
-                let test_name = if section_name == TEST_SUITES_TEXT {
-                    let component = data_folder_path
-                        .components()
-                        .last()
-                        .unwrap()
-                        .as_os_str()
-                        .to_string_lossy();
-                    format!("{} - {}", test_name, component)
-                } else {
-                    format!("{} - {}", section_name, test_name)
-                };
-
-                output::Test::new_for_github(test_name, &mut times)
-            })
-            .map(|test| GithubActionBenchmark {
-                name: test.name,
-                unit: "ns".to_string(),
-                value: test.current_time,
-                range: Some(format!("± {}", test.std_dev)),
-                extra: None,
-            });
-
-        benchmarks.extend(outputs);
-    }
+            output::Test::new_for_github(test_name, &mut times)
+        })
+        .map(|test| GithubActionBenchmark {
+            name: test.name,
+            unit: "ns".to_string(),
+            value: test.current_time,
+            range: Some(format!("± {}", test.std_dev)),
+            extra: None,
+        })
+        .collect::<Vec<_>>();
 
     let output = serde_json::to_string_pretty(&benchmarks).unwrap();
     fs::write(output_file, output).unwrap();
@@ -256,15 +236,11 @@ fn main() {
             compare(data_path, current_junit_path, disable_filter);
         }
         Commands::Convert {
-            data_folder_path_without_filter,
             data_folder_path,
             output_file,
+            disable_filter,
         } => {
-            convert(
-                data_folder_path_without_filter,
-                data_folder_path,
-                output_file,
-            );
+            convert(data_folder_path, output_file, disable_filter);
         }
     }
 }
