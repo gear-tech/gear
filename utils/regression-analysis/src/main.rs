@@ -187,7 +187,9 @@ fn convert(
         name: String,
         unit: String,
         value: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
         range: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         extra: Option<String>,
     }
 
