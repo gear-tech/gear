@@ -236,7 +236,6 @@ where
             alloc_cost: T::Schedule::get().memory_weights.allocation_cost,
             mem_grow_cost: T::Schedule::get().memory_weights.grow_cost,
             load_page_cost: T::Schedule::get().memory_weights.load_cost,
-            second_load_page_cost: 0,
         },
         existential_deposit,
         outgoing_limit: 2048,

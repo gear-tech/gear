@@ -75,19 +75,16 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     };
 
     // Charging gas for loaded pages
-    let cost = if subsequent_execution {
-        settings.second_load_page_cost()
-    } else {
-        settings.load_page_cost()
-    };
-    let amount = cost * allocations.len() as u64;
+    if !subsequent_execution {
+        let amount = settings.load_page_cost() * allocations.len() as u64;
 
-    if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
-    }
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
+        }
 
-    if gas_counter.charge(amount) != ChargeResult::Enough {
-        return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+        }
     }
 
     // Charging gas for mem size
