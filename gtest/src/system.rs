@@ -78,8 +78,9 @@ impl System {
     }
 
     pub fn spend_blocks(&self, amount: u32) {
-        self.0.borrow_mut().block_info.height += amount;
-        self.0.borrow_mut().block_info.timestamp += amount as u64;
+        let mut manager = self.0.borrow_mut();
+        manager.block_info.height += amount;
+        manager.block_info.timestamp += amount as u64;
     }
 
     /// Returns a [`Program`] by `id`.

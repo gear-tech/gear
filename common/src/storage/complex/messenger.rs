@@ -141,7 +141,7 @@ pub trait Messenger {
     /// Gear runtime also charges rent for holding in waitlist.
     /// Note, that system can remove message from waitlist,
     /// if it couldn't pay rent for holding there further.
-    /// For details, see `pallet-usage`.
+    /// For details, see `pallet-gear-scheduler`.
     type Waitlist: Waitlist<
             Key1 = Self::WaitlistFirstKey,
             Key2 = Self::WaitlistSecondKey,

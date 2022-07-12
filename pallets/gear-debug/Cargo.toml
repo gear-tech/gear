@@ -35,7 +35,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
-serde = "1.0.138"
+serde = "1.0.139"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
@@ -44,6 +44,7 @@ hex-literal = "0.3.3"
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
+pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
 pallet-gear-program = { path = "../gear-program", default-features = false }
 
 [features]
@@ -64,6 +65,7 @@ std = [
 	"primitive-types/std",
 	"pallet-gear/std",
 	"pallet-gear-messenger/std",
+	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

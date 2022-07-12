@@ -45,7 +45,7 @@ pub use crate::{
 };
 pub use weights::WeightInfo;
 
-use common::{storage::*, CodeStorage};
+use common::{scheduler::*, storage::*, BlockLimiter, CodeStorage, GasProvider};
 use frame_support::{
     traits::{Currency, StorageVersion},
     weights::Weight,
@@ -59,14 +59,12 @@ use gear_core::{
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
     prelude::*,
 };
-
-pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -77,9 +75,13 @@ pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 pub(crate) type WaitlistOf<T> = <<T as Config>::Messenger as Messenger>::Waitlist;
 pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>::Capacity;
-pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::GasAllowance;
-pub type GasHandlerOf<T> = <<T as Config>::GasProvider as common::GasProvider>::GasTree;
-pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as common::BlockLimiter>::BlockGasLimit;
+pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
+pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
+pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
+pub type Authorship<T> = pallet_authorship::Pallet<T>;
+pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
+pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
+pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -125,7 +127,8 @@ pub mod pallet {
     };
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, CodeMetadata, GasPrice, GasTree, Origin, Program, ProgramState,
+        self, event::*, lazy_pages, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree,
+        Origin, Program, ProgramState,
     };
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
@@ -149,7 +152,7 @@ pub mod pallet {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// Gas and value transfer currency
+        /// Balances management trait for gas/value migrations.
         type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         /// Gas to Currency converter
@@ -166,10 +169,6 @@ pub mod pallet {
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
 
-        /// The cost for a message to spend one block in the wait list
-        #[pallet::constant]
-        type WaitListFeePerBlock: Get<u64>;
-
         type DebugInfo: DebugInfo;
 
         type CodeStorage: CodeStorage;
@@ -184,6 +183,7 @@ pub mod pallet {
         #[pallet::constant]
         type MailboxThreshold: Get<u64>;
 
+        /// Messenger.
         type Messenger: Messenger<
             BlockNumber = Self::BlockNumber,
             Capacity = u32,
@@ -198,14 +198,23 @@ pub mod pallet {
         >;
 
         /// Implementation of a ledger to account for gas creation and consumption
-        type GasProvider: common::GasProvider<
+        type GasProvider: GasProvider<
             ExternalOrigin = Self::AccountId,
             Key = MessageId,
             Balance = u64,
             Error = DispatchError,
         >;
 
-        type BlockLimiter: common::BlockLimiter<Balance = u64>;
+        /// Block limits.
+        type BlockLimiter: BlockLimiter<Balance = u64>;
+
+        /// Scheduler.
+        type Scheduler: Scheduler<
+            BlockNumber = Self::BlockNumber,
+            Cost = u64,
+            Task = ScheduledTask<Self::AccountId>,
+            MissedBlocksCollection = BTreeSet<Self::BlockNumber>,
+        >;
     }
 
     #[pallet::pallet]
@@ -377,21 +386,21 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "runtime::gear::hooks", "🚧 Runtime upgrade");
+            log::debug!(target: "runtime::gear", "⚙️ Runtime upgrade");
 
             Weight::MAX
         }
 
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
-            log::debug!(target: "runtime::gear::hooks", "🚧 Initialization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️ Initialization of block #{:?}", bn);
 
             0
         }
 
         /// Finalization
         fn on_finalize(bn: BlockNumberFor<T>) {
-            log::debug!(target: "runtime::gear::hooks", "🚧 Finalization of block #{:?}", bn);
+            log::debug!(target: "runtime::gear", "⚙️ Finalization of block #{:?}", bn);
         }
 
         /// Queue processing occurs after all normal extrinsics in the block
@@ -399,17 +408,10 @@ pub mod pallet {
         /// There should always remain enough weight for this hook to be invoked
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
-                target: "runtime::gear::hooks",
-                "🚧 Queue processing of block #{:?} with weight='{:?}'",
-                bn,
-                remaining_weight,
-            );
-
-            log::debug!(
                 target: "runtime::gear",
-                "{} of weight remains in block {:?} after normal extrinsics have been processed",
-                remaining_weight,
+                "⚙️ Queue and tasks processing of block #{:?} with weight='{:?}'",
                 bn,
+                remaining_weight,
             );
 
             // Adjust the block gas allowance based on actual remaining weight.
@@ -418,7 +420,28 @@ pub mod pallet {
             // so we don't need to include that db write.
             GasAllowanceOf::<T>::put(remaining_weight);
 
-            Self::process_queue()
+            // Ext manager creation.
+            // It will be processing messages execution results following its `JournalHandler` trait implementation.
+            // It also will handle delayed tasks following `TasksHandler`.
+            let mut ext_manager = Default::default();
+
+            // Processing regular and delayed tasks.
+            Self::process_tasks(&mut ext_manager);
+
+            // Processing message queue.
+            Self::process_queue(ext_manager);
+
+            // Calculating weight burned within the block.
+            let weight = remaining_weight.saturating_sub(GasAllowanceOf::<T>::get() as Weight);
+
+            log::debug!(
+                target: "runtime::gear",
+                "⚙️ Weight '{:?}' burned in block #{:?}",
+                weight,
+                bn,
+            );
+
+            weight
         }
     }
 
@@ -862,13 +885,113 @@ pub mod pallet {
             MessageId::generate_from_user(block_number, user_id, nonce.into())
         }
 
+        /// Delayed tasks processing.
+        pub fn process_tasks(ext_manager: &mut ExtManager<T>) {
+            // Current block number.
+            let bn = <frame_system::Pallet<T>>::block_number();
+
+            // Taking block numbers, where some incomplete tasks held.
+            // If there are no such values, we charge for single read, because
+            // nothing changing in database, otherwise we delete previous
+            // value and charge for single write.
+            //
+            // We also append current bn to process it together, by iterating
+            // over sorted bns set (that's the reason why `BTreeSet` used).
+            let (missed_blocks, were_empty) = MissedBlocksOf::<T>::take()
+                .map(|mut set| {
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                    set.insert(bn);
+                    (set, false)
+                })
+                .unwrap_or_else(|| {
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().reads(1));
+                    ([bn].into(), true)
+                });
+
+            // When we had to stop processing due to insufficient gas allowance.
+            let mut stopped_at = None;
+
+            // Iterating over blocks.
+            for bn in &missed_blocks {
+                // Tasks drain iterator.
+                let tasks = TaskPoolOf::<T>::drain_prefix_keys(*bn);
+
+                // Checking gas allowance.
+                //
+                // Making sure we have gas to remove next task
+                // or update missed blocks.
+                if were_empty {
+                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                        stopped_at = Some(*bn);
+                        break;
+                    }
+                } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                    stopped_at = Some(*bn);
+                    break;
+                }
+
+                // Iterating over tasks, scheduled on `bn`.
+                for task in tasks {
+                    log::debug!("Processing task: {:?}", task);
+
+                    // Decreasing gas allowance due to DB deletion.
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+
+                    // Processing task.
+                    //
+                    // NOTE: Gas allowance decrease should be implemented
+                    // inside `TaskHandler` trait and/or inside other
+                    // generic types, which interact with storage.
+                    task.process_with(ext_manager);
+
+                    // Checking gas allowance.
+                    //
+                    // Making sure we have gas to remove next task
+                    // or update missed blocks.
+                    if were_empty {
+                        if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
+                            stopped_at = Some(*bn);
+                            break;
+                        }
+                    } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                        stopped_at = Some(*bn);
+                        break;
+                    }
+                }
+
+                // Stopping iteration over blocks if no resources left.
+                if stopped_at.is_some() {
+                    break;
+                }
+            }
+
+            // If we didn't process all tasks and stopped at some block number,
+            // then there is new missed blocks set we should store.
+            if let Some(stopped_at) = stopped_at {
+                // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
+                let stopped_at: u32 = stopped_at.unique_saturated_into();
+
+                let actual_missed_blocks = missed_blocks
+                    .into_iter()
+                    .skip_while(|&x| {
+                        // Avoiding `PartialEq` trait bound for `T::BlockNumber`.
+                        let x: u32 = x.unique_saturated_into();
+                        x != stopped_at
+                    })
+                    .collect();
+
+                // Charging for inserting into missing blocks,
+                // if we were reading it only (they were empty).
+                if were_empty {
+                    GasAllowanceOf::<T>::decrease(T::DbWeight::get().writes(1));
+                }
+
+                MissedBlocksOf::<T>::put(actual_missed_blocks);
+            }
+        }
+
         /// Message Queue processing.
-        pub fn process_queue() -> Weight {
-            let mut ext_manager = ExtManager::<T>::default();
-
-            let weight = GasAllowanceOf::<T>::get() as Weight;
-            let schedule = T::Schedule::get();
-
+        pub fn process_queue(mut ext_manager: ExtManager<T>) {
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
@@ -876,6 +999,8 @@ pub mod pallet {
 
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+            let schedule = T::Schedule::get();
 
             let allocations_config = AllocationsConfig {
                 max_pages: gear_core::memory::WasmPageNumber(schedule.limits.memory_pages),
@@ -1022,8 +1147,32 @@ pub mod pallet {
                                     program_id,
                                     current_message_id,
                                 );
+
+                                let message_id = dispatch.id();
+                                let program_id = dispatch.destination();
                                 WaitlistOf::<T>::insert(dispatch).unwrap_or_else(|e| {
                                     unreachable!("Waitlist corrupted! {:?}", e)
+                                });
+
+                                let current_bn = <frame_system::Pallet<T>>::block_number()
+                                    .saturated_into::<u32>();
+
+                                let can_cover =
+                                    gas_limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
+                                let reserve_for =
+                                    CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
+
+                                let duration = (can_cover as u32).saturating_sub(reserve_for);
+
+                                let deadline = current_bn.saturating_add(duration);
+                                let deadline: T::BlockNumber = deadline.unique_saturated_into();
+
+                                TaskPoolOf::<T>::add(
+                                    deadline,
+                                    ScheduledTask::RemoveFromWaitlist(program_id, message_id),
+                                )
+                                .unwrap_or_else(|e| {
+                                    unreachable!("Scheduling logic invalidated! {:?}", e)
                                 });
                                 continue;
                             }
@@ -1144,8 +1293,6 @@ pub mod pallet {
                     state_changes: post_data.state_changes,
                 });
             }
-
-            weight.saturating_sub(GasAllowanceOf::<T>::get())
         }
 
         /// Sets `code` and metadata, if code doesn't exist in storage.

@@ -1705,7 +1705,6 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-gas",
- "pallet-usage",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "parking_lot 0.12.1",
@@ -2615,12 +2614,12 @@ dependencies = [
  "pallet-gear-payment",
  "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
+ "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
- "pallet-usage",
  "pallet-utility",
  "parity-scale-codec",
  "scale-info",
@@ -4892,6 +4891,7 @@ dependencies = [
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
  "pallet-gear-program",
+ "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -4928,6 +4928,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
+ "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -4977,6 +4978,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear-gas",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -5003,6 +5005,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
+ "pallet-gear-scheduler",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -5038,6 +5041,7 @@ dependencies = [
  "hex-literal",
  "log",
  "pallet-balances",
+ "pallet-gear-gas",
  "pallet-gear-messenger",
  "parity-scale-codec",
  "primitive-types",
@@ -5071,6 +5075,34 @@ dependencies = [
  "pallet-gear",
  "sp-api",
  "sp-core",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-gear-scheduler"
+version = "1.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "gear-core-processor",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -5190,37 +5222,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-runtime",
-]
-
-[[package]]
-name = "pallet-usage"
-version = "2.0.0"
-dependencies = [
- "env_logger",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "gear-common",
- "gear-core",
- "gear-core-processor",
- "hex-literal",
- "log",
- "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-gear-program",
- "pallet-timestamp",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "primitive-types",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "wasm-instrument",
 ]
 
 [[package]]
@@ -7423,9 +7424,9 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.138"
+version = "1.0.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1578c6245786b9d168c5447eeacfb96856573ca56c9d68fdcf394be134882a47"
+checksum = "0171ebb889e45aa68b44aee0859b3eede84c6f5f5c228e6f140c0b2a0a46cad6"
 dependencies = [
  "serde_derive",
 ]
@@ -7441,9 +7442,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.138"
+version = "1.0.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "023e9b1467aef8a10fb88f25611870ada9800ef7e22afce356bb0d2387b6f27c"
+checksum = "dc1d3230c1de7932af58ad8ffbe1d784bd55efd5a9d84ac24f69c72d83543dfb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7472,9 +7473,9 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.8.24"
+version = "0.8.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707d15895415db6628332b737c838b88c598522e4dc70647e59b72312924aebc"
+checksum = "1ec0091e1f5aa338283ce049bd9dfefd55e1f168ac233e85c1ffe0038fb48cbe"
 dependencies = [
  "indexmap",
  "ryu",

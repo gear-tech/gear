@@ -336,6 +336,9 @@ pub enum ExecutionErrorReason {
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
+    /// Initial pages data must be empty when execute with lazy pages
+    #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
+    InitialPagesContainsDataInLazyPagesMode,
 }
 
 /// Actor.

@@ -71,7 +71,6 @@ pub use pallet_gear;
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
-pub use pallet_usage;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -123,7 +122,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1280,
+    spec_version: 1300,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -339,7 +338,6 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 10;
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
-    pub const WaitListFeePerBlock: u64 = 1_000;
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
 }
 
@@ -350,13 +348,13 @@ impl pallet_gear::Config for Runtime {
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = ConstU32<1024>;
-    type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -367,16 +365,10 @@ impl pallet_gear_debug::Config for Runtime {
     type Messenger = GearMessenger;
 }
 
-impl pallet_usage::Config for Runtime {
-    type Event = Event;
-    type PaymentProvider = Gear;
-    type WeightInfo = pallet_usage::weights::GearSupportWeight<Runtime>;
-    type WaitListTraversalInterval = WaitListTraversalInterval;
-    type ExpirationDuration = ExpirationDuration;
-    type MaxBatchSize = ConstU32<100>;
-    type TrapReplyExistentialGasLimit = ConstU64<6000>;
-    type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
-    type Messenger = GearMessenger;
+impl pallet_gear_scheduler::Config for Runtime {
+    type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU32<1>;
+    type WaitlistCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -385,6 +377,7 @@ impl pallet_gear_gas::Config for Runtime {
 
 impl pallet_gear_messenger::Config for Runtime {
     type Currency = Balances;
+    type BlockLimiter = GearGas;
 }
 
 pub struct ExtraFeeFilter;
@@ -450,9 +443,9 @@ construct_runtime!(
         Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
-        Gear: pallet_gear,
-        Usage: pallet_usage,
+        GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
+        Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
 
         // Only available with "debug-mode" feature on
@@ -478,9 +471,9 @@ construct_runtime!(
         Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
-        Gear: pallet_gear,
-        Usage: pallet_usage,
+        GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
+        Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
     }
 );

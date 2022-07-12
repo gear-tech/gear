@@ -37,7 +37,7 @@ const PALLET_NAMES: [&str; 7] = [
     "pallet-gear-messenger",
     "pallet-gear-program",
     "pallet-gear-payment",
-    "pallet-usage",
+    "pallet-gear-scheduler",
 ];
 
 const PREALLOCATE: usize = 1_000;
