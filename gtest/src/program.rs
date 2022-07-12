@@ -123,6 +123,31 @@ impl From<[u8; 32]> for ProgramIdWrapper {
     }
 }
 
+impl From<&[u8]> for ProgramIdWrapper {
+    fn from(other: &[u8]) -> Self {
+        if other.len() != 32 {
+            panic!("Invalid identifier: {:?}", other)
+        }
+
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(other);
+
+        bytes.into()
+    }
+}
+
+impl From<Vec<u8>> for ProgramIdWrapper {
+    fn from(other: Vec<u8>) -> Self {
+        other[..].into()
+    }
+}
+
+impl From<&Vec<u8>> for ProgramIdWrapper {
+    fn from(other: &Vec<u8>) -> Self {
+        other[..].into()
+    }
+}
+
 impl From<String> for ProgramIdWrapper {
     fn from(other: String) -> Self {
         other[..].into()
