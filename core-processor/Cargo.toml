@@ -7,14 +7,18 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../core" }
-gear-core-errors = { path = "../core-errors" }
+gear-core-errors = { path = "../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../core-backend/common" }
 
 blake2-rfc = { version = "0.2.18", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"], default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
-anyhow = { version = "1.0.57", default-features = false }
+anyhow = { version = "1.0.58", default-features = false }
 derive_more = "0.99.17"
+
+[dev-dependencies]
+hex = "0.4.3"
 
 [features]
 strict = []

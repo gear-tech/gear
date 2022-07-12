@@ -23,10 +23,10 @@ use utils::{RemainingNodes, RemovedNodes};
 
 /// Check that removed nodes invariants are met
 pub(super) fn assert_removed_nodes_props(
-    consumed: H256,
+    consumed: Key,
     removed_nodes: RemovedNodes,
     remaining_nodes: &RemainingNodes,
-    marked_consumed_nodes: &BTreeSet<H256>,
+    marked_consumed_nodes: &BTreeSet<Key>,
 ) {
     if removed_nodes.is_empty() {
         return;
@@ -38,7 +38,7 @@ pub(super) fn assert_removed_nodes_props(
 }
 
 // Check that if node was consumed, but not removed, it's of `SpecifiedLocal` or `External` types.
-fn assert_not_removed_node_type(consumed: H256, remaining_nodes: &RemainingNodes) {
+fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes) {
     if let Some(consumed) = remaining_nodes.get(&consumed) {
         // Node was not removed after consume, so should be of specific types
         assert!(consumed.inner.is_external() || consumed.inner.is_specified_local());
@@ -66,9 +66,9 @@ fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
 // That is true for all the removed nodes except for the `consumed` one, because when it's removed
 // it's redundant to update it's status in the persistence layer to `consumed`.
 fn assert_removed_nodes_are_consumed(
-    consumed: H256,
-    marked_consumed_nodes: &BTreeSet<H256>,
-    removed_nodes: &BTreeMap<H256, ValueNode>,
+    consumed: Key,
+    marked_consumed_nodes: &BTreeSet<Key>,
+    removed_nodes: &BTreeMap<Key, GasNode>,
 ) {
     for (id, node) in removed_nodes {
         if *id != consumed {
@@ -85,7 +85,7 @@ fn assert_removed_nodes_are_consumed(
 
 // Check that removed nodes form a path (if more than one was removed).
 fn assert_removed_nodes_form_path(
-    consumed: H256,
+    consumed: Key,
     remaining_nodes: &RemainingNodes,
     removed_nodes: RemovedNodes,
 ) {
@@ -112,7 +112,7 @@ fn assert_removed_nodes_form_path(
 // That is done the following way. Each time `consume` procedure is called we check `root_node` for existence.
 // If it was removed after a new `consume` call, then all the tree must be empty. So no nodes can be removed
 // after root was removed in the `consume` call.
-pub(super) fn assert_root_removed_last(root_node: H256, remaining_nodes: RemainingNodes) {
+pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: RemainingNodes) {
     if Gas::get_node(&root_node).is_none() {
         assert!(remaining_nodes.is_empty());
     }

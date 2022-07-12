@@ -56,12 +56,12 @@ mod wasm {
     static mut ORIGIN: Option<ActorId> = None;
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
+    unsafe extern "C" fn init() {
         ORIGIN = Some(msg::source());
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle() {
+    unsafe extern "C" fn handle() {
         match msg::load().expect("provided invalid payload") {
             CreateProgram::Default => {
                 let submitted_code = CHILD_CODE_HASH.into();
@@ -69,7 +69,7 @@ mod wasm {
                     submitted_code,
                     COUNTER.to_le_bytes(),
                     [],
-                    1_000_000_000,
+                    10_000_000_000,
                     0,
                 )
                 .unwrap();
@@ -90,7 +90,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {
+    unsafe extern "C" fn handle_reply() {
         if msg::exit_code() != 0 {
             let origin = ORIGIN.clone().unwrap();
             msg::send_bytes(origin, [], 0).unwrap();

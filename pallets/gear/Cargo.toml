@@ -27,7 +27,6 @@ gear-core-errors = { path = "../../core-errors" }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
-pallet-gas = { path = "../gas", default-features = false }
 pallet-gear-proc-macro = { version = "2.0.0", path = "proc-macro" }
 
 # Substrate deps
@@ -62,11 +61,16 @@ demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
+demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
+demo-calc-hash = { path = "../../examples/binaries/calc-hash" }
+demo-calc-hash-over-blocks = { path = "../../examples/binaries/calc-hash/over-blocks" }
+demo-calc-hash-in-one-block = { path = "../../examples/binaries/calc-hash/in-one-block" }
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 page_size = "0.4.2"
+pallet-gear-gas = { path = "../gas", default-features = false }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 
 [features]
@@ -79,7 +83,7 @@ std = [
 	"frame-system/std",
 	"wasm-instrument/std",
 	"gear-backend-sandbox/std",
-	"pallet-gas/std",
+	"pallet-gear-gas/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",

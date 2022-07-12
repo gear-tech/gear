@@ -116,7 +116,7 @@ gstd::metadata! {
 static mut WALLETS: Vec<Wallet> = Vec::new();
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
     let message_out: MessageOut = message_in.into();
 
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     WALLETS.push(Wallet {
         id: Id {
             decimal: 1,
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn init() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
     let person: Option<Id> = msg::load().expect("failed to decode input argument");
     let encoded = match person {
         None => WALLETS.encode(),

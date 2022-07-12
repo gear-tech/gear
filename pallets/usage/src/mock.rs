@@ -63,7 +63,7 @@ construct_runtime!(
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         GearMessenger: pallet_gear_messenger::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Gas: pallet_gas::{Pallet, Storage},
+        GearGas: pallet_gear_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
@@ -136,17 +136,19 @@ impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = Gas;
     type WeightInfo = ();
     type OutgoingLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type Schedule = ();
     type CodeStorage = GearProgram;
+    type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
+    type GasProvider = GearGas;
+    type BlockLimiter = GearGas;
 }
 
-impl pallet_gas::Config for Test {
+impl pallet_gear_gas::Config for Test {
     type BlockGasLimit = ();
 }
 
@@ -255,7 +257,7 @@ pub(crate) fn run_to_block(n: u64) {
         log::debug!("📦 Processing block {}", i);
         System::set_block_number(i);
         Usage::on_initialize(i);
-        Gas::on_initialize(System::block_number());
+        GearGas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_idle(i, 1_000_000_000);
     }
@@ -290,7 +292,7 @@ pub(crate) fn set_program<T: pallet_gear::Config>(
     bn: u32,
 ) -> Program {
     let code = Code::try_new(
-        hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+        hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec(),
         1,
         |_| ConstantCostRules::default(),
     )

@@ -74,7 +74,7 @@ where
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 /// }
@@ -139,7 +139,7 @@ impl From<gcore::MessageHandle> for MessageHandle {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let exit_code = msg::exit_code();
 /// }
@@ -158,7 +158,7 @@ pub fn exit_code() -> i32 {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 /// }
 /// ```
@@ -176,7 +176,7 @@ pub fn id() -> MessageId {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     let payload_bytes = msg::load_bytes();
 /// }
 /// ```
@@ -210,7 +210,7 @@ pub fn load_bytes() -> Vec<u8> {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_with_gas(b"PING", 0, 0).unwrap();
 /// }
@@ -257,7 +257,7 @@ pub fn reply_bytes_with_gas(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -282,7 +282,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -315,7 +315,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
@@ -338,7 +338,7 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle_reply() {
+/// unsafe extern "C" fn handle_reply() {
 ///     // ...
 ///     let original_message_id = msg::reply_to();
 /// }
@@ -369,7 +369,7 @@ pub fn reply_to() -> MessageId {
 /// ```
 /// use gstd::{msg, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let id = msg::source();
 ///
@@ -393,7 +393,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
 /// ```
 /// use gstd::{msg, ActorId};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let id = msg::source();
 ///
@@ -434,7 +434,7 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -460,7 +460,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -496,7 +496,7 @@ pub fn send_commit_with_gas(
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -524,7 +524,7 @@ pub fn send_init() -> Result<MessageHandle> {
 /// ```
 /// use gstd::{exec, msg};
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
@@ -552,7 +552,7 @@ pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) -> Result<(
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let payload_size = msg::size();
 /// }
@@ -571,7 +571,7 @@ pub fn size() -> usize {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let who_sends_message = msg::source();
 /// }
@@ -590,7 +590,7 @@ pub fn source() -> ActorId {
 /// ```
 /// use gstd::msg;
 ///
-/// pub unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle() {
 ///     // ...
 ///     let amount_sent_with_message = msg::value();
 /// }

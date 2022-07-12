@@ -44,15 +44,17 @@
 //! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
 
 use crate::{
-    Authorship, Config, Event, GearProgramPallet, MailboxOf, Pallet, QueueOf, SentOf, WaitlistOf,
+    Authorship, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet,
+    QueueOf, SentOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, storage::*, ActiveProgram, CodeStorage, GasPrice, Origin, Program, ProgramState,
-    ValueTree,
+    event::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin, Program,
+    ProgramState,
 };
 use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
+    Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, ExecutionErrorReason,
+    JournalHandler,
 };
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
@@ -63,7 +65,6 @@ use gear_core::{
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
-use pallet_gas::Pallet as GasPallet;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
@@ -158,7 +159,7 @@ where
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_executable_actor(&self, id: ProgramId, with_pages: bool) -> Option<ExecutableActor> {
+    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
@@ -182,10 +183,13 @@ where
             Default::default()
         };
 
-        Some(ExecutableActor {
-            program,
+        Some(Actor {
             balance,
-            pages_data,
+            destination_program: id,
+            executable_data: Some(ExecutableActorData {
+                program,
+                pages_data,
+            }),
         })
     }
 
@@ -258,14 +262,11 @@ where
             }
             MessageTrap { program_id, trap } => {
                 log::trace!("Dispatch outcome trap: {:?}", message_id);
-
-                if let Some(reason) = trap {
-                    log::info!(
-                        "🪤 Program {} terminated with a trap: {}",
-                        program_id.into_origin(),
-                        reason
-                    );
-                };
+                log::debug!(
+                    "🪤 Program {} terminated with a trap: {}",
+                    program_id.into_origin(),
+                    trap
+                );
 
                 DispatchStatus::Failed
             }
@@ -323,21 +324,19 @@ where
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        let message_id = message_id.into_origin();
-
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
-        GasPallet::<T>::decrease_gas_allowance(amount);
+        GasAllowanceOf::<T>::decrease(amount);
 
-        match T::GasHandler::spend(message_id, amount) {
+        match GasHandlerOf::<T>::spend(message_id, amount) {
             Ok(_) => {
-                match T::GasHandler::get_origin(message_id) {
+                match GasHandlerOf::<T>::get_external(message_id) {
                     Ok(maybe_origin) => {
                         if let Some(origin) = maybe_origin {
                             let charge = T::GasPrice::gas_price(amount);
                             if let Some(author) = Authorship::<T>::author() {
                                 match <T as Config>::Currency::repatriate_reserved(
-                                    &<T::AccountId as Origin>::from_origin(origin),
+                                    &origin,
                                     &author,
                                     charge,
                                     BalanceStatus::Free,
@@ -346,7 +345,7 @@ where
                                         if leftover > TOL.unique_saturated_into() {
                                             log::debug!(
                                                 target: "essential",
-                                                "Reserved funds not fully repatriated from {} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                                "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
                                                 origin,
                                                 author,
                                                 charge,
@@ -357,7 +356,7 @@ where
                                     Err(e) => {
                                         log::debug!(
                                             target: "essential",
-                                            "Failure to repatriate reserves of {:?} from {} to 0x{:?}: {:?}",
+                                            "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
                                             charge,
                                             origin,
                                             author,
@@ -417,9 +416,7 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        let message_id = message_id.into_origin();
-
-        match T::GasHandler::consume(message_id) {
+        match GasHandlerOf::<T>::consume(message_id) {
             Err(_e) => {
                 // We only can get an error here if the gas tree is invalidated
                 // TODO: handle appropriately
@@ -431,17 +428,14 @@ where
 
                     if gas_left > 0 {
                         log::debug!(
-                            "Unreserve balance on message processed: {} to {}",
+                            "Unreserve balance on message processed: {} to {:?}",
                             gas_left,
                             external
                         );
 
                         let refund = T::GasPrice::gas_price(gas_left);
 
-                        let _ = <T as Config>::Currency::unreserve(
-                            &<T::AccountId as Origin>::from_origin(external),
-                            refund,
-                        );
+                        let _ = <T as Config>::Currency::unreserve(&external, refund);
                     }
                 }
             }
@@ -449,7 +443,6 @@ where
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        let message_id = message_id.into_origin();
         let gas_limit = dispatch.gas_limit();
         let dispatch = dispatch.into_stored();
 
@@ -469,37 +462,71 @@ where
 
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
-                let _ = T::GasHandler::split_with_value(
-                    message_id,
-                    dispatch.id().into_origin(),
-                    gas_limit,
-                );
+                let _ = GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit);
             } else {
-                let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
+                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id());
             }
 
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
-            let message = dispatch.into_parts().1;
+            let message = match dispatch.exit_code() {
+                Some(0) | None => dispatch.into_parts().1,
+                _ => {
+                    let message = dispatch.into_parts().1;
+                    message
+                        .clone()
+                        .with_string_payload::<ExecutionErrorReason>()
+                        .unwrap_or(message)
+                }
+            };
 
-            // Being placed into a user's mailbox means the end of a message life cycle.
-            // There can be no further processing whatsoever, hence any gas attempted to be
-            // passed along must be returned (i.e. remain in the parent message's value tree).
+            let (mut expiration, mailbox_threshold) = (None, T::MailboxThreshold::get());
 
-            // TODO: update logic of insertion into mailbox following new
-            // flow and deposit appropriate event (issue #1010).
-            if MailboxOf::<T>::insert(message.clone()).is_ok() {
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                });
+            let mut append_message_to_mailbox = |gas_limit: u64| {
+                // Being placed into a user's mailbox means the end of a message life cycle.
+                // There can be no further processing whatsoever, hence any gas attempted to be
+                // passed along must be returned (i.e. remain in the parent message's value tree).
+
+                // TODO: update logic of insertion into mailbox following new
+                // flow and deposit appropriate event (issue #1010).
+                match MailboxOf::<T>::insert(message.clone()) {
+                    Ok(_) => {
+                        // TODO: replace this temporary (zero) value for expiration
+                        // block number with properly calculated one
+                        // (issues #646 and #969).
+                        expiration = Some(T::BlockNumber::zero());
+
+                        let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
+                    }
+                    Err(e) => {
+                        log::error!("mailbox insert error: {:?}", e);
+                    }
+                }
+            };
+
+            if let Some(gas_limit) = gas_limit {
+                if gas_limit >= mailbox_threshold {
+                    append_message_to_mailbox(gas_limit);
+                }
             } else {
-                log::error!("Error occurred in mailbox insertion")
+                let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
+                    .unwrap_or_else(|e| {
+                        log::error!("get gas limit error: {:?}", e);
+                        None
+                    })
+                    .map(|(g, _)| g)
+                    .unwrap_or(0);
+
+                if gas_limit >= mailbox_threshold {
+                    append_message_to_mailbox(mailbox_threshold);
+                }
             }
+
+            Pallet::<T>::deposit_event(Event::UserMessageSent {
+                message,
+                expiration,
+            });
         }
     }
 
@@ -507,15 +534,13 @@ where
         WaitlistOf::<T>::insert(dispatch.clone())
             .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
 
-        let origin = if let Some(origin) =
-            GasPallet::<T>::get_origin_key(dispatch.id().into_origin())
-                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
-                .map(MessageId::from_origin)
+        let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
         {
-            if origin == dispatch.id() {
+            if key == dispatch.id() {
                 None
             } else {
-                Some(origin)
+                Some(key)
             }
         } else {
             unreachable!("ValueTree corrupted!")
@@ -526,7 +551,7 @@ where
         // calculated one (issues #646 and #969).
         Pallet::<T>::deposit_event(Event::MessageWaited {
             id: dispatch.id(),
-            origin,
+            origin: origin_key,
             reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
             expiration: T::BlockNumber::zero(),
         });
@@ -544,15 +569,15 @@ where
                 .saturating_sub(bn.saturated_into::<u32>());
             let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-            match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
+            match GasHandlerOf::<T>::spend(message_id, chargeable_amount) {
                 Ok(_) => {
-                    match T::GasHandler::get_origin(message_id.into_origin()) {
+                    match GasHandlerOf::<T>::get_external(message_id) {
                         Ok(maybe_origin) => {
                             if let Some(origin) = maybe_origin {
                                 let charge = T::GasPrice::gas_price(chargeable_amount);
                                 if let Some(author) = Authorship::<T>::author() {
                                     match <T as Config>::Currency::repatriate_reserved(
-                                        &<T::AccountId as Origin>::from_origin(origin),
+                                        &origin,
                                         &author,
                                         charge,
                                         BalanceStatus::Free,
@@ -561,7 +586,7 @@ where
                                             if leftover > TOL.unique_saturated_into() {
                                                 log::debug!(
                                                     target: "essential",
-                                                    "Reserved funds not fully repatriated from {} to 0x{:?}: amount = {:?}, leftover = {:?}",
+                                                    "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
                                                     origin,
                                                     author,
                                                     charge,
@@ -570,9 +595,10 @@ where
                                             }
                                         }
                                         Err(e) => {
-                                            log::debug!(
+                                            // Reserved funds should be always repatriatable
+                                            log::error!(
                                                 target: "essential",
-                                                "Failure to repatriate reserves of {:?} from {} to 0x{:?}: {:?}",
+                                                "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
                                                 charge,
                                                 origin,
                                                 author,
@@ -582,7 +608,9 @@ where
                                     }
                                 }
                             } else {
-                                log::debug!(
+                                // The fact that gas tree exist without root node from which
+                                // "external" can be evaluated is an error
+                                log::error!(
                                     target: "essential",
                                     "Failed to get origin of {:?}",
                                     message_id,
@@ -700,7 +728,8 @@ where
                         Ok(())
                     }
                     Err(e) => {
-                        log::debug!(
+                        // This is a error, as reserved should always be repatriatable
+                        log::error!(
                             target: "essential",
                             "Failure to repatriate reserves of {:?} from 0x{:?} to 0x{:?}: {:?}",
                             value,
@@ -766,12 +795,12 @@ where
         log::debug!(
             "Not enough gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
             dispatch.id(),
-            GasPallet::<T>::gas_allowance(),
+            GasAllowanceOf::<T>::get(),
             gas_burned,
         );
 
         SentOf::<T>::increase();
-        GasPallet::<T>::decrease_gas_allowance(gas_burned);
+        GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }

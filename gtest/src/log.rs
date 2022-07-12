@@ -1,4 +1,22 @@
-use crate::program::ProgramIdWrapper;
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::program::{Gas, ProgramIdWrapper};
 use codec::{Codec, Encode};
 use gear_core::{
     ids::{MessageId, ProgramId},
@@ -200,9 +218,11 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if let Some(payload) = &self.payload {
-            if payload != &other.payload {
-                return false;
+        if self.exit_code == 0 {
+            if let Some(payload) = &self.payload {
+                if payload != &other.payload {
+                    return false;
+                }
             }
         }
 
@@ -222,6 +242,8 @@ pub struct RunResult {
     pub(crate) others_failed: bool,
     pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
+    pub(crate) main_gas_burned: Gas,
+    pub(crate) others_gas_burned: Gas,
 }
 
 impl RunResult {
@@ -231,7 +253,7 @@ impl RunResult {
         self.log.iter().any(|e| e == &log)
     }
 
-    pub fn log(&self) -> &Vec<CoreLog> {
+    pub fn log(&self) -> &[CoreLog] {
         &self.log
     }
 
@@ -249,6 +271,14 @@ impl RunResult {
 
     pub fn total_processed(&self) -> u32 {
         self.total_processed
+    }
+
+    pub fn main_gas_burned(&self) -> Gas {
+        self.main_gas_burned
+    }
+
+    pub fn others_gas_burned(&self) -> Gas {
+        self.others_gas_burned
     }
 
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {

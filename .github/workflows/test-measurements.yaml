@@ -9,13 +9,14 @@ env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
   COUNT: 100
+  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
   build:
     runs-on: [self-hosted, cachepot]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -25,6 +26,19 @@ jobs:
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
+          target: wasm32-unknown-unknown
+
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: |
+          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2

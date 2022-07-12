@@ -18,16 +18,15 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
-        ExecutionErrorReason,
+        DispatchResult, DispatchResultKind, ExecutableActorData, ExecutionError,
+        ExecutionErrorReason, WasmExecutionContext,
     },
     configs::ExecutionSettings,
-    ext::ProcessorExt,
+    ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
-    vec::Vec,
 };
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
@@ -38,8 +37,8 @@ use gear_core::{
     message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
-/// Make checks that everything allright with memory pages.
-/// Charge gas for pages init/load/grow and checks that there is enought gas for that.
+/// Make checks that everything with memory pages go well.
+/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
 /// Returns size of wasm memory buffer which must be created in execution environment.
 fn make_checks_and_charge_gas_for_pages<'a>(
     settings: &ExecutionSettings,
@@ -110,32 +109,24 @@ fn make_checks_and_charge_gas_for_pages<'a>(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
-fn prepare_memory<A: ProcessorExt>(
+fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
-    allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
-    mem: &mut dyn Memory,
+    mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
-    // Set intial data for pages
+    // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data.as_slice())
             .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
     }
 
     if A::is_lazy_pages_enabled() {
-        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
-        let lazy_pages = allocations
-            .iter()
-            .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_data.contains_key(page))
-            .collect();
-        A::lazy_pages_protect_and_init_info(mem, &lazy_pages, program_id)
+        if !pages_data.is_empty() {
+            return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
+        }
+        A::lazy_pages_protect_and_init_info(mem, program_id)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
-        log::trace!(
-            "lazy pages = {:?}",
-            lazy_pages.iter().map(|p| p.0).collect::<Vec<_>>()
-        );
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
@@ -186,16 +177,16 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
                 }
             }
         } else {
-            let intial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
+            let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
                 initial_data
             } else {
-                // If page has no data in `pages_intial_data` then data is zeros.
+                // If page has no data in `pages_initial_data` then data is zeros.
                 // Because it's default data for wasm pages which is not static,
-                // and for all static pages we save data in `pages_intial_data` in E::new.
+                // and for all static pages we save data in `pages_initial_data` in E::new.
                 PageBuf::new_zeroed()
             };
 
-            if new_data != intial_data {
+            if new_data != initial_data {
                 page_update.insert(page, new_data);
                 log::trace!(
                     "Page {} has been changed - will be updated in storage",
@@ -209,25 +200,25 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    actor: ExecutableActor,
+    balance: u128,
+    data: ExecutableActorData,
     dispatch: IncomingDispatch,
-    context: ExecutionContext,
+    context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     // Checks that lazy pages are enabled in case extension A uses them.
     if !A::check_lazy_pages_consistent_state() {
         // This is a gross violation of the terms of use ext with lazy pages,
-        // so we will panic here. This cannot happens unless sombody tries to
+        // so we will panic here. This cannot happens unless somebody tries to
         // use lazy-pages ext in executor without lazy-pages env enabled.
         panic!("Cannot use ext with lazy pages without lazy pages env enabled");
     }
 
-    let ExecutableActor {
+    let ExecutableActorData {
         program,
-        balance,
         pages_data: mut pages_initial_data,
-    } = actor;
+    } = data;
 
     let program_id = program.id();
     let kind = dispatch.kind();
@@ -281,26 +272,34 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
-    // Creating externalities.
-    let ext = A::new(
+    let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
         value_counter,
         allocations_context,
         message_context,
-        settings.block_info,
-        settings.allocations_config,
-        settings.existential_deposit,
-        None,
-        context.origin,
+        block_info: settings.block_info,
+        config: settings.allocations_config,
+        existential_deposit: settings.existential_deposit,
+        origin: context.origin,
         program_id,
-        Default::default(),
-        settings.host_fn_weights,
-        settings.forbidden_funcs,
-    );
+        program_candidates_data: Default::default(),
+        host_fn_weights: settings.host_fn_weights,
+        forbidden_funcs: settings.forbidden_funcs,
+        mailbox_threshold: settings.mailbox_threshold,
+    };
 
-    let mut env = E::new(ext, program.raw_code(), mem_size).map_err(|err| {
-        log::debug!("Setup instance err = {}", err);
+    // Creating externalities.
+    let ext = A::new(context);
+
+    let mut env = E::new(
+        ext,
+        program.raw_code(),
+        program.code().exports().clone(),
+        mem_size,
+    )
+    .map_err(|err| {
+        log::debug!("Setup instance error: {}", err);
         ExecutionError {
             program_id,
             gas_amount: err.gas_amount.clone(),
@@ -308,10 +307,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     })?;
 
-    if let Err(reason) = prepare_memory::<A>(
+    if let Err(reason) = prepare_memory::<A, E::Memory>(
         program_id,
         &mut pages_initial_data,
-        &allocations,
         static_pages,
         env.get_mem_mut(),
     ) {
@@ -327,8 +325,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Execute program in backend env.
-    let BackendReport { termination, info } = match env.execute(kind.into_entry(), |mem| {
-        // released pages initial data will be added to `pages_intial_data` after execution.
+    let BackendReport { termination, info } = match env.execute(&kind, |mem| {
+        // released pages initial data will be added to `pages_initial_data` after execution.
         if A::is_lazy_pages_enabled() {
             A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
         } else {
@@ -345,24 +343,17 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    log::debug!("term reason = {:?}", termination);
+    log::debug!("Termination reason: {:?}", termination);
 
     // Parsing outcome.
     let kind = match termination {
         TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
         TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
-        TerminationReason::Trap {
-            explanation,
-            description,
-        } => {
+        TerminationReason::Trap(explanation) => {
             log::debug!(
-                "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
+                "💥 Trap during execution of {}\n📔 Explanation: {}",
                 program_id,
-                description.unwrap_or_else(|| "None".into()),
-                explanation
-                    .as_ref()
-                    .map(|e| e.to_string())
-                    .unwrap_or_else(|| "None".to_string()),
+                explanation,
             );
 
             DispatchResultKind::Trap(explanation)

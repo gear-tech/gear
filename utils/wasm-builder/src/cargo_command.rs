@@ -28,6 +28,7 @@ pub struct CargoCommand {
     args: Vec<&'static str>,
     profile: String,
     rustc_flags: Vec<&'static str>,
+    target_dir: PathBuf,
 }
 
 impl CargoCommand {
@@ -39,12 +40,18 @@ impl CargoCommand {
             args: vec!["+nightly", "rustc", "--target=wasm32-unknown-unknown"],
             profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
+            target_dir: "target".into(),
         }
     }
 
     /// Set path to the `Cargo.toml` file.
     pub fn set_manifest_path(&mut self, path: PathBuf) {
         self.manifest_path = path;
+    }
+
+    /// Set path to the `target` directory.
+    pub fn set_target_dir(&mut self, path: PathBuf) {
+        self.target_dir = path;
     }
 
     /// Set profile.
@@ -64,6 +71,7 @@ impl CargoCommand {
             .arg("--release")
             .arg("--")
             .args(&self.rustc_flags)
+            .env("CARGO_TARGET_DIR", &self.target_dir)
             .env(self.skip_build_env(), ""); // Don't build the original crate recursively
 
         self.remove_cargo_encoded_rustflags(&mut cargo);

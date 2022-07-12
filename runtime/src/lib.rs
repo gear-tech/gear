@@ -66,10 +66,10 @@ pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
-pub use pallet_gas;
 pub use pallet_gear;
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
+pub use pallet_gear_gas;
 pub use pallet_gear_payment;
 pub use pallet_usage;
 
@@ -123,7 +123,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1140,
+    spec_version: 1280,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -347,14 +347,16 @@ impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = ConstU32<1024>;
     type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
+    type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
+    type GasProvider = GearGas;
+    type BlockLimiter = GearGas;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -377,7 +379,7 @@ impl pallet_usage::Config for Runtime {
     type Messenger = GearMessenger;
 }
 
-impl pallet_gas::Config for Runtime {
+impl pallet_gear_gas::Config for Runtime {
     type BlockGasLimit = BlockGasLimit;
 }
 
@@ -450,7 +452,7 @@ construct_runtime!(
         GearMessenger: pallet_gear_messenger,
         Gear: pallet_gear,
         Usage: pallet_usage,
-        Gas: pallet_gas,
+        GearGas: pallet_gear_gas,
         GearPayment: pallet_gear_payment,
 
         // Only available with "debug-mode" feature on
@@ -478,7 +480,7 @@ construct_runtime!(
         GearMessenger: pallet_gear_messenger,
         Gear: pallet_gear,
         Usage: pallet_usage,
-        Gas: pallet_gas,
+        GearGas: pallet_gear_gas,
         GearPayment: pallet_gear_payment,
     }
 );
@@ -672,8 +674,9 @@ impl_runtime_apis! {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
+            initial_gas: Option<u64>,
         ) -> Result<pallet_gear::GasInfo, Vec<u8>> {
-            Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics)
+            Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas)
         }
     }
 

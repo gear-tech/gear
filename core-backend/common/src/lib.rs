@@ -25,52 +25,80 @@ extern crate alloc;
 pub mod error_processor;
 pub mod funcs;
 
+mod utils;
+
 use alloc::{
-    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     string::String,
     vec::Vec,
 };
-use core::fmt;
+use codec::{Decode, Encode};
+use core::{fmt, ops::Deref};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextStore, Dispatch},
+    message::{ContextStore, Dispatch, DispatchKind},
 };
 use gear_core_errors::{ExtError, MemoryError};
+use scale_info::TypeInfo;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum TerminationReasonKind {
-    Exit,
-    Leave,
-    Wait,
-    GasAllowanceExceeded,
-    ForbiddenFunction,
+// Max amount of bytes allowed to be thrown as string explanation of the error.
+pub const TRIMMED_MAX_LEN: usize = 1024;
+
+/// Wrapped string to fit `core-backend::TRIMMED_MAX_LEN` amount of bytes.
+#[derive(
+    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
+)]
+pub struct TrimmedString(String);
+
+impl TrimmedString {
+    pub(crate) fn new(mut string: String) -> Self {
+        utils::smart_truncate(&mut string, TRIMMED_MAX_LEN);
+        Self(string)
+    }
 }
 
-#[derive(Debug, Clone)]
+impl<T: Into<String>> From<T> for TrimmedString {
+    fn from(other: T) -> Self {
+        Self::new(other.into())
+    }
+}
+
+impl Deref for TrimmedString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum TerminationReason {
     Exit(ProgramId),
     Leave,
     Success,
-    Trap {
-        explanation: Option<TrapExplanation>,
-        description: Option<Cow<'static, str>>,
-    },
+    Trap(TrapExplanation),
     Wait,
     GasAllowanceExceeded,
 }
 
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(
+    Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display,
+)]
 pub enum TrapExplanation {
     #[display(fmt = "{}", _0)]
     Core(ExtError),
     #[display(fmt = "{}", _0)]
-    Other(String),
+    Other(TrimmedString),
+    #[display(fmt = "Unable to call a forbidden function")]
+    ForbiddenFunction,
+    #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
+    Unknown,
 }
 
+#[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub allocations: BTreeSet<WasmPageNumber>,
@@ -79,12 +107,13 @@ pub struct ExtInfo {
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub context_store: ContextStore,
-    pub trap_explanation: Option<TrapExplanation>,
-    pub exit_argument: Option<ProgramId>,
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(self, memory: &dyn Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(
+        self,
+        memory: &impl Memory,
+    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
@@ -96,37 +125,28 @@ pub struct BackendReport {
     pub info: ExtInfo,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display)]
+#[display(fmt = "{}", reason)]
 pub struct BackendError<T> {
     pub gas_amount: GasAmount,
     pub reason: T,
-    pub description: Option<Cow<'static, str>>,
-}
-
-impl<T> fmt::Display for BackendError<T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(description) = &self.description {
-            write!(f, "{}: {}", self.reason, description)
-        } else {
-            write!(f, "{}", self.reason)
-        }
-    }
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
-    /// An error issues in environment
+    /// Memory type for current environment.
+    type Memory: Memory;
+
+    /// An error issues in environment.
     type Error: fmt::Display;
 
     /// Creates new external environment to execute wasm binary:
-    /// 1) instatiates wasm binary.
-    /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
-    /// 3) instatiate external funcs for wasm module.
+    /// 1) Instantiates wasm binary.
+    /// 2) Creates wasm memory with filled data (exception if lazy pages enabled).
+    /// 3) Instantiate external funcs for wasm module.
     fn new(
         ext: E,
         binary: &[u8],
+        entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<Self::Error>>;
 
@@ -134,20 +154,20 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Get ref to mem wrapper
-    fn get_mem(&self) -> &dyn Memory;
+    fn get_mem(&self) -> &Self::Memory;
 
     /// Get mut ref to mem wrapper
-    fn get_mem_mut(&mut self) -> &mut dyn Memory;
+    fn get_mem_mut(&mut self) -> &mut Self::Memory;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
     fn execute<F, T>(
         self,
-        entry_point: &str,
+        entry_point: &DispatchKind,
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&dyn Memory) -> Result<(), T>,
+        F: FnOnce(&Self::Memory) -> Result<(), T>,
         T: fmt::Display;
 
     /// Consumes environment and returns gas state.
@@ -155,5 +175,5 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 }
 
 pub trait AsTerminationReason {
-    fn as_termination_reason(&self) -> Option<&TerminationReasonKind>;
+    fn as_termination_reason(&self) -> Option<&TerminationReason>;
 }

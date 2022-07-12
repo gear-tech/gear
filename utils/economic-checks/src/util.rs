@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use common::{
     storage::{IterableMap, Messenger},
-    Origin as _, ValueTree,
+    GasTree,
 };
 use frame_support::{
     assert_ok,
@@ -29,10 +29,11 @@ use frame_support::{
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
 use gear_runtime::{
-    AuraConfig, Balances, Call, Gas, Gear, GearMessenger, GearPayment, GearProgram, GrandpaConfig,
-    Runtime, Signature, SudoConfig, System, TransactionPayment, TransactionPaymentConfig,
-    UncheckedExtrinsic, Usage,
+    AuraConfig, Balances, Call, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
+    GrandpaConfig, Runtime, Signature, SudoConfig, System, TransactionPayment,
+    TransactionPaymentConfig, UncheckedExtrinsic, Usage,
 };
+use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
 use sp_consensus_aura::{sr25519::AuthorityId as AuraId, Slot, AURA_ENGINE_ID};
@@ -52,8 +53,8 @@ use sp_runtime::{
 use sp_std::collections::btree_map::BTreeMap;
 use std::sync::Arc;
 
-type GasNodeKeyOf<T> = <<T as pallet_gear::Config>::GasHandler as ValueTree>::Key;
-type GasBalanceOf<T> = <<T as pallet_gear::Config>::GasHandler as ValueTree>::Balance;
+type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
+type GasBalanceOf<T> = <GasHandlerOf<T> as GasTree>::Balance;
 
 pub(crate) type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
 
@@ -179,14 +180,13 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
 
     while System::block_number() < n {
         // Run on_idle hook that processes the queue
-        let remaining_weight =
-            remaining_weight.unwrap_or_else(<Runtime as pallet_gas::Config>::BlockGasLimit::get);
+        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
         Gear::on_idle(System::block_number(), remaining_weight);
 
         // Run on_finalize hooks in pallets reverse order (as they appear in AllPalletsWithSystem)
         let current_blk = System::block_number();
         GearPayment::on_finalize(current_blk);
-        Gas::on_finalize(current_blk);
+        GearGas::on_finalize(current_blk);
         Usage::on_finalize(current_blk);
         Gear::on_finalize(current_blk);
         GearMessenger::on_finalize(current_blk);
@@ -207,7 +207,7 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         GearMessenger::on_initialize(new_block_number);
         Gear::on_initialize(new_block_number);
         Usage::on_initialize(new_block_number);
-        Gas::on_initialize(new_block_number);
+        GearGas::on_initialize(new_block_number);
         GearPayment::on_finalize(new_block_number);
     }
 }
@@ -228,8 +228,7 @@ pub(crate) fn run_to_block_with_ocw(
         // Processing extrinsics in current block, if pool supplied
         process_tx_pool(pool);
         log::debug!("✅ Done processing transaction pool at block {}", i);
-        let remaining_weight =
-            remaining_weight.unwrap_or_else(<Runtime as pallet_gas::Config>::BlockGasLimit::get);
+        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
 
         // Processing message queue
         Gear::on_idle(i, remaining_weight);
@@ -240,7 +239,7 @@ pub(crate) fn run_to_block_with_ocw(
 
         // on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
         GearPayment::on_finalize(i);
-        Gas::on_finalize(i);
+        GearGas::on_finalize(i);
         Usage::on_finalize(i);
         Gear::on_finalize(i);
         GearMessenger::on_finalize(i);
@@ -262,7 +261,7 @@ pub(crate) fn run_to_block_with_ocw(
         GearMessenger::on_initialize(new_blk);
         Gear::on_initialize(new_blk);
         Usage::on_initialize(new_blk);
-        Gas::on_initialize(new_blk);
+        GearGas::on_initialize(new_blk);
         GearPayment::on_finalize(new_blk);
     }
 }
@@ -307,16 +306,11 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
         WaitlistOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
-                let node_id = dispatch.id().into_origin();
-                let node = pallet_gas::Pallet::<Runtime>::get_node(node_id)
-                    .expect("There is always a value node for a valid dispatch ID");
-                let (ancestor_with_value, ancestor_id) = node
-                    .node_with_value::<Runtime>()
+                let node_id = dispatch.id();
+                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit(node_id)
+                    .expect("There is always a value node for a valid dispatch ID")
                     .expect("There is always a node with concrete value for a node");
-                let value = ancestor_with_value
-                    .inner_value()
-                    .expect("Node with value must have value");
-                (ancestor_id.unwrap_or(node_id), value)
+                (ancestor_id, value)
             })
             .collect();
 

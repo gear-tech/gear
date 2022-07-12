@@ -18,7 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::missing_safety_doc)]
 
 extern crate alloc;
 
@@ -85,7 +84,7 @@ struct NodeState {
 static mut STATE: Option<NodeState> = None;
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
+unsafe extern "C" fn handle() {
     let reply = match msg::load() {
         Ok(request) => process(request),
         Err(e) => {
@@ -245,7 +244,7 @@ fn process(request: Request) -> Reply {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
+unsafe extern "C" fn handle_reply() {
     if let Some(ref mut transition) = state().transition {
         if msg::reply_to() != transition.last_sent_message_id {
             return;
@@ -272,7 +271,7 @@ pub unsafe extern "C" fn handle_reply() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+unsafe extern "C" fn init() {
     let init: Initialization = msg::load().expect("Failed to decode init");
 
     STATE = Some(NodeState {
