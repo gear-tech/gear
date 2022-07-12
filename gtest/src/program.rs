@@ -381,17 +381,6 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
-        if !system.is_user(&source) {
-            panic!("Sending messages allowed only from users id");
-        }
-
-        if 0 < value && value < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "Value greater than 0, but less than required existential deposit ({})",
-                crate::EXISTENTIAL_DEPOSIT
-            );
-        }
-
         let message = Message::new(
             MessageId::generate_from_user(
                 system.block_info.height,
@@ -408,20 +397,14 @@ impl<'a> Program<'a> {
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
-        let kind = if let TestActor::Uninitialized(id, _) = actor {
-            if id.is_none() {
-                *id = Some(message.id());
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
-            }
+        let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
+            *id = Some(message.id());
+            DispatchKind::Init
         } else {
             DispatchKind::Handle
         };
 
-        let dispatch = Dispatch::new(kind, message);
-
-        system.run_dispatch(dispatch)
+        system.run_dispatch(Dispatch::new(kind, message))
     }
 
     pub fn id(&self) -> ProgramId {
@@ -567,5 +550,32 @@ mod tests {
 
         // Check program's balance is empty
         assert_eq!(prog.balance(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "An attempt to mint value (1) less than existential deposit (500)")]
+    fn mint_less_than_deposit() {
+        System::new().mint_to(1, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient value: user \
+    (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
+    to send (501) value, while his balance (500)")]
+    fn fails_on_insufficient_balance() {
+        let sys = System::new();
+
+        let user = 1;
+        let prog = Program::from_file_with_id(
+            &sys,
+            2,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        assert_eq!(sys.balance_of(user), 0);
+        sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
+
+        prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
     }
 }

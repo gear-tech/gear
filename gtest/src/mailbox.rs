@@ -132,7 +132,7 @@ mod tests {
     };
 
     #[test]
-    fn mailbox_walkthrough_test() {
+    fn mailbox_walk_through_test() {
         //Arranging data for future messages
         let system = System::new();
         let message_id: MessageId = Default::default();
@@ -151,7 +151,7 @@ mod tests {
             destination_user_id,
             encoded_message_payload.clone(),
             Default::default(),
-            2,
+            0,
             None,
         );
 
@@ -168,7 +168,7 @@ mod tests {
         let message_replier = destination_user_mailbox.take_message(log);
 
         //Replying on sended message and extracting log
-        let reply_log = message_replier.reply(reply_payload, 1).log;
+        let reply_log = message_replier.reply(reply_payload, 0).log;
         let last_reply_log = reply_log.last().expect("No message log in run result");
 
         //Sending one more message to be sure that no critical move semantic didn't occur
@@ -208,7 +208,7 @@ mod tests {
             destination_user_id,
             message_payload.encode(),
             Default::default(),
-            2,
+            0,
             None,
         );
 
@@ -217,7 +217,7 @@ mod tests {
 
         //Getting mailbox of destination user and replying on it
         let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
-        destination_user_mailbox.reply(message_log.clone(), reply_payload, 1);
+        destination_user_mailbox.reply(message_log.clone(), reply_payload, 0);
 
         //Making sure that original message deletes after reply
         destination_user_mailbox = system.get_mailbox(destination_user_id);
@@ -243,7 +243,7 @@ mod tests {
             destination_user_id,
             message_payload.encode(),
             Default::default(),
-            2,
+            0,
             None,
         );
 
@@ -255,7 +255,7 @@ mod tests {
         let message_replier = destination_user_mailbox.take_message(log);
 
         //Replying by bytes and extracting result log
-        let result = message_replier.reply_bytes(&reply_payload_array, 1);
+        let result = message_replier.reply_bytes(&reply_payload_array, 0);
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
 
@@ -279,7 +279,7 @@ mod tests {
             destination_user_id,
             message_payload.encode(),
             Default::default(),
-            2,
+            0,
             None,
         );
 

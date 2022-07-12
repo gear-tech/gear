@@ -248,7 +248,42 @@ impl ExtManager {
         self.id_nonce
     }
 
+    fn validate_dispatch(&mut self, dispatch: &Dispatch) {
+        if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "Value greater than 0, but less than \
+                required existential deposit ({})",
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
+        if !self.is_user(&dispatch.source()) {
+            panic!("Sending messages allowed only from users id");
+        }
+
+        let (_, balance) = self
+            .actors
+            .entry(dispatch.source())
+            .or_insert((TestActor::User, 0));
+
+        if *balance < dispatch.value() {
+            panic!(
+                "Insufficient value: user ({}) tries to send \
+                ({}) value, while his balance ({})",
+                dispatch.source(),
+                dispatch.value(),
+                balance
+            );
+        } else {
+            *balance -= dispatch.value();
+            if *balance < crate::EXISTENTIAL_DEPOSIT {
+                *balance = 0;
+            }
+        }
+    }
+
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.validate_dispatch(&dispatch);
         self.prepare_for(&dispatch);
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
@@ -330,6 +365,14 @@ impl ExtManager {
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
+        if value < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "An attempt to mint value ({}) less than existential deposit ({})",
+                value,
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
         let (_, balance) = self.actors.entry(*id).or_insert((TestActor::User, 0));
         *balance = balance.saturating_add(value);
     }
@@ -705,15 +748,23 @@ impl JournalHandler for ExtManager {
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
         if let Some(ref to) = to {
-            if let Some((_, balance)) = self.actors.get_mut(&from) {
+            if !self.is_user(&from) {
+                let (_, balance) = self.actors.get_mut(&from).expect("Can't fail");
+
                 if *balance < value {
-                    panic!("Actor {:?} balance is less then sent value", from);
+                    unreachable!("Actor {:?} balance is less then sent value", from);
                 }
 
                 *balance -= value;
-            };
+
+                if *balance < crate::EXISTENTIAL_DEPOSIT {
+                    *balance = 0;
+                }
+            }
 
             self.mint_to(to, value);
+        } else {
+            self.mint_to(&from, value);
         }
     }
 
