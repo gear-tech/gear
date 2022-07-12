@@ -9,7 +9,7 @@ services:
       - "9615:9615"
     image: schernovgear/gear:nightly
     environment:
-      - RUST_LOG=essential=debug
+      - RUST_LOG=essential
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
     command: > 

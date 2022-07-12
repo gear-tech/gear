@@ -23,6 +23,7 @@ extern crate gear_common_codegen;
 
 pub mod event;
 pub mod lazy_pages;
+pub mod scheduler;
 pub mod storage;
 
 pub mod code_storage;
@@ -155,7 +156,7 @@ pub trait PaymentProvider<AccountId> {
 /// Contains various limits for the block.
 pub trait BlockLimiter {
     /// The maximum amount of gas that can be used within a single block.
-    type BlockGasLimit: Get<u64>;
+    type BlockGasLimit: Get<Self::Balance>;
 
     /// Type representing a quantity of value.
     type Balance;

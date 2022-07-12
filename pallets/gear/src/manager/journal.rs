@@ -16,45 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Manager which handles results of message processing.
-//!
-//! Should be mentioned, that if message contains value we have a guarantee that it will be sent further in case of successful execution,
-//! or sent back in case execution ends up with an error. This guarantee is reached by the following conditions:
-//! 1. **Reserve/unreserve model for transferring values**.
-//! Ownership over message value is moved not by simple transfer operation, which decreases **free** balance of sender. That is done by
-//! reserving value before message is executed and repatriating reserved in favor of beneficiary in case of successful execution, or unreserving
-//! in case of execution resulting in a trap. So, it gives us a guarantee that regardless of the result of message execution, there is **always some
-//! value** to perform asset management, i.e move tokens further to the recipient or give back to sender. The guarantee is implemented by using
-//! corresponding `pallet_balances` functions (`reserve`, `repatriate_reserved`, `unreserve` along with `transfer`) in `pallet_gear` extrinsics,
-//! [`JournalHandler::send_dispatch`] and [`JournalHandler::send_value`] procedures.
-//!
-//! 2. **Balance sufficiency before adding message with value to the queue**.
-//! Before message is added to the queue, sender's balance is checked for having adequate amount of assets to send desired value. For actors, who
-//! can sign transactions, these checks are done in extrinsic calls. For programs these checks are done on core backend level during execution. In details,
-//! when a message is executed, it has some context, which is set from the pallet level, and a part of the context data is program's actual balance (current balance +
-//! value sent within the executing message). So if during execution of the original message some other messages were sent, message send call is followed
-//! by program's balance checks. The check gives guarantee that value reservation call in [`JournalHandler::send_dispatch`] for program's messages won't fail,
-//! because there is always a sufficient balance for the call.
-//!
-//! 3. **Messages's value management considers existential deposit rule**.
-//! It means that before message with value is added to the queue, value is checked to be in the valid range - `{0} ∪ [existential_deposit; +inf)`. This is
-//! crucial for programs. The check gives guarantee that if funds were moved to the program, the program will definitely have an account in `pallet_balances`
-//! registry and will be able then to manage these funds. Without this check, program could receive funds, but won't be able to use them.
-//!
-//! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
-
 use crate::{
-    Authorship, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet,
-    QueueOf, SentOf, WaitlistOf,
+    manager::{ExtManager, TOL},
+    Authorship, Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
+    MailboxOf, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
-use codec::{Decode, Encode};
-use common::{
-    event::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin, Program,
-    ProgramState,
-};
+use common::{event::*, scheduler::*, storage::*, CodeStorage, GasPrice, GasTree, Origin, Program};
 use core_processor::common::{
-    Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, ExecutionErrorReason,
-    JournalHandler,
+    DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
 };
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
@@ -62,156 +31,14 @@ use frame_support::traits::{
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
-    message::{Dispatch, ExitCode, StoredDispatch},
-    program::Program as NativeProgram,
+    message::{Dispatch, StoredDispatch},
 };
-use sp_runtime::{
-    traits::{UniqueSaturatedInto, Zero},
-    SaturatedConversion,
-};
+use sp_runtime::traits::{SaturatedConversion, UniqueSaturatedInto, Zero};
+
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
-    marker::PhantomData,
     prelude::*,
 };
-
-// Tolerance towards rounding error when converting gas to balance etc.
-pub(crate) const TOL: u128 = 10;
-
-#[derive(Clone, Decode, Encode)]
-pub enum HandleKind {
-    Init(Vec<u8>),
-    Handle(ProgramId),
-    Reply(MessageId, ExitCode),
-}
-
-/// Journal handler implementation for `pallet_gear`.
-pub struct ExtManager<T: Config> {
-    /// Ids checked that they are users.
-    users: BTreeSet<ProgramId>,
-    /// Ids checked that they are programs.
-    programs: BTreeSet<ProgramId>,
-    /// Messages dispatches.
-    dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
-    /// Programs, which state changed.
-    state_changes: BTreeSet<ProgramId>,
-    /// Phantom data for generic usage.
-    _phantom: PhantomData<T>,
-}
-
-/// Data need for depositing event about queue processing result.
-pub struct QueuePostProcessingData {
-    /// Message dispatches results.
-    pub dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
-    /// Programs, which state changed.
-    pub state_changes: BTreeSet<ProgramId>,
-}
-
-impl<T: Config> From<ExtManager<T>> for QueuePostProcessingData {
-    fn from(ext_manager: ExtManager<T>) -> Self {
-        Self {
-            dispatch_statuses: ext_manager.dispatch_statuses,
-            state_changes: ext_manager.state_changes,
-        }
-    }
-}
-
-impl<T: Config> Default for ExtManager<T>
-where
-    T::AccountId: Origin,
-{
-    fn default() -> Self {
-        ExtManager {
-            _phantom: PhantomData,
-            users: Default::default(),
-            programs: Default::default(),
-            dispatch_statuses: Default::default(),
-            state_changes: Default::default(),
-        }
-    }
-}
-
-impl<T: Config> ExtManager<T>
-where
-    T::AccountId: Origin,
-{
-    /// Check if id is program and save result.
-    pub fn check_program_id(&mut self, id: &ProgramId) -> bool {
-        // TODO: research how much need to charge for `program_exists` query.
-        if self.programs.contains(id) {
-            true
-        } else if self.users.contains(id) {
-            false
-        } else if GearProgramPallet::<T>::program_exists(*id) {
-            self.programs.insert(*id);
-            true
-        } else {
-            self.users.insert(*id);
-            false
-        }
-    }
-
-    /// Check if id is user and save result.
-    pub fn check_user_id(&mut self, id: &ProgramId) -> bool {
-        !self.check_program_id(id)
-    }
-
-    /// NOTE: By calling this function we can't differ whether `None` returned, because
-    /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
-        let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
-        let program = {
-            let code_id = CodeId::from_origin(active.code_hash);
-            let code = T::CodeStorage::get_code(code_id)?;
-            NativeProgram::from_parts(
-                id,
-                code,
-                active.allocations,
-                matches!(active.state, ProgramState::Initialized),
-            )
-        };
-
-        let balance = <T as Config>::Currency::free_balance(
-            &<T::AccountId as Origin>::from_origin(id.into_origin()),
-        )
-        .unique_saturated_into();
-        let pages_data = if with_pages {
-            common::get_program_data_for_pages(id.into_origin(), active.pages_with_data.iter())
-                .ok()?
-        } else {
-            Default::default()
-        };
-
-        Some(Actor {
-            balance,
-            destination_program: id,
-            executable_data: Some(ExecutableActorData {
-                program,
-                pages_data,
-            }),
-        })
-    }
-
-    pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
-        // Program can be added to the storage only with code, which is done in `submit_program` extrinsic.
-        // Code can exist without program, but the latter can't exist without code.
-        assert!(
-            T::CodeStorage::exists(code_id),
-            "Program set must be called only when code exists",
-        );
-
-        // An empty program has been just constructed: it contains no mem allocations.
-        let program = common::ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
-            code_hash: code_id.into_origin(),
-            state: common::ProgramState::Uninitialized { message_id },
-        };
-
-        common::set_program(program_id.into_origin(), program);
-    }
-}
 
 impl<T: Config> JournalHandler for ExtManager<T>
 where
@@ -229,8 +56,7 @@ where
             common::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
-                    // TODO: update gas limit in `ValueTree` here (issue #1022).
-                    if let Ok((m, _)) = WaitlistOf::<T>::remove(p_id, m_id) {
+                    if let Some(m) = self.wake_message_impl(p_id, m_id) {
                         Pallet::<T>::deposit_event(Event::<T>::MessageWoken {
                             id: m_id,
                             reason: MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
@@ -393,7 +219,9 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         // TODO: update gas limit in `ValueTree` here (issue #1022).
-        for (message, _) in WaitlistOf::<T>::drain_key(id_exited) {
+        for (message, bn) in WaitlistOf::<T>::drain_key(id_exited) {
+            self.charge_for_wake(message.id(), bn);
+
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         }
@@ -531,30 +359,51 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        WaitlistOf::<T>::insert(dispatch.clone())
-            .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
+        if let Ok(Some((limit, _))) = GasHandlerOf::<T>::get_limit(dispatch.id()) {
+            let message_id = dispatch.id();
+            let program_id = dispatch.destination();
 
-        let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(dispatch.id())
-            .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
-        {
-            if key == dispatch.id() {
-                None
+            WaitlistOf::<T>::insert(dispatch)
+                .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
+
+            let current_bn = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
+
+            let can_cover = limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
+            let reserve_for = CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
+
+            let duration = (can_cover as u32).saturating_sub(reserve_for);
+
+            let deadline = current_bn.saturating_add(duration);
+            let deadline: T::BlockNumber = deadline.unique_saturated_into();
+
+            TaskPoolOf::<T>::add(
+                deadline,
+                ScheduledTask::RemoveFromWaitlist(program_id, message_id),
+            )
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(message_id)
+                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
+            {
+                if key == message_id {
+                    None
+                } else {
+                    Some(key)
+                }
             } else {
-                Some(key)
-            }
-        } else {
-            unreachable!("ValueTree corrupted!")
-        };
+                unreachable!("ValueTree corrupted!")
+            };
 
-        // TODO: replace this temporary (zero) value
-        // for expiration block number with properly
-        // calculated one (issues #646 and #969).
-        Pallet::<T>::deposit_event(Event::MessageWaited {
-            id: dispatch.id(),
-            origin: origin_key,
-            reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
-            expiration: T::BlockNumber::zero(),
-        });
+            // TODO: replace this temporary (zero) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
+            Pallet::<T>::deposit_event(Event::MessageWaited {
+                id: message_id,
+                origin: origin_key,
+                reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+                expiration: T::BlockNumber::zero(),
+            });
+        }
     }
 
     fn wake_message(
@@ -563,87 +412,14 @@ where
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Ok((dispatch, bn)) = WaitlistOf::<T>::remove(program_id, awakening_id) {
-            let duration = <frame_system::Pallet<T>>::block_number()
-                .saturated_into::<u32>()
-                .saturating_sub(bn.saturated_into::<u32>());
-            let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
-
-            match GasHandlerOf::<T>::spend(message_id, chargeable_amount) {
-                Ok(_) => {
-                    match GasHandlerOf::<T>::get_external(message_id) {
-                        Ok(maybe_origin) => {
-                            if let Some(origin) = maybe_origin {
-                                let charge = T::GasPrice::gas_price(chargeable_amount);
-                                if let Some(author) = Authorship::<T>::author() {
-                                    match <T as Config>::Currency::repatriate_reserved(
-                                        &origin,
-                                        &author,
-                                        charge,
-                                        BalanceStatus::Free,
-                                    ) {
-                                        Ok(leftover) => {
-                                            if leftover > TOL.unique_saturated_into() {
-                                                log::debug!(
-                                                    target: "essential",
-                                                    "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                                    origin,
-                                                    author,
-                                                    charge,
-                                                    leftover,
-                                                );
-                                            }
-                                        }
-                                        Err(e) => {
-                                            // Reserved funds should be always repatriatable
-                                            log::error!(
-                                                target: "essential",
-                                                "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
-                                                charge,
-                                                origin,
-                                                author,
-                                                e,
-                                            );
-                                        }
-                                    }
-                                }
-                            } else {
-                                // The fact that gas tree exist without root node from which
-                                // "external" can be evaluated is an error
-                                log::error!(
-                                    target: "essential",
-                                    "Failed to get origin of {:?}",
-                                    message_id,
-                                );
-                            }
-                        }
-                        Err(_err) => {
-                            // We only can get an error here if the gas tree is invalidated
-                            // TODO: handle appropriately
-                            unreachable!("Can never happen unless gas tree corrupted");
-                        }
-                    }
-                }
-                Err(err) => {
-                    log::debug!(
-                        target: "essential",
-                        "Error charging {:?} of gas rent for awakening message {:?}: {:?}",
-                        chargeable_amount,
-                        message_id,
-                        err,
-                    );
-                }
-            }
-
-            let event = Event::MessageWoken {
+        if let Some(dispatch) = self.wake_message_impl(program_id, awakening_id) {
+            Pallet::<T>::deposit_event(Event::MessageWoken {
                 id: dispatch.id(),
                 reason: MessageWokenRuntimeReason::WakeCalled.into_reason(),
-            };
+            });
 
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-
-            Pallet::<T>::deposit_event(event);
         } else {
             log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",
