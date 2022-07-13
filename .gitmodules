@@ -1,0 +1,4 @@
+[submodule "res/gear"]
+	path = res/gear
+	url = https://github.com/gear-tech/gear.git
+	shallow = true

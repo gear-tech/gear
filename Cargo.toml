@@ -15,6 +15,11 @@ readme = './README.md'
 path = "bin/gear.rs"
 name = "gear"
 
+[[bin]]
+path = "bin/generate-api.rs"
+name = "generate-api"
+required-features = [ "builder" ]
+
 [dependencies]
 dialoguer = "0.10.1"
 dirs = "4.0.0"
@@ -27,4 +32,7 @@ parity-scale-codec = "3.1.2"
 structopt = "0.3.26"
 subxt = "0.21.0"
 thiserror = "1.0.31"
-tokio = { version = "1.18.2", features = [ "full" ]}
+tokio = { version = "1.18.2", features = [ "full" ] }
+
+[features]
+builder = []

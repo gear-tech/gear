@@ -8,7 +8,7 @@ impl Api {
     pub async fn gas_limit(&self) -> Result<u64> {
         self.runtime
             .constants()
-            .gas()
+            .gear_gas()
             .block_gas_limit()
             .map_err(Into::into)
     }

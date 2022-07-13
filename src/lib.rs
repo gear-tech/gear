@@ -1,4 +1,5 @@
 mod api;
+pub mod builder;
 mod cmd;
 mod keystore;
 mod registry;

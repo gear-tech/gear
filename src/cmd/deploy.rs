@@ -103,7 +103,7 @@ impl Deploy {
                     println!("\t{e:?}");
 
                     match e {
-                        GearEvent::InitSuccess(_) | GearEvent::InitFailure(..) => return Ok(()),
+                        GearEvent::MessageEnqueued { .. } => return Ok(()),
                         _ => {}
                     }
                 }
