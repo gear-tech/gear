@@ -19,6 +19,7 @@
 use super::*;
 use codec::MaxEncodedLen;
 
+// TODO remove children refs for Unspecified (https://github.com/gear-tech/gear/issues/1179)
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub enum GasNodeType<ExternalId, Id, Balance> {
     External { id: ExternalId, value: Balance },

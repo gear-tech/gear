@@ -122,8 +122,6 @@
 //!
 //! The Gear Gas Pallet doesn't depend on the `GenesisConfig`.
 
-// todo [sab] Forbidden error usage
-// todo [sab] Change value node types (no need for refs for unspecified nodes)
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use common::{

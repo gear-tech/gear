@@ -114,7 +114,13 @@ fn assert_removed_nodes_form_path(
 // after root was removed in the `consume` call.
 pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: RemainingNodes) {
     if Gas::get_node(root_node).is_none() {
-        assert!(remaining_nodes.is_empty());
+        assert_eq!(
+            remaining_nodes
+                .iter()
+                .filter(|(_, node)| !node.inner.is_reserved_local())
+                .count(),
+            0
+        );
     }
 }
 

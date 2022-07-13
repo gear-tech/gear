@@ -219,7 +219,7 @@ where
             }
             // Although unspecified local type has a patron parent, it's considered
             // an error to call the method from that type of gas node.
-            _ => Err(InternalError::unexpected_node_type().into()),
+            GasNodeType::UnspecifiedLocal { .. } => Err(InternalError::forbidden().into()),
         }
     }
 
