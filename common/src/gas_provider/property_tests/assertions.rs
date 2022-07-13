@@ -31,7 +31,7 @@ pub(super) fn assert_removed_nodes_props(
     if removed_nodes.is_empty() {
         return;
     }
-    assert_not_removed_node_type(consumed, &remaining_nodes);
+    assert_not_removed_node_type(consumed, remaining_nodes);
     assert_unspec_nodes_amount(&removed_nodes);
     assert_removed_nodes_are_consumed(consumed, marked_consumed_nodes, &removed_nodes);
     assert_removed_nodes_form_path(consumed, remaining_nodes, removed_nodes);

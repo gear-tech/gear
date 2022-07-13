@@ -30,7 +30,7 @@ mod negative_imbalance;
 mod node;
 mod positive_imbalance;
 
-#[cfg(all(test, not(feature = "std")))]
+#[cfg(test)]
 mod property_tests;
 
 pub use error::Error;

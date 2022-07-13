@@ -17,10 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-// #![feature(thread_local)]
-// #![feature(const_btree_new)]
-#![cfg_attr(not(feature = "std"), feature(thread_local))]
-#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
 
 #[macro_use]
 extern crate gear_common_codegen;

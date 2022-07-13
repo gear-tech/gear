@@ -40,6 +40,7 @@
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
 use super::*;
+use crate::storage::MapStorage;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
 use frame_support::assert_ok;
 use primitive_types::H256;
@@ -53,8 +54,9 @@ mod utils;
 
 type Balance = u64;
 
-#[thread_local]
-static TOTAL_ISSUANCE: RefCell<Option<Balance>> = RefCell::new(None);
+std::thread_local! {
+    static TOTAL_ISSUANCE: RefCell<Option<Balance>> = RefCell::new(None);
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct TotalIssuanceWrap;
@@ -63,23 +65,27 @@ impl ValueStorage for TotalIssuanceWrap {
     type Value = Balance;
 
     fn exists() -> bool {
-        TOTAL_ISSUANCE.borrow().is_some()
+        TOTAL_ISSUANCE.with(|i| i.borrow().is_some())
     }
 
     fn get() -> Option<Self::Value> {
-        *TOTAL_ISSUANCE.borrow()
+        TOTAL_ISSUANCE.with(|i| *i.borrow())
     }
 
     fn kill() {
-        *TOTAL_ISSUANCE.borrow_mut() = None
+        TOTAL_ISSUANCE.with(|i| {
+            *i.borrow_mut() = None;
+        })
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(f: F) -> R {
-        f(TOTAL_ISSUANCE.borrow_mut().deref_mut())
+        TOTAL_ISSUANCE.with(|i| f(i.borrow_mut().deref_mut()))
     }
 
     fn put(value: Self::Value) {
-        TOTAL_ISSUANCE.replace(Some(value));
+        TOTAL_ISSUANCE.with(|i| {
+            i.replace(Some(value));
+        })
     }
 
     fn set(value: Self::Value) -> Option<Self::Value> {
@@ -91,7 +97,7 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 
     fn take() -> Option<Self::Value> {
-        TOTAL_ISSUANCE.take()
+        TOTAL_ISSUANCE.with(|i| i.take())
     }
 }
 
@@ -99,8 +105,9 @@ type Key = H256;
 type ExternalOrigin = H256;
 type GasNode = super::GasNode<ExternalOrigin, Key, Balance>;
 
-#[thread_local]
-static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = RefCell::new(BTreeMap::new());
+std::thread_local! {
+    static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = RefCell::new(BTreeMap::new());
+}
 
 struct GasTreeNodesWrap;
 
@@ -109,15 +116,15 @@ impl storage::MapStorage for GasTreeNodesWrap {
     type Value = GasNode;
 
     fn contains_key(key: &Self::Key) -> bool {
-        GAS_TREE_NODES.borrow().contains_key(key)
+        GAS_TREE_NODES.with(|tree| tree.borrow().contains_key(key))
     }
 
     fn get(key: &Self::Key) -> Option<Self::Value> {
-        GAS_TREE_NODES.borrow().get(key).map(Clone::clone)
+        GAS_TREE_NODES.with(|tree| tree.borrow().get(key).cloned())
     }
 
     fn insert(key: Self::Key, value: Self::Value) {
-        GAS_TREE_NODES.borrow_mut().insert(key, value);
+        GAS_TREE_NODES.with(|tree| tree.borrow_mut().insert(key, value));
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(_key: Self::Key, _f: F) -> R {
@@ -129,15 +136,15 @@ impl storage::MapStorage for GasTreeNodesWrap {
     }
 
     fn remove(key: Self::Key) {
-        GAS_TREE_NODES.borrow_mut().remove(&key);
+        GAS_TREE_NODES.with(|tree| tree.borrow_mut().remove(&key));
     }
 
     fn clear() {
-        GAS_TREE_NODES.borrow_mut().clear()
+        GAS_TREE_NODES.with(|tree| tree.borrow_mut().clear());
     }
 
     fn take(key: Self::Key) -> Option<Self::Value> {
-        GAS_TREE_NODES.borrow_mut().remove(&key)
+        GAS_TREE_NODES.with(|tree| tree.borrow_mut().remove(&key))
     }
 }
 
@@ -229,9 +236,20 @@ impl super::Provider for GasProvider {
 
 type Gas = <GasProvider as super::Provider>::GasTree;
 
+fn gas_tree_node_clone() -> BTreeMap<Key, GasNode> {
+    GAS_TREE_NODES.with(|tree| {
+        tree.borrow()
+            .iter()
+            .map(|(k, v)| (*k, v.clone()))
+            .collect::<BTreeMap<_, _>>()
+    })
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(600))]
     #[test]
+    // the attribute is needed for the self-check, when compiler considers some checks to be always successful
+    #[allow(clippy::unit_cmp)]
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
         TotalIssuanceWrap::kill();
@@ -340,18 +358,18 @@ proptest! {
             }
         }
 
-        let gas_tree_ids = BTreeSet::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, _)| *k));
+        let gas_tree_ids = BTreeSet::from_iter(gas_tree_node_clone().keys().copied());
 
         // Self check, that in-memory view on gas tree ids is the same as persistent view.
         assert_eq!(gas_tree_ids, BTreeSet::from_iter(node_ids));
 
         let mut rest_value = 0;
-        for (node_id, node) in GAS_TREE_NODES.borrow().iter() {
+        for (node_id, node) in gas_tree_node_clone() {
             // All nodes from one tree have the same origin
             // todo [sab] can be invalid after Tiany's changes
             assert_eq!(
-                Gas::get_origin(*node_id)
-                    .and_then(|maybe_origin| Ok(maybe_origin.map(|(_, origin)| origin))),
+                Gas::get_origin(node_id)
+                    .map(|maybe_origin| maybe_origin.map(|(_, origin)| origin)),
                 Ok(Some(origin))
             );
 
@@ -363,17 +381,16 @@ proptest! {
             if let Some(parent) = node.parent() {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
-                let gas_tree = GAS_TREE_NODES.borrow();
-                let parent_node = gas_tree.get(&parent).expect("checked");
+                let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
                 assert!(parent_node.inner_value().is_some());
             }
 
             // Check property: specified local nodes are created only with `split_with_value` call
             if matches!(node.inner, GasNodeType::SpecifiedLocal { .. }) {
-                assert!(spec_ref_nodes.contains(node_id));
+                assert!(spec_ref_nodes.contains(&node_id));
             } else if matches!(node.inner, GasNodeType::UnspecifiedLocal { .. }) {
                 // Check property: unspecified local nodes are created only with `split` call
-                assert!(unspec_ref_nodes.contains(node_id));
+                assert!(unspec_ref_nodes.contains(&node_id));
             }
 
             // Check property: for all the consumed nodes currently existing in the tree...
@@ -407,7 +424,7 @@ proptest! {
             // Check property: all nodes have ancestor (node is a self-ancestor too) with value
             let (ancestor_with_value, ancestor_id) = Gas::node_with_value(node.clone()).expect("tree is invalidated");
             // The ancestor with value is either the node itself or its parent
-            if &ancestor_with_value != node {
+            if ancestor_with_value != node {
                 assert_eq!(node.parent(), ancestor_id);
             }
             assert!(ancestor_with_value.inner_value().is_some());
@@ -451,6 +468,6 @@ proptest! {
             }
         }
 
-        assert!(GAS_TREE_NODES.borrow().iter().count() == 0);
+        assert!(GAS_TREE_NODES.with(|tree| tree.borrow().iter().count()) == 0);
     }
 }
