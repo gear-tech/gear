@@ -16,16 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_runtime::{
-    AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-    SystemConfig, WASM_BINARY,
-};
+use crate::chain_spec::{get_account_id_from_seed, get_from_seed};
+use gear_node_primitives::AccountId;
 use hex_literal::hex;
 use sc_service::ChainType;
-use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
+use sp_consensus_babe::AuthorityId as BabeId;
+use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_runtime::traits::{IdentifyAccount, Verify};
+use vara_runtime::{
+    BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SessionConfig, SessionKeys,
+    SudoConfig, SystemConfig, WASM_BINARY,
+};
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -33,26 +34,13 @@ use sp_runtime::traits::{IdentifyAccount, Verify};
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
 
-/// Generate a crypto pair from seed.
-pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
-    TPublic::Pair::from_string(&format!("//{}", seed), None)
-        .expect("static values are valid; qed")
-        .public()
-}
-
-type AccountPublic = <Signature as Verify>::Signer;
-
-/// Generate an account ID from seed.
-pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
-where
-    AccountPublic: From<<TPublic::Pair as Pair>::Public>,
-{
-    AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
-}
-
-/// Generate an Aura authority key.
-pub fn authority_keys_from_seed(s: &str) -> (AuraId, GrandpaId) {
-    (get_from_seed::<AuraId>(s), get_from_seed::<GrandpaId>(s))
+/// Generate authority keys.
+pub fn authority_keys_from_seed(s: &str) -> (AccountId, BabeId, GrandpaId) {
+    (
+        get_account_id_from_seed::<sr25519::Public>(s),
+        get_from_seed::<BabeId>(s),
+        get_from_seed::<GrandpaId>(s),
+    )
 }
 
 pub fn development_config() -> Result<ChainSpec, String> {
@@ -62,7 +50,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // Name
         "Development",
         // ID
-        "dev",
+        "vara-dev",
         ChainType::Development,
         move || {
             testnet_genesis(
@@ -103,7 +91,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         // Name
         "Local Testnet",
         // ID
-        "local_testnet",
+        "vara-local",
         ChainType::Local,
         move || {
             testnet_genesis(
@@ -154,8 +142,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
-        "Staging Testnet V2",
-        "staging_testnet_v2",
+        "Staging Testnet",
+        "vara-staging",
         ChainType::Live,
         move || {
             testnet_genesis(
@@ -163,6 +151,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                 // Initial PoA authorities
                 vec![
                     (
+                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                            .into(),
                         // 5Gc7RXDUqWR7yupYFv6KMaak3fMbxYV1z6gEEGhQxeD4TBj9
                         hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
                             .unchecked_into(),
@@ -171,6 +161,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                            .into(),
                         // 5DRmQFTuJaMDuU6JMJgUhsCqrdURito3pUpTnDcFKRswdGXz
                         hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
                             .unchecked_into(),
@@ -179,6 +171,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                            .into(),
                         // 5E4jfoWJHckHB7WyDGebTwD6yEg2pyjxbHwJvCGc9fVGZ3GN
                         hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
                             .unchecked_into(),
@@ -187,6 +181,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                            .into(),
                         // 5HZJiwwz2sqoPMw8eGLD1d3fiWgZzTQwR5j8EnHBtjqTAUqq
                         hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
                             .unchecked_into(),
@@ -225,7 +221,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
     wasm_binary: &[u8],
-    initial_authorities: Vec<(AuraId, GrandpaId)>,
+    initial_authorities: Vec<(AccountId, BabeId, GrandpaId)>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool,
@@ -243,14 +239,27 @@ fn testnet_genesis(
                 .map(|k| (k, 1 << 60))
                 .collect(),
         },
-        aura: AuraConfig {
-            authorities: initial_authorities.iter().map(|x| (x.0.clone())).collect(),
+        babe: BabeConfig {
+            authorities: Default::default(),
+            epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
         },
         grandpa: GrandpaConfig {
-            authorities: initial_authorities
+            authorities: Default::default(),
+        },
+        session: SessionConfig {
+            keys: initial_authorities
                 .iter()
-                .map(|x| (x.1.clone(), 1))
-                .collect(),
+                .map(|x| {
+                    (
+                        x.0.clone(),
+                        x.0.clone(),
+                        SessionKeys {
+                            babe: x.1.clone(),
+                            grandpa: x.2.clone(),
+                        },
+                    )
+                })
+                .collect::<Vec<_>>(),
         },
         sudo: SudoConfig {
             // Assign network admin rights.

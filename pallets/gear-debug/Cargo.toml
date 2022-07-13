@@ -38,7 +38,6 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 serde = "1.0.142"
 env_logger = "0.9"
 wabt = "0.10"
-gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 hex-literal = "0.3.3"
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -54,7 +53,6 @@ std = [
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",
-	"gear-backend-sandbox/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -64,8 +62,6 @@ std = [
 	"pallet-authorship/std",
 	"primitive-types/std",
 	"pallet-gear/std",
-	"pallet-gear-messenger/std",
-	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

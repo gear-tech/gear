@@ -1,0 +1,23 @@
+[package]
+name = "gear-node-primitives"
+version = "1.0.0"
+authors = ["Gear Technologies"]
+description = "Gear Node primitives"
+edition = "2018"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+sp-core = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+[features]
+default = ["std"]
+std = [
+	"sp-core/std",
+	"sp-runtime/std",
+]
