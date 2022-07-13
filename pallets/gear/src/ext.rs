@@ -40,6 +40,12 @@ pub enum Error {
     LazyPages(lazy_pages::Error),
 }
 
+impl From<ExtError> for Error {
+    fn from(e: ExtError) -> Self {
+        Error::Processor(ProcessorError::Core(e))
+    }
+}
+
 impl CoreError for Error {}
 
 impl IntoExtError for Error {

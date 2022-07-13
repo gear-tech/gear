@@ -34,7 +34,7 @@ mod sys {
     extern "C" {
         pub fn gr_exit_code() -> i32;
         pub fn gr_msg_id(val: *mut u8);
-        pub fn gr_read(at: u32, len: u32, dest: *mut u8);
+        pub fn gr_read(at: u32, len: u32, dest: *mut u8) -> SyscallError;
         pub fn gr_reply(
             data_ptr: *const u8,
             data_len: u32,
@@ -146,14 +146,15 @@ pub fn id() -> MessageId {
 ///     msg::load(&mut result[..]);
 /// }
 /// ```
-pub fn load(buffer: &mut [u8]) {
+pub fn load(buffer: &mut [u8]) -> Result<()> {
     unsafe {
         let message_size = sys::gr_size() as usize;
         if message_size != buffer.len() {
             panic!("Cannot load message - buffer length does not match");
         }
 
-        sys::gr_read(0, message_size as _, buffer.as_mut_ptr() as _);
+        sys::gr_read(0, message_size as _, buffer.as_mut_ptr() as _).into_result()?;
+        Ok(())
     }
 }
 

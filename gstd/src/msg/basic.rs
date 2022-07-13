@@ -25,7 +25,7 @@ use crate::{
     prelude::{convert::AsRef, vec, Vec},
     ActorId, MessageId,
 };
-use codec::{Decode, Output};
+use codec::{Decode, Encode, Output};
 use gstd_codegen::wait_for_reply;
 
 trait IntoContractResult<T> {
@@ -180,9 +180,11 @@ pub fn id() -> MessageId {
 ///     let payload_bytes = msg::load_bytes();
 /// }
 /// ```
-pub fn load_bytes() -> Vec<u8> {
+pub fn load_bytes() -> Result<Vec<u8>> {
     let mut result = vec![0u8; size()];
-    gcore::msg::load(&mut result[..]);
+
+    gcore::msg::load(&mut result[..])?;
+
     result
 }
 

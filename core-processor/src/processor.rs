@@ -35,6 +35,7 @@ use gear_core::{
         DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket, StoredDispatch,
     },
 };
+use gear_core_errors::ExtError;
 
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
@@ -99,6 +100,7 @@ fn process_error(
     let message_id = dispatch.id();
     let origin = dispatch.source();
     let value = dispatch.value();
+    let err_string = err.to_string();
 
     journal.push(JournalNote::GasBurned {
         message_id,
@@ -123,7 +125,8 @@ fn process_error(
 
     if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), crate::ERR_EXIT_CODE);
-        let packet = ReplyPacket::system(err.encode(), crate::ERR_EXIT_CODE);
+        let packet =
+            ReplyPacket::system(Into::<ExtError>::into(err).encode(), crate::ERR_EXIT_CODE);
         let message = ReplyMessage::from_packet(id, packet);
 
         journal.push(JournalNote::SendDispatch {
@@ -135,11 +138,11 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
-            reason: err.to_string(),
+            reason: err_string,
         },
         _ => DispatchOutcome::MessageTrap {
             program_id,
-            trap: err.to_string(),
+            trap: err_string,
         },
     };
 

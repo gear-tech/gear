@@ -23,7 +23,7 @@ use alloc::{
     string::{FromUtf8Error, String},
     vec,
 };
-use codec::Encode;
+use codec::{Decode, Encode};
 use core::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -40,7 +40,7 @@ use gear_core::{
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{ExtError, MemoryError};
 use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -322,13 +322,22 @@ where
         let len: usize = pop_i32(&mut args)?;
         let dest = pop_i32(&mut args)?;
 
+        let exit_code = Self::exit_code(ctx, &[])?;
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| {
             let msg = ext.msg().to_vec();
-            wto(memory, dest, &msg[at..(at + len)])
+            let msg_slice = &msg[at..(at + len)];
+
+            if exit_code == ReturnValue::Value(Value::I32(crate::ERR_EXIT_CODE)) {
+                if let Ok(e) = ExtError::decode(&mut msg_slice.clone()) {
+                    return Err(FuncError::Core(e.into()));
+                }
+            }
+
+            wto(memory, dest, msg_slice)
         })
-        .map(|()| ReturnValue::Unit)
+        .map(|_| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
             HostError

@@ -32,7 +32,7 @@ use gear_core::{
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
 };
-use gear_core_errors::MemoryError;
+use gear_core_errors::{ExtError, MemoryError, MessageError};
 use scale_info::TypeInfo;
 
 /// Kind of the dispatch result.
@@ -339,6 +339,23 @@ pub enum ExecutionErrorReason {
     /// Initial pages data must be empty when execute with lazy pages
     #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
     InitialPagesContainsDataInLazyPagesMode,
+}
+
+impl Into<ExtError> for ExecutionErrorReason {
+    fn into(self) -> ExtError {
+        match self {
+            ExecutionErrorReason::Ext(TrapExplanation::Core(e)) => e,
+            ExecutionErrorReason::Memory(e) => ExtError::Memory(e),
+            ExecutionErrorReason::LoadMemoryGasExceeded
+            | ExecutionErrorReason::LoadMemoryBlockGasExceeded
+            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
+            | ExecutionErrorReason::InitialMemoryGasExceeded
+            | ExecutionErrorReason::InitialMemoryBlockGasExceeded => {
+                ExtError::Message(MessageError::NotEnoughGas)
+            }
+            _ => ExtError::Some,
+        }
+    }
 }
 
 /// Actor.

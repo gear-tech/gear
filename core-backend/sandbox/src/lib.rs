@@ -28,3 +28,6 @@ pub mod memory;
 
 pub use env::SandboxEnvironment;
 pub use memory::MemoryWrap;
+
+/// Error exit code.
+pub const ERR_EXIT_CODE: gear_core::message::ExitCode = 1;

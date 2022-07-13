@@ -30,7 +30,7 @@ use core::fmt;
 use scale_info::TypeInfo;
 
 /// Core error.
-pub trait CoreError: fmt::Display + fmt::Debug {}
+pub trait CoreError: fmt::Display + fmt::Debug + From<ExtError> {}
 
 /// Error using messages.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
