@@ -71,3 +71,18 @@ impl<T: Default> GetCallback<T> for () {
         Default::default()
     }
 }
+
+/// Represents transposing callback
+/// for mutating values.
+pub trait TransposeCallback<T, R> {
+    /// Returns value by callback's logic.
+    fn call(arg: T) -> R;
+}
+
+// Blank `TransposeCallback` implementation
+// for returning value itself.
+impl<T> TransposeCallback<T, T> for () {
+    fn call(arg: T) -> T {
+        arg
+    }
+}

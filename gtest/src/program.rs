@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    manager::{Actor, ExtManager, Program as InnerProgram},
+    manager::{Balance, ExtManager, Program as InnerProgram, TestActor},
     system::System,
     Result,
 };
@@ -120,6 +120,31 @@ impl From<u64> for ProgramIdWrapper {
 impl From<[u8; 32]> for ProgramIdWrapper {
     fn from(other: [u8; 32]) -> Self {
         Self(other.into())
+    }
+}
+
+impl From<&[u8]> for ProgramIdWrapper {
+    fn from(other: &[u8]) -> Self {
+        if other.len() != 32 {
+            panic!("Invalid identifier: {:?}", other)
+        }
+
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(other);
+
+        bytes.into()
+    }
+}
+
+impl From<Vec<u8>> for ProgramIdWrapper {
+    fn from(other: Vec<u8>) -> Self {
+        other[..].into()
+    }
+}
+
+impl From<&Vec<u8>> for ProgramIdWrapper {
+    fn from(other: &Vec<u8>) -> Self {
+        other[..].into()
     }
 }
 
@@ -356,17 +381,6 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
-        if system.actors.contains_key(&source) {
-            panic!("Sending messages allowed only from users id");
-        }
-
-        if 0 < value && value < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "Value greater than 0, but less than required existential deposit ({})",
-                crate::EXISTENTIAL_DEPOSIT
-            );
-        }
-
         let message = Message::new(
             MessageId::generate_from_user(
                 system.block_info.height,
@@ -383,20 +397,14 @@ impl<'a> Program<'a> {
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
-        let kind = if let Actor::Uninitialized(id, _) = actor {
-            if id.is_none() {
-                *id = Some(message.id());
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
-            }
+        let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
+            *id = Some(message.id());
+            DispatchKind::Init
         } else {
             DispatchKind::Handle
         };
 
-        let dispatch = Dispatch::new(kind, message);
-
-        system.run_dispatch(dispatch)
+        system.run_dispatch(Dispatch::new(kind, message))
     }
 
     pub fn id(&self) -> ProgramId {
@@ -421,6 +429,14 @@ impl<'a> Program<'a> {
         self.manager
             .borrow_mut()
             .call_meta(&self.id, None, "meta_state")
+    }
+
+    pub fn mint(&mut self, value: Balance) {
+        self.manager.borrow_mut().mint_to(&self.id(), value)
+    }
+
+    pub fn balance(&self) -> Balance {
+        self.manager.borrow().balance_of(&self.id())
     }
 
     fn wasm_path(extension: &str) -> PathBuf {
@@ -465,5 +481,101 @@ mod tests {
 
         assert!(!run_result.main_failed());
         assert!(run_result.contains(&expected_log));
+    }
+
+    #[test]
+    fn simple_balance() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 42;
+        sys.mint_to(user_id, 5000);
+        assert_eq!(sys.balance_of(user_id), 5000);
+
+        let mut prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
+        );
+
+        prog.mint(1000);
+        assert_eq!(prog.balance(), 1000);
+
+        prog.send_with_value(user_id, "init".to_string(), 500);
+        assert_eq!(prog.balance(), 1500);
+        assert_eq!(sys.balance_of(user_id), 4500);
+
+        prog.send_with_value(user_id, "PING".to_string(), 1000);
+        assert_eq!(prog.balance(), 2500);
+        assert_eq!(sys.balance_of(user_id), 3500);
+    }
+
+    #[test]
+    fn piggy_bank() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let receiver = 42;
+        let sender0 = 43;
+        let sender1 = 44;
+        let sender2 = 45;
+
+        // Top-up senders balances
+        sys.mint_to(sender0, 10000);
+        sys.mint_to(sender1, 10000);
+        sys.mint_to(sender2, 10000);
+
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        prog.send_bytes(receiver, b"init");
+        assert_eq!(prog.balance(), 0);
+
+        // Send values to the program
+        prog.send_bytes_with_value(sender0, b"insert", 1000);
+        assert_eq!(sys.balance_of(sender0), 9000);
+        prog.send_bytes_with_value(sender1, b"insert", 2000);
+        assert_eq!(sys.balance_of(sender1), 8000);
+        prog.send_bytes_with_value(sender2, b"insert", 3000);
+        assert_eq!(sys.balance_of(sender2), 7000);
+
+        // Check program's balance
+        assert_eq!(prog.balance(), 1000 + 2000 + 3000);
+
+        // Request to smash the piggy bank and send the value to the receiver address
+        prog.send_bytes(receiver, b"smash");
+        sys.claim_value_from_mailbox(receiver);
+        assert_eq!(sys.balance_of(receiver), 1000 + 2000 + 3000);
+
+        // Check program's balance is empty
+        assert_eq!(prog.balance(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "An attempt to mint value (1) less than existential deposit (500)")]
+    fn mint_less_than_deposit() {
+        System::new().mint_to(1, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient value: user \
+    (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
+    to send (501) value, while his balance (500)")]
+    fn fails_on_insufficient_balance() {
+        let sys = System::new();
+
+        let user = 1;
+        let prog = Program::from_file_with_id(
+            &sys,
+            2,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        assert_eq!(sys.balance_of(user), 0);
+        sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
+
+        prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
     }
 }

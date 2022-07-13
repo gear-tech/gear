@@ -44,7 +44,7 @@ struct Opts {
     pub input: Vec<std::path::PathBuf>,
     /// A level of verbosity
     #[clap(short, long, action = clap::ArgAction::Count)]
-    verbose: i32,
+    verbose: u8,
 }
 
 pub fn main() -> anyhow::Result<()> {

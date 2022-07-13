@@ -4,14 +4,15 @@ on:
   schedule:
     - cron: "0 3 * * *"
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
+  NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
   spec_version:
@@ -51,17 +52,19 @@ jobs:
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
-      - name: "Install: Nightly-2022-06-30 toolchain"
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-06-30
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
-      - name: "Install: pin to nightly-2022-06-30"
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
           rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s /root/.rustup/toolchains/nightly-2022-06-30-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Build deps"
         run: |
@@ -99,7 +102,7 @@ jobs:
         run: |
           tar -cf /tmp/check_target.tar ./target
           tar -cf /tmp/check_cache.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git /tmp/cargo/.crates.toml /tmp/cargo/.crates2.json
+          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -126,17 +129,19 @@ jobs:
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
-      - name: "Install: Nightly-2022-06-30 toolchain"
+      - name: "Install: Specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-06-30
+          toolchain: nightly-${{ env.NIGHTLY_TOOLCHAIN_VERSION }}
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
-      - name: "Install: pin to nightly-2022-06-30"
+      - name: "Install: Pin to specific nightly toolchain"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
           rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s /root/.rustup/toolchains/nightly-2022-06-30-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -192,7 +197,6 @@ jobs:
           cargo test -p pallet-gear --features=lazy-pages --release
           cargo test -p pallet-gear-debug --features=lazy-pages --release
           cargo test -p pallet-gear-payment --features=lazy-pages --release
-          cargo test -p pallet-usage --features=lazy-pages --release
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
@@ -324,7 +328,7 @@ jobs:
         run: |
           tar -cf /tmp/build_target.tar ./target
           tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git /tmp/cargo/.crates.toml /tmp/cargo/.crates2.json
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
       - name: Prepare artifacts
@@ -349,7 +353,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: artifact
-  
+
   build-win:
     if: github.ref == 'refs/heads/master'
     needs: spec_version
@@ -390,16 +394,15 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: nextest
-          args: >- 
+          args: >-
             run
-            -p pallet-gear 
+            -p pallet-gear
             -p pallet-gear-debug
             -p pallet-gear-payment
-            -p pallet-usage
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages
-  
+
   upload:
     if: github.event_name == 'push'
     runs-on: self-hosted

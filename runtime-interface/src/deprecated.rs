@@ -17,11 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Deprecated backend for runtime interface.
-//! TODO: remove before release
 
+// TODO: remove before release (issue #1147)
+
+use crate::RIError;
 use codec::{Decode, Encode};
-use gear_core::memory::HostPointer;
+use gear_core::memory::{HostPointer, PageNumber};
 
+#[cfg(feature = "std")]
+use crate::sys_mprotect_interval;
+
+#[deprecated]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 pub enum MprotectError {
     #[display(fmt = "Page error")]
@@ -30,10 +36,12 @@ pub enum MprotectError {
     OsError,
 }
 
+#[deprecated]
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[display(fmt = "Failed to get released page")]
 pub struct GetReleasedPageError;
 
+#[deprecated]
 #[cfg(feature = "std")]
 #[cfg(unix)]
 pub(crate) unsafe fn sys_mprotect_wasm_pages(
@@ -72,6 +80,7 @@ pub(crate) unsafe fn sys_mprotect_wasm_pages(
     Ok(())
 }
 
+#[deprecated]
 #[cfg(feature = "std")]
 #[cfg(not(unix))]
 pub(crate) unsafe fn sys_mprotect_wasm_pages(
@@ -83,4 +92,37 @@ pub(crate) unsafe fn sys_mprotect_wasm_pages(
 ) -> Result<(), MprotectError> {
     log::error!("unsupported OS for pages protectection");
     Err(MprotectError::OsError)
+}
+
+#[deprecated]
+#[cfg(feature = "std")]
+pub(crate) fn mprotect_pages_slice(
+    mem_addr: HostPointer,
+    pages: &[PageNumber],
+    protect: bool,
+) -> Result<(), RIError> {
+    let mprotect = |start: PageNumber, count, protect: bool| unsafe {
+        let addr = mem_addr + (start.0 as usize * PageNumber::size()) as HostPointer;
+        let size = count as usize * PageNumber::size();
+        sys_mprotect_interval(addr, size, !protect, !protect, false)
+    };
+
+    // Collects continuous intervals of memory from lazy pages to protect them.
+    let mut start = if let Some(&start) = pages.first() {
+        start
+    } else {
+        return Ok(());
+    };
+
+    let mut count = 1;
+    for &page in pages.iter().skip(1) {
+        if start + count.into() == page {
+            count = count.saturating_add(1);
+        } else {
+            mprotect(start, count, protect)?;
+            start = page as _;
+            count = 1;
+        }
+    }
+    mprotect(start, count, protect)
 }

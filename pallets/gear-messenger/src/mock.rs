@@ -43,6 +43,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        GearGas: pallet_gear_gas::{Pallet},
         GearMessenger: pallet_gear_messenger::{Pallet},
     }
 );
@@ -63,6 +64,11 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
+    pub const BlockGasLimit: u64 = 100_000_000;
+}
+
+impl pallet_gear_gas::Config for Test {
+    type BlockGasLimit = BlockGasLimit;
 }
 
 impl system::Config for Test {
@@ -94,6 +100,7 @@ impl system::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type Currency = ();
+    type BlockLimiter = GearGas;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -428,6 +428,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-piggy-bank"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [

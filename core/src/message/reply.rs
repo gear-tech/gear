@@ -54,6 +54,16 @@ impl ReplyMessage {
         }
     }
 
+    // TODO: consider using here `impl CoreError` and/or provide `AsExitCode`
+    // trait or append such functionality to `CoreError` (issue #1083).
+    /// Create new system generated ReplyMessage.
+    pub fn system(origin_msg_id: MessageId, payload: Payload, exit_code: ExitCode) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id, exit_code);
+        let packet = ReplyPacket::system(payload, exit_code);
+
+        Self::from_packet(id, packet)
+    }
+
     /// Convert ReplyMessage into Message.
     pub fn into_message(
         self,
@@ -171,7 +181,7 @@ impl ReplyPacket {
 
     // TODO: consider using here `impl CoreError` and/or provide `AsExitCode`
     // trait or append such functionality to `CoreError` (issue #1083).
-    /// Create new empty ReplyPacket (for system generation).
+    /// Create new system generated ReplyPacket.
     pub fn system(payload: Payload, exit_code: ExitCode) -> Self {
         Self {
             payload,

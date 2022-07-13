@@ -27,7 +27,9 @@ use crate::{
     GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
-use common::{event::*, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _};
+use common::{
+    event::*, program_exists, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
+};
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
@@ -613,7 +615,7 @@ fn memory_access_cases() {
             br 1
         )
 
-        ;; in first run access pages
+        ;; in first run we will access some pages
 
         ;; alloc 2nd page
         (block
@@ -773,7 +775,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::{PageNumber, WasmPageNumber};
+    use gear_core::memory::PageNumber;
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -856,27 +858,10 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_lazy_pages_numbers()
-            .iter()
-            .map(|p| PageNumber(*p))
-            .collect();
         let released_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_released_pages()
             .iter()
             .map(|p| PageNumber(*p))
             .collect();
-
-        // Checks that released pages + lazy pages == all pages
-        let all_pages = {
-            let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
-            all_wasm_pages
-                .iter()
-                .flat_map(|p| p.to_gear_pages_iter())
-                .collect()
-        };
-        let mut res_pages = lazy_pages;
-        res_pages.extend(released_pages.iter());
-
-        assert_eq!(res_pages, all_pages);
 
         // checks accessed pages set
         let native_size = page_size::get();
@@ -884,8 +869,12 @@ fn lazy_pages() {
 
         let page_to_accessed = |p: u32| {
             if native_size > PageNumber::size() {
+                // `x` is number of gear pages in one native page for current host
                 let x = (native_size / PageNumber::size()) as u32;
-                (p / x) * x..=(p / x) * x + x - 1
+                // each native page contains several gear pages
+                let first_accessed_gear_page = (p / x) * x;
+                // accessed gear pages range:
+                first_accessed_gear_page..=first_accessed_gear_page + x - 1
             } else {
                 p..=p
             }
@@ -3694,6 +3683,234 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 #[test]
+fn execution_over_blocks() {
+    init_logger();
+
+    let assert_last_message = |src: [u8; 32], count: u128| {
+        use demo_calc_hash::verify_result;
+
+        let last_message = maybe_last_message(USER_1).expect("Get last message failed.");
+        let result = <[u8; 32]>::decode(&mut last_message.payload()).expect("Decode result failed");
+
+        assert!(verify_result(src, count, result));
+
+        SystemPallet::<Test>::reset_events();
+    };
+
+    let estimate_gas_per_calc = || -> (u64, u64) {
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
+
+        let (src, times) = ([0; 32], 1);
+
+        let init_gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        // deploy demo-calc-in-one-block
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"estimate threshold".to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            init_gas.burned,
+            0,
+        ));
+        let in_one_block = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // estimate start cost
+        let pkg = Package::new(times, src);
+        let gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(in_one_block),
+            pkg.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        (init_gas.min_limit, gas.min_limit)
+    };
+
+    let estimate_gas_for_init_and_start = || -> (u64, u64) {
+        use demo_calc_hash::sha2_256;
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+
+        let init_gas = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            0u64.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        // deploy demo-calc-hash-over-blocks
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"estimate over blocks".to_vec(),
+            0u64.encode(),
+            init_gas.min_limit,
+            0,
+        ));
+        let over_blocks = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let (src, id, expected) = ([1; 32], sha2_256(b"estimate_over_blocks"), 0);
+
+        // Estimate start cost.
+        let start_gas_wait = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(over_blocks),
+            Method::Start { expected, src, id }.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        // Init the start message with 0 expected first.
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            over_blocks,
+            Method::Start { src, id, expected }.encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        // Estimate the gas spent on waking.
+        let start_gas_wake = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(over_blocks),
+            Method::Start { expected, src, id }.encode(),
+            0,
+            true,
+        )
+        .expect("Failed to get gas spent");
+
+        run_to_next_block(None);
+        SystemPallet::<Test>::reset_events();
+
+        (
+            init_gas.min_limit,
+            start_gas_wait.min_limit + start_gas_wake.min_limit,
+        )
+    };
+
+    new_test_ext().execute_with(|| {
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
+
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+
+        // deply demo-calc-hash-in-one-block
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            5_000_000_000,
+            0,
+        ));
+        let in_one_block = get_last_program_id();
+
+        assert!(common::program_exists(in_one_block.into_origin()));
+
+        let src = [0; 32];
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            in_one_block,
+            Package::new(128, src).encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert_last_message([0; 32], 128);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            in_one_block,
+            Package::new(1024, src).encode(),
+            block_gas_limit,
+            0,
+        ));
+
+        let message_id = get_last_message_id();
+        run_to_next_block(None);
+
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
+            ))),
+        );
+    });
+
+    new_test_ext().execute_with(|| {
+        use demo_calc_hash::sha2_256;
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
+        let block_gas_limit = BlockGasLimitOf::<Test>::get();
+
+        let (_, calc_threshold) = estimate_gas_per_calc();
+        let (init_gas, start_gas) = estimate_gas_for_init_and_start();
+
+        // deploy demo-calc-hash-over-blocks
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            calc_threshold.encode(),
+            init_gas,
+            0,
+        ));
+        let over_blocks = get_last_program_id();
+
+        assert!(program_exists(over_blocks.into_origin()));
+
+        let (src, id, expected) = ([0; 32], sha2_256(b"42"), 1024);
+
+        // trigger calculation
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            over_blocks,
+            Method::Start { src, id, expected }.encode(),
+            start_gas,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let mut count = 0;
+        while maybe_last_message(USER_1).is_none() {
+            assert_ok!(Gear::send_message(
+                Origin::signed(USER_1),
+                over_blocks,
+                Method::Refuel(id).encode(),
+                block_gas_limit,
+                0,
+            ));
+
+            count += 1;
+            run_to_next_block(None);
+        }
+
+        assert!(count > 1);
+        assert_last_message(src, expected);
+    });
+}
+
+#[test]
 fn call_forbidden_function() {
     let wat = r#"
     (module
@@ -3803,7 +4020,11 @@ mod utils {
         Origin, SystemPallet, Test,
     };
     use codec::Decode;
-    use common::{event::*, storage::IterableByKeyMap, Origin as _};
+    use common::{
+        event::*,
+        storage::{CountedByKey, IterableByKeyMap},
+        Origin as _,
+    };
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -4132,6 +4353,23 @@ mod utils {
                 _ => None,
             })
             .expect("can't find message send event")
+    }
+
+    pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
+        SystemPallet::<Test>::events()
+            .into_iter()
+            .rev()
+            .find_map(|e| {
+                if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    if message.destination() == account.into() {
+                        Some(message)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
     }
 
     pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {

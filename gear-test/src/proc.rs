@@ -20,6 +20,7 @@ use crate::{
     address::Address,
     check::ExecutionContext,
     js::{MetaData, MetaType},
+    manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
 use core_processor::{common::*, configs::*, Ext};
@@ -100,24 +101,23 @@ where
     let program_id = program.id();
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
-    let journal = core_processor::process::<Ext, E>(
-        Some(ExecutableActor {
-            program,
+    let block_config = test_block_config(block_info);
+
+    let message_execution_context = MessageExecutionContext {
+        actor: Actor {
             balance: 0,
-            pages_data: Default::default(),
-        }),
-        message.into(),
-        block_info,
-        Default::default(),
-        EXISTENTIAL_DEPOSIT,
-        Default::default(),
-        program_id,
-        u64::MAX,
-        OUTGOING_LIMIT,
-        Default::default(),
-        Default::default(),
-        MAILBOX_THRESHOLD,
-    );
+            destination_program: program_id,
+            executable_data: Some(ExecutableActorData {
+                program,
+                pages_data: Default::default(),
+            }),
+        },
+        dispatch: message.into(),
+        origin: Default::default(),
+        gas_allowance: u64::MAX,
+    };
+
+    let journal = core_processor::process::<Ext, E>(&block_config, message_execution_context);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -282,27 +282,25 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
+            let block_config = test_block_config(BlockInfo { height, timestamp });
+
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let program_id = dispatch.destination();
 
-                let actor = state.actors.get(&program_id).cloned();
+                let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
+                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                });
+                let actor = actor.into_core(program_id);
 
-                let journal = core_processor::process::<Ext, E>(
-                    actor.unwrap_or_else(|| {
-                        panic!("Error: Message to user {:?} in dispatch queue!", program_id)
-                    }),
-                    dispatch.into_incoming(gas_limit),
-                    BlockInfo { height, timestamp },
-                    Default::default(),
-                    EXISTENTIAL_DEPOSIT,
-                    Default::default(),
-                    program_id,
-                    u64::MAX,
-                    OUTGOING_LIMIT,
-                    Default::default(),
-                    Default::default(),
-                    MAILBOX_THRESHOLD,
-                );
+                let message_execution_context = MessageExecutionContext {
+                    actor,
+                    dispatch: dispatch.into_incoming(gas_limit),
+                    origin: Default::default(),
+                    gas_allowance: u64::MAX,
+                };
+
+                let journal =
+                    core_processor::process::<Ext, E>(&block_config, message_execution_context);
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -318,31 +316,29 @@ where
         while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
             let program_id = dispatch.destination();
 
-            let actor = state.actors.get(&program_id).cloned();
+            let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
+                panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+            });
+            let actor = actor.into_core(program_id);
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let journal = core_processor::process::<Ext, E>(
-                actor.unwrap_or_else(|| {
-                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
-                }),
-                dispatch.into_incoming(gas_limit),
-                BlockInfo {
-                    height: counter,
-                    timestamp,
-                },
-                Default::default(),
-                EXISTENTIAL_DEPOSIT,
-                Default::default(),
-                program_id,
-                u64::MAX,
-                OUTGOING_LIMIT,
-                Default::default(),
-                Default::default(),
-                MAILBOX_THRESHOLD,
-            );
+            let block_config = test_block_config(BlockInfo {
+                height: counter,
+                timestamp,
+            });
+
+            let message_execution_context = MessageExecutionContext {
+                actor,
+                dispatch: dispatch.into_incoming(gas_limit),
+                origin: Default::default(),
+                gas_allowance: u64::MAX,
+            };
+
+            let journal =
+                core_processor::process::<Ext, E>(&block_config, message_execution_context);
             counter += 1;
 
             core_processor::handle_journal(journal, journal_handler);
@@ -355,4 +351,16 @@ where
     }
 
     results
+}
+
+fn test_block_config(block_info: BlockInfo) -> BlockConfig {
+    BlockConfig {
+        block_info,
+        allocations_config: Default::default(),
+        existential_deposit: EXISTENTIAL_DEPOSIT,
+        outgoing_limit: OUTGOING_LIMIT,
+        host_fn_weights: Default::default(),
+        forbidden_funcs: Default::default(),
+        mailbox_threshold: MAILBOX_THRESHOLD,
+    }
 }

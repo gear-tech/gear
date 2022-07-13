@@ -18,11 +18,11 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
-        ExecutionErrorReason,
+        DispatchResult, DispatchResultKind, ExecutableActorData, ExecutionError,
+        ExecutionErrorReason, WasmExecutionContext,
     },
     configs::ExecutionSettings,
-    ext::ProcessorExt,
+    ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -109,12 +109,11 @@ fn make_checks_and_charge_gas_for_pages<'a>(
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
-fn prepare_memory<A: ProcessorExt>(
+fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
-    allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
-    mem: &mut dyn Memory,
+    mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
@@ -123,12 +122,10 @@ fn prepare_memory<A: ProcessorExt>(
     }
 
     if A::is_lazy_pages_enabled() {
-        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
-        let lazy_pages = allocations
-            .iter()
-            .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_data.contains_key(page));
-        A::lazy_pages_protect_and_init_info(mem, lazy_pages, program_id)
+        if !pages_data.is_empty() {
+            return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
+        }
+        A::lazy_pages_protect_and_init_info(mem, program_id)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
@@ -203,9 +200,10 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    actor: ExecutableActor,
+    balance: u128,
+    data: ExecutableActorData,
     dispatch: IncomingDispatch,
-    context: ExecutionContext,
+    context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -217,11 +215,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         panic!("Cannot use ext with lazy pages without lazy pages env enabled");
     }
 
-    let ExecutableActor {
+    let ExecutableActorData {
         program,
-        balance,
         pages_data: mut pages_initial_data,
-    } = actor;
+    } = data;
 
     let program_id = program.id();
     let kind = dispatch.kind();
@@ -275,23 +272,25 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
-    // Creating externalities.
-    let ext = A::new(
+    let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
         value_counter,
         allocations_context,
         message_context,
-        settings.block_info,
-        settings.allocations_config,
-        settings.existential_deposit,
-        context.origin,
+        block_info: settings.block_info,
+        config: settings.allocations_config,
+        existential_deposit: settings.existential_deposit,
+        origin: context.origin,
         program_id,
-        Default::default(),
-        settings.host_fn_weights,
-        settings.forbidden_funcs,
-        settings.mailbox_threshold,
-    );
+        program_candidates_data: Default::default(),
+        host_fn_weights: settings.host_fn_weights,
+        forbidden_funcs: settings.forbidden_funcs,
+        mailbox_threshold: settings.mailbox_threshold,
+    };
+
+    // Creating externalities.
+    let ext = A::new(context);
 
     let mut env = E::new(
         ext,
@@ -300,7 +299,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         mem_size,
     )
     .map_err(|err| {
-        log::debug!("Setup instance err = {}", err);
+        log::debug!("Setup instance error: {}", err);
         ExecutionError {
             program_id,
             gas_amount: err.gas_amount.clone(),
@@ -308,10 +307,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     })?;
 
-    if let Err(reason) = prepare_memory::<A>(
+    if let Err(reason) = prepare_memory::<A, E::Memory>(
         program_id,
         &mut pages_initial_data,
-        &allocations,
         static_pages,
         env.get_mem_mut(),
     ) {
@@ -345,7 +343,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    log::debug!("term reason = {:?}", termination);
+    log::debug!("Termination reason: {:?}", termination);
 
     // Parsing outcome.
     let kind = match termination {
