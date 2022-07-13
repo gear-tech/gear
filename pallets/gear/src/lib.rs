@@ -816,20 +816,23 @@ pub mod pallet {
 
                     if let Some((remaining_gas, _)) = get_main_limit()? {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
-                    };
+                    }
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
                             if from_main_chain(dispatch.id())? {
-                                let gas_limit: u64;
-
-                                if let Some(limit) = dispatch.gas_limit() {
-                                    gas_limit = limit
-                                } else {
-                                    gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id()).map_err(|_| {
-                                        b"Internal error: unable to get gas limit after execution".to_vec()
-                                    })?.ok_or_else(|| b"Internal error: unable to get gas limit after execution".to_vec())?.0
-                                }
+                                let gas_limit = dispatch
+                                    .gas_limit()
+                                    .or_else(|| {
+                                        GasHandlerOf::<T>::get_limit(dispatch.id())
+                                            .ok()
+                                            .flatten()
+                                            .map(|(g, _)| g)
+                                    })
+                                    .ok_or_else(|| {
+                                        b"Internal error: unable to get gas limit after execution"
+                                            .to_vec()
+                                    })?;
 
                                 if gas_limit >= T::MailboxThreshold::get() {
                                     reserved = reserved.saturating_add(gas_limit);
