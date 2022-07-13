@@ -22,7 +22,7 @@ wasmparser = "0.88.0"
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
 gear-core = { path = "../../core", default-features = false }
-gear-runtime = { path = "../../runtime", default-features = false }
+gear-runtime = { path = "../../runtime/gear", default-features = false }
 pallet-gear-gas = { path = "../../pallets/gas", default-features = false }
 pallet-gear = { path = "../../pallets/gear", default-features = false }
 demo-contract-template = { path = "../../examples/binaries/contract-template", default-features = false }

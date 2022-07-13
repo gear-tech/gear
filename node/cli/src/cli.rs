@@ -16,9 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_cli::RunCmd;
+use clap::Parser;
 
-#[derive(Debug, clap::Parser)]
+#[allow(missing_docs)]
+#[derive(Debug, Parser)]
+pub struct RunCmd {
+    #[allow(missing_docs)]
+    #[clap(flatten)]
+    pub base: sc_cli::RunCmd,
+
+    /// Force using Vara native runtime.
+    #[clap(long = "force-vara")]
+    pub force_vara: bool,
+
+    /// Disable automatic hardware benchmarks.
+    ///
+    /// By default these benchmarks are automatically ran at startup and measure
+    /// the CPU speed, the memory bandwidth and the disk speed.
+    ///
+    /// The results are then printed out in the logs, and also sent as part of
+    /// telemetry, if telemetry is enabled.
+    #[clap(long)]
+    pub no_hardware_benchmarks: bool,
+}
+
+#[derive(Debug, Parser)]
 pub struct Cli {
     #[clap(subcommand)]
     pub subcommand: Option<Subcommand>,
