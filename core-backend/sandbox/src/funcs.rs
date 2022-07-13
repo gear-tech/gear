@@ -330,7 +330,7 @@ where
             let msg_slice = &msg[at..(at + len)];
 
             if exit_code == ReturnValue::Value(Value::I32(crate::ERR_EXIT_CODE)) {
-                if let Ok(e) = ExtError::decode(&mut msg_slice.clone()) {
+                if let Ok(e) = ExtError::decode(&mut msg_slice.as_ref()) {
                     return Err(FuncError::Core(e.into()));
                 }
             }
