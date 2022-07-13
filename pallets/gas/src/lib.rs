@@ -182,7 +182,7 @@ pub mod pallet {
         /// algorithm works wrong and expected invariants are not correct.
         UnexpectedConsumeOutput,
 
-        /// Node type that can't occur if algorithm work well 
+        /// Node type that can't occur if algorithm work well
         UnexpectedNodeType,
 
         /// Value must have been caught, but was missed or blocked (for more info see `ValueNode::catch_value`).
@@ -235,7 +235,7 @@ pub mod pallet {
         fn value_is_not_caught() -> Self {
             Self::ValueIsNotCaught
         }
-        
+
         fn value_is_blocked() -> Self {
             Self::ValueIsBlocked
         }

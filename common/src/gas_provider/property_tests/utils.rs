@@ -39,11 +39,12 @@ impl<T> RingGet<T> for Vec<T> {
 pub(super) fn consume_node(
     consuming: H256,
 ) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), super::Error> {
-    let nodes_before_consume = BTreeMap::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, v)| (*k, v.clone())));
+    let nodes_before_consume =
+        BTreeMap::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, v)| (*k, v.clone())));
     Gas::consume(consuming).map(|maybe_output| {
         let maybe_caught_value = maybe_output.map(|(imb, _)| imb.peek());
         let nodes_after_consume =
-            BTreeSet::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, v)| (*k, v.clone())));
+            BTreeMap::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, v)| (*k, v.clone())));
         let mut removed_nodes = BTreeMap::new();
         for (id, node) in nodes_before_consume {
             if !nodes_after_consume.contains_key(&id) {

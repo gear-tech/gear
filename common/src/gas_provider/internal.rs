@@ -32,7 +32,10 @@ enum CatchValueOutput<Balance> {
 }
 
 impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
-    fn into_consume_output<TotalValue, ExternalId>(self, origin: ExternalId) -> ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId> 
+    fn into_consume_output<TotalValue, ExternalId>(
+        self,
+        origin: ExternalId,
+    ) -> ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>
     where
         TotalValue: ValueStorage<Value = Balance>,
         ExternalId: Clone,
@@ -156,7 +159,7 @@ where
         }
 
         if !node.inner.is_unspecified_local() {
-            if let Some((mut patron, patron_id)) = Self::find_ancestor_patron(&node)? {
+            if let Some((mut patron, patron_id)) = Self::find_ancestor_patron(node)? {
                 let self_value = node
                     .inner_value_mut()
                     .expect("is not unspecified, so has value; qed");
@@ -192,12 +195,15 @@ where
     /// unspecified local nodes rely on nodes with value, so these specified nodes (`ValueType::External`, `ValueType::SpecifiedLocal`)
     /// are patron ones. The other criteria for a node to be marked as the patron one is not
     /// being consumed - value of such nodes mustn't be moved, because node itself rely on it.
-    fn find_ancestor_patron(node: &StorageMap::Value) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
+    fn find_ancestor_patron(
+        node: &StorageMap::Value,
+    ) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
         match node.inner {
-            GasNodeType::External { .. } | GasNodeType::ReservedLocal { .. }=> Ok(None),
+            GasNodeType::External { .. } | GasNodeType::ReservedLocal { .. } => Ok(None),
             GasNodeType::SpecifiedLocal { parent, .. } => {
                 let mut ret_id = parent;
-                let mut ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
+                let mut ret_node =
+                    Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
                 while !ret_node.is_patron() {
                     match ret_node.inner {
                         GasNodeType::External { .. } => return Ok(None),
@@ -293,7 +299,7 @@ where
         amount: Balance,
         reserve: bool,
     ) -> Result<(), Error> {
-        let (mut node, node_id) = 
+        let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
@@ -316,16 +322,12 @@ where
 
             GasNodeType::SpecifiedLocal {
                 value: amount,
-                parent: key,
+                parent: node_id,
             }
         };
 
         // NOTE: intentional expect. A `node is guaranteed to have inner_value
-        if node
-            .inner_value()
-            .expect("Querying node with value")
-            < amount
-        {
+        if node.inner_value().expect("Querying node with value") < amount {
             return Err(InternalError::insufficient_balance().into());
         }
 
@@ -437,7 +439,9 @@ where
     /// Also if it's possible to delete a node, then it doesn't necessarily mean that its parent will be deleted.
     /// An example here could be the case, when during async execution original message went to wait list, so wasn't consumed
     /// but the one generated during the execution of the original message went to message queue and was successfully executed.
-    fn consume(key: Self::Key) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error> {
+    fn consume(
+        key: Self::Key,
+    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         if node.consumed {
@@ -529,7 +533,7 @@ where
     }
 
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error> {
-        let (mut node, node_id) = 
+        let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
@@ -546,7 +550,7 @@ where
         node.unspec_refs = node.unspec_refs.saturating_add(1);
 
         let new_node = GasNode {
-            inner: GasNodeType::UnspecifiedLocal { parent: key },
+            inner: GasNodeType::UnspecifiedLocal { parent: node_id },
             spec_refs: 0,
             unspec_refs: 0,
             consumed: false,

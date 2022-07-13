@@ -141,7 +141,7 @@ impl storage::MapStorage for GasTreeNodesWrap {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Error {
     NodeAlreadyExists,
     ParentIsLost,
@@ -150,6 +150,11 @@ enum Error {
     NodeWasConsumed,
     InsufficientBalance,
     Forbidden,
+    UnexpectedConsumeOutput,
+    UnexpectedNodeType,
+    ValueIsNotCaught,
+    ValueIsBlocked,
+    ValueIsNotBlocked,
 }
 
 impl super::Error for Error {
@@ -179,6 +184,26 @@ impl super::Error for Error {
 
     fn forbidden() -> Self {
         Self::Forbidden
+    }
+
+    fn unexpected_consume_output() -> Self {
+        Self::UnexpectedConsumeOutput
+    }
+
+    fn unexpected_node_type() -> Self {
+        Self::UnexpectedNodeType
+    }
+
+    fn value_is_not_caught() -> Self {
+        Self::ValueIsNotCaught
+    }
+
+    fn value_is_blocked() -> Self {
+        Self::ValueIsBlocked
+    }
+
+    fn value_is_not_blocked() -> Self {
+        Self::ValueIsNotBlocked
     }
 }
 
@@ -264,10 +289,10 @@ proptest! {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
                     let res = Gas::spend(from, amount);
 
-                    if let Err(e) = res {
-                        assertions::assert_not_invariant_error(e);
+                    if let Err(e) = &res {
+                        assertions::assert_not_invariant_error(*e);
                         // The only one possible valid error, because other ones signal about invariant problems.
-                        assert_eq!(res, Err(Error::<Test>::InsufficientBalance.into()));
+                        assert_eq!(res, Err(Error::InsufficientBalance));
                     } else {
                         assert_ok!(res);
                         spent += amount;
@@ -281,7 +306,7 @@ proptest! {
 
                             // Update ids
                             node_ids.retain(|id| !removed_nodes.contains_key(id));
-                            
+
                             // Self check
                             assert_eq!(
                                 remaining_nodes.keys().copied().collect::<Vec<_>>().sort(),
@@ -301,7 +326,7 @@ proptest! {
                         Err(e) => {
                             // double consume has happened
                             assert!(marked_consumed.contains(&consuming));
-                            assert_eq!(e, Error::<Test>::NodeWasConsumed.into());
+                            assert_eq!(e, Error::NodeWasConsumed);
 
                             assertions::assert_not_invariant_error(e);
                         }
@@ -325,8 +350,9 @@ proptest! {
             // All nodes from one tree have the same origin
             // todo [sab] can be invalid after Tiany's changes
             assert_eq!(
-                Gas::get_origin(node_id).unwrap(),
-                Some(origin)
+                Gas::get_origin(*node_id)
+                    .and_then(|maybe_origin| Ok(maybe_origin.map(|(_, origin)| origin))),
+                Ok(Some(origin))
             );
 
             if let Some(value) = node.inner_value() {
@@ -337,7 +363,8 @@ proptest! {
             if let Some(parent) = node.parent() {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
-                let parent_node = GasTree::<Test>::get(parent).expect("checked");
+                let gas_tree = GAS_TREE_NODES.borrow();
+                let parent_node = gas_tree.get(&parent).expect("checked");
                 assert!(parent_node.inner_value().is_some());
             }
 
@@ -380,7 +407,7 @@ proptest! {
             // Check property: all nodes have ancestor (node is a self-ancestor too) with value
             let (ancestor_with_value, ancestor_id) = Gas::node_with_value(node.clone()).expect("tree is invalidated");
             // The ancestor with value is either the node itself or its parent
-            if ancestor_with_value != node {
+            if &ancestor_with_value != node {
                 assert_eq!(node.parent(), ancestor_id);
             }
             assert!(ancestor_with_value.inner_value().is_some());
@@ -388,7 +415,7 @@ proptest! {
 
         if !gas_tree_ids.is_empty() {
             // Check trees imbalance
-            assert!(max_balance == spent + rest_value)
+            assert!(max_balance == spent + rest_value + caught)
         }
     }
 

@@ -73,8 +73,8 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     ///
     /// Patron nodes are those on which other nodes of the tree rely (including the self node).
     pub fn is_patron(&self) -> bool {
-        (self.inner.is_external() || self.inner.is_specified_local()) && 
-        (!self.consumed || self.unspec_refs != 0)
+        (self.inner.is_external() || self.inner.is_specified_local())
+            && (!self.consumed || self.unspec_refs != 0)
     }
 
     pub fn inner_value(&self) -> Option<Balance> {

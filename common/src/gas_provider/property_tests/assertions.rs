@@ -113,26 +113,22 @@ fn assert_removed_nodes_form_path(
 // If it was removed after a new `consume` call, then all the tree must be empty. So no nodes can be removed
 // after root was removed in the `consume` call.
 pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: RemainingNodes) {
-    if Gas::get_node(&root_node).is_none() {
+    if Gas::get_node(root_node).is_none() {
         assert!(remaining_nodes.is_empty());
     }
 }
 
 // Check that returned dispatch error is not of invariant error variants
-pub(super) fn assert_not_invariant_error(dispatch_err: DispatchError) {
-    if let DispatchError::Module(module_err) = dispatch_err {
-        let pallet_err = module_err
-            .message
-            .expect("internal error: no error message");
-        match pallet_err {
-            "ParentIsLost"
-                | "ParentHasNoChildren"
-                | "UnexpectedConsumeOutput"
-                | "UnexpectedNodeType"
-                | "ValueIsNotCaught"
-                | "ValueIsBlocked"
-                | "ValueIsNotBlocked" => panic!("invariant error occurred {:?}", pallet_err),
-            _ => log::error!("Non invariant error occurred: {:?}", pallet_err),
-        }
+pub(super) fn assert_not_invariant_error(err: super::Error) {
+    use super::Error::*;
+    match err {
+        ParentIsLost
+        | ParentHasNoChildren
+        | UnexpectedConsumeOutput
+        | UnexpectedNodeType
+        | ValueIsNotCaught
+        | ValueIsBlocked
+        | ValueIsNotBlocked => panic!("invariant error occurred {:?}", err),
+        _ => log::error!("Non invariant error occurred: {:?}", err),
     }
 }
