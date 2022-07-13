@@ -387,7 +387,7 @@ proptest! {
                 rest_value += value;
             }
 
-            // Check property: all existing specified and unspecified nodes have a parent in a tree 
+            // Check property: all existing specified and unspecified nodes have a parent in a tree
             if let GasNodeType::SpecifiedLocal { parent, .. } | GasNodeType::UnspecifiedLocal { parent } = node.inner {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
