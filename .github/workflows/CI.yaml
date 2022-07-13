@@ -197,7 +197,6 @@ jobs:
           cargo test -p pallet-gear --features=lazy-pages --release
           cargo test -p pallet-gear-debug --features=lazy-pages --release
           cargo test -p pallet-gear-payment --features=lazy-pages --release
-          cargo test -p pallet-usage --features=lazy-pages --release
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
@@ -397,10 +396,9 @@ jobs:
           command: nextest
           args: >-
             run
-            -p pallet-gear 
+            -p pallet-gear
             -p pallet-gear-debug
             -p pallet-gear-payment
-            -p pallet-usage
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages

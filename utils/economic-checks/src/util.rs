@@ -22,16 +22,15 @@ use common::{
     GasTree,
 };
 use frame_support::{
-    assert_ok,
-    traits::{GenesisBuild, OffchainWorker, OnFinalize, OnIdle, OnInitialize},
+    traits::{GenesisBuild, OnFinalize, OnIdle, OnInitialize},
     BasicExternalities,
 };
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
 use gear_runtime::{
-    AuraConfig, Balances, Call, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
-    GrandpaConfig, Runtime, Signature, SudoConfig, System, TransactionPayment,
-    TransactionPaymentConfig, UncheckedExtrinsic, Usage,
+    AuraConfig, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram, GrandpaConfig,
+    Runtime, Signature, SudoConfig, System, TransactionPayment, TransactionPaymentConfig,
+    UncheckedExtrinsic,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use parking_lot::RwLock;
@@ -40,12 +39,11 @@ use sp_consensus_aura::{sr25519::AuthorityId as AuraId, Slot, AURA_ENGINE_ID};
 use sp_core::{
     offchain::{
         testing::{PoolState, TestOffchainExt, TestTransactionPoolExt},
-        Duration, OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
+        OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
     },
     sr25519, Pair, Public,
 };
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_io::offchain;
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     AccountId32, Digest, DigestItem,
@@ -187,7 +185,6 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         let current_blk = System::block_number();
         GearPayment::on_finalize(current_blk);
         GearGas::on_finalize(current_blk);
-        Usage::on_finalize(current_blk);
         Gear::on_finalize(current_blk);
         GearMessenger::on_finalize(current_blk);
         GearProgram::on_finalize(current_blk);
@@ -206,7 +203,6 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         GearProgram::on_initialize(new_block_number);
         GearMessenger::on_initialize(new_block_number);
         Gear::on_initialize(new_block_number);
-        Usage::on_initialize(new_block_number);
         GearGas::on_initialize(new_block_number);
         GearPayment::on_finalize(new_block_number);
     }
@@ -233,14 +229,9 @@ pub(crate) fn run_to_block_with_ocw(
         // Processing message queue
         Gear::on_idle(i, remaining_weight);
 
-        // Offchain worker to charge rent
-        increase_offchain_time(1_000);
-        Usage::offchain_worker(i);
-
         // on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
         GearPayment::on_finalize(i);
         GearGas::on_finalize(i);
-        Usage::on_finalize(i);
         Gear::on_finalize(i);
         GearMessenger::on_finalize(i);
         GearProgram::on_finalize(i);
@@ -260,14 +251,9 @@ pub(crate) fn run_to_block_with_ocw(
         GearProgram::on_initialize(new_blk);
         GearMessenger::on_initialize(new_blk);
         Gear::on_initialize(new_blk);
-        Usage::on_initialize(new_blk);
         GearGas::on_initialize(new_blk);
         GearPayment::on_finalize(new_blk);
     }
-}
-
-fn increase_offchain_time(ms: u64) {
-    offchain::sleep_until(offchain::timestamp().add(Duration::from_millis(ms)));
 }
 
 pub(crate) fn init_logger() {
@@ -284,18 +270,7 @@ pub(crate) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
 pub(crate) fn process_tx_pool(pool: &Arc<RwLock<PoolState>>) {
     let mut guard = pool.write();
     guard.transactions.iter().cloned().for_each(|bytes| {
-        let tx = UncheckedExtrinsic::decode(&mut &bytes[..]).unwrap();
-        if let Call::Usage(pallet_usage::Call::collect_waitlist_rent { payees_list }) = tx.function
-        {
-            log::debug!(
-                "Sending collect_wait_list extrinsic with payees_list {:?}",
-                payees_list
-            );
-            assert_ok!(Usage::collect_waitlist_rent(
-                system::RawOrigin::None.into(),
-                payees_list
-            ));
-        }
+        let _tx = UncheckedExtrinsic::decode(&mut &bytes[..]).unwrap();
     });
     guard.transactions = vec![];
 }

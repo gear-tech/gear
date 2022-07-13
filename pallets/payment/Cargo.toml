@@ -43,6 +43,7 @@ pallet-gear = { path = "../gear" }
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
 pallet-gear-program = { path = "../gear-program" }
+pallet-gear-scheduler = { path = "../gear-scheduler" }
 
 [features]
 default = ['std']
@@ -59,6 +60,7 @@ std = [
 	"pallet-authorship/std",
 	"primitive-types/std",
 	"pallet-gear-messenger/std",
+	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

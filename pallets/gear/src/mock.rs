@@ -18,7 +18,12 @@
 
 use crate as pallet_gear;
 use crate::*;
-use frame_support::{construct_runtime, pallet_prelude::*, parameter_types, traits::FindAuthor};
+use frame_support::{
+    construct_runtime,
+    pallet_prelude::*,
+    parameter_types,
+    traits::{ConstU64, FindAuthor},
+};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -47,8 +52,9 @@ construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         GearMessenger: pallet_gear_messenger::{Pallet},
+        GearScheduler: pallet_gear_scheduler::{Pallet},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet, Storage},
+        GearGas: pallet_gear_gas::{Pallet},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
@@ -116,8 +122,7 @@ parameter_types! {
     pub const MailboxThreshold: u64 = 3_000;
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
-    pub const WaitListFeePerBlock: u64 = 1_000;
-    pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
 impl pallet_gear::Config for Test {
@@ -125,15 +130,21 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type GasPrice = GasConverter;
     type WeightInfo = ();
-    type Schedule = MySchedule;
+    type Schedule = GearSchedule;
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
-    type WaitListFeePerBlock = WaitListFeePerBlock;
     type CodeStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
+}
+
+impl pallet_gear_scheduler::Config for Test {
+    type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU64<1>;
+    type WaitlistCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {
@@ -142,6 +153,7 @@ impl pallet_gear_gas::Config for Test {
 
 impl pallet_gear_messenger::Config for Test {
     type Currency = Balances;
+    type BlockLimiter = GearGas;
 }
 
 pub struct FixedBlockAuthor;

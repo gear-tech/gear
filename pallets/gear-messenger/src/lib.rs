@@ -153,7 +153,7 @@ pub use pallet::*;
 pub mod pallet {
     pub use frame_support::weights::Weight;
 
-    use common::{storage::*, Origin};
+    use common::{storage::*, BlockLimiter, Origin};
     use frame_support::{
         dispatch::DispatchError,
         pallet_prelude::*,
@@ -174,7 +174,10 @@ pub mod pallet {
     // Gear Messenger Pallet's `Config`.
     #[pallet::config]
     pub trait Config: frame_system::Config {
+        /// Balances management trait for gas/value migrations.
         type Currency: ReservableCurrency<Self::AccountId>;
+        /// Block limits.
+        type BlockLimiter: BlockLimiter<Balance = u64>;
     }
 
     // Gear Messenger Pallet itself.
@@ -406,53 +409,68 @@ pub mod pallet {
     // Below goes callbacks, used for queue algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     // ----
 
     /// Callback function for success `pop_front` action.
-    pub struct OnPopFront<V, T: Messenger>(PhantomData<(V, T)>);
+    pub struct OnPopFront<T: crate::Config, V>(PhantomData<(T, V)>)
+    where
+        T::AccountId: Origin;
 
     // Callback trait implementation.
     //
     // Pop front increases amount of messages dequeued.
-    impl<V, T: Messenger> Callback<V> for OnPopFront<V, T> {
+    impl<T: crate::Config, V> Callback<V> for OnPopFront<T, V>
+    where
+        T::AccountId: Origin,
+    {
         fn call(_arg: &V) {
-            T::Dequeued::increase();
+            <Pallet<T> as Messenger>::Dequeued::increase();
         }
     }
 
     // ---
 
     /// Callback function for success `push_front` action.
-    pub struct OnPushFront<V, T: Messenger>(PhantomData<(V, T)>);
+    pub struct OnPushFront<T: crate::Config, V>(PhantomData<(T, V)>)
+    where
+        T::AccountId: Origin;
 
     // Callback trait implementation.
     //
     // Push front means requeue in Gear Messenger Context,
     // so the dequeued amount should be decreased and
     // queue processing stopped.
-    impl<V, T: Messenger> Callback<V> for OnPushFront<V, T> {
+    impl<T: crate::Config, V> Callback<V> for OnPushFront<T, V>
+    where
+        T::AccountId: Origin,
+    {
         fn call(_arg: &V) {
-            T::Dequeued::decrease();
-            T::QueueProcessing::deny();
+            <Pallet<T> as Messenger>::Dequeued::decrease();
+            <Pallet<T> as Messenger>::QueueProcessing::deny();
         }
     }
 
     // ----
 
     /// Store of queue action's callbacks.
-    pub struct QueueCallbacks<T: Messenger>(PhantomData<T>);
+    pub struct QueueCallbacks<T: crate::Config>(PhantomData<T>)
+    where
+        T::AccountId: Origin;
 
     // Callbacks store for queue trait implementation, over
     // specified (associated) type of queue value.
-    impl<T: Messenger> DequeueCallbacks for QueueCallbacks<T> {
-        type Value = T::QueuedDispatch;
+    impl<T: crate::Config> DequeueCallbacks for QueueCallbacks<T>
+    where
+        T::AccountId: Origin,
+    {
+        type Value = <Pallet<T> as Messenger>::QueuedDispatch;
 
         type OnPopBack = ();
-        type OnPopFront = OnPopFront<Self::Value, T>;
+        type OnPopFront = OnPopFront<T, Self::Value>;
         type OnPushBack = ();
-        type OnPushFront = OnPushFront<Self::Value, T>;
+        type OnPushFront = OnPushFront<T, Self::Value>;
         type OnClear = ();
     }
 
@@ -461,20 +479,18 @@ pub mod pallet {
     // Below goes callbacks, used for mailbox algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     /// Callback function for success `remove` action.
-    pub struct OnRemove<T, M>(PhantomData<(T, M)>)
+    pub struct OnRemove<T: crate::Config>(PhantomData<T>)
     where
-        T: Config,
-        T::AccountId: Origin,
-        M: Messenger;
+        T::AccountId: Origin;
 
     // Callback trait implementation.
     //
     // Remove from mailbox means auto-claim in Gear Messenger Context,
     // so if value present, it will be added to user's balance.
-    impl<T: Config, M: Messenger> FallibleCallback<StoredMessage> for OnRemove<T, M>
+    impl<T: crate::Config> FallibleCallback<StoredMessage> for OnRemove<T>
     where
         T::AccountId: Origin,
     {
@@ -498,24 +514,21 @@ pub mod pallet {
     // ----
 
     /// Store of mailbox action's callbacks.
-    pub struct MailBoxCallbacks<T, M>(PhantomData<(T, M)>)
+    pub struct MailBoxCallbacks<T: crate::Config>(PhantomData<T>)
     where
-        T: Config,
-        T::AccountId: Origin,
-        M: Messenger<MailboxedMessage = StoredMessage, OutputError = DispatchError>;
+        T::AccountId: Origin;
 
     // Callbacks store for mailbox trait implementation, over
     // specified (associated) types of mailbox and error values.
-    impl<T, M> MailboxCallbacks<M::OutputError> for MailBoxCallbacks<T, M>
+    impl<T: crate::Config> MailboxCallbacks<<Pallet<T> as Messenger>::OutputError>
+        for MailBoxCallbacks<T>
     where
-        T: Config,
         T::AccountId: Origin,
-        M: Messenger<MailboxedMessage = StoredMessage, OutputError = DispatchError>,
     {
-        type Value = M::MailboxedMessage;
+        type Value = <Pallet<T> as Messenger>::MailboxedMessage;
 
         type OnInsert = ();
-        type OnRemove = OnRemove<T, M>;
+        type OnRemove = OnRemove<T>;
     }
 
     // ----
@@ -523,15 +536,20 @@ pub mod pallet {
     // Below goes callbacks, used for waitlist algorithm.
     //
     // Note, that they are public like storage wrappers
-    // only to be able use as public trait's generics.
+    // only to be able to use as public trait's generics.
 
     // ----
 
     /// Callback function for getting actual block number.
-    pub struct GetBlockNumber<T: Config>(PhantomData<T>);
+    pub struct GetBlockNumber<T: crate::Config>(PhantomData<T>)
+    where
+        T::AccountId: Origin;
 
     // Callback trait implementation.
-    impl<T: Config> GetCallback<T::BlockNumber> for GetBlockNumber<T> {
+    impl<T: crate::Config> GetCallback<T::BlockNumber> for GetBlockNumber<T>
+    where
+        T::AccountId: Origin,
+    {
         fn call() -> T::BlockNumber {
             SystemPallet::<T>::block_number()
         }
@@ -540,20 +558,18 @@ pub mod pallet {
     // ----
 
     /// Store of waitlist action's callbacks.
-    pub struct WaitListCallbacks<T, M>(PhantomData<(T, M)>)
+    pub struct WaitListCallbacks<T: crate::Config>(PhantomData<T>)
     where
-        T: Config,
-        M: Messenger<BlockNumber = T::BlockNumber>;
+        T::AccountId: Origin;
 
     // Callbacks store for waitlist trait implementation, over
     // specified (associated) types of waitlist and error values.
-    impl<T, M> WaitlistCallbacks for WaitListCallbacks<T, M>
+    impl<T: crate::Config> WaitlistCallbacks for WaitListCallbacks<T>
     where
-        T: Config,
-        M: Messenger<BlockNumber = T::BlockNumber>,
+        T::AccountId: Origin,
     {
-        type Value = M::WaitlistedMessage;
-        type BlockNumber = M::BlockNumber;
+        type Value = <Pallet<T> as Messenger>::WaitlistedMessage;
+        type BlockNumber = <Pallet<T> as Messenger>::BlockNumber;
 
         type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
@@ -602,7 +618,7 @@ pub mod pallet {
                 HeadWrap<T>,
                 TailWrap<T>,
                 DispatchesWrap<T>,
-                QueueCallbacks<Self>,
+                QueueCallbacks<T>,
             >,
             DispatchError,
             QueueKeyGen,
@@ -612,7 +628,7 @@ pub mod pallet {
             MailboxWrap<T>,
             Self::Error,
             DispatchError,
-            MailBoxCallbacks<T, Self>,
+            MailBoxCallbacks<T>,
             MailboxKeyGen<T::AccountId>,
         >;
 
@@ -622,7 +638,7 @@ pub mod pallet {
             Self::BlockNumber,
             Self::Error,
             DispatchError,
-            WaitListCallbacks<T, Self>,
+            WaitListCallbacks<T>,
             WaitlistKeyGen,
         >;
     }

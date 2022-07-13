@@ -72,6 +72,7 @@ demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas", default-features = false }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
+pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
 
 [features]
 default = ['std']
@@ -98,6 +99,7 @@ std = [
 	"primitive-types/std",
 	"serde/std",
 	"gear-runtime-interface/std",
+	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

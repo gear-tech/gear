@@ -168,8 +168,8 @@ macro_rules! wrap_extended_storage_double_map {
 
         impl<T: crate::Config> IterableByKeyMap<$val> for $name<T> {
             type Key = $key1;
-            type DrainIter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
-            type Iter = KeyValueIteratorWrap<$key2, $val, PrefixIterator<($key2, $val)>>;
+            type DrainIter = IteratorWrap<PrefixIterator<($key2, $val)>, $val, GetSecondPos>;
+            type Iter = IteratorWrap<PrefixIterator<($key2, $val)>, $val, GetSecondPos>;
 
             fn drain_key(key: Self::Key) -> Self::DrainIter {
                 $storage::<T>::drain_prefix(key).into()
@@ -181,10 +181,8 @@ macro_rules! wrap_extended_storage_double_map {
         }
 
         impl<T: crate::Config> IterableMap<$val> for $name<T> {
-            type DrainIter =
-                KeysValueIteratorWrap<$key1, $key2, $val, PrefixIterator<($key1, $key2, $val)>>;
-            type Iter =
-                KeysValueIteratorWrap<$key1, $key2, $val, PrefixIterator<($key1, $key2, $val)>>;
+            type DrainIter = IteratorWrap<PrefixIterator<($key1, $key2, $val)>, $val, GetThirdPos>;
+            type Iter = IteratorWrap<PrefixIterator<($key1, $key2, $val)>, $val, GetThirdPos>;
 
             fn drain() -> Self::DrainIter {
                 $storage::<T>::drain().into()
@@ -192,6 +190,21 @@ macro_rules! wrap_extended_storage_double_map {
 
             fn iter() -> Self::Iter {
                 $storage::<T>::iter().into()
+            }
+        }
+
+        impl<T: crate::Config> KeyIterableByKeyMap for $name<T> {
+            type Key1 = $key1;
+            type Key2 = $key2;
+            type DrainIter = IteratorWrap<PrefixIterator<($key2, $val)>, $key2, GetFirstPos>;
+            type Iter = IteratorWrap<PrefixIterator<($key2, $val)>, $key2, GetFirstPos>;
+
+            fn drain_prefix_keys(key: Self::Key1) -> Self::DrainIter {
+                $storage::<T>::drain_prefix(key).into()
+            }
+
+            fn iter_prefix_keys(key: Self::Key1) -> Self::Iter {
+                $storage::<T>::iter_prefix(key).into()
             }
         }
     };
