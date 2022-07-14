@@ -7,12 +7,12 @@ services:
       - "9933:9933"
       - "9944:9944"
       - "9615:9615"
-    image: schernovgear/gear:nightly
+    image: ghcr.io/gear-tech/node:latest
     environment:
       - RUST_LOG=essential
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
-    command: > 
+    command: >
       gear-node --base-path /gear/ --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' --prometheus-external
       {% if name is defined %} --name={{ name }} {% endif %}
       {% if rpc is not defined %} --validator {% endif %}
