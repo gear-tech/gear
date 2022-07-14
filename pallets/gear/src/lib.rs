@@ -1704,7 +1704,7 @@ pub mod pallet {
             );
 
             // Claim outstanding value from the original message first
-            let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
+            let (original_message, _bn) = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
             // TODO: burn here for holding #646.
             let mut ext_manager: ExtManager<T> = Default::default();
             ext_manager.message_consumed(reply_to_id);
@@ -1771,7 +1771,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
-            let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
+            let (_, _bn) = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
             // TODO: burn here for holding #646.
             let mut ext_manager: ExtManager<T> = Default::default();
             ext_manager.message_consumed(message_id);

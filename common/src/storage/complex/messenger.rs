@@ -116,7 +116,7 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
-        + IterableByKeyMap<Self::MailboxedMessage, Key = Self::MailboxFirstKey>;
+        + IterableByKeyMap<(Self::MailboxedMessage, Self::BlockNumber), Key = Self::MailboxFirstKey>;
 
     /// Gear waitlist.
     ///

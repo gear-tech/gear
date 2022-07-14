@@ -22,7 +22,8 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, IterableByKeyMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, GetCallback, IterableByKeyMap,
+    KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -34,6 +35,10 @@ pub trait Mailbox {
     type Key2;
     /// Stored values type.
     type Value;
+    /// Block number type.
+    ///
+    /// Stored with `Self::Value`.
+    type BlockNumber;
     /// Inner error type of mailbox storing algorithm.
     type Error: MailboxError;
     /// Output error type of the mailbox.
@@ -47,7 +52,10 @@ pub trait Mailbox {
 
     /// Removes and returns value from mailbox by given keys,
     /// if present, else returns error.
-    fn remove(key1: Self::Key1, key2: Self::Key2) -> Result<Self::Value, Self::OutputError>;
+    fn remove(
+        key1: Self::Key1,
+        key2: Self::Key2,
+    ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError>;
 
     /// Removes all values from all key's mailboxes.
     fn clear();
@@ -60,11 +68,18 @@ pub trait MailboxCallbacks<OutputError> {
     /// This value should be the main item of mailbox,
     /// which uses this callbacks store.
     type Value;
+    /// Callback relative type.
+    ///
+    /// This type represents block number of stored component in waitlist,
+    /// which uses this callbacks store.
+    type BlockNumber;
 
+    /// Callback used for getting current block number.
+    type GetBlockNumber: GetCallback<Self::BlockNumber>;
     /// Callback on success `insert`.
-    type OnInsert: Callback<Self::Value>;
+    type OnInsert: Callback<(Self::Value, Self::BlockNumber)>;
     /// Callback on success `remove`.
-    type OnRemove: FallibleCallback<Self::Value, Error = OutputError>;
+    type OnRemove: FallibleCallback<(Self::Value, Self::BlockNumber), Error = OutputError>;
 }
 
 /// Represents mailbox error type.
@@ -84,29 +99,30 @@ pub trait MailboxError {
 /// Generic parameter `KeyGen` presents key generation for given values.
 /// Generic parameter `Callbacks` presents actions for success operations
 /// over mailbox.
-pub struct MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>(
+pub struct MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>(
     PhantomData<(T, Error, OutputError, Callbacks, KeyGen)>,
 )
 where
-    T: DoubleMapStorage,
+    T: DoubleMapStorage<Value = (Value, BlockNumber)>,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
-    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>;
+    Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>;
 
 // Implementation of `Mailbox` for `MailboxImpl`.
-impl<T, Error, OutputError, Callbacks, KeyGen> Mailbox
-    for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
+impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> Mailbox
+    for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage,
+    T: DoubleMapStorage<Value = (Value, BlockNumber)>,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
-    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
+    Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
 {
     type Key1 = T::Key1;
     type Key2 = T::Key2;
-    type Value = T::Value;
+    type Value = Value;
+    type BlockNumber = BlockNumber;
     type Error = Error;
     type OutputError = OutputError;
 
@@ -121,18 +137,21 @@ where
             return Err(Self::Error::duplicate_key().into());
         }
 
-        Callbacks::OnInsert::call(&message);
-        T::insert(key1, key2, message);
+        let block_number = Callbacks::GetBlockNumber::call();
+        let message_with_bn = (message, block_number);
+
+        Callbacks::OnInsert::call(&message_with_bn);
+        T::insert(key1, key2, message_with_bn);
         Ok(())
     }
 
     fn remove(
         user_id: Self::Key1,
         message_id: Self::Key2,
-    ) -> Result<Self::Value, Self::OutputError> {
-        if let Some(msg) = T::take(user_id, message_id) {
-            Callbacks::OnRemove::call(&msg)?;
-            Ok(msg)
+    ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError> {
+        if let Some(message_with_bn) = T::take(user_id, message_id) {
+            Callbacks::OnRemove::call(&message_with_bn)?;
+            Ok(message_with_bn)
         } else {
             Err(Self::Error::element_not_found().into())
         }
@@ -145,14 +164,14 @@ where
 
 // Implementation of `CountedByKey` trait for `MailboxImpl` in case,
 // when inner `DoubleMapStorage` implements `CountedByKey`.
-impl<T, Error, OutputError, Callbacks, KeyGen> CountedByKey
-    for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
+impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> CountedByKey
+    for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage + CountedByKey<Key = T::Key1>,
+    T: DoubleMapStorage<Value = (Value, BlockNumber)> + CountedByKey<Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
-    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
+    Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
 {
     type Key = T::Key1;
     type Length = T::Length;
@@ -164,14 +183,14 @@ where
 
 // Implementation of `IterableByKeyMap` trait for `MailboxImpl` in case,
 // when inner `DoubleMapStorage` implements `IterableByKeyMap`.
-impl<T, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
-    for MailboxImpl<T, Error, OutputError, Callbacks, KeyGen>
+impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
+    for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage + IterableByKeyMap<T::Value, Key = T::Key1>,
+    T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableByKeyMap<T::Value, Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
-    Callbacks: MailboxCallbacks<OutputError, Value = T::Value>,
-    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = T::Value>,
+    Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
 {
     type Key = T::Key1;
     type DrainIter = T::DrainIter;

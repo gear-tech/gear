@@ -192,8 +192,9 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let msg = MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let (msg, _bn) =
+                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
+                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
