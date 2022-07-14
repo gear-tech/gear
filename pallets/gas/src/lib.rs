@@ -175,9 +175,11 @@ pub mod pallet {
         ParentIsLost,
         ParentHasNoChildren,
 
-        /// Outputs of `Pallet::<T>::try_consume_ancestors` procedure are determined.
-        /// The error is returned when unexpected one occurred. That signals, that
-        /// algorithm works wrong and expected invariants are not correct.
+        /// Output of `Tree::consume` procedure that wasn't expected.
+        ///
+        /// Outputs of consumption procedure are determined. The error is returned
+        /// when unexpected one occurred. That signals, that algorithm works wrong
+        /// and expected invariants are not correct.
         UnexpectedConsumeOutput,
 
         /// Node type that can't occur if algorithm work well

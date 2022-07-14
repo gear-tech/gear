@@ -42,15 +42,15 @@ pub(super) fn consume_node(
     let nodes_before_consume = gas_tree_node_clone();
     Gas::consume(consuming).map(|maybe_output| {
         let maybe_caught_value = maybe_output.map(|(imb, _)| imb.peek());
-        let nodes_after_consume = gas_tree_node_clone();
+        let remaining_nodes = gas_tree_node_clone();
         let mut removed_nodes = BTreeMap::new();
         for (id, node) in nodes_before_consume {
-            if !nodes_after_consume.contains_key(&id) {
+            if !remaining_nodes.contains_key(&id) {
                 // was removed
                 removed_nodes.insert(id, node);
             }
         }
 
-        (maybe_caught_value, nodes_after_consume, removed_nodes)
+        (maybe_caught_value, remaining_nodes, removed_nodes)
     })
 }

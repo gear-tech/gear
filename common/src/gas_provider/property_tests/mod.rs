@@ -249,8 +249,6 @@ fn gas_tree_node_clone() -> BTreeMap<Key, GasNode> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(600))]
     #[test]
-    // the attribute is needed for the self-check, when compiler considers some checks to be always successful
-    #[allow(clippy::unit_cmp)]
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
         TotalIssuanceWrap::kill();
@@ -327,10 +325,18 @@ proptest! {
                             node_ids.retain(|id| !removed_nodes.contains_key(id));
 
                             // Self check
-                            assert_eq!(
-                                remaining_nodes.keys().copied().collect::<Vec<_>>().sort(),
-                                node_ids.clone().sort()
-                            );
+                            {
+                                let mut expected_remaining_ids = remaining_nodes.keys().copied().collect::<Vec<_>>();
+                                expected_remaining_ids.sort();
+
+                                let mut actual_remaining_ids = node_ids.clone();
+                                actual_remaining_ids.sort();
+
+                                assert_eq!(
+                                    expected_remaining_ids,
+                                    actual_remaining_ids
+                                );
+                            }
 
                             assertions::assert_removed_nodes_props(
                                 consuming,

@@ -289,7 +289,7 @@ fn splits_fail() {
 
 #[test]
 fn value_tree_known_errors() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let new_root = random_node_id();
         let origin = ALICE;
         let split_1 = random_node_id();
@@ -361,7 +361,7 @@ fn value_tree_known_errors() {
 
 #[test]
 fn sub_nodes_tree_with_spends() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let new_root = random_node_id();
         let origin = ALICE;
         let split_1 = random_node_id();
@@ -395,7 +395,7 @@ fn sub_nodes_tree_with_spends() {
 
 #[test]
 fn all_keys_are_cleared() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let root = random_node_id();
         let origin = ALICE;
         let sub_keys = (0..5)
@@ -424,17 +424,12 @@ fn all_keys_are_cleared() {
 
 #[test]
 fn split_with_no_value() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let new_root = random_node_id();
         let origin = ALICE;
         let split_1 = random_node_id();
         let split_2 = random_node_id();
         let split_1_2 = random_node_id();
-
-        println!("{:?}", new_root);
-        println!("{:?}", split_1);
-        println!("{:?}", split_2);
-        println!("{:?}", split_1_2);
 
         let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
 
@@ -467,7 +462,7 @@ fn split_with_no_value() {
 
 #[test]
 fn long_chain() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let root = random_node_id();
         let m1 = random_node_id();
         let m2 = random_node_id();
@@ -521,7 +516,7 @@ fn long_chain() {
 
 #[test]
 fn limit_vs_origin() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let origin = BOB;
         let root_node = random_node_id();
         let cut = random_node_id();
@@ -599,7 +594,7 @@ fn subtree_gas_limit_remains_intact() {
     //
     // In the test scenario node_1 is consumed first, and then node_2 is consumed.
     // Also an ability to spend value by "unspec" child from "spec" parent will be tested.
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let origin = BOB;
         let root = random_node_id();
         let node_1 = random_node_id();
@@ -657,7 +652,7 @@ fn subtree_gas_limit_remains_intact() {
 
 #[test]
 fn gas_free_after_consumed() {
-    sp_io::TestExternalities::new_empty().execute_with(|| {
+    new_test_ext().execute_with(|| {
         let origin = BOB;
         let root_msg_id = random_node_id();
 
@@ -695,9 +690,7 @@ fn catch_value_all_blocked() {
         let spec_2 = random_node_id();
         let spec_3 = random_node_id();
 
-        let res = Gas::create(ALICE, root, 10000);
-        assert!(res.is_ok());
-        drop(res);
+        assert!(Gas::create(ALICE, root, 10000).is_ok());
         assert_eq!(Gas::total_supply(), 10000);
         assert_ok!(Gas::split(root, random_node_id()));
         assert_ok!(Gas::split(root, random_node_id()));
@@ -733,9 +726,7 @@ fn catch_value_all_catch() {
         let spec_2 = random_node_id();
         let spec_3 = random_node_id();
 
-        let res = Gas::create(ALICE, root, 10000);
-        assert!(res.is_ok());
-        drop(res);
+        assert!(Gas::create(ALICE, root, 10000).is_ok());
         assert_eq!(Gas::total_supply(), 10000);
         assert_ok!(Gas::split_with_value(root, spec_1, 100));
         assert_ok!(Gas::split_with_value(root, spec_2, 100));

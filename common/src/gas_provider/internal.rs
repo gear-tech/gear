@@ -91,6 +91,9 @@ where
         if let GasNodeType::UnspecifiedLocal { parent } = ret_node.inner {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
+            if !(ret_node.inner.is_external() || ret_node.inner.is_specified_local()) {
+                return Err(InternalError::unexpected_node_type().into());
+            }
         }
 
         Ok((ret_node, ret_id))
@@ -162,14 +165,14 @@ where
             if let Some((mut patron, patron_id)) = Self::find_ancestor_patron(node)? {
                 let self_value = node
                     .inner_value_mut()
-                    .expect("is not unspecified, so has value; qed");
-                if *self_value == Zero::zero() {
+                    .ok_or_else(InternalError::unexpected_node_type)?;
+                if self_value.is_zero() {
                     // Early return to prevent redundant storage look-ups
                     return Ok(CatchValueOutput::Missed);
                 }
                 let patron_value = patron
                     .inner_value_mut()
-                    .expect("Querying patron with value");
+                    .ok_or_else(InternalError::unexpected_node_type)?;
                 *patron_value = patron_value.saturating_add(*self_value);
                 *self_value = Zero::zero();
                 StorageMap::insert(patron_id, patron);
@@ -178,7 +181,7 @@ where
             } else {
                 let self_value = node
                     .inner_value_mut()
-                    .expect("is not unspecified, so has value; qed");
+                    .ok_or_else(InternalError::unexpected_node_type)?;
                 let value_copy = *self_value;
                 *self_value = Zero::zero();
 
@@ -251,7 +254,7 @@ where
         let mut node_id = key;
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         let mut consume_output = None;
-        let (_, origin) = Self::get_origin(key)?.expect("node with `key` the gas tree's part");
+        let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
 
         while !node.is_patron() {
             let catch_output = Self::catch_value(&mut node)?;
@@ -326,8 +329,12 @@ where
             }
         };
 
-        // NOTE: intentional expect. A `node is guaranteed to have inner_value
-        if node.inner_value().expect("Querying node with value") < amount {
+        // A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call
+        if node
+            .inner_value()
+            .ok_or_else(InternalError::unexpected_node_type)?
+            < amount
+        {
             return Err(InternalError::insufficient_balance().into());
         }
 
@@ -341,7 +348,10 @@ where
         // Save new node
         StorageMap::insert(new_node_key, new_node);
 
-        *node.inner_value_mut().expect("Querying node with value") -= amount;
+        let node_value = node
+            .inner_value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+        *node_value = node_value.saturating_sub(amount);
         StorageMap::insert(node_id, node);
 
         Ok(())
@@ -413,10 +423,10 @@ where
         if let Some(node) = Self::get_node(key) {
             Ok({
                 let (node_with_value, maybe_key) = Self::node_with_value(node)?;
-                // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
+                // The node here is either external or specified, hence has the inner value
                 let v = node_with_value
                     .inner_value()
-                    .expect("The node here is either external or specified, hence the inner value");
+                    .ok_or_else(InternalError::unexpected_node_type)?;
                 Some((v, maybe_key.unwrap_or(key)))
             })
         } else {
@@ -450,7 +460,7 @@ where
 
         node.consumed = true;
         let catch_output = Self::catch_value(&mut node)?;
-        let (_, origin) = Self::get_origin(key)?.expect("existing node always has the origin");
+        let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
 
         Ok(if node.refs() == 0 {
             Self::decrease_parents_ref(&node)?;
@@ -477,9 +487,7 @@ where
                     let consume_ancestors_output = Self::try_remove_consumed_ancestors(parent)?;
                     match (&consume_output, consume_ancestors_output) {
                         // value can't be caught in both procedures
-                        (Some(_), Some((neg_imb, _))) if neg_imb.peek() == Zero::zero() => {
-                            consume_output
-                        }
+                        (Some(_), Some((neg_imb, _))) if neg_imb.peek().is_zero() => consume_output,
                         (None, None) => consume_output,
                         _ => return Err(InternalError::unexpected_consume_output().into()),
                     }
@@ -510,12 +518,15 @@ where
         let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
 
-        // NOTE: intentional expect. A node_with_value is guaranteed to have inner_value
-        if node.inner_value().expect("Querying node with value") < amount {
+        // A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call
+        let node_value = node
+            .inner_value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+        if *node_value < amount {
             return Err(InternalError::insufficient_balance().into());
         }
 
-        *node.inner_value_mut().expect("Querying node with value") -= amount;
+        *node_value = node_value.saturating_sub(amount);
         log::debug!("Spent {:?} of gas", amount);
 
         // Save node that delivers limit

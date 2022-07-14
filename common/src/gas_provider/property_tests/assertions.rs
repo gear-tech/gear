@@ -38,6 +38,7 @@ pub(super) fn assert_removed_nodes_props(
 }
 
 // Check that if node was consumed, but not removed, it's of `SpecifiedLocal` or `External` types.
+// So not `UnspecifiedLocal` or `ReservedLocal`
 fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes) {
     if let Some(consumed) = remaining_nodes.get(&consumed) {
         // Node was not removed after consume, so should be of specific types
