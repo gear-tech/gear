@@ -24,7 +24,6 @@ jobs:
         run: make doc
 
       - name: Copy logo image
-        if: github.event_name == 'push'
         run: cp ./images/logo.svg ./target/doc/
 
       - name: Deploy
@@ -37,3 +36,11 @@ jobs:
           force_orphan: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Deploy PR
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          destination_dir: pr-${{ github.event.number }}
