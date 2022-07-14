@@ -18,14 +18,14 @@
 
 use super::*;
 
-/// Output of `ValueNode::catch_value` call.
+/// Output of `TreeImpl::catch_value` call.
 #[derive(Debug, Clone, Copy)]
 enum CatchValueOutput<Balance> {
     /// Catching value is impossible, therefore blocked.
     Blocked,
     /// Value was not caught, because was moved to the patron node.
     ///
-    /// For more info about patron nodes see `ValueNode::find_ancestor_patron`
+    /// For more info about patron nodes see `TreeImpl::find_ancestor_patron`
     Missed,
     /// Value was caught and will be removed from the node
     Caught(Balance),
