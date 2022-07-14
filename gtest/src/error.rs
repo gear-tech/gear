@@ -69,7 +69,7 @@ pub enum TestError {
     #[display(fmt = "{}", _0)]
     ExecutionError(ProcessorError),
 
-    /// Wrapper for [`MemoryAccessError`].
+    /// Wrapper for [`wasmtime::MemoryAccessError`](https://docs.rs/wasmtime/latest/wasmtime/struct.MemoryAccessError.html).
     #[display(fmt = "{}", _0)]
     MemoryError(MemoryAccessError),
 
@@ -77,7 +77,7 @@ pub enum TestError {
     #[display(fmt = "{}", _0)]
     WasmtimeError(AnyhowError),
 
-    /// Wrapper for `parity-scale-codec` error (see [`parity_scale_codec::Error`]).
+    /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
     #[display(fmt = "{}", _0)]
     ScaleCodecError(CodecError),
 }

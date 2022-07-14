@@ -186,7 +186,7 @@ pub fn load_bytes() -> Vec<u8> {
     result
 }
 
-/// Same as ['reply'], but with explicit gas limit.
+/// Same as [`reply`](crate::msg::reply), but with explicit gas limit.
 ///
 /// Some programs can reply to other programs, i.e. check another program's
 /// state and use it as a parameter for its own business logic [`MessageId`].
@@ -224,13 +224,13 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
     gcore::msg::reply_with_gas(payload, gas_limit, value).into_contract_result()
 }
 
-/// Same as [`reply`](crate::msg::encoded::reply), without encoding payload.
+/// Same as [`reply`](crate::msg::reply), without encoding payload.
 #[wait_for_reply]
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
     gcore::msg::reply(payload.as_ref(), value).into_contract_result()
 }
 
-/// Same as [`reply_bytes`](crate::msg::encoded::reply_bytes), with gas limit.
+/// Same as [`reply_bytes`], with gas limit.
 #[wait_for_reply]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
@@ -248,7 +248,7 @@ pub fn reply_bytes_with_gas(
 /// function.
 ///
 /// This function allows sending reply messages filled with payload parts sent
-/// via ['reply_push'] during the message handling. Finalization of the
+/// via [`reply_push`] during the message handling. Finalization of the
 /// reply message is done via [`reply_commit`] function similar to
 /// [`send_commit`].
 ///
@@ -275,7 +275,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit(value).into_contract_result()
 }
 
-/// Same as ['reply_commit'], but with explicit gas limit.
+/// Same as [`reply_commit`], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -307,7 +307,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
 /// function.
 ///
-/// This function allows filling the reply payload parts via ['reply_push']
+/// This function allows filling the reply payload parts via [`reply_push`]
 /// during the message `handling`. The payload can consist of several parts.
 ///
 /// # Examples
@@ -386,7 +386,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> 
     gcore::msg::send(program.into(), payload.as_ref(), value).into_contract_result()
 }
 
-/// Same as ['send_bytes'], but with explicit gas limit.
+/// Same as [`send_bytes`], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -453,7 +453,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
     gcore::msg::send_commit(handle.into(), program.into(), value).into_contract_result()
 }
 
-/// Same as ['send_commit'], but with explicit gas limit.
+/// Same as [`send_commit`], but with explicit gas limit.
 ///
 /// # Examples
 ///
