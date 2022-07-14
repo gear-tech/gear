@@ -23,7 +23,7 @@ use gear_core::{
     env::Ext,
     memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber},
 };
-use wasmtime::{Store, StoreContextMut};
+use wasmtime::{AsContext, AsContextMut, Store, StoreContextMut};
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap<'a, E: Ext> {
@@ -101,4 +101,52 @@ impl<E: Ext> Memory for MemoryWrapExternal<E> {
     unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
         self.mem.data_ptr(&self.store) as HostPointer
     }
+}
+
+pub fn grow<T: Ext>(
+    ctx: impl AsContextMut<Data = StoreData<T>>,
+    mem: wasmtime::Memory,
+    pages: WasmPageNumber,
+) -> Result<PageNumber, Error> {
+    mem.grow(ctx, pages.0 as u64)
+        .map(|offset| (offset as u32).into())
+        .map_err(|_| Error::OutOfBounds)
+}
+
+pub fn size<T: Ext>(
+    ctx: impl AsContext<Data = StoreData<T>>,
+    mem: wasmtime::Memory,
+) -> WasmPageNumber {
+    (mem.size(ctx) as u32).into()
+}
+
+pub fn write<T: Ext>(
+    ctx: impl AsContextMut<Data = StoreData<T>>,
+    mem: wasmtime::Memory,
+    offset: usize,
+    buffer: &[u8],
+) -> Result<(), Error> {
+    mem.write(ctx, offset, buffer)
+        .map_err(|_| Error::MemoryAccessError)
+}
+
+pub fn read<T: Ext>(
+    ctx: impl AsContext<Data = StoreData<T>>,
+    mem: wasmtime::Memory,
+    offset: usize,
+    buffer: &mut [u8],
+) -> Result<(), Error> {
+    mem.read(ctx, offset, buffer)
+        .map_err(|_| Error::MemoryAccessError)
+}
+
+fn data_size<T: Ext>(ctx: impl AsContext<Data = StoreData<T>>, mem: wasmtime::Memory) -> usize {
+    mem.data_size(ctx)
+}
+
+unsafe fn get_buffer_host_addr_unsafe<T: Ext>(
+    ctx: impl AsContext<Data = StoreData<T>>,
+    mem: wasmtime::Memory,
+) -> HostPointer {
+    mem.data_ptr(ctx) as HostPointer
 }
