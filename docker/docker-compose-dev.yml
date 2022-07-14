@@ -7,7 +7,7 @@ services:
       - "127.0.0.1:30333:30333/tcp"
       - "127.0.0.1:9933:9933/tcp"
       - "127.0.0.1:9944:9944/tcp"
-    image: rockabil/gear:latest
+    image: ghcr.io/gear-tech/node:latest
     volumes:
       - "gear-data:/data"
     command: gear-node --dev
