@@ -90,9 +90,31 @@ impl DispatchResult {
         self.dispatch.source()
     }
 
-    /// Return dispatch message value
+    /// Return dispatch message value.
     pub fn message_value(&self) -> u128 {
         self.dispatch.value()
+    }
+
+    /// Create partially initialized instance with the kind
+    /// representing Success.
+    pub fn success(
+        dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        gas_amount: GasAmount,
+        allocations: Option<BTreeSet<WasmPageNumber>>,
+    ) -> Self {
+        Self {
+            kind: DispatchResultKind::Success,
+            dispatch,
+            program_id,
+            context_store: Default::default(),
+            generated_dispatches: Default::default(),
+            awakening: Default::default(),
+            program_candidates: Default::default(),
+            gas_amount,
+            page_update: Default::default(),
+            allocations,
+        }
     }
 }
 

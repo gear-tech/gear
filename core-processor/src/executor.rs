@@ -250,11 +250,27 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
+    let is_initial = program.get_allocations().is_empty();
+
+    let exports = program.code().exports();
+    if !exports.contains(&dispatch.kind()) {
+        let allocations = match is_initial {
+            true => Some((0..static_pages.0).map(WasmPageNumber).collect()),
+            false => None,
+        };
+
+        return Ok(DispatchResult::success(
+            dispatch,
+            program_id,
+            gas_counter.into(),
+            allocations,
+        ));
+    }
+
     // Getting wasm pages allocations.
-    let (allocations, is_initial) = if program.get_allocations().is_empty() {
-        ((0..static_pages.0).map(WasmPageNumber).collect(), true)
-    } else {
-        (program.get_allocations().clone(), false)
+    let allocations = match is_initial {
+        true => (0..static_pages.0).map(WasmPageNumber).collect(),
+        false => program.get_allocations().clone(),
     };
 
     // Creating allocations context.
@@ -292,13 +308,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating externalities.
     let ext = A::new(context);
 
-    let mut env = E::new(
-        ext,
-        program.raw_code(),
-        program.code().exports().clone(),
-        mem_size,
-    )
-    .map_err(|err| {
+    let mut env = E::new(ext, program.raw_code(), exports.clone(), mem_size).map_err(|err| {
         log::debug!("Setup instance error: {}", err);
         ExecutionError {
             program_id,
