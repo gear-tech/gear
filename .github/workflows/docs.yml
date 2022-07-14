@@ -20,6 +20,9 @@ jobs:
         with:
           toolchain: nightly
 
+      - name: Cache
+        uses: Swatinem/rust-cache@v1
+
       - name: Build docs
         run: make doc
 
