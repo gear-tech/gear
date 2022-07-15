@@ -18,13 +18,27 @@
 
 //! Internal details of Gear Pallet implementation.
 
-use crate::{Authorship, BalanceOf, Config, CurrencyOf, GasHandlerOf, Pallet};
-use common::{GasPrice, GasProvider, GasTree, Origin};
+#![allow(unused)]
+
+use crate::{
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet,
+    SchedulingCostOf, SystemPallet,
+};
+use common::{scheduler::*, GasPrice, GasProvider, GasTree, Origin};
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::ids::MessageId;
-use sp_runtime::traits::Zero;
+use sp_runtime::{
+    traits::{Saturating, UniqueSaturatedInto, Zero},
+    SaturatedConversion,
+};
+
+pub(crate) struct Deadline<T: Config> {
+    pub(crate) schedule_at: BlockNumberFor<T>,
+    pub(crate) gas_lock: <T::GasProvider as GasProvider>::Balance,
+}
 
 impl<T: Config> Pallet<T>
 where
@@ -89,12 +103,11 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let optional_external = GasHandlerOf::<T>::get_external(message_id)
+        let opt_external = GasHandlerOf::<T>::get_external(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // External id may not be found only for inexistent node.
-        let external =
-            optional_external.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+        let external = opt_external.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
         // Querying actual block author to reward.
         let block_author = Authorship::<T>::author()
@@ -138,6 +151,114 @@ where
                     unreachable!("Not all requested value was unreserved");
                 }
             }
+        }
+    }
+
+    /// Calculates maximal deadline for given `MessageId` and cost.
+    #[must_use]
+    pub(crate) fn maximal_deadline(
+        message_id: MessageId,
+        cost: SchedulingCostOf<T>,
+    ) -> Option<Deadline<T>> {
+        // Querying gas limit. Fails in cases of `GasTree` invalidations.
+        let opt_limit = GasHandlerOf::<T>::get_limit(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Gas limit may not be found only for inexistent node.
+        let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+
+        // Amount of blocks might be payed for holding with given cost.
+        let maximal_duration: BlockNumberFor<T> =
+            limit.saturating_div(cost).unique_saturated_into();
+
+        // Default reserve/stock to make sure that we process task in time.
+        let reserve = CostsPerBlockOf::<T>::reserve_for();
+
+        // Safety duration (maximal subtracted by reserve).
+        let safety_duration = maximal_duration.saturating_sub(reserve);
+
+        // Calling inner implementation.
+        Self::deadline_for(safety_duration, cost)
+    }
+
+    /// Calculates deadline at specific block for given `MessageId` and cost.
+    #[must_use]
+    pub(crate) fn deadline_at(
+        message_id: MessageId,
+        cost: SchedulingCostOf<T>,
+        at: BlockNumberFor<T>,
+    ) -> Option<Deadline<T>> {
+        // Current block number.
+        let current = SystemPallet::<T>::block_number();
+
+        // Expected safety duration.
+        let safety_duration = at.saturating_sub(current);
+
+        // Calling inner implementation.
+        let deadline = Self::deadline_for(safety_duration, cost)?;
+
+        // Querying gas limit. Fails in cases of `GasTree` invalidations.
+        let opt_limit = GasHandlerOf::<T>::get_limit(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Gas limit may not be found only for inexistent node.
+        let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+
+        // Checking that message gas limit can cover required lock.
+        (limit >= deadline.gas_lock).then(|| deadline)
+    }
+
+    // Calculates deadline for duration holding.
+    fn deadline_for(
+        safety_duration: BlockNumberFor<T>,
+        cost: SchedulingCostOf<T>,
+    ) -> Option<Deadline<T>> {
+        // Checking if duration is zero.
+        if safety_duration.is_zero() {
+            return None;
+        }
+
+        // Current block number.
+        let current = SystemPallet::<T>::block_number();
+
+        // Expected block number for task to be processed.
+        let schedule_at = current.saturating_add(safety_duration);
+
+        // Default reserve/stock to make sure that we process task in time.
+        let reserve = CostsPerBlockOf::<T>::reserve_for();
+
+        // Maximal duration to be payed.
+        let maximal_duration: u64 = schedule_at.saturating_add(reserve).unique_saturated_into();
+
+        // Gas limit to lock for charging for maximal duration.
+        let gas_lock = maximal_duration.saturating_mul(cost);
+
+        // Aggregating data.
+        Some(Deadline {
+            schedule_at,
+            gas_lock,
+        })
+    }
+
+    /// Charges for holding in some storage.
+    pub(crate) fn charge_for_hold(
+        message_id: MessageId,
+        held_since: BlockNumberFor<T>,
+        cost: SchedulingCostOf<T>,
+    ) {
+        // Current block number.
+        let current = SystemPallet::<T>::block_number();
+
+        // Holding duration.
+        let duration: u64 = current.saturating_sub(held_since).unique_saturated_into();
+
+        // Amount of gas to charge for holding.
+        let amount = duration.saturating_mul(cost);
+
+        // Spending gas, if need.
+        if !amount.is_zero() {
+            // Spending gas.
+            Self::spend_gas(message_id, amount)
         }
     }
 }
