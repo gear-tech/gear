@@ -25,7 +25,7 @@ use common::{
     storage::*,
     GasTree, Origin,
 };
-use core_processor::common::{ExecutionErrorReason, JournalHandler};
+use core_processor::common::ExecutionErrorReason;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::ReplyMessage,
@@ -105,7 +105,7 @@ where
         }
 
         // Consuming gas handler for waitlisted message.
-        self.message_consumed(waitlisted.id());
+        Pallet::<T>::consume_message(waitlisted.id());
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) {

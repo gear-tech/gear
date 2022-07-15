@@ -49,7 +49,9 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Authorship, Config, CostsPerBlockOf, GasHandlerOf, GearProgramPallet, WaitlistOf};
+use crate::{
+    Authorship, Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet, WaitlistOf,
+};
 use codec::{Decode, Encode};
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin,
@@ -166,10 +168,9 @@ where
             )
         };
 
-        let balance = <T as Config>::Currency::free_balance(
-            &<T::AccountId as Origin>::from_origin(id.into_origin()),
-        )
-        .unique_saturated_into();
+        let balance =
+            CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
+                .unique_saturated_into();
         let pages_data = if with_pages {
             common::get_program_data_for_pages(id.into_origin(), active.pages_with_data.iter())
                 .ok()?
@@ -224,7 +225,7 @@ where
                         if let Some(origin) = maybe_origin {
                             let charge = T::GasPrice::gas_price(holding_cost);
                             if let Some(author) = Authorship::<T>::author() {
-                                match <T as Config>::Currency::repatriate_reserved(
+                                match CurrencyOf::<T>::repatriate_reserved(
                                     &origin,
                                     &author,
                                     charge,

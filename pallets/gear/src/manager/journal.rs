@@ -18,15 +18,15 @@
 
 use crate::{
     manager::{ExtManager, TOL},
-    Authorship, Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
-    MailboxOf, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
+    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
-use common::{event::*, scheduler::*, storage::*, CodeStorage, GasPrice, GasTree, Origin, Program};
+use common::{event::*, scheduler::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
 };
 use frame_support::traits::{
-    BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
+    BalanceStatus, Currency, ExistenceRequirement, Get, ReservableCurrency,
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
@@ -154,67 +154,7 @@ where
 
         GasAllowanceOf::<T>::decrease(amount);
 
-        match GasHandlerOf::<T>::spend(message_id, amount) {
-            Ok(_) => {
-                match GasHandlerOf::<T>::get_external(message_id) {
-                    Ok(maybe_origin) => {
-                        if let Some(origin) = maybe_origin {
-                            let charge = T::GasPrice::gas_price(amount);
-                            if let Some(author) = Authorship::<T>::author() {
-                                match <T as Config>::Currency::repatriate_reserved(
-                                    &origin,
-                                    &author,
-                                    charge,
-                                    BalanceStatus::Free,
-                                ) {
-                                    Ok(leftover) => {
-                                        if leftover > TOL.unique_saturated_into() {
-                                            log::debug!(
-                                                target: "essential",
-                                                "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                                origin,
-                                                author,
-                                                charge,
-                                                leftover,
-                                            );
-                                        }
-                                    }
-                                    Err(e) => {
-                                        log::debug!(
-                                            target: "essential",
-                                            "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
-                                            charge,
-                                            origin,
-                                            author,
-                                            e,
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            log::debug!(
-                                target: "essential",
-                                "Failed to get limit of {:?}",
-                                message_id,
-                            );
-                        }
-                    }
-                    Err(_err) => {
-                        // We only can get an error here if the gas tree is invalidated
-                        // TODO: handle appropriately
-                        unreachable!("Can never happen unless gas tree corrupted");
-                    }
-                }
-            }
-            Err(err) => {
-                log::debug!(
-                    "Error spending {:?} gas for message_id {:?}: {:?}",
-                    amount,
-                    message_id,
-                    err
-                )
-            }
-        }
+        Pallet::<T>::spend_gas(message_id, amount)
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
@@ -244,30 +184,7 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        match GasHandlerOf::<T>::consume(message_id) {
-            Err(_e) => {
-                // We only can get an error here if the gas tree is invalidated
-                // TODO: handle appropriately
-                unreachable!("Can never happen unless gas tree corrupted");
-            }
-            Ok(maybe_outcome) => {
-                if let Some((neg_imbalance, external)) = maybe_outcome {
-                    let gas_left = neg_imbalance.peek();
-
-                    if gas_left > 0 {
-                        log::debug!(
-                            "Unreserve balance on message processed: {} to {:?}",
-                            gas_left,
-                            external
-                        );
-
-                        let refund = T::GasPrice::gas_price(gas_left);
-
-                        let _ = <T as Config>::Currency::unreserve(&external, refund);
-                    }
-                }
-            }
-        }
+        Pallet::<T>::consume_message(message_id)
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {

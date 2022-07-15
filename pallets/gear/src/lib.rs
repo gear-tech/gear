@@ -26,6 +26,7 @@ use codec::{Decode, Encode};
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod ext;
+mod internal;
 mod schedule;
 
 pub mod manager;
@@ -66,6 +67,7 @@ use sp_std::{
     prelude::*,
 };
 
+pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
