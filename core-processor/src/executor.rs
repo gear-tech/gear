@@ -293,47 +293,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let ext = A::new(context);
 
     let mut ext_carrier = ExtCarrier::new(ext);
-    // let mut env = E::new(
-    //     ext,
-    //     program.raw_code(),
-    //     program.code().exports().clone(),
-    //     mem_size,
-    // )
-    // .map_err(|err| {
-    //     log::debug!("Setup instance error: {}", err);
-    //     ExecutionError {
-    //         program_id,
-    //         gas_amount: err.gas_amount.clone(),
-    //         reason: ExecutionErrorReason::Backend(err.to_string()),
-    //     }
-    // })?;
-
-    // let mut mem = match E::create_memory(ext_carrier.cloned(), mem_size) {
-    //     Ok(mem) => mem,
-    //     Err(err) => {
-    //         log::debug!("Setup instance error: {}", err);
-    //         return Err(ExecutionError {
-    //             program_id,
-    //             gas_amount: ext_carrier.into_inner().into_gas_amount().clone(),
-    //             reason: ExecutionErrorReason::Backend(err.to_string()),
-    //         });
-    //     }
-    // };
-    // let prepare_mem = |mem| {
-    //     if let Err(reason) = prepare_memory::<A, E::Memory>(
-    //         program_id,
-    //         &mut pages_initial_data,
-    //         static_pages,
-    //         &mut mem,
-    //     ) {
-    //         return Err(ExecutionError {
-    //             program_id,
-    //             gas_amount: ext_carrier.into_inner().into_gas_amount(),
-    //             reason,
-    //         });
-    //     }
-    //     Ok(())
-    // };
 
     // Execute program in backend env.
     let (termination, info, stack_end_page) = match E::execute(

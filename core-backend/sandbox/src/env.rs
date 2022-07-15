@@ -232,12 +232,6 @@ where
             global
         };
 
-        // match post_execution_handler(&memory) {
-        //     Ok(_) => ,
-        //     Err(e) => Err(BackendError {
-        //         reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
-        //     }),
-        // }
         Ok((termination, memory, stack_end_page))
     }
 }
