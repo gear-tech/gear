@@ -171,11 +171,24 @@ pub enum Program {
     Terminated,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum ProgramError {
-    CodeHashNotFound,
+#[derive(Clone, Debug, derive_more::Display)]
+pub enum CommonError {
+    #[display(fmt = "Program is terminated")]
     IsTerminated,
-    DoesNotExist,
+    #[display(fmt = "Program does not exist for id = {}", _0)]
+    DoesNotExist(H256),
+    #[display(fmt = "Cannot find data for {:?}, program {}", page, program_id)]
+    CannotFindDataForPage {
+        program_id: H256,
+        page: PageNumber,
+    },
+    MemoryError(MemoryError),
+}
+
+impl From<MemoryError> for CommonError {
+    fn from(err: MemoryError) -> Self {
+        Self::MemoryError(err)
+    }
 }
 
 impl Program {
@@ -209,12 +222,12 @@ impl Program {
 }
 
 impl core::convert::TryFrom<Program> for ActiveProgram {
-    type Error = ProgramError;
+    type Error = CommonError;
 
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
-            Program::Terminated => Err(ProgramError::IsTerminated),
+            Program::Terminated => Err(CommonError::IsTerminated),
         }
     }
 }
@@ -297,10 +310,10 @@ pub fn set_program_initialized(id: H256) {
     }
 }
 
-pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
+pub fn set_program_terminated_status(id: H256) -> Result<(), CommonError> {
     if let Some(program) = get_program(id) {
         if program.is_terminated() {
-            return Err(ProgramError::IsTerminated);
+            return Err(CommonError::IsTerminated);
         }
 
         sp_io::storage::clear_prefix(&pages_prefix(id), None);
@@ -308,7 +321,7 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
 
         Ok(())
     } else {
-        Err(ProgramError::DoesNotExist)
+        Err(CommonError::DoesNotExist(id))
     }
 }
 
@@ -318,35 +331,33 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(
-    id: H256,
-    page_idx: PageNumber,
-) -> Option<Result<PageBuf, MemoryError>> {
-    let key = page_key(id, page_idx);
-    let data = sp_io::storage::get(&key)?;
-    Some(PageBuf::new_from_vec(data))
+pub fn get_program_page_data(program_id: H256, page: PageNumber) -> Result<PageBuf, CommonError> {
+    let key = page_key(program_id, page);
+    let data =
+        sp_io::storage::get(&key).ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
+    PageBuf::new_from_vec(data).map_err(Into::into)
 }
 
+/// Returns data for all `program` pages, which has data
 pub fn get_program_pages_data(
-    id: H256,
+    program_id: H256,
     program: &ActiveProgram,
-) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
-    get_program_data_for_pages(id, program.pages_with_data.iter())
+) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
+    get_program_data_for_pages(program_id, program.pages_with_data.iter())
 }
 
-/// Returns data for all pages from `pages` arg, which has data in storage.
+/// Returns data for all pages from `pages`
 pub fn get_program_data_for_pages<'a>(
-    id: H256,
+    program_id: H256,
     pages: impl Iterator<Item = &'a PageNumber>,
-) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
+) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
     let mut pages_data = BTreeMap::new();
-    for page in pages {
-        let key = page_key(id, *page);
-        let data = sp_io::storage::get(&key);
-        if let Some(data) = data {
-            let page_buf = PageBuf::new_from_vec(data)?;
-            pages_data.insert(*page, page_buf);
-        }
+    for &page in pages {
+        let key = page_key(program_id, page);
+        let data = sp_io::storage::get(&key)
+            .ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
+        let page_buf = PageBuf::new_from_vec(data)?;
+        pages_data.insert(page, page_buf);
     }
     Ok(pages_data)
 }

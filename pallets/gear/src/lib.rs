@@ -1140,10 +1140,7 @@ pub mod pallet {
                                 ) {
                                     Ok(data) => data,
                                     Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
+                                        log::error!("Cannot get data for program pages: {}", err);
                                         continue;
                                     }
                                 }
