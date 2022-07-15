@@ -28,7 +28,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
 };
-use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
+use gear_backend_common::{Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::{Ext as EnvExt, ExtCarrier},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -313,7 +313,15 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Ok((termination, memory, stack_end_page)) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::is_lazy_pages_enabled() {
-                A::lazy_pages_post_execution_actions(&memory, &mut pages_initial_data);
+                if let Err(e) =
+                    A::lazy_pages_post_execution_actions(&memory, &mut pages_initial_data)
+                {
+                    return Err(ExecutionError {
+                        program_id,
+                        gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                        reason: ExecutionErrorReason::Backend(e.to_string()),
+                    });
+                }
             }
             (
                 termination,

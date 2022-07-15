@@ -26,7 +26,7 @@ use alloc::{collections::BTreeSet, string::String};
 use core::fmt;
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, Environment, IntoExtInfo,
-    TerminationReason, TrapExplanation,
+    TerminationReason, TrapExplanation, BackendReport,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -54,7 +54,7 @@ pub enum SandboxEnvironmentError {
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "{}", _0)]
-    PostExecutionHandler(String),
+    PreExecutionHandler(String),
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -108,7 +108,7 @@ where
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<(TerminationReason, Self::Memory, Option<WasmPageNumber>), BackendError<Self::Error>>
+    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
     where
         F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display,
@@ -181,7 +181,9 @@ where
             }
         };
 
-        pre_execution_handler(&mut runtime.memory);
+        pre_execution_handler(&mut runtime.memory).map_err(|e| BackendError {
+            reason: SandboxEnvironmentError::PreExecutionHandler(e.to_string()),
+        })?;
 
         let res = if entries.contains(entry_point) {
             instance.invoke(entry_point.into_entry(), &[], &mut runtime)

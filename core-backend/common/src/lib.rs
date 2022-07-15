@@ -119,10 +119,7 @@ pub trait IntoExtInfo {
     fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
 
-pub struct BackendReport {
-    pub termination: TerminationReason,
-    pub info: ExtInfo,
-}
+pub type BackendReport<T> = (TerminationReason, T, Option<WasmPageNumber>);
 
 #[derive(Debug, derive_more::Display)]
 #[display(fmt = "{}", reason)]
@@ -149,7 +146,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<(TerminationReason, Self::Memory, Option<WasmPageNumber>), BackendError<Self::Error>>
+    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
     where
         F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display;
