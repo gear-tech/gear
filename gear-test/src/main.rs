@@ -50,7 +50,7 @@ struct Opts {
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     let print_logs = !matches!(opts.verbose, 0);
-    check::check_main::<InMemoryExtManager, WasmtimeEnvironment<Ext>, _>(
+    check::check_main::<InMemoryExtManager, WasmtimeEnvironment, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,

@@ -30,7 +30,7 @@ use alloc::{
 };
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
-    env::Ext as EnvExt,
+    env::{Ext as EnvExt, ExtCarrier},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
@@ -292,56 +292,88 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating externalities.
     let ext = A::new(context);
 
-    let mut env = E::new(
-        ext,
+    let mut ext_carrier = ExtCarrier::new(ext);
+    // let mut env = E::new(
+    //     ext,
+    //     program.raw_code(),
+    //     program.code().exports().clone(),
+    //     mem_size,
+    // )
+    // .map_err(|err| {
+    //     log::debug!("Setup instance error: {}", err);
+    //     ExecutionError {
+    //         program_id,
+    //         gas_amount: err.gas_amount.clone(),
+    //         reason: ExecutionErrorReason::Backend(err.to_string()),
+    //     }
+    // })?;
+
+    // let mut mem = match E::create_memory(ext_carrier.cloned(), mem_size) {
+    //     Ok(mem) => mem,
+    //     Err(err) => {
+    //         log::debug!("Setup instance error: {}", err);
+    //         return Err(ExecutionError {
+    //             program_id,
+    //             gas_amount: ext_carrier.into_inner().into_gas_amount().clone(),
+    //             reason: ExecutionErrorReason::Backend(err.to_string()),
+    //         });
+    //     }
+    // };
+    // let prepare_mem = |mem| {
+    //     if let Err(reason) = prepare_memory::<A, E::Memory>(
+    //         program_id,
+    //         &mut pages_initial_data,
+    //         static_pages,
+    //         &mut mem,
+    //     ) {
+    //         return Err(ExecutionError {
+    //             program_id,
+    //             gas_amount: ext_carrier.into_inner().into_gas_amount(),
+    //             reason,
+    //         });
+    //     }
+    //     Ok(())
+    // };
+
+    // Execute program in backend env.
+    let (termination, info, stack_end_page) = match E::execute(
+        &mut ext_carrier,
         program.raw_code(),
         program.code().exports().clone(),
         mem_size,
-    )
-    .map_err(|err| {
-        log::debug!("Setup instance error: {}", err);
-        ExecutionError {
-            program_id,
-            gas_amount: err.gas_amount.clone(),
-            reason: ExecutionErrorReason::Backend(err.to_string()),
-        }
-    })?;
-
-    if let Err(reason) = prepare_memory::<A, E::Memory>(
-        program_id,
-        &mut pages_initial_data,
-        static_pages,
-        env.get_mem_mut(),
+        &kind,
+        |memory| {
+            prepare_memory::<A, E::Memory>(
+                program_id,
+                &mut pages_initial_data,
+                static_pages,
+                memory,
+            )
+        },
     ) {
-        return Err(ExecutionError {
-            program_id,
-            gas_amount: env.into_gas_amount(),
-            reason,
-        });
-    }
-
-    // Page which is right after stack last page
-    let stack_end_page = env.get_stack_mem_end();
-    log::trace!("Stack end page = {:?}", stack_end_page);
-
-    // Execute program in backend env.
-    let BackendReport { termination, info } = match env.execute(&kind, |mem| {
-        // released pages initial data will be added to `pages_initial_data` after execution.
-        if A::is_lazy_pages_enabled() {
-            A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
-        } else {
-            Ok(())
+        Ok((termination, memory, stack_end_page)) => {
+            // released pages initial data will be added to `pages_initial_data` after execution.
+            if A::is_lazy_pages_enabled() {
+                A::lazy_pages_post_execution_actions(&memory, &mut pages_initial_data);
+            }
+            (
+                termination,
+                ext_carrier.into_inner().into_ext_info(&memory).unwrap(),
+                stack_end_page,
+            )
         }
-    }) {
-        Ok(report) => report,
+
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: e.gas_amount.clone(),
+                gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 reason: ExecutionErrorReason::Backend(e.to_string()),
             })
         }
     };
+
+    // Page which is right after stack last page
+    log::trace!("Stack end page = {:?}", stack_end_page);
 
     log::debug!("Termination reason: {:?}", termination);
 

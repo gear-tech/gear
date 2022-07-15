@@ -35,7 +35,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use core::{fmt, ops::Deref};
 use gear_core::{
-    env::Ext,
+    env::{Ext, ExtCarrier},
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
@@ -110,14 +110,13 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
     fn last_error(&self) -> Option<&ExtError>;
+
+    fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
 
 pub struct BackendReport {
@@ -128,7 +127,6 @@ pub struct BackendReport {
 #[derive(Debug, derive_more::Display)]
 #[display(fmt = "{}", reason)]
 pub struct BackendError<T> {
-    pub gas_amount: GasAmount,
     pub reason: T,
 }
 
@@ -143,35 +141,38 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// 1) Instantiates wasm binary.
     /// 2) Creates wasm memory with filled data (exception if lazy pages enabled).
     /// 3) Instantiate external funcs for wasm module.
-    fn new(
-        ext: E,
-        binary: &[u8],
-        entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<Self::Error>>;
+    // fn new(
+    //     ext: E,
+    //     binary: &[u8],
+    //     entries: BTreeSet<DispatchKind>,
+    //     memory: Self::Memory,
+    // ) -> Result<Self, BackendError<Self::Error>>;
 
     /// Returns addr to the stack end if it can be identified
-    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
+    // fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
-    /// Get ref to mem wrapper
-    fn get_mem(&self) -> &Self::Memory;
+    // /// Get ref to mem wrapper
+    // fn get_mem(&self) -> &Self::Memory;
 
-    /// Get mut ref to mem wrapper
-    fn get_mem_mut(&mut self) -> &mut Self::Memory;
+    // /// Get mut ref to mem wrapper
+    // fn get_mem_mut(&mut self) -> &mut Self::Memory;
 
     /// Run instance setup starting at `entry_point` - wasm export function name.
     /// Also runs `post_execution_handler` after running instance at provided entry point.
     fn execute<F, T>(
-        self,
+        ext_carrier: &mut ExtCarrier<E>,
+        binary: &[u8],
+        entries: BTreeSet<DispatchKind>,
+        mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
-        post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError<Self::Error>>
+        pre_execution_handler: F,
+    ) -> Result<(TerminationReason, Self::Memory, Option<WasmPageNumber>), BackendError<Self::Error>>
     where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display;
 
-    /// Consumes environment and returns gas state.
-    fn into_gas_amount(self) -> GasAmount;
+    // /// Consumes environment and returns gas state.
+    // fn into_gas_amount(self) -> GasAmount;
 }
 
 pub trait AsTerminationReason {

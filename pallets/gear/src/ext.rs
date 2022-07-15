@@ -87,10 +87,7 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -127,11 +124,7 @@ impl IntoExtInfo for LazyPagesExt {
             context_store,
             program_candidates_data,
         };
-        let trap_explanation = self
-            .inner
-            .error_explanation
-            .and_then(ProcessorError::into_trap_explanation);
-        Ok((info, trap_explanation))
+        Ok(info)
     }
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
@@ -140,6 +133,10 @@ impl IntoExtInfo for LazyPagesExt {
 
     fn last_error(&self) -> Option<&ExtError> {
         self.inner.last_error()
+    }
+
+    fn trap_explanation(&self) -> Option<TrapExplanation> {
+        self.inner.trap_explanation()
     }
 }
 

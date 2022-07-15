@@ -22,18 +22,14 @@ use crate::{
     funcs::{FuncError, FuncsHandler as Funcs},
     memory::MemoryWrap,
 };
-use alloc::{
-    collections::BTreeSet,
-    string::{String, ToString},
-};
+use alloc::{collections::BTreeSet, string::String};
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, Environment, IntoExtInfo,
+    TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
-    gas::GasAmount,
     memory::WasmPageNumber,
     message::DispatchKind,
 };
@@ -62,14 +58,10 @@ pub enum SandboxEnvironmentError {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
-    runtime: Runtime<E>,
-    instance: Instance<Runtime<E>>,
-    entries: BTreeSet<DispatchKind>,
-}
+pub struct SandboxEnvironment;
 
-pub(crate) struct Runtime<E: Ext> {
-    pub ext: ExtCarrier<E>,
+pub(crate) struct Runtime<'a, E: Ext> {
+    pub ext: &'a mut ExtCarrier<E>,
     pub memory: MemoryWrap,
     pub err: FuncError<E::Error>,
 }
@@ -77,12 +69,12 @@ pub(crate) struct Runtime<E: Ext> {
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<'a, E: Ext> {
-    env_def_builder: EnvironmentDefinitionBuilder<Runtime<E>>,
+    env_def_builder: EnvironmentDefinitionBuilder<Runtime<'a, E>>,
     forbidden_funcs: &'a BTreeSet<&'static str>,
 }
 
 impl<'a, E: Ext + IntoExtInfo + 'static> EnvBuilder<'a, E> {
-    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<E>>)
+    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<'a, E>>)
     where
         E::Error: AsTerminationReason + IntoExtError,
     {
@@ -95,13 +87,13 @@ impl<'a, E: Ext + IntoExtInfo + 'static> EnvBuilder<'a, E> {
     }
 }
 
-impl<E: Ext> From<EnvBuilder<'_, E>> for EnvironmentDefinitionBuilder<Runtime<E>> {
-    fn from(builder: EnvBuilder<E>) -> Self {
+impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<'a, E>> {
+    fn from(builder: EnvBuilder<'a, E>) -> Self {
         builder.env_def_builder
     }
 }
 
-impl<E> Environment<E> for SandboxEnvironment<E>
+impl<E> Environment<E> for SandboxEnvironment
 where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
@@ -109,15 +101,21 @@ where
     type Memory = MemoryWrap;
     type Error = SandboxEnvironmentError;
 
-    fn new(
-        ext: E,
+    fn execute<F, T>(
+        ext: &mut ExtCarrier<E>,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<Self::Error>> {
+        entry_point: &DispatchKind,
+        pre_execution_handler: F,
+    ) -> Result<(TerminationReason, Self::Memory, Option<WasmPageNumber>), BackendError<Self::Error>>
+    where
+        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
+        T: fmt::Display,
+    {
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
-            forbidden_funcs: ext.forbidden_funcs(),
+            forbidden_funcs: &ext.with(|ext| ext.forbidden_funcs().clone()).unwrap(),
         };
 
         builder.add_func("gr_block_height", Funcs::block_height);
@@ -154,14 +152,11 @@ where
         builder.add_func("gr_wake", Funcs::wake);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
-        let ext_carrier = ExtCarrier::new(ext);
-
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::CreateEnvMemory(e),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -172,62 +167,24 @@ where
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut runtime = Runtime {
-            ext: ext_carrier,
+            ext: ext,
             memory: MemoryWrap::new(mem),
             err: FuncError::Terminated(TerminationReason::Success),
         };
 
-        let instance = match Instance::new(binary, &env_builder, &mut runtime) {
+        let mut instance = match Instance::new(binary, &env_builder, &mut runtime) {
             Ok(inst) => inst,
             Err(e) => {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::ModuleInstantiation(e),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
 
-        Ok(SandboxEnvironment {
-            runtime,
-            instance,
-            entries,
-        })
-    }
+        pre_execution_handler(&mut runtime.memory);
 
-    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let global = self.instance.get_global_val("__gear_stack_end")?;
-        global.as_i32().and_then(|addr| {
-            if addr < 0 {
-                None
-            } else {
-                Some(WasmPageNumber(
-                    (addr as usize / WasmPageNumber::size()) as u32,
-                ))
-            }
-        })
-    }
-
-    fn get_mem(&self) -> &Self::Memory {
-        &self.runtime.memory
-    }
-
-    fn get_mem_mut(&mut self) -> &mut Self::Memory {
-        &mut self.runtime.memory
-    }
-
-    fn execute<F, T>(
-        mut self,
-        entry_point: &DispatchKind,
-        post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError<Self::Error>>
-    where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
-        T: fmt::Display,
-    {
-        let res = if self.entries.contains(entry_point) {
-            self.instance
-                .invoke(entry_point.into_entry(), &[], &mut self.runtime)
+        let res = if entries.contains(entry_point) {
+            instance.invoke(entry_point.into_entry(), &[], &mut runtime)
         } else {
             Ok(ReturnValue::Unit)
         };
@@ -236,17 +193,11 @@ where
             ext,
             memory,
             err: trap,
-        } = self.runtime;
+        } = runtime;
 
         log::debug!("execution res = {:?}", res);
 
-        let (info, trap_explanation) =
-            ext.into_inner()
-                .into_ext_info(&memory)
-                .map_err(|(reason, gas_amount)| BackendError {
-                    reason: SandboxEnvironmentError::Memory(reason),
-                    gas_amount,
-                })?;
+        let trap_explanation = ext.with(|ext| ext.trap_explanation()).unwrap();
 
         let termination = if res.is_err() {
             let reason = trap_explanation
@@ -263,16 +214,30 @@ where
             TerminationReason::Success
         };
 
-        match post_execution_handler(&memory) {
-            Ok(_) => Ok(BackendReport { termination, info }),
-            Err(e) => Err(BackendError {
-                reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
-                gas_amount: info.gas_amount,
-            }),
-        }
-    }
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+        let stack_end_page = {
+            let global = instance
+                .get_global_val("__gear_stack_end")
+                .and_then(|global| {
+                    global.as_i32().and_then(|addr| {
+                        if addr < 0 {
+                            None
+                        } else {
+                            Some(WasmPageNumber(
+                                (addr as usize / WasmPageNumber::size()) as u32,
+                            ))
+                        }
+                    })
+                });
+            global
+        };
 
-    fn into_gas_amount(self) -> GasAmount {
-        self.runtime.ext.into_inner().into_gas_amount()
+        // match post_execution_handler(&memory) {
+        //     Ok(_) => ,
+        //     Err(e) => Err(BackendError {
+        //         reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
+        //     }),
+        // }
+        Ok((termination, memory, stack_end_page))
     }
 }

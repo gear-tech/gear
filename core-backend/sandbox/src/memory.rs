@@ -22,7 +22,7 @@ use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
 use sp_sandbox::SandboxMemory;
 
 /// Wrapper for sp_sandbox::Memory.
-pub struct MemoryWrap(sp_sandbox::default_executor::Memory);
+pub struct MemoryWrap(pub sp_sandbox::default_executor::Memory);
 
 impl MemoryWrap {
     /// Wrap sp_sandbox::Memory for Memory trait.

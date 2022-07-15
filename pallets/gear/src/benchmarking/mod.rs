@@ -429,7 +429,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -492,7 +492,7 @@ benchmarks! {
 
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -521,7 +521,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -538,7 +538,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -555,7 +555,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -572,7 +572,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -590,7 +590,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -607,7 +607,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -624,7 +624,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -653,7 +653,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -693,7 +693,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -737,7 +737,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -766,7 +766,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -795,7 +795,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -825,7 +825,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -867,7 +867,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -909,7 +909,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -962,7 +962,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1015,7 +1015,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1058,7 +1058,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1099,7 +1099,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1141,7 +1141,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1180,7 +1180,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1212,7 +1212,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1243,7 +1243,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1276,7 +1276,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1316,7 +1316,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1347,7 +1347,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1378,7 +1378,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1424,7 +1424,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
     }
@@ -1488,7 +1488,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
 
@@ -1553,7 +1553,7 @@ benchmarks! {
     }: {
         let journal = core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
         core_processor::handle_journal(journal, &mut ext_manager);
 
