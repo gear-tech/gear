@@ -24,7 +24,6 @@ mod proc;
 mod sample;
 
 use clap::Parser;
-use core_processor::Ext;
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use manager::InMemoryExtManager;
 

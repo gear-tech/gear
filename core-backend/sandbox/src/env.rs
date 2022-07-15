@@ -22,11 +22,14 @@ use crate::{
     funcs::{FuncError, FuncsHandler as Funcs},
     memory::MemoryWrap,
 };
-use alloc::{collections::BTreeSet, string::String};
+use alloc::{
+    collections::BTreeSet,
+    string::{String, ToString},
+};
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, BackendError, Environment, IntoExtInfo,
-    TerminationReason, TrapExplanation, BackendReport,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
+    IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, ExtCarrier},
@@ -167,7 +170,7 @@ where
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut runtime = Runtime {
-            ext: ext,
+            ext,
             memory: MemoryWrap::new(mem),
             err: FuncError::Terminated(TerminationReason::Success),
         };
@@ -217,22 +220,19 @@ where
         };
 
         // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let stack_end_page = {
-            let global = instance
-                .get_global_val("__gear_stack_end")
-                .and_then(|global| {
-                    global.as_i32().and_then(|addr| {
-                        if addr < 0 {
-                            None
-                        } else {
-                            Some(WasmPageNumber(
-                                (addr as usize / WasmPageNumber::size()) as u32,
-                            ))
-                        }
-                    })
-                });
-            global
-        };
+        let stack_end_page = instance
+            .get_global_val("__gear_stack_end")
+            .and_then(|global| {
+                global.as_i32().and_then(|addr| {
+                    if addr < 0 {
+                        None
+                    } else {
+                        Some(WasmPageNumber(
+                            (addr as usize / WasmPageNumber::size()) as u32,
+                        ))
+                    }
+                })
+            });
 
         Ok((termination, memory, stack_end_page))
     }
