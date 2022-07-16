@@ -33,28 +33,17 @@ impl Transfer {
     pub async fn exec(&self) -> Result<()> {
         let passwd = self.passwd.as_deref();
         let pair = keystore::cache(passwd)?;
-        let address = pair.account_id();
 
         let api = Api::new(self.endpoint.as_ref().map(|s| s.as_ref()), passwd).await?;
-        let balance = api.get_balance(&address.to_ss58check()).await?;
 
-        println!("Address: {address:?}");
-        println!(
-            "Current balance: {balance:?} ~= {} UNIT",
-            balance / 10u128.pow(12)
-        );
-
+        println!("From: {}", pair.account_id().to_ss58check());
+        println!("To: {}", self.destination);
+        println!("Value: {}", self.value);
         api.transfer(TransferCall {
             dest: AccountId32::from_ss58check(&self.destination)?.into(),
             value: self.value,
         })
         .await?;
-
-        let balance = api.get_balance(&address.to_ss58check()).await?;
-        println!(
-            "Current balance: {balance:?} ~= {} UNIT",
-            balance / 10u128.pow(12)
-        );
 
         Ok(())
     }

@@ -77,8 +77,6 @@ impl Deploy {
             gas_limit,
             value: self.value,
         })
-        .await?
-        .wait_for_success()
         .await?;
 
         Ok(())
