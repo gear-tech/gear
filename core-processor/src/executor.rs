@@ -259,7 +259,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Creating allocations context.
     let allocations_context =
-        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
+        AllocationsContext::new(allocations, static_pages, settings.max_pages());
 
     // Creating message context.
     let message_context = MessageContext::new_with_settings(
@@ -379,7 +379,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program_candidates,
         gas_amount: info.gas_amount,
         page_update,
-        allocations: if !is_initial && info.allocations.eq(&allocations) {
+        allocations: if !is_initial && info.allocations.eq(&info.initial_allocations) {
             None
         } else {
             Some(info.allocations)

@@ -226,7 +226,7 @@ impl IntoExtInfo for Ext {
             ..
         } = self.context;
 
-        let wasm_pages = allocations_context.allocations().clone();
+        let (initial_allocations, wasm_pages) = allocations_context.into_parts();
         let mut pages_data = BTreeMap::new();
         for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
             let mut buf = PageBuf::new_zeroed();
@@ -242,6 +242,7 @@ impl IntoExtInfo for Ext {
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
             allocations: wasm_pages,
+            initial_allocations,
             pages_data,
             generated_dispatches,
             awakening,

@@ -100,7 +100,7 @@ impl IntoExtInfo for LazyPagesExt {
         } = self.inner.context;
 
         // Accessed pages are all pages except current lazy pages
-        let allocations = allocations_context.allocations().clone();
+        let (initial_allocations, allocations) = allocations_context.into_parts();
         let mut accessed_pages = lazy_pages::get_released_pages();
         accessed_pages.retain(|p| allocations.contains(&p.to_wasm_page()));
 
@@ -121,6 +121,7 @@ impl IntoExtInfo for LazyPagesExt {
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
             allocations,
+            initial_allocations,
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,

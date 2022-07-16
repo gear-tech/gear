@@ -417,6 +417,11 @@ impl AllocationsContext {
     pub fn static_pages(&self) -> WasmPageNumber {
         self.static_pages
     }
+
+    /// Decomposes this instance and returns allocations.
+    pub fn into_parts(self) -> (BTreeSet<WasmPageNumber>, BTreeSet<WasmPageNumber>) {
+        (self.init_allocations, self.allocations)
+    }
 }
 
 #[cfg(test)]
