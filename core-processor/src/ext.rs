@@ -258,7 +258,6 @@ impl IntoExtInfo for Ext {
             .and_then(ProcessorError::as_ext_error)
     }
 
-    /// Return the set of functions that are forbidden to be called.
     fn trap_explanation(&self) -> Option<TrapExplanation> {
         self.error_explanation
             .clone()
