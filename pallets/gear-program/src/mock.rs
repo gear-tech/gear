@@ -40,11 +40,11 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet},
+        System: system,
+        Balances: pallet_balances,
+        GearGas: pallet_gear_gas,
+        GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
     }
 );
 
