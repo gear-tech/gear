@@ -47,17 +47,17 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        GearMessenger: pallet_gear_messenger::{Pallet},
-        GearScheduler: pallet_gear_scheduler::{Pallet},
-        GearPayment: pallet_gear_payment::{Pallet, Storage},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        System: system,
+        Gear: pallet_gear,
+        GearGas: pallet_gear_gas,
+        Balances: pallet_balances,
+        Authorship: pallet_authorship,
+        TransactionPayment: pallet_transaction_payment,
+        Timestamp: pallet_timestamp,
+        GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        GearPayment: pallet_gear_payment,
+        GearProgram: pallet_gear_program,
     }
 );
 
@@ -143,6 +143,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Test {
+    type Event = Event;
     type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<u128>;

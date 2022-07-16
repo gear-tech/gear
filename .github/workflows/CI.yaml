@@ -370,6 +370,15 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
+      - name: "Install: rustup 1.24.3"
+        run: |
+          Invoke-WebRequest "https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-pc-windows-msvc/rustup-init.exe" -OutFile "rustup-init.exe"
+          .\rustup-init.exe -y
+          rustup --version
+
+      - name: "Install: Disable rustup autoupdate"
+        run: rustup set auto-self-update disable
+
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
