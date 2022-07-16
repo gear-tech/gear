@@ -346,19 +346,13 @@ impl AllocationsContext {
         pages: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Error> {
-        let last_static_page = self.static_pages.saturating_sub(1.into());
-
-        let iter = self
-            .allocations
-            .iter()
-            .skip_while(|&page| page < &last_static_page);
-
         let mut previous = None;
         let mut current = None;
 
         let mut at = None;
 
-        for page in iter {
+        let last_static_page = (self.static_pages.0 != 0).then(|| self.static_pages - 1.into());
+        for page in last_static_page.iter().chain(self.allocations.iter()) {
             if current.is_some() {
                 previous = current;
             }
@@ -378,7 +372,6 @@ impl AllocationsContext {
             .unwrap_or(self.static_pages);
 
         let final_page = at.saturating_add(pages);
-
         if final_page > self.max_pages {
             return Err(Error::OutOfBounds);
         }

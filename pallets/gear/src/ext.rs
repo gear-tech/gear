@@ -100,9 +100,13 @@ impl IntoExtInfo for LazyPagesExt {
         } = self.inner.context;
 
         // Accessed pages are all pages except current lazy pages
+        let static_pages = allocations_context.static_pages();
         let (initial_allocations, allocations) = allocations_context.into_parts();
         let mut accessed_pages = lazy_pages::get_released_pages();
-        accessed_pages.retain(|p| allocations.contains(&p.to_wasm_page()));
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_wasm_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
