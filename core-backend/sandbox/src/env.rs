@@ -64,8 +64,9 @@ pub enum SandboxEnvironmentError {
 pub struct SandboxEnvironment;
 
 pub(crate) struct Runtime<'a, E: Ext> {
-    pub ext: &'a mut ExtCarrier<E>,
-    pub memory: MemoryWrap,
+    pub ext: &'a mut E,
+    pub memory: &'a DefaultExecutorMemory,
+    pub memory_wrap: &'a mut MemoryWrap,
     pub err: FuncError<E::Error>,
 }
 
@@ -105,7 +106,7 @@ where
     type Error = SandboxEnvironmentError;
 
     fn execute<F, T>(
-        ext: &mut ExtCarrier<E>,
+        ext: &mut E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
@@ -118,7 +119,7 @@ where
     {
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
-            forbidden_funcs: &ext.with(|ext| ext.forbidden_funcs().clone()).unwrap(),
+            forbidden_funcs: &ext.forbidden_funcs().clone(),
         };
 
         builder.add_func("gr_block_height", Funcs::block_height);
@@ -169,9 +170,11 @@ where
         env_builder.add_host_func("env", "free", Funcs::free);
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
+        let mut memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
             ext,
-            memory: MemoryWrap::new(mem),
+            memory: &mem,
+            memory_wrap: &mut memory_wrap,
             err: FuncError::Terminated(TerminationReason::Success),
         };
 
@@ -183,8 +186,7 @@ where
                 })
             }
         };
-
-        pre_execution_handler(&mut runtime.memory).map_err(|e| BackendError {
+        pre_execution_handler(&mut runtime.memory_wrap).map_err(|e| BackendError {
             reason: SandboxEnvironmentError::PreExecutionHandler(e.to_string()),
         })?;
 
@@ -196,13 +198,13 @@ where
 
         let Runtime {
             ext,
-            memory,
             err: trap,
+            ..
         } = runtime;
 
         log::debug!("execution res = {:?}", res);
 
-        let trap_explanation = ext.with(|ext| ext.trap_explanation()).unwrap();
+        let trap_explanation = ext.trap_explanation();
 
         let termination = if res.is_err() {
             let reason = trap_explanation
@@ -233,7 +235,7 @@ where
                     }
                 })
             });
-
-        Ok((termination, memory, stack_end_page))
+        drop(instance);
+        Ok((termination, memory_wrap, stack_end_page))
     }
 }

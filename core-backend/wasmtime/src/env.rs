@@ -78,7 +78,7 @@ where
     type Error = WasmtimeEnvironmentError;
 
     fn execute<F, T>(
-        ext_carrier: &mut ExtCarrier<E>,
+        ext: &mut E,
         binary: &[u8],
         _entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
@@ -89,136 +89,135 @@ where
         F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let forbidden_funcs = ext_carrier
-            .with(|ext| ext.forbidden_funcs().clone())
-            .expect("");
+        // let forbidden_funcs = ext.forbidden_funcs().clone();
 
-        let engine = Engine::default();
-        let store_data = StoreData {
-            ext: ext_carrier.cloned(),
-            termination_reason: TerminationReason::Success,
-        };
-        let mut store = Store::<StoreData<E>>::new(&engine, store_data);
+        // let engine = Engine::default();
+        // let store_data = StoreData {
+        //     ext: ext_carrier.cloned(),
+        //     termination_reason: TerminationReason::Success,
+        // };
+        // let mut store = Store::<StoreData<E>>::new(&engine, store_data);
 
-        // Creates new wasm memory
-        let memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
-            Ok(mem) => mem,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::CreateEnvMemory(e),
-                })
-            }
-        };
+        // // Creates new wasm memory
+        // let memory = match WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)) {
+        //     Ok(mem) => mem,
+        //     Err(e) => {
+        //         return Err(BackendError {
+        //             reason: WasmtimeEnvironmentError::CreateEnvMemory(e),
+        //         })
+        //     }
+        // };
 
-        let module = match Module::new(store.engine(), binary) {
-            Ok(module) => module,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::ModuleCreation(e),
-                })
-            }
-        };
+        // let module = match Module::new(store.engine(), binary) {
+        //     Ok(module) => module,
+        //     Err(e) => {
+        //         return Err(BackendError {
+        //             reason: WasmtimeEnvironmentError::ModuleCreation(e),
+        //         })
+        //     }
+        // };
 
-        let mut imports = Vec::with_capacity(module.imports().len());
-        for import in module.imports() {
-            if import.module() != "env" {
-                return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::NonEnvImport(import.name().map(Into::into)),
-                });
-            }
-            imports.push((import.name(), Option::<Extern>::None));
-        }
+        // let mut imports = Vec::with_capacity(module.imports().len());
+        // for import in module.imports() {
+        //     if import.module() != "env" {
+        //         return Err(BackendError {
+        //             reason: WasmtimeEnvironmentError::NonEnvImport(import.name().map(Into::into)),
+        //         });
+        //     }
+        //     imports.push((import.name(), Option::<Extern>::None));
+        // }
 
-        let funcs = funcs_tree::build(&mut store, memory, Some(forbidden_funcs));
-        for (import_name, ref mut ext) in imports.iter_mut() {
-            if let Some(name) = import_name {
-                *ext = match *name {
-                    "memory" => Some(Extern::Memory(memory)),
-                    key if funcs.contains_key(key) => Some(funcs[key].into()),
-                    _ => continue,
-                }
-            }
-        }
+        // let funcs = funcs_tree::build(&mut store, memory, Some(forbidden_funcs));
+        // for (import_name, ref mut ext) in imports.iter_mut() {
+        //     if let Some(name) = import_name {
+        //         *ext = match *name {
+        //             "memory" => Some(Extern::Memory(memory)),
+        //             key if funcs.contains_key(key) => Some(funcs[key].into()),
+        //             _ => continue,
+        //         }
+        //     }
+        // }
 
-        let mut externs = Vec::with_capacity(imports.len());
-        for (name, host_function) in imports {
-            if let Some(host_function) = host_function {
-                externs.push(host_function);
-            } else {
-                return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::MissingImport(name.map(Into::into)),
-                });
-            }
-        }
+        // let mut externs = Vec::with_capacity(imports.len());
+        // for (name, host_function) in imports {
+        //     if let Some(host_function) = host_function {
+        //         externs.push(host_function);
+        //     } else {
+        //         return Err(BackendError {
+        //             reason: WasmtimeEnvironmentError::MissingImport(name.map(Into::into)),
+        //         });
+        //     }
+        // }
 
-        let instance = match Instance::new(&mut store, &module, &externs) {
-            Ok(instance) => instance,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: WasmtimeEnvironmentError::InstanceCreation(e),
-                })
-            }
-        };
+        // let instance = match Instance::new(&mut store, &module, &externs) {
+        //     Ok(instance) => instance,
+        //     Err(e) => {
+        //         return Err(BackendError {
+        //             reason: WasmtimeEnvironmentError::InstanceCreation(e),
+        //         })
+        //     }
+        // };
 
-        // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
-        let stack_end_page = instance
-            .get_global(&mut store, "__gear_stack_end")
-            .and_then(|global| {
-                global.get(&mut store).i32().and_then(|addr| {
-                    if addr < 0 {
-                        None
-                    } else {
-                        Some(WasmPageNumber(
-                            (addr as usize / WasmPageNumber::size()) as u32,
-                        ))
-                    }
-                })
-            });
+        // // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
+        // let stack_end_page = instance
+        //     .get_global(&mut store, "__gear_stack_end")
+        //     .and_then(|global| {
+        //         global.get(&mut store).i32().and_then(|addr| {
+        //             if addr < 0 {
+        //                 None
+        //             } else {
+        //                 Some(WasmPageNumber(
+        //                     (addr as usize / WasmPageNumber::size()) as u32,
+        //                 ))
+        //             }
+        //         })
+        //     });
 
-        let mut memory_wrap = MemoryWrapExternal { mem: memory, store };
+        // let mut memory_wrap = MemoryWrapExternal { mem: memory, store };
 
-        pre_execution_handler(&mut memory_wrap).map_err(|e| BackendError {
-            reason: WasmtimeEnvironmentError::PreExecutionHandler(e.to_string()),
-        })?;
+        // pre_execution_handler(&mut memory_wrap).map_err(|e| BackendError {
+        //     reason: WasmtimeEnvironmentError::PreExecutionHandler(e.to_string()),
+        // })?;
 
-        let func = instance.get_func(&mut memory_wrap.store, entry_point.into_entry());
+        // let func = instance.get_func(&mut memory_wrap.store, entry_point.into_entry());
 
-        let entry_func = if let Some(f) = func {
-            // Entry function found
-            f
-        } else {
-            // Entry function not found, so we mean this as empty function
-            return Ok((TerminationReason::Success, memory_wrap, stack_end_page));
-        };
+        // let entry_func = if let Some(f) = func {
+        //     // Entry function found
+        //     f
+        // } else {
+        //     // Entry function not found, so we mean this as empty function
+        //     return Ok((TerminationReason::Success, memory_wrap, stack_end_page));
+        // };
 
-        let res = entry_func.call(&mut memory_wrap.store, &[], &mut []);
-        log::debug!("execution result: {:?}", res);
+        // let res = entry_func.call(&mut memory_wrap.store, &[], &mut []);
+        // log::debug!("execution result: {:?}", res);
 
-        let termination_reason = memory_wrap.store.data().termination_reason.clone();
+        // let termination_reason = memory_wrap.store.data().termination_reason.clone();
 
-        // let PreparedInfo {
-        //     info,
-        //     trap_explanation,
-        //     memory_wrap,
-        // } = prepare_info(ext_carrier.into_inner(), memory_wrap)?;
+        // // let PreparedInfo {
+        // //     info,
+        // //     trap_explanation,
+        // //     memory_wrap,
+        // // } = prepare_info(ext_carrier.into_inner(), memory_wrap)?;
 
-        let termination = if res.is_err() {
-            let reason = ext_carrier
-                .with(|ext| ext.trap_explanation())
-                .unwrap()
-                .map(TerminationReason::Trap)
-                .unwrap_or(termination_reason);
+        // let termination = if res.is_err() {
+        //     let reason = ext_carrier
+        //         .with(|ext| ext.trap_explanation())
+        //         .unwrap()
+        //         .map(TerminationReason::Trap)
+        //         .unwrap_or(termination_reason);
 
-            // success is unacceptable when there is error
-            if let TerminationReason::Success = reason {
-                TerminationReason::Trap(TrapExplanation::Unknown)
-            } else {
-                reason
-            }
-        } else {
-            TerminationReason::Success
-        };
+        //     // success is unacceptable when there is error
+        //     if let TerminationReason::Success = reason {
+        //         TerminationReason::Trap(TrapExplanation::Unknown)
+        //     } else {
+        //         reason
+        //     }
+        // } else {
+        //     TerminationReason::Success
+        // };
 
-        Ok((termination, memory_wrap, stack_end_page))
+        // Ok((termination, memory_wrap, stack_end_page))
+        todo!()
     }
 }

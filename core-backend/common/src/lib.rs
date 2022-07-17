@@ -140,7 +140,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// 4) Instantiate external funcs for wasm module.
     /// 5) Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
-        ext_carrier: &mut ExtCarrier<E>,
+        ext_carrier: &mut E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,

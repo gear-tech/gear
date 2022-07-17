@@ -290,13 +290,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     };
 
     // Creating externalities.
-    let ext = A::new(context);
+    let mut ext = A::new(context);
 
-    let mut ext_carrier = ExtCarrier::new(ext);
+    // let mut ext_carrier = ExtCarrier::new(ext);
 
     // Execute program in backend env.
     let (termination, info, stack_end_page) = match E::execute(
-        &mut ext_carrier,
+        &mut ext,
         program.raw_code(),
         program.code().exports().clone(),
         mem_size,
@@ -318,14 +318,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 {
                     return Err(ExecutionError {
                         program_id,
-                        gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                        gas_amount: ext.into_gas_amount(),
                         reason: ExecutionErrorReason::Backend(e.to_string()),
                     });
                 }
             }
             (
                 termination,
-                ext_carrier.into_inner().into_ext_info(&memory).unwrap(),
+                ext.into_ext_info(&memory).unwrap(),
                 stack_end_page,
             )
         }
@@ -333,7 +333,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                gas_amount: ext.into_gas_amount(),
                 reason: ExecutionErrorReason::Backend(e.to_string()),
             })
         }
