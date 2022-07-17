@@ -49,6 +49,8 @@ pub(super) enum GasTreeAction {
     Spend(usize, u64),
     /// Consumes the node under the bound `usize` index.
     Consume(usize),
+    /// Cut the value from the node under `usize` index with `u64` amount
+    Cut(usize, u64),
 }
 
 /// Returns random vector of `GasTreeAction`s with a tree's root max balance.
@@ -66,19 +68,14 @@ pub(super) fn gas_tree_props_test_strategy() -> impl Strategy<Value = (u64, Vec<
 pub(super) fn gas_tree_action_strategy(
     max_balance: u64,
 ) -> impl Strategy<Value = Vec<GasTreeAction>> {
-    let action_random_variant = prop_oneof![
-        (any::<usize>(), 0..max_balance).prop_flat_map(|(id, amount)| {
-            prop_oneof![
-                Just(GasTreeAction::SplitWithValue(id, amount)),
-                Just(GasTreeAction::Spend(id, amount))
-            ]
-        }),
-        any::<usize>().prop_flat_map(|id| {
-            prop_oneof![
-                Just(GasTreeAction::Consume(id)),
-                Just(GasTreeAction::Split(id))
-            ]
-        }),
-    ];
+    let action_random_variant = (any::<usize>(), 0..max_balance).prop_flat_map(|(id, amount)| {
+        prop_oneof![
+            Just(GasTreeAction::SplitWithValue(id, amount)),
+            Just(GasTreeAction::Spend(id, amount)),
+            Just(GasTreeAction::Cut(id, amount)),
+            Just(GasTreeAction::Consume(id)),
+            Just(GasTreeAction::Split(id))
+        ]
+    });
     prop::collection::vec(action_random_variant, 0..MAX_ACTIONS)
 }

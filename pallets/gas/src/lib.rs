@@ -170,8 +170,29 @@ pub mod pallet {
         InsufficientBalance,
         NodeNotFound,
         NodeWasConsumed,
+
+        /// Errors stating that gas tree has been invalidated
         ParentIsLost,
         ParentHasNoChildren,
+
+        /// Output of `Tree::consume` procedure that wasn't expected.
+        ///
+        /// Outputs of consumption procedure are determined. The error is returned
+        /// when unexpected one occurred. That signals, that algorithm works wrong
+        /// and expected invariants are not correct.
+        UnexpectedConsumeOutput,
+
+        /// Node type that can't occur if algorithm work well
+        UnexpectedNodeType,
+
+        /// Value must have been caught, but was missed or blocked (for more info see `ValueNode::catch_value`).
+        ValueIsNotCaught,
+
+        /// Value must have been caught or moved upstream, but was blocked (for more info see `ValueNode::catch_value`).
+        ValueIsBlocked,
+
+        /// Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`).
+        ValueIsNotBlocked,
     }
 
     impl<T: Config> GasError for Error<T> {
@@ -201,6 +222,26 @@ pub mod pallet {
 
         fn forbidden() -> Self {
             Self::Forbidden
+        }
+
+        fn unexpected_consume_output() -> Self {
+            Self::UnexpectedConsumeOutput
+        }
+
+        fn unexpected_node_type() -> Self {
+            Self::UnexpectedNodeType
+        }
+
+        fn value_is_not_caught() -> Self {
+            Self::ValueIsNotCaught
+        }
+
+        fn value_is_blocked() -> Self {
+            Self::ValueIsBlocked
+        }
+
+        fn value_is_not_blocked() -> Self {
+            Self::ValueIsNotBlocked
         }
     }
 
