@@ -201,7 +201,7 @@ pub fn reply(payload: &[u8], value: u128) -> Result<MessageId> {
     }
 }
 
-/// Same as ['reply'], but with explicit gas limit.
+/// Same as [`reply`], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -240,7 +240,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 /// function.
 ///
 /// This function allows sending reply messages filled with payload parts sent
-/// via ['reply_push'] during the message handling. Finalization of the
+/// via [`reply_push`] during the message handling. Finalization of the
 /// reply message is done via [`reply_commit`] function similar to
 /// [`send_commit`].
 ///
@@ -274,7 +274,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
     }
 }
 
-/// Same as ['reply_commit'], but with explicit gas limit.
+/// Same as [`reply_commit`], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -314,7 +314,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 /// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
 /// function.
 ///
-/// This function allows filling the reply payload parts via ['reply_push']
+/// This function allows filling the reply payload parts via [`reply_push`]
 /// during the message `handling`. The payload can consist of several parts.
 ///
 /// # Examples
@@ -407,7 +407,7 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> Result<MessageId> 
     }
 }
 
-/// Same as ['send'], but with explicit gas limit.
+/// Same as [`send`], but with explicit gas limit.
 ///
 /// # Examples
 ///
@@ -498,7 +498,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Resu
     }
 }
 
-/// Same as ['send_commit'], but with explicit gas limit.
+/// Same as [`send_commit`], but with explicit gas limit.
 ///
 /// # Examples
 ///

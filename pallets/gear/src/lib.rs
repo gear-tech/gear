@@ -131,14 +131,21 @@ pub mod pallet {
         Origin, Program, ProgramState,
     };
     use core_processor::{
-        common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+        common::{
+            Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalHandler,
+            JournalNote,
+        },
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
         Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
+        ensure,
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
+        traits::{
+            BalanceStatus, Currency, ExistenceRequirement, Get, LockableCurrency,
+            ReservableCurrency,
+        },
     };
     use frame_system::pallet_prelude::*;
 
@@ -378,6 +385,8 @@ pub mod pallet {
         CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
+        /// User contains mailboxed message from other user.
+        UserRepliesToUser,
     }
 
     #[pallet::hooks]
@@ -598,7 +607,7 @@ pub mod pallet {
             payload: Vec<u8>,
             value: u128,
             allow_other_panics: bool,
-        ) -> Result<GasInfo, Vec<u8>> {
+        ) -> Result<GasInfo, String> {
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
@@ -609,6 +618,10 @@ pub mod pallet {
                     value,
                     allow_other_panics,
                 )
+                .map_err(|e| {
+                    String::from_utf8(e)
+                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
+                })
             })?;
 
             Self::run_with_ext_copy(|| {
@@ -629,6 +642,10 @@ pub mod pallet {
                         burned,
                     },
                 )
+                .map_err(|e| {
+                    String::from_utf8(e)
+                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
+                })
             })
         }
 
@@ -672,7 +689,7 @@ pub mod pallet {
 
             QueueOf::<T>::clear();
 
-            let main_program_id = match kind {
+            match kind {
                 HandleKind::Init(code) => {
                     let salt = b"calculate_gas_salt".to_vec();
                     Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
@@ -680,47 +697,30 @@ pub mod pallet {
                             format!("Internal error: submit_program failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
-
-                    QueueOf::<T>::iter()
-                        .next()
-                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
-                        .and_then(|queued| {
-                            queued
-                                .map_err(|_| {
-                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
-                                })
-                                .map(|dispatch| dispatch.destination())
-                        })?
                 }
-
                 HandleKind::Handle(destination) => {
                     Self::send_message(who.into(), destination, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: send_message failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
-
-                    destination
                 }
-
                 HandleKind::Reply(reply_to_id, _exit_code) => {
                     Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: send_reply failed with '{:?}'", e).into_bytes()
                         })?;
-
-                    QueueOf::<T>::iter()
-                        .next()
-                        .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
-                        .and_then(|queued| {
-                            queued
-                                .map_err(|_| {
-                                    b"Internal error: failed to retrieve queued dispatch".to_vec()
-                                })
-                                .map(|dispatch| dispatch.destination())
-                        })?
                 }
             };
+
+            let (main_message_id, main_program_id) = QueueOf::<T>::iter()
+                .next()
+                .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
+                .and_then(|queued| {
+                    queued
+                        .map_err(|_| b"Internal error: failed to retrieve queued dispatch".to_vec())
+                        .map(|dispatch| (dispatch.id(), dispatch.destination()))
+                })?;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -795,40 +795,55 @@ pub mod pallet {
                     )
                 };
 
+                let get_main_limit = || {
+                    GasHandlerOf::<T>::get_limit(main_message_id).map_err(|_| {
+                        b"Internal error: unable to get gas limit after execution".to_vec()
+                    })
+                };
+
+                let get_origin_msg_of = |msg_id| {
+                    GasHandlerOf::<T>::get_origin_key(msg_id)
+                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())
+                        .map(|v| v.unwrap_or(msg_id))
+                };
+
+                let from_main_chain =
+                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
+
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some((remaining_gas, _)) = GasHandlerOf::<T>::get_origin_key(dispatch_id)
-                        .map_err(|_| b"Internal error: unable to get origin key".to_vec())?
-                        .and_then(|root_dispatch_id| {
-                            GasHandlerOf::<T>::get_limit(root_dispatch_id)
-                                .map_err(|_| {
-                                    b"Internal error: unable to get gas limit after execution"
-                                        .to_vec()
-                                })
-                                .transpose()
-                        })
-                        .transpose()?
-                    {
+                    if let Some((remaining_gas, _)) = get_main_limit()? {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
-                            let gas_limit = dispatch.gas_limit().unwrap_or(0);
-                            if ext_manager.check_user_id(&dispatch.destination()) && gas_limit > 0 {
-                                return Err(
-                                    b"Message sent to user with non zero gas limit".to_vec()
-                                );
-                            }
+                            if from_main_chain(dispatch.id())? {
+                                let gas_limit = dispatch
+                                    .gas_limit()
+                                    .or_else(|| {
+                                        GasHandlerOf::<T>::get_limit(dispatch.id())
+                                            .ok()
+                                            .flatten()
+                                            .map(|(g, _)| g)
+                                    })
+                                    .ok_or_else(|| {
+                                        b"Internal error: unable to get gas limit after execution"
+                                            .to_vec()
+                                    })?;
 
-                            // TODO change calculation of the field #1074
-                            reserved = reserved.saturating_add(gas_limit);
+                                if gas_limit >= T::MailboxThreshold::get() {
+                                    reserved = reserved.saturating_add(gas_limit);
+                                }
+                            }
                         }
 
-                        JournalNote::GasBurned { amount, .. } => {
-                            burned = burned.saturating_add(amount);
+                        JournalNote::GasBurned { amount, message_id } => {
+                            if from_main_chain(message_id)? {
+                                burned = burned.saturating_add(amount);
+                            }
                         }
 
                         JournalNote::MessageDispatched {
@@ -1572,6 +1587,7 @@ pub mod pallet {
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+            let origin = who.clone().into_origin();
 
             let numeric_value: u128 = value.unique_saturated_into();
             let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
@@ -1588,69 +1604,62 @@ pub mod pallet {
                 Error::<T>::ValueLessThanMinimal
             );
 
-            ensure!(
-                !Self::is_terminated(destination),
-                Error::<T>::ProgramIsTerminated
+            let message = HandleMessage::from_packet(
+                Self::next_message_id(origin),
+                HandlePacket::new_with_gas(
+                    destination,
+                    payload,
+                    gas_limit,
+                    value.unique_saturated_into(),
+                ),
             );
-
-            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
-            // That's because destination can fail to be initialized, while this dispatch message is next
-            // in the queue.
-            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let origin = who.clone();
-
-            let message_id = Self::next_message_id(origin.clone().into_origin());
-            let packet = HandlePacket::new_with_gas(
-                destination,
-                payload,
-                gas_limit,
-                value.unique_saturated_into(),
-            );
-            let message = HandleMessage::from_packet(message_id, packet);
 
             if GearProgramPallet::<T>::program_exists(destination) {
+                ensure!(
+                    !Self::is_terminated(destination),
+                    Error::<T>::ProgramIsTerminated
+                );
+
+                // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+                // That's because destination can fail to be initialized, while this dispatch message is next
+                // in the queue.
+                <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
+                let _ = GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit);
 
-                let event = Event::MessageEnqueued {
+                let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+
+                Self::deposit_event(Event::MessageEnqueued {
                     id: message.id(),
                     source: who,
                     destination: message.destination(),
                     entry: Entry::Handle,
-                };
+                });
 
-                QueueOf::<T>::queue(
-                    message.into_stored_dispatch(ProgramId::from_origin(origin.into_origin())),
-                )
-                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
-
-                Self::deposit_event(event);
+                QueueOf::<T>::queue(message).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
             } else {
-                let mut expiration = None;
-                let message =
-                    message.into_stored(ProgramId::from_origin(origin.clone().into_origin()));
+                let message = message.into_stored(ProgramId::from_origin(origin));
 
-                if gas_limit >= T::MailboxThreshold::get() {
-                    expiration = Some(T::BlockNumber::zero());
-                    // TODO: update logic of insertion into mailbox following new
-                    // flow and deposit appropriate event (issue #1010).
-                    MailboxOf::<T>::insert(message.clone())?;
-                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
-                }
+                <T as Config>::Currency::transfer(
+                    &who,
+                    &<T as frame_system::Config>::AccountId::from_origin(
+                        message.destination().into_origin(),
+                    ),
+                    value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
-                    expiration,
+                    expiration: None,
                 });
             }
 
@@ -1696,7 +1705,16 @@ pub mod pallet {
 
             // Claim outstanding value from the original message first
             let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
+            // TODO: burn here for holding #646.
+            let mut ext_manager: ExtManager<T> = Default::default();
+            ext_manager.message_consumed(reply_to_id);
             let destination = original_message.source();
+
+            // There should be no possibility to modify mailbox if two users interact.
+            ensure!(
+                GearProgramPallet::<T>::program_exists(destination),
+                Error::<T>::UserRepliesToUser
+            );
 
             ensure!(
                 !Self::is_terminated(original_message.source()),
@@ -1716,59 +1734,34 @@ pub mod pallet {
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
             let message = ReplyMessage::from_packet(message_id, packet);
 
-            if GearProgramPallet::<T>::program_exists(destination) {
-                let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
+            let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
-                // First we reserve enough funds on the account to pay for `gas_limit`
-                <T as Config>::Currency::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            <T as Config>::Currency::reserve(&who, gas_limit_reserve)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
+            let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
 
-                Self::deposit_event(Event::UserMessageRead {
-                    id: reply_to_id,
-                    reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
-                });
+            Self::deposit_event(Event::UserMessageRead {
+                id: reply_to_id,
+                reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
+            });
 
-                let event = Event::MessageEnqueued {
-                    id: message.id(),
-                    source: who,
-                    destination,
-                    entry: Entry::Reply(reply_to_id),
-                };
+            let event = Event::MessageEnqueued {
+                id: message.id(),
+                source: who,
+                destination,
+                entry: Entry::Reply(reply_to_id),
+            };
 
-                QueueOf::<T>::queue(message.into_stored_dispatch(
-                    ProgramId::from_origin(origin.into_origin()),
-                    destination,
-                    original_message.id(),
-                ))
-                .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            QueueOf::<T>::queue(message.into_stored_dispatch(
+                ProgramId::from_origin(origin.into_origin()),
+                destination,
+                original_message.id(),
+            ))
+            .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
 
-                Self::deposit_event(event);
-            } else {
-                let mut expiration = None;
-                let message = message.into_stored(
-                    ProgramId::from_origin(origin.clone().into_origin()),
-                    destination,
-                    original_message.id(),
-                );
-
-                if gas_limit >= T::MailboxThreshold::get() {
-                    expiration = Some(T::BlockNumber::zero());
-                    // TODO: update logic of insertion into mailbox following new
-                    // flow and deposit appropriate event (issue #1010).
-                    MailboxOf::<T>::insert(message.clone())?;
-                    let _ = GasHandlerOf::<T>::create(origin, message_id, gas_limit);
-                }
-
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration,
-                });
-            }
+            Self::deposit_event(event);
 
             Ok(().into())
         }
@@ -1779,6 +1772,9 @@ pub mod pallet {
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
             let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
+            // TODO: burn here for holding #646.
+            let mut ext_manager: ExtManager<T> = Default::default();
+            ext_manager.message_consumed(message_id);
 
             Self::deposit_event(Event::UserMessageRead {
                 id: message_id,

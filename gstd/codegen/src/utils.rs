@@ -28,12 +28,12 @@ const SPAN_CODEC: &str = "${CODEC}";
 const SPAN_ELSE: &str = "${ELSE}";
 const SPAN_IDENT: &str = "${IDENT}";
 const WAIT_FOR_REPLY_DOCS_TEMPLATE: &str = r#"
- Same as [`${IDENT}`](crate::msg::basic::${IDENT}), but the program
+ Same as [`${IDENT}`](crate::msg::${IDENT}), but the program
  will interrupt until the reply is received. ${CODEC}
 
  # See also
 
- - [`${ELSE}`](crate::msg::basic::${ELSE})
+ - [`${ELSE}`](crate::msg::${ELSE})
 "#;
 
 /// New `Ident`
@@ -77,8 +77,8 @@ pub fn wait_for_reply_docs(name: String) -> (String, String) {
             .replace(SPAN_CODEC, ""),
         docs.replace(SPAN_ELSE, &(name + "_for_reply")).replace(
             SPAN_CODEC,
-            "\n\n The output should be decodable via [`SCALE CODEC`].",
-        ) + " - https://docs.substrate.io/v3/advanced/scale-codec",
+            "\n\n The output should be decodable via SCALE codec.",
+        ) + " - <https://docs.substrate.io/v3/advanced/scale-codec>",
     )
 }
 

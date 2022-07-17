@@ -49,15 +49,15 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet},
-        GearScheduler: pallet_gear_scheduler::{Pallet},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        GearGas: pallet_gear_gas::{Pallet},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        System: system,
+        GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        Gear: pallet_gear,
+        GearGas: pallet_gear_gas,
+        Balances: pallet_balances,
+        Authorship: pallet_authorship,
+        Timestamp: pallet_timestamp,
     }
 );
 
