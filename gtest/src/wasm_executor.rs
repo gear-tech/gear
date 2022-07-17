@@ -73,19 +73,17 @@ impl WasmExecutor {
             if import.module() != "env" {
                 return Err(TestError::InvalidImportModule(import.module().to_string()));
             }
-            match import.name() {
-                Some("memory") => {
-                    linker.define("env", "memory", Extern::Memory(memory))?;
+            let import_name = import.name();
+
+            if import_name == "memory" {
+                linker.define("env", "memory", Extern::Memory(memory))?;
+            } else {
+                if funcs.contains_key(import_name) {
+                    linker.define("env", import_name, funcs[import_name])?;
+                } else {
+                    return Err(TestError::UnsupportedFunction(import_name.to_string()));
                 }
-                Some(key) => {
-                    if funcs.contains_key(key) {
-                        linker.define("env", key, funcs[key])?;
-                    } else {
-                        return Err(TestError::UnsupportedFunction(key.to_string()));
-                    }
-                }
-                _ => continue,
-            };
+            }
         }
 
         let instance = linker.instantiate(&mut store, &module)?;

@@ -10,7 +10,7 @@ gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
 
-wasmtime = { version = "0.35.1", default-features = false, features = ["parallel-compilation", "cranelift"] }
+wasmtime = { version = "0.38.0", default-features = false, features = ["parallel-compilation", "cranelift"] }
 anyhow = { version = "1.0.57", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 log = "0.4.17"

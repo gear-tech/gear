@@ -91,6 +91,8 @@ where
     {
         // let forbidden_funcs = ext.forbidden_funcs().clone();
 
+        // let ext_carrier = ExtCarrier::new(ext);
+
         // let engine = Engine::default();
         // let store_data = StoreData {
         //     ext: ext_carrier.cloned(),
@@ -121,7 +123,7 @@ where
         // for import in module.imports() {
         //     if import.module() != "env" {
         //         return Err(BackendError {
-        //             reason: WasmtimeEnvironmentError::NonEnvImport(import.name().map(Into::into)),
+        //             reason: WasmtimeEnvironmentError::NonEnvImport(Some(import.name().into())),
         //         });
         //     }
         //     imports.push((import.name(), Option::<Extern>::None));
@@ -129,12 +131,10 @@ where
 
         // let funcs = funcs_tree::build(&mut store, memory, Some(forbidden_funcs));
         // for (import_name, ref mut ext) in imports.iter_mut() {
-        //     if let Some(name) = import_name {
-        //         *ext = match *name {
-        //             "memory" => Some(Extern::Memory(memory)),
-        //             key if funcs.contains_key(key) => Some(funcs[key].into()),
-        //             _ => continue,
-        //         }
+        //     *ext = match *import_name {
+        //         "memory" => Some(Extern::Memory(memory)),
+        //         key if funcs.contains_key(key) => Some(funcs[key].into()),
+        //         _ => continue,
         //     }
         // }
 
@@ -144,7 +144,7 @@ where
         //         externs.push(host_function);
         //     } else {
         //         return Err(BackendError {
-        //             reason: WasmtimeEnvironmentError::MissingImport(name.map(Into::into)),
+        //             reason: WasmtimeEnvironmentError::MissingImport(Some(name.into())),
         //         });
         //     }
         // }

@@ -35,7 +35,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use core::{fmt, ops::Deref};
 use gear_core::{
-    env::{Ext, ExtCarrier},
+    env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
@@ -140,7 +140,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// 4) Instantiate external funcs for wasm module.
     /// 5) Run instance setup starting at `entry_point` - wasm export function name.
     fn execute<F, T>(
-        ext_carrier: &mut E,
+        ext: &mut E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,

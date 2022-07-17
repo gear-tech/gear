@@ -21,6 +21,7 @@
 use crate::{
     funcs::{FuncError, FuncsHandler as Funcs},
     memory::MemoryWrap,
+    runtime::Runtime,
 };
 use alloc::{
     collections::BTreeSet,
@@ -31,11 +32,7 @@ use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
     IntoExtInfo, TerminationReason, TrapExplanation,
 };
-use gear_core::{
-    env::{Ext, ExtCarrier},
-    memory::WasmPageNumber,
-    message::DispatchKind,
-};
+use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
 use gear_core_errors::MemoryError;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -62,13 +59,6 @@ pub enum SandboxEnvironmentError {
 
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment;
-
-pub(crate) struct Runtime<'a, E: Ext> {
-    pub ext: &'a mut E,
-    pub memory: &'a DefaultExecutorMemory,
-    pub memory_wrap: &'a mut MemoryWrap,
-    pub err: FuncError<E::Error>,
-}
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
@@ -171,12 +161,12 @@ where
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
-        let mut runtime = Runtime {
+        let mut runtime = Runtime::new(
             ext,
-            memory: &mem,
-            memory_wrap: &mut memory_wrap,
-            err: FuncError::Terminated(TerminationReason::Success),
-        };
+            &mem,
+            &mut memory_wrap,
+            FuncError::Terminated(TerminationReason::Success),
+        );
 
         let mut instance = match Instance::new(binary, &env_builder, &mut runtime) {
             Ok(inst) => inst,
@@ -186,7 +176,7 @@ where
                 })
             }
         };
-        pre_execution_handler(&mut runtime.memory_wrap).map_err(|e| BackendError {
+        pre_execution_handler(runtime.memory_wrap()).map_err(|e| BackendError {
             reason: SandboxEnvironmentError::PreExecutionHandler(e.to_string()),
         })?;
 
@@ -196,11 +186,7 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        let Runtime {
-            ext,
-            err: trap,
-            ..
-        } = runtime;
+        let Runtime { ext, err: trap, .. } = runtime;
 
         log::debug!("execution res = {:?}", res);
 
