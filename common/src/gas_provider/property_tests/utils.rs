@@ -18,6 +18,10 @@
 
 use super::*;
 
+pub type MaybeCaughtValue = Option<u64>;
+pub type RemainingNodes = BTreeMap<Key, GasNode>;
+pub type RemovedNodes = BTreeMap<Key, GasNode>;
+
 pub(super) trait RingGet<T> {
     fn ring_get(&self, index: usize) -> Option<&T>;
 }
@@ -32,20 +36,21 @@ impl<T> RingGet<T> for Vec<T> {
 }
 
 /// Consumes node with `consuming` id and returns a map of removed nodes
-pub(super) fn consume_node(consuming: Key) -> Result<BTreeMap<Key, GasNode>, super::Error> {
-    let nodes_before_consume =
-        BTreeMap::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, v)| (*k, v.clone())));
-    Gas::consume(consuming).map(|_| {
-        let nodes_after_consume =
-            BTreeSet::from_iter(GAS_TREE_NODES.borrow().iter().map(|(k, _)| *k));
+pub(super) fn consume_node(
+    consuming: H256,
+) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), super::Error> {
+    let nodes_before_consume = gas_tree_node_clone();
+    Gas::consume(consuming).map(|maybe_output| {
+        let maybe_caught_value = maybe_output.map(|(imb, _)| imb.peek());
+        let remaining_nodes = gas_tree_node_clone();
         let mut removed_nodes = BTreeMap::new();
         for (id, node) in nodes_before_consume {
-            if !nodes_after_consume.contains(&id) {
+            if !remaining_nodes.contains_key(&id) {
                 // was removed
                 removed_nodes.insert(id, node);
             }
         }
 
-        removed_nodes
+        (maybe_caught_value, remaining_nodes, removed_nodes)
     })
 }
