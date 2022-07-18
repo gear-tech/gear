@@ -40,9 +40,9 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gas: pallet_gas::{Pallet, Storage},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        System: system,
+        Gas: pallet_gas,
+        Balances: pallet_balances,
     }
 );
 
