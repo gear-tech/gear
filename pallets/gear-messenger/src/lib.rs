@@ -397,7 +397,7 @@ pub mod pallet {
         ProgramId,
         Identity,
         MessageId,
-        (StoredDispatch, T::BlockNumber),
+        (StoredDispatch, Interval<T::BlockNumber>),
     >;
 
     // Public wrap of the waitlist elements.
@@ -406,7 +406,7 @@ pub mod pallet {
         name: WaitlistWrap,
         key1: ProgramId,
         key2: MessageId,
-        value: (StoredDispatch, T::BlockNumber),
+        value: (StoredDispatch, Interval<T::BlockNumber>),
         length: usize
     );
 

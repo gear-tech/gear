@@ -301,7 +301,7 @@ where
             .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
 
             // Adding message in waitlist.
-            WaitlistOf::<T>::insert(dispatch)
+            WaitlistOf::<T>::insert(dispatch, maximal_deadline.schedule_at)
                 .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
         } else {
             // Corner case. Should be rechecked for unreachable usage.
@@ -324,10 +324,15 @@ where
 
     /// Charges and deposits event for already taken from waitlist dispatch.
     pub(crate) fn wake_requirements(
-        (waitlisted, bn): (StoredDispatch, BlockNumberFor<T>),
+        (waitlisted, held): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
-        Self::charge_for_hold(waitlisted.id(), bn, CostsPerBlockOf::<T>::waitlist());
+        // Charging for holding.
+        Self::charge_for_hold(
+            waitlisted.id(),
+            held.since,
+            CostsPerBlockOf::<T>::waitlist(),
+        );
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {
@@ -335,11 +340,11 @@ where
             reason,
         });
 
-        // TODO: remove from task pool, if exists.
-        // TaskPoolOf::<T>::remove(
-        //     maximal_deadline.schedule_at,
-        //     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
-        // );
+        // Delete if exists.
+        let _ = TaskPoolOf::<T>::delete(
+            held.till,
+            ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
+        );
 
         waitlisted
     }

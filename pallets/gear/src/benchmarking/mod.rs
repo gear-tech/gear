@@ -1415,7 +1415,7 @@ benchmarks! {
         for message_id in message_ids {
             let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
             let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
-            WaitlistOf::<T>::insert(dispatch.clone()).expect("Duplicate wl message");
+            WaitlistOf::<T>::insert(dispatch.clone(), u32::MAX.unique_saturated_into()).expect("Duplicate wl message");
         }
         let Exec {
             mut ext_manager,

@@ -81,7 +81,7 @@ fn pause_program_works() {
             DispatchKind::Handle,
             StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
             None,
-        ))
+        ), u64::MAX)
         .expect("Duplicate message is wl");
 
         let msg_id_2: MessageId = 2.into();
@@ -89,7 +89,7 @@ fn pause_program_works() {
             DispatchKind::Handle,
             StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
             None,
-        ))
+        ), u64::MAX)
         .expect("Duplicate message is wl");
 
         run_to_block(2, None);
@@ -263,19 +263,19 @@ fn resume_uninitialized_program_works() {
 
         assert_eq!(
             WaitlistOf::<Test>::remove(program_id, init_msg.id())
-                .map(|(_, bn)| bn)
+                .map(|(_, interval)| interval.since)
                 .unwrap(),
             100
         );
         assert_eq!(
             WaitlistOf::<Test>::remove(program_id, msg_1.id())
-                .map(|(_, bn)| bn)
+                .map(|(_, interval)| interval.since)
                 .unwrap(),
             100
         );
         assert_eq!(
             WaitlistOf::<Test>::remove(program_id, msg_2.id())
-                .map(|(_, bn)| bn)
+                .map(|(_, interval)| interval.since)
                 .unwrap(),
             100
         );
@@ -468,7 +468,7 @@ mod utils {
             ),
             None,
         );
-        WaitlistOf::<Test>::insert(init_msg.clone()).expect("Duplicate message is wl");
+        WaitlistOf::<Test>::insert(init_msg.clone(), u64::MAX).expect("Duplicate message is wl");
 
         let msg_id_1: MessageId = 1.into();
         let msg_1 = StoredDispatch::new(
@@ -476,7 +476,7 @@ mod utils {
             StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
             None,
         );
-        WaitlistOf::<Test>::insert(msg_1.clone()).expect("Duplicate message is wl");
+        WaitlistOf::<Test>::insert(msg_1.clone(), u64::MAX).expect("Duplicate message is wl");
         common::waiting_init_append_message_id(program_id, msg_id_1);
 
         let msg_id_2 = 2.into();
@@ -485,7 +485,7 @@ mod utils {
             StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
             None,
         );
-        WaitlistOf::<Test>::insert(msg_2.clone()).expect("Duplicate message is wl");
+        WaitlistOf::<Test>::insert(msg_2.clone(), u64::MAX).expect("Duplicate message is wl");
         common::waiting_init_append_message_id(program_id, msg_id_2);
 
         CreateProgramResult {

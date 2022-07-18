@@ -80,6 +80,7 @@ pub mod pallet {
         type Currency: LockableCurrency<Self::AccountId>;
 
         type Messenger: Messenger<
+            BlockNumber = Self::BlockNumber,
             OutputError = DispatchError,
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
