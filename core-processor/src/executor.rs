@@ -34,7 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, IncomingDispatch, MessageContext},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
 };
 
 /// Make checks that everything with memory pages go well.
@@ -47,17 +47,27 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     allocations: &BTreeSet<WasmPageNumber>,
     pages_with_data: impl Iterator<Item = &'a PageNumber>,
     static_pages: WasmPageNumber,
+    initial_execution: bool,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
-        if !allocations.contains(&page.to_wasm_page()) {
+        let wasm_page = page.to_wasm_page();
+        if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
             return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
         }
     }
 
-    let mem_size = if let Some(max_wasm_page) = allocations.iter().next_back() {
+    let mem_size = if !initial_execution {
+        let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
+            *page
+        } else if static_pages != WasmPageNumber(0) {
+            static_pages - 1.into()
+        } else {
+            return Ok(0.into());
+        };
+
         // Charging gas for loaded pages
-        let amount = settings.load_page_cost() * allocations.len() as u64;
+        let amount = settings.load_page_cost() * (allocations.len() as u64 + static_pages.0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
@@ -80,7 +90,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
         }
 
         // +1 because pages numeration begins from 0
-        *max_wasm_page + 1.into()
+        max_wasm_page + 1.into()
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost() * static_pages.0 as u64;
@@ -239,6 +249,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program.get_allocations(),
         pages_initial_data.keys(),
         static_pages,
+        dispatch.context().is_none() && matches!(kind, DispatchKind::Init),
     ) {
         Ok(mem_size) => mem_size,
         Err(reason) => {
@@ -250,16 +261,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    // Getting wasm pages allocations.
-    let (allocations, is_initial) = if program.get_allocations().is_empty() {
-        ((0..static_pages.0).map(WasmPageNumber).collect(), true)
-    } else {
-        (program.get_allocations().clone(), false)
-    };
-
     // Creating allocations context.
-    let allocations_context =
-        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
+    let allocations_context = AllocationsContext::new(
+        program.get_allocations().clone(),
+        static_pages,
+        settings.max_pages(),
+    );
 
     // Creating message context.
     let message_context = MessageContext::new_with_settings(
@@ -379,10 +386,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program_candidates,
         gas_amount: info.gas_amount,
         page_update,
-        allocations: if !is_initial && info.allocations.eq(&allocations) {
-            None
-        } else {
-            Some(info.allocations)
-        },
+        allocations: info.allocations,
     })
 }

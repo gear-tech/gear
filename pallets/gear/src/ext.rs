@@ -100,9 +100,13 @@ impl IntoExtInfo for LazyPagesExt {
         } = self.inner.context;
 
         // Accessed pages are all pages except current lazy pages
-        let allocations = allocations_context.allocations().clone();
+        let static_pages = allocations_context.static_pages();
+        let (initial_allocations, allocations) = allocations_context.into_parts();
         let mut accessed_pages = lazy_pages::get_released_pages();
-        accessed_pages.retain(|p| allocations.contains(&p.to_wasm_page()));
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_wasm_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
@@ -120,7 +124,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            allocations,
+            allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,
