@@ -578,4 +578,33 @@ mod tests {
 
         prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
     }
+
+    #[test]
+    fn claim_zero_value() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let sender = 42;
+        let receiver = 84;
+
+        sys.mint_to(sender, 10000);
+
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        prog.send_bytes(receiver, b"init");
+
+        // Get zero value to the receiver's mailbox
+        prog.send_bytes(receiver, b"smash");
+
+        // Get the value > ED to the receiver's mailbox
+        prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes(receiver, b"smash");
+
+        // Check receiver's balance
+        sys.claim_value_from_mailbox(receiver);
+        assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
+    }
 }
