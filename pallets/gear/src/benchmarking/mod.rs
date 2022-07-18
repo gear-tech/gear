@@ -203,7 +203,7 @@ where
                     payload,
                     Some(u64::MAX),
                     value,
-                    Some((msg.id(), exit_code)),
+                    Some(ReplyDetails::new(msg.id(), exit_code)),
                 ),
             )
         }

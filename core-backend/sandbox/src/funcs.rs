@@ -360,15 +360,16 @@ where
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let reply_tuple = ctx
+        let opt_details = ctx
             .ext
-            .with_fallible(|ext| ext.reply_to().map_err(FuncError::Core))
+            .with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
             .map_err(|e| {
                 ctx.err = e;
                 HostError
             })?;
 
-        if let Some((_, exit_code)) = reply_tuple {
+        if let Some(details) = opt_details {
+            let exit_code = details.into_parts().1;
             return_i32(exit_code)
         } else {
             ctx.err = FuncError::NonReplyExitCode;
@@ -595,15 +596,16 @@ where
 
         let dest = pop_i32(&mut args)?;
 
-        let maybe_message_id = ctx
+        let opt_details = ctx
             .ext
-            .with_fallible(|ext| ext.reply_to().map_err(FuncError::Core))
+            .with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
             .map_err(|err| {
                 ctx.err = err;
                 HostError
             })?;
 
-        if let Some((message_id, _)) = maybe_message_id {
+        if let Some(details) = opt_details {
+            let message_id = details.into_parts().0;
             wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
                 ctx.err = err;
                 HostError
