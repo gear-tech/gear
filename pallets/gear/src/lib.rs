@@ -1625,13 +1625,13 @@ pub mod pallet {
             // Claim outstanding value from the original message first
             let (original_message, _bn) = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
 
-            let from =
+            let original_from =
                 <T::AccountId as Origin>::from_origin(original_message.source().into_origin());
-            let to =
+            let original_to =
                 <T::AccountId as Origin>::from_origin(original_message.destination().into_origin());
-            let value = original_message.value().unique_saturated_into();
+            let original_value = original_message.value().unique_saturated_into();
 
-            Self::transfer_reserved(&from, &to, value);
+            Self::transfer_reserved(&original_from, &original_to, original_value);
             // TODO: burn here for holding #646.
             Self::consume_message(original_message.id());
 
