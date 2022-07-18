@@ -113,10 +113,14 @@ pub trait Messenger {
             Key1 = Self::MailboxFirstKey,
             Key2 = Self::MailboxSecondKey,
             Value = Self::MailboxedMessage,
+            BlockNumber = Self::BlockNumber,
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
-        + IterableByKeyMap<(Self::MailboxedMessage, Self::BlockNumber), Key = Self::MailboxFirstKey>;
+        + IterableByKeyMap<
+            (Self::MailboxedMessage, Interval<Self::BlockNumber>),
+            Key = Self::MailboxFirstKey,
+        >;
 
     /// Gear waitlist.
     ///
@@ -150,10 +154,11 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::WaitlistFirstKey, Length = usize>
+        + IterableMap<(Self::WaitlistedMessage, Interval<Self::BlockNumber>)>
         + IterableByKeyMap<
             (Self::WaitlistedMessage, Interval<Self::BlockNumber>),
             Key = Self::WaitlistFirstKey,
-        > + IterableMap<(Self::WaitlistedMessage, Interval<Self::BlockNumber>)>;
+        >;
 
     /// Resets all related to messenger storages.
     ///

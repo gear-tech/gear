@@ -22,10 +22,12 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, GetCallback, IterableByKeyMap,
-    KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, GetCallback, Interval,
+    IterableByKeyMap, KeyFor,
 };
 use core::marker::PhantomData;
+
+pub type ValueWithInterval<T, B> = (T, Interval<B>);
 
 /// Represents mailbox managing logic.
 pub trait Mailbox {
@@ -48,14 +50,14 @@ pub trait Mailbox {
     fn contains(key1: &Self::Key1, key2: &Self::Key2) -> bool;
 
     /// Inserts given value in mailbox.
-    fn insert(value: Self::Value) -> Result<(), Self::OutputError>;
+    fn insert(value: Self::Value, bn: Self::BlockNumber) -> Result<(), Self::OutputError>;
 
     /// Removes and returns value from mailbox by given keys,
     /// if present, else returns error.
     fn remove(
         key1: Self::Key1,
         key2: Self::Key2,
-    ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError>;
+    ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError>;
 
     /// Removes all values from all key's mailboxes.
     fn clear();
@@ -77,9 +79,12 @@ pub trait MailboxCallbacks<OutputError> {
     /// Callback used for getting current block number.
     type GetBlockNumber: GetCallback<Self::BlockNumber>;
     /// Callback on success `insert`.
-    type OnInsert: Callback<(Self::Value, Self::BlockNumber)>;
+    type OnInsert: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
     /// Callback on success `remove`.
-    type OnRemove: FallibleCallback<(Self::Value, Self::BlockNumber), Error = OutputError>;
+    type OnRemove: FallibleCallback<
+        ValueWithInterval<Self::Value, Self::BlockNumber>,
+        Error = OutputError,
+    >;
 }
 
 /// Represents mailbox error type.
@@ -103,7 +108,7 @@ pub struct MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, Key
     PhantomData<(T, Error, OutputError, Callbacks, KeyGen)>,
 )
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)>,
+    T: DoubleMapStorage<Value = ValueWithInterval<Value, BlockNumber>>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
@@ -113,7 +118,7 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> Mailbox
     for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)>,
+    T: DoubleMapStorage<Value = ValueWithInterval<Value, BlockNumber>>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
@@ -130,7 +135,10 @@ where
         T::contains_keys(user_id, message_id)
     }
 
-    fn insert(message: Self::Value) -> Result<(), Self::OutputError> {
+    fn insert(
+        message: Self::Value,
+        scheduled_at: Self::BlockNumber,
+    ) -> Result<(), Self::OutputError> {
         let (key1, key2) = KeyGen::key_for(&message);
 
         if Self::contains(&key1, &key2) {
@@ -138,7 +146,13 @@ where
         }
 
         let block_number = Callbacks::GetBlockNumber::call();
-        let message_with_bn = (message, block_number);
+        let message_with_bn = (
+            message,
+            Interval {
+                since: block_number,
+                till: scheduled_at,
+            },
+        );
 
         Callbacks::OnInsert::call(&message_with_bn);
         T::insert(key1, key2, message_with_bn);
@@ -148,7 +162,7 @@ where
     fn remove(
         user_id: Self::Key1,
         message_id: Self::Key2,
-    ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError> {
+    ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError> {
         if let Some(message_with_bn) = T::take(user_id, message_id) {
             Callbacks::OnRemove::call(&message_with_bn)?;
             Ok(message_with_bn)
@@ -167,7 +181,8 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> CountedByKey
     for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)> + CountedByKey<Key = T::Key1>,
+    T: DoubleMapStorage<Value = ValueWithInterval<Value, BlockNumber>>
+        + CountedByKey<Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
@@ -186,7 +201,8 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
     for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableByKeyMap<T::Value, Key = T::Key1>,
+    T: DoubleMapStorage<Value = ValueWithInterval<Value, BlockNumber>>
+        + IterableByKeyMap<T::Value, Key = T::Key1>,
     Error: MailboxError,
     OutputError: From<Error>,
     Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,

@@ -242,12 +242,12 @@ where
             });
 
             if gas_limit >= mailbox_threshold {
-                MailboxOf::<T>::insert(message.clone())
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one
                 // (issues #646 and #969).
+                MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
+                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
                     expiration: Some(T::BlockNumber::zero()),

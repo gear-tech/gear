@@ -345,7 +345,7 @@ benchmarks! {
             Default::default(),
             0,
             None,
-        )).expect("Error during mailbox insertion");
+        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), MessageId::from_origin(original_message_id), payload, 100_000_000_u64, 10_000_u32.into())
     verify {
@@ -1204,7 +1204,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             block_config,
@@ -1268,7 +1268,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             block_config,

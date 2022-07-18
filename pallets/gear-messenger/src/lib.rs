@@ -343,7 +343,7 @@ pub mod pallet {
         T::AccountId,
         Identity,
         MessageId,
-        (StoredMessage, T::BlockNumber),
+        (StoredMessage, Interval<T::BlockNumber>),
     >;
 
     // Public wrap of the mailbox elements.
@@ -352,7 +352,7 @@ pub mod pallet {
         name: MailboxWrap,
         key1: T::AccountId,
         key2: MessageId,
-        value: (StoredMessage, T::BlockNumber),
+        value: (StoredMessage, Interval<T::BlockNumber>),
         length: usize
     );
 
@@ -496,13 +496,15 @@ pub mod pallet {
     //
     // Remove from mailbox means auto-claim in Gear Messenger Context,
     // so if value present, it will be added to user's balance.
-    impl<T: crate::Config> FallibleCallback<(StoredMessage, T::BlockNumber)> for OnRemove<T>
+    impl<T: crate::Config> FallibleCallback<(StoredMessage, Interval<T::BlockNumber>)> for OnRemove<T>
     where
         T::AccountId: Origin,
     {
         type Error = DispatchError;
 
-        fn call((message, _bn): &(StoredMessage, T::BlockNumber)) -> Result<(), Self::Error> {
+        fn call(
+            (message, _bn): &(StoredMessage, Interval<T::BlockNumber>),
+        ) -> Result<(), Self::Error> {
             if message.value() > 0 {
                 // Assuming the programs has enough balance
                 <T as Config>::Currency::repatriate_reserved(
