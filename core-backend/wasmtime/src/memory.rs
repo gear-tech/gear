@@ -25,46 +25,6 @@ use gear_core::{
 };
 use wasmtime::{AsContext, AsContextMut, Store, StoreContextMut};
 
-/// Wrapper for wasmtime memory.
-pub struct MemoryWrap<'a, E: Ext> {
-    pub mem: wasmtime::Memory,
-    pub store: StoreContextMut<'a, StoreData<E>>,
-}
-
-/// Memory interface for the allocator.
-impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
-    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
-        self.mem
-            .grow(&mut self.store, pages.0 as u64)
-            .map(|offset| (offset as u32).into())
-            .map_err(|_| Error::OutOfBounds)
-    }
-
-    fn size(&self) -> WasmPageNumber {
-        (self.mem.size(&self.store) as u32).into()
-    }
-
-    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        self.mem
-            .write(&mut self.store, offset, buffer)
-            .map_err(|_| Error::MemoryAccessError)
-    }
-
-    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
-        self.mem
-            .read(&self.store, offset, buffer)
-            .map_err(|_| Error::MemoryAccessError)
-    }
-
-    fn data_size(&self) -> usize {
-        self.mem.data_size(&self.store)
-    }
-
-    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
-        self.mem.data_ptr(&self.store) as HostPointer
-    }
-}
-
 pub struct MemoryWrapExternal<E: Ext> {
     pub mem: wasmtime::Memory,
     pub store: Store<StoreData<E>>,

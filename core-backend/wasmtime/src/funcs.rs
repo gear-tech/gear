@@ -18,11 +18,7 @@
 
 use core::marker::PhantomData;
 
-use crate::{
-    context::Context,
-    env::StoreData,
-    memory::{self, MemoryWrap},
-};
+use crate::{context::Context, env::StoreData, memory};
 use alloc::{
     string::{FromUtf8Error, String, ToString},
     vec,
@@ -93,25 +89,6 @@ where
     fn from(err: FuncError<E>) -> Self {
         err.to_string()
     }
-}
-
-fn get_caller_memory<'a, T: Ext>(
-    caller: &'a mut Caller<'_, StoreData<T>>,
-    mem: &WasmtimeMemory,
-) -> MemoryWrap<'a, T> {
-    let store = caller.as_context_mut();
-    MemoryWrap { mem: *mem, store }
-}
-
-fn write_to_caller_memory<'a, T: Ext>(
-    caller: &'a mut Caller<'_, StoreData<T>>,
-    mem: &WasmtimeMemory,
-    offset: usize,
-    buffer: &[u8],
-) -> Result<(), FuncError<T::Error>> {
-    get_caller_memory(caller, mem)
-        .write(offset, buffer)
-        .map_err(FuncError::Memory)
 }
 
 impl<E> FuncsHandler<E>
@@ -795,19 +772,23 @@ where
     //     };
     //     Func::wrap(store, func)
     // }
-    //
-    // pub fn wake(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-    //     let func = move |mut caller: Caller<'_, StoreData<E>>, waker_id_ptr: i32| {
-    //         let ext = caller.data().ext.clone();
-    //         ext.with_fallible(|ext| -> Result<_, FuncError<E::Error>> {
-    //             let mem_wrap = get_caller_memory(&mut caller, &mem);
-    //             let waker_id: MessageId = get_bytes32(&mem_wrap, waker_id_ptr as usize)?.into();
-    //             ext.wake(waker_id).map_err(FuncError::Core)
-    //         })
-    //         .map_err(Trap::new)
-    //     };
-    //     Func::wrap(store, func)
-    // }
+
+    pub fn wake(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
+        let func =
+            move |mut caller: Caller<'_, StoreData<E>>, waker_id_ptr: i32| -> Result<(), Trap> {
+                let mut ctx = Context { caller };
+                let waker_id: MessageId = ctx
+                    .get_bytes32(mem, waker_id_ptr as usize)
+                    .map_err(|e| Trap::new(FuncError::<E::Error>::from(e)))?
+                    .into();
+
+                ctx.ext_mut()
+                    .wake(waker_id)
+                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+                Ok(())
+            };
+        Func::wrap(store, func)
+    }
 
     pub fn error(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, data_ptr: u32| -> Result<(), Trap> {
@@ -825,12 +806,12 @@ where
         Func::wrap(store, func)
     }
 
-    // pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
-    //     let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
-    //         caller.data_mut().termination_reason =
-    //             TerminationReason::Trap(TrapExplanation::ForbiddenFunction);
-    //         Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
-    //     };
-    //     Func::wrap(store, func)
-    // }
+    pub fn forbidden(store: &mut Store<StoreData<E>>) -> Func {
+        let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
+            caller.data_mut().termination_reason =
+                TerminationReason::Trap(TrapExplanation::ForbiddenFunction);
+            Err(Trap::new(FuncError::<E::Error>::ForbiddenFunction))
+        };
+        Func::wrap(store, func)
+    }
 }
