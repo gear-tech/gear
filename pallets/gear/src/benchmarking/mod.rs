@@ -37,7 +37,9 @@ use crate::{
     MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{benchmarking, lazy_pages, storage::*, GasPrice, CodeMetadata, CodeStorage, GasTree, Origin};
+use common::{
+    benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
+};
 use core_processor::configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, ReservableCurrency};
