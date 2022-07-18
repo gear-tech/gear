@@ -17,17 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::{ExtManager, TOL},
-    Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet, QueueOf,
-    SentOf, WaitlistOf,
+    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
+    Pallet, QueueOf, SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
 };
-use frame_support::traits::{
-    BalanceStatus, Currency, ExistenceRequirement, Get, ReservableCurrency,
-};
+use frame_support::traits::{Currency, ExistenceRequirement, Get, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
@@ -329,83 +326,11 @@ where
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let from = from.into_origin();
+        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = to.map(|v| <T::AccountId as Origin>::from_origin(v.into_origin()));
         let value = value.unique_saturated_into();
-        if let Some(to) = to.map(|id| id.into_origin()) {
-            let from_account = <T::AccountId as Origin>::from_origin(from);
-            let to_account = <T::AccountId as Origin>::from_origin(to);
-            log::debug!(
-                "Sending value of amount {:?} from {:?} to {:?}",
-                value,
-                from,
-                to
-            );
-            let res = if <T as Config>::Currency::can_reserve(
-                &to_account,
-                <T as Config>::Currency::minimum_balance(),
-            ) {
-                // `to` account exists, so we can repatriate reserved value for it.
-                match <T as Config>::Currency::repatriate_reserved(
-                    &from_account,
-                    &to_account,
-                    value,
-                    BalanceStatus::Free,
-                ) {
-                    Ok(leftover) => {
-                        if leftover > TOL.unique_saturated_into() {
-                            log::debug!(
-                                target: "essential",
-                                "Reserved funds not fully repatriated from 0x{:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                from_account,
-                                to_account,
-                                value,
-                                leftover,
-                            );
-                        }
-                        Ok(())
-                    }
-                    Err(e) => {
-                        // This is a error, as reserved should always be repatriatable
-                        log::error!(
-                            target: "essential",
-                            "Failure to repatriate reserves of {:?} from 0x{:?} to 0x{:?}: {:?}",
-                            value,
-                            from_account,
-                            to_account,
-                            e,
-                        );
-                        Ok(())
-                    }
-                }
-            } else {
-                let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
-                if not_freed != 0u128.unique_saturated_into() {
-                    unreachable!("All requested value for unreserve must be freed. For more info, see module docs.");
-                }
-                <T as Config>::Currency::transfer(
-                    &from_account,
-                    &to_account,
-                    value,
-                    ExistenceRequirement::AllowDeath,
-                )
-            };
 
-            res.unwrap_or_else(|_| {
-                unreachable!("Value transfers can't fail. For more info, see module docs.")
-            });
-        } else {
-            let from_account = <T::AccountId as Origin>::from_origin(from);
-            let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
-            if not_freed == 0u128.unique_saturated_into() {
-                log::debug!(
-                    "Value amount amount {:?} successfully unreserved from {:?}",
-                    value,
-                    from,
-                );
-            } else {
-                unreachable!("All requested value for unreserve must be freed. For more info, see module docs.");
-            }
-        }
+        Pallet::<T>::transfer_reserved(&from, to.as_ref().unwrap_or(&from), value);
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {

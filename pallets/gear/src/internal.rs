@@ -18,14 +18,12 @@
 
 //! Internal details of Gear Pallet implementation.
 
-#![allow(unused)]
-
 use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasHandlerOf, Pallet,
     SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::{MessageWaitedReason, MessageWokenReason, Reason, RuntimeReason, SystemReason},
+    event::{MessageWaitedReason, MessageWokenReason},
     scheduler::*,
     storage::*,
     GasPrice, GasProvider, GasTree, Origin,
@@ -38,13 +36,11 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::StoredDispatch,
 };
-use sp_runtime::{
-    traits::{Saturating, UniqueSaturatedInto, Zero},
-    SaturatedConversion,
-};
+use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 
 pub(crate) struct Deadline<T: Config> {
     pub(crate) schedule_at: BlockNumberFor<T>,
+    #[allow(unused)]
     pub(crate) gas_lock: <T::GasProvider as GasProvider>::Balance,
 }
 
@@ -69,8 +65,11 @@ where
         // Querying minimum balance (existential deposit).
         let existential_deposit = CurrencyOf::<T>::minimum_balance();
 
+        // Bool var to check if we need just unreserve in case of self transfer.
+        let self_transfer = from == to;
+
         // Checking balance existence of destination address.
-        if CurrencyOf::<T>::can_reserve(to, existential_deposit) {
+        if !self_transfer && CurrencyOf::<T>::can_reserve(to, existential_deposit) {
             // Repatriating reserved to existent account.
             let unrevealed =
                 CurrencyOf::<T>::repatriate_reserved(from, to, value, BalanceStatus::Free)
@@ -91,9 +90,11 @@ where
                 unreachable!("Not all requested value was unreserved");
             }
 
-            // Transfer to inexistent account.
-            CurrencyOf::<T>::transfer(from, to, value, ExistenceRequirement::AllowDeath)
-                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+            // Transfer to inexistent account, if need.
+            if !self_transfer {
+                CurrencyOf::<T>::transfer(from, to, value, ExistenceRequirement::AllowDeath)
+                    .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+            }
         }
     }
 
@@ -190,6 +191,7 @@ where
     }
 
     /// Calculates deadline at specific block for given `MessageId` and cost.
+    #[allow(unused)]
     #[must_use]
     pub(crate) fn deadline_at(
         message_id: MessageId,
@@ -316,10 +318,9 @@ where
         message_id: MessageId,
         reason: MessageWokenReason,
     ) -> Option<StoredDispatch> {
-        // TODO: add second bn - till which time.
         WaitlistOf::<T>::remove(program_id, message_id)
-            .ok()
             .map(|v| Self::wake_requirements(v, reason))
+            .ok()
     }
 
     /// Charges and deposits event for already taken from waitlist dispatch.
