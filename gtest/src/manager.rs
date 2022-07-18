@@ -387,13 +387,15 @@ impl ExtManager {
     pub(crate) fn claim_value_from_mailbox(&mut self, id: &ProgramId) {
         let messages = self.mailbox.remove(id);
         if let Some(messages) = messages {
-            messages.iter().for_each(|message| {
-                self.send_value(
-                    message.source(),
-                    Some(message.destination()),
-                    message.value(),
-                )
-            });
+            for message in messages {
+                if message.value() > 0 {
+                    self.send_value(
+                        message.source(),
+                        Some(message.destination()),
+                        message.value(),
+                    );
+                }
+            }
         }
     }
 
