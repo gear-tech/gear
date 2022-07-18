@@ -41,7 +41,7 @@ pub struct Message {
     /// Message value.
     value: Value,
     /// Message id replied on with exit code.
-    reply: Option<(MessageId, ExitCode)>,
+    reply: Option<ReplyDetails>,
 }
 
 impl From<Message> for StoredMessage {
@@ -66,7 +66,7 @@ impl Message {
         payload: Payload,
         gas_limit: Option<GasLimit>,
         value: Value,
-        reply: Option<(MessageId, ExitCode)>,
+        reply: Option<ReplyDetails>,
     ) -> Self {
         Self {
             id,
@@ -115,7 +115,7 @@ impl Message {
     }
 
     /// Message reply.
-    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
+    pub fn reply(&self) -> Option<ReplyDetails> {
         self.reply
     }
 
@@ -126,12 +126,51 @@ impl Message {
 
     /// Message id what this message replies to, if reply.
     pub fn reply_to(&self) -> Option<MessageId> {
-        self.reply.map(|(id, _)| id)
+        self.reply.map(|v| v.reply_to())
     }
 
     /// Exit code of the message, if reply.
     pub fn exit_code(&self) -> Option<ExitCode> {
-        self.reply.map(|(_, exit_code)| exit_code)
+        self.reply.map(|v| v.exit_code())
+    }
+}
+
+/// Reply details data.
+///
+/// Part of [`ReplyMessage`] logic, containing data about on which message id
+/// this replies and its exit code.
+#[derive(
+    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+pub struct ReplyDetails {
+    /// Message id, this message replies on.
+    reply_to: MessageId,
+    /// Exit code of the reply.
+    exit_code: ExitCode,
+}
+
+impl ReplyDetails {
+    /// Constructor for details.
+    pub fn new(reply_to: MessageId, exit_code: ExitCode) -> Self {
+        Self {
+            reply_to,
+            exit_code,
+        }
+    }
+
+    /// Message id getter.
+    pub fn reply_to(&self) -> MessageId {
+        self.reply_to
+    }
+
+    /// Exit code getter.
+    pub fn exit_code(&self) -> ExitCode {
+        self.exit_code
+    }
+
+    /// Destructs self in parts of components.
+    pub fn into_parts(self) -> (MessageId, ExitCode) {
+        (self.reply_to, self.exit_code)
     }
 }
 

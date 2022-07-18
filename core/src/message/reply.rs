@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::common::ReplyDetails;
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
@@ -78,7 +79,7 @@ impl ReplyMessage {
             self.payload,
             self.gas_limit,
             self.value,
-            Some((origin_msg_id, self.exit_code)),
+            Some(ReplyDetails::new(origin_msg_id, self.exit_code)),
         )
     }
 
