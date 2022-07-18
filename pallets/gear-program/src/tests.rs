@@ -263,19 +263,19 @@ fn resume_uninitialized_program_works() {
 
         assert_eq!(
             WaitlistOf::<Test>::remove(program_id, init_msg.id())
-                .map(|(_, interval)| interval.since)
+                .map(|(_, interval)| interval.start)
                 .unwrap(),
             100
         );
         assert_eq!(
             WaitlistOf::<Test>::remove(program_id, msg_1.id())
-                .map(|(_, interval)| interval.since)
+                .map(|(_, interval)| interval.start)
                 .unwrap(),
             100
         );
         assert_eq!(
             WaitlistOf::<Test>::remove(program_id, msg_2.id())
-                .map(|(_, interval)| interval.since)
+                .map(|(_, interval)| interval.start)
                 .unwrap(),
             100
         );

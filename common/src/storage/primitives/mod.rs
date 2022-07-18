@@ -49,6 +49,6 @@ use scale_info::TypeInfo;
 /// Type for interval values: e.g. in time `(since, till)`.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct Interval<T> {
-    pub since: T,
-    pub till: T,
+    pub start: T,
+    pub finish: T,
 }

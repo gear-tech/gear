@@ -146,8 +146,8 @@ where
         let message_with_bn = (
             message,
             Interval {
-                since: block_number,
-                till: scheduled_at,
+                start: block_number,
+                finish: scheduled_at,
             },
         );
 

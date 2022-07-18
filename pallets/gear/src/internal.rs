@@ -325,13 +325,13 @@ where
 
     /// Charges and deposits event for already taken from waitlist dispatch.
     pub(crate) fn wake_requirements(
-        (waitlisted, held): (StoredDispatch, Interval<BlockNumberFor<T>>),
+        (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
         // Charging for holding.
         Self::charge_for_hold(
             waitlisted.id(),
-            held.since,
+            hold_interval.start,
             CostsPerBlockOf::<T>::waitlist(),
         );
 
@@ -343,7 +343,7 @@ where
 
         // Delete if exists.
         let _ = TaskPoolOf::<T>::delete(
-            held.till,
+            hold_interval.finish,
             ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
         );
 
