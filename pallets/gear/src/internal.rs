@@ -25,7 +25,7 @@ use crate::{
     SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::{MessageWaitedReason, Reason, RuntimeReason, SystemReason},
+    event::{MessageWaitedReason, MessageWokenReason, Reason, RuntimeReason, SystemReason},
     scheduler::*,
     storage::*,
     GasPrice, GasProvider, GasTree, Origin,
@@ -34,7 +34,10 @@ use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::{ids::MessageId, message::StoredDispatch};
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    message::StoredDispatch,
+};
 use sp_runtime::{
     traits::{Saturating, UniqueSaturatedInto, Zero},
     SaturatedConversion,
@@ -267,6 +270,7 @@ where
         }
     }
 
+    /// Adds dispatch into waitlist, deposits event and adds task for waking it.
     pub(crate) fn wait_dispatch(dispatch: StoredDispatch, reason: MessageWaitedReason) {
         // Figuring out maximal deadline of holding.
         if let Some(maximal_deadline) =
@@ -303,5 +307,31 @@ where
             // Corner case. Should be rechecked for unreachable usage.
             log::error!("Unable to figure out deadline for: {dispatch:?}");
         }
+    }
+
+    /// Wakes dispatch from waitlist, permanently charged for hold with
+    /// appropriate event depositing, if found.
+    pub(crate) fn wake_dispatch(
+        program_id: ProgramId,
+        message_id: MessageId,
+        reason: MessageWokenReason,
+    ) -> Option<StoredDispatch> {
+        // TODO: add second bn - till which time.
+        let (waitlisted, bn) = WaitlistOf::<T>::remove(program_id, message_id).ok()?;
+        Self::charge_for_hold(waitlisted.id(), bn, CostsPerBlockOf::<T>::waitlist());
+
+        // Depositing appropriate event.
+        Pallet::<T>::deposit_event(Event::MessageWoken {
+            id: waitlisted.id(),
+            reason,
+        });
+
+        // TODO: remove from task pool, if exists.
+        // TaskPoolOf::<T>::remove(
+        //     maximal_deadline.schedule_at,
+        //     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
+        // );
+
+        Some(waitlisted)
     }
 }

@@ -56,12 +56,11 @@ where
             common::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
-                    if let Some(m) = self.wake_message_impl(p_id, m_id) {
-                        Pallet::<T>::deposit_event(Event::<T>::MessageWoken {
-                            id: m_id,
-                            reason: MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
-                        });
-
+                    if let Some(m) = Pallet::<T>::wake_dispatch(
+                        p_id,
+                        m_id,
+                        MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
+                    ) {
                         QueueOf::<T>::queue(m)
                             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                     } else {
@@ -271,17 +270,16 @@ where
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some(dispatch) = self.wake_message_impl(program_id, awakening_id) {
-            Pallet::<T>::deposit_event(Event::MessageWoken {
-                id: dispatch.id(),
-                reason: MessageWokenRuntimeReason::WakeCalled.into_reason(),
-            });
-
+        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+            program_id,
+            awakening_id,
+            MessageWokenRuntimeReason::WakeCalled.into_reason(),
+        ) {
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             log::debug!(
-                "Attempt to awaken unknown message {:?} from {:?}",
+                "Attempt to wake unknown message {:?} from {:?}",
                 awakening_id,
                 message_id
             );

@@ -49,19 +49,16 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{
-    Authorship, Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet, WaitlistOf,
-};
+use crate::{Authorship, Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, GearProgramPallet};
 use codec::{Decode, Encode};
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin,
-    ProgramState,
+    event::*, scheduler::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin, ProgramState,
 };
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{BalanceStatus, Currency, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::{ExitCode, StoredDispatch},
+    message::ExitCode,
     program::Program as NativeProgram,
 };
 use sp_runtime::traits::{SaturatedConversion, UniqueSaturatedInto};
@@ -280,17 +277,5 @@ where
                 );
             }
         }
-    }
-
-    pub fn wake_message_impl(
-        &self,
-        program_id: ProgramId,
-        message_id: MessageId,
-    ) -> Option<StoredDispatch> {
-        let (waitlisted, bn) = WaitlistOf::<T>::remove(program_id, message_id).ok()?;
-
-        self.charge_for_wake(waitlisted.id(), bn);
-
-        Some(waitlisted)
     }
 }
