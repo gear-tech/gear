@@ -18,10 +18,10 @@
 
 use crate::{
     manager::{ExtManager, TOL},
-    Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
-    Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet, QueueOf,
+    SentOf, WaitlistOf,
 };
-use common::{event::*, scheduler::*, storage::*, CodeStorage, GasTree, Origin, Program};
+use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
 };
@@ -33,7 +33,7 @@ use gear_core::{
     memory::{PageBuf, PageNumber},
     message::{Dispatch, StoredDispatch},
 };
-use sp_runtime::traits::{SaturatedConversion, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -259,51 +259,10 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        if let Ok(Some((limit, _))) = GasHandlerOf::<T>::get_limit(dispatch.id()) {
-            let message_id = dispatch.id();
-            let program_id = dispatch.destination();
-
-            WaitlistOf::<T>::insert(dispatch)
-                .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
-
-            let current_bn = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-
-            let can_cover = limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
-            let reserve_for = CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
-
-            let duration = (can_cover as u32).saturating_sub(reserve_for);
-
-            let deadline = current_bn.saturating_add(duration);
-            let deadline: T::BlockNumber = deadline.unique_saturated_into();
-
-            TaskPoolOf::<T>::add(
-                deadline,
-                ScheduledTask::RemoveFromWaitlist(program_id, message_id),
-            )
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(message_id)
-                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
-            {
-                if key == message_id {
-                    None
-                } else {
-                    Some(key)
-                }
-            } else {
-                unreachable!("ValueTree corrupted!")
-            };
-
-            // TODO: replace this temporary (zero) value
-            // for expiration block number with properly
-            // calculated one (issues #646 and #969).
-            Pallet::<T>::deposit_event(Event::MessageWaited {
-                id: message_id,
-                origin: origin_key,
-                reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
-                expiration: T::BlockNumber::zero(),
-            });
-        }
+        Pallet::<T>::wait_dispatch(
+            dispatch,
+            MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+        )
     }
 
     fn wake_message(

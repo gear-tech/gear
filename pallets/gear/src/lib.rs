@@ -60,7 +60,7 @@ use gear_core::{
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -1051,12 +1051,12 @@ pub mod pallet {
                         opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let opt_origin = GasHandlerOf::<T>::get_origin(dispatch.id())
+                    let opt_external = GasHandlerOf::<T>::get_external(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     // External id may not be found only for inexistent node.
-                    let (origin_msg, external) =
-                        opt_origin.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+                    let external = opt_external
+                        .unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     log::debug!(
                         "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
@@ -1104,48 +1104,17 @@ pub mod pallet {
                             if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch.id())
                                 && dispatch.reply().is_none()
                             {
-                                // TODO: replace this temporary (zero) value
-                                // for expiration block number with properly
-                                // calculated one (issues #646 and #969).
-                                Pallet::<T>::deposit_event(Event::MessageWaited {
-                                    id: dispatch.id(),
-                                    origin: origin_msg.ne(&dispatch.id()).then_some(origin_msg),
-                                    reason: MessageWaitedSystemReason::ProgramIsNotInitialized
-                                        .into_reason(),
-                                    expiration: T::BlockNumber::zero(),
-                                });
+                                // Adding id in on-init wake list.
                                 common::waiting_init_append_message_id(
                                     dispatch.destination(),
                                     dispatch.id(),
                                 );
 
-                                let current_bn = <frame_system::Pallet<T>>::block_number()
-                                    .saturated_into::<u32>();
-
-                                let can_cover =
-                                    gas_limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
-                                let reserve_for =
-                                    CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
-
-                                let duration = (can_cover as u32).saturating_sub(reserve_for);
-
-                                let deadline = current_bn.saturating_add(duration);
-                                let deadline: T::BlockNumber = deadline.unique_saturated_into();
-
-                                TaskPoolOf::<T>::add(
-                                    deadline,
-                                    ScheduledTask::RemoveFromWaitlist(
-                                        dispatch.destination(),
-                                        dispatch.id(),
-                                    ),
-                                )
-                                .unwrap_or_else(|e| {
-                                    unreachable!("Scheduling logic invalidated! {:?}", e)
-                                });
-
-                                WaitlistOf::<T>::insert(dispatch).unwrap_or_else(|e| {
-                                    unreachable!("Waitlist corrupted! {:?}", e)
-                                });
+                                Self::wait_dispatch(
+                                    dispatch,
+                                    MessageWaitedSystemReason::ProgramIsNotInitialized
+                                        .into_reason(),
+                                );
                                 continue;
                             }
 

@@ -21,15 +21,20 @@
 #![allow(unused)]
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, GasHandlerOf, Pallet,
-    SchedulingCostOf, SystemPallet,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasHandlerOf, Pallet,
+    SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
-use common::{scheduler::*, GasPrice, GasProvider, GasTree, Origin};
+use common::{
+    event::{MessageWaitedReason, Reason, RuntimeReason, SystemReason},
+    scheduler::*,
+    storage::*,
+    GasPrice, GasProvider, GasTree, Origin,
+};
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::ids::MessageId;
+use gear_core::{ids::MessageId, message::StoredDispatch};
 use sp_runtime::{
     traits::{Saturating, UniqueSaturatedInto, Zero},
     SaturatedConversion,
@@ -259,6 +264,44 @@ where
         if !amount.is_zero() {
             // Spending gas.
             Self::spend_gas(message_id, amount)
+        }
+    }
+
+    pub(crate) fn wait_dispatch(dispatch: StoredDispatch, reason: MessageWaitedReason) {
+        // Figuring out maximal deadline of holding.
+        if let Some(maximal_deadline) =
+            Self::maximal_deadline(dispatch.id(), CostsPerBlockOf::<T>::waitlist())
+        {
+            // Querying origin message id. Fails in cases of `GasTree` invalidations.
+            let opt_origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            // Gas origin message id may not be found only for inexistent node.
+            let origin_msg =
+                opt_origin_msg.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+
+            // TODO: lock funds for holding here.
+            // Depositing appropriate event.
+            Self::deposit_event(Event::MessageWaited {
+                id: dispatch.id(),
+                origin: origin_msg.ne(&dispatch.id()).then_some(origin_msg),
+                expiration: maximal_deadline.schedule_at,
+                reason,
+            });
+
+            // Adding wake request in task pool.
+            TaskPoolOf::<T>::add(
+                maximal_deadline.schedule_at,
+                ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
+            )
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+            // Adding message in waitlist.
+            WaitlistOf::<T>::insert(dispatch)
+                .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
+        } else {
+            // Corner case. Should be rechecked for unreachable usage.
+            log::error!("Unable to figure out deadline for: {dispatch:?}");
         }
     }
 }
