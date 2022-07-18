@@ -48,4 +48,23 @@ pub trait Error {
 
     /// Forbidden operation for the value node.
     fn forbidden() -> Self;
+
+    /// Output of `Tree::consume` procedure that wasn't expected.
+    ///
+    /// Outputs of consumption procedure are determined. The error is returned
+    /// when unexpected one occurred. That signals, that algorithm works wrong
+    /// and expected invariants are not correct.
+    fn unexpected_consume_output() -> Self;
+
+    /// Node type that can't occur if algorithm work well
+    fn unexpected_node_type() -> Self;
+
+    /// Value must have been caught, but was missed or blocked (for more info see `TreeImpl::catch_value`).
+    fn value_is_not_caught() -> Self;
+
+    /// Value must have been caught or moved upstream, but was blocked (for more info see `TreeImpl::catch_value`).
+    fn value_is_blocked() -> Self;
+
+    /// Value must have been blocked, but was either moved or caught (for more info see `TreeImpl::catch_value`).
+    fn value_is_not_blocked() -> Self;
 }
