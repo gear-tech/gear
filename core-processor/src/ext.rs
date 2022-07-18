@@ -226,9 +226,14 @@ impl IntoExtInfo for Ext {
             ..
         } = self.context;
 
-        let wasm_pages = allocations_context.allocations().clone();
+        let static_pages = allocations_context.static_pages();
+        let (initial_allocations, wasm_pages) = allocations_context.into_parts();
         let mut pages_data = BTreeMap::new();
-        for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
+        for page in (0..static_pages.0)
+            .map(WasmPageNumber)
+            .chain(wasm_pages.iter().copied())
+            .flat_map(|p| p.to_gear_pages_iter())
+        {
             let mut buf = PageBuf::new_zeroed();
             if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
                 return Err((err, gas_counter.into()));
@@ -241,7 +246,7 @@ impl IntoExtInfo for Ext {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            allocations: wasm_pages,
+            allocations: wasm_pages.ne(&initial_allocations).then_some(wasm_pages),
             pages_data,
             generated_dispatches,
             awakening,
