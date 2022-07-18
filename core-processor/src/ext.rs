@@ -246,8 +246,7 @@ impl IntoExtInfo for Ext {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            allocations: wasm_pages,
-            initial_allocations,
+            allocations: wasm_pages.ne(&initial_allocations).then_some(wasm_pages),
             pages_data,
             generated_dispatches,
             awakening,

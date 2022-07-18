@@ -60,7 +60,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     let mem_size = if !initial_execution {
         let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
             *page
-        } else if static_pages.0 != 0 {
+        } else if static_pages != WasmPageNumber(0) {
             static_pages - 1.into()
         } else {
             return Ok(0.into());
@@ -386,9 +386,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program_candidates,
         gas_amount: info.gas_amount,
         page_update,
-        allocations: info
-            .allocations
-            .ne(&info.initial_allocations)
-            .then_some(info.allocations),
+        allocations: info.allocations,
     })
 }

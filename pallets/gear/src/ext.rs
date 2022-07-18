@@ -124,8 +124,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            allocations,
-            initial_allocations,
+            allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,
