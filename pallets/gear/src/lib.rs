@@ -136,10 +136,7 @@ pub mod pallet {
         Origin, Program, ProgramState,
     };
     use core_processor::{
-        common::{
-            Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalHandler,
-            JournalNote,
-        },
+        common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
         Ext,
     };
@@ -1627,11 +1624,18 @@ pub mod pallet {
 
             // Claim outstanding value from the original message first
             let (original_message, _bn) = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
-            // TODO: burn here for holding #646.
-            let mut ext_manager: ExtManager<T> = Default::default();
-            ext_manager.message_consumed(reply_to_id);
-            let destination = original_message.source();
 
+            let from =
+                <T::AccountId as Origin>::from_origin(original_message.source().into_origin());
+            let to =
+                <T::AccountId as Origin>::from_origin(original_message.destination().into_origin());
+            let value = original_message.value().unique_saturated_into();
+
+            Self::transfer_reserved(&from, &to, value);
+            // TODO: burn here for holding #646.
+            Self::consume_message(original_message.id());
+
+            let destination = original_message.source();
             // There should be no possibility to modify mailbox if two users interact.
             ensure!(
                 GearProgramPallet::<T>::program_exists(destination),
@@ -1693,10 +1697,15 @@ pub mod pallet {
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
-            let (_, _bn) = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
+            let (message, _bn) = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
+
+            let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
+            let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
+            let value = message.value().unique_saturated_into();
+
+            Self::transfer_reserved(&from, &to, value);
             // TODO: burn here for holding #646.
-            let mut ext_manager: ExtManager<T> = Default::default();
-            ext_manager.message_consumed(message_id);
+            Self::consume_message(message.id());
 
             Self::deposit_event(Event::UserMessageRead {
                 id: message_id,

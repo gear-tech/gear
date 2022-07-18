@@ -377,7 +377,6 @@ impl pallet_gear_gas::Config for Runtime {
 }
 
 impl pallet_gear_messenger::Config for Runtime {
-    type Currency = Balances;
     type BlockLimiter = GearGas;
 }
 

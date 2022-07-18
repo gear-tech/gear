@@ -22,8 +22,7 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, GetCallback, Interval,
-    IterableByKeyMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, GetCallback, Interval, IterableByKeyMap, KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -81,10 +80,7 @@ pub trait MailboxCallbacks<OutputError> {
     /// Callback on success `insert`.
     type OnInsert: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
     /// Callback on success `remove`.
-    type OnRemove: FallibleCallback<
-        ValueWithInterval<Self::Value, Self::BlockNumber>,
-        Error = OutputError,
-    >;
+    type OnRemove: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
 }
 
 /// Represents mailbox error type.
@@ -164,7 +160,7 @@ where
         message_id: Self::Key2,
     ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError> {
         if let Some(message_with_bn) = T::take(user_id, message_id) {
-            Callbacks::OnRemove::call(&message_with_bn)?;
+            Callbacks::OnRemove::call(&message_with_bn);
             Ok(message_with_bn)
         } else {
             Err(Self::Error::element_not_found().into())

@@ -62,6 +62,11 @@ where
         //
         // Otherwise need to transfer them directly.
 
+        // If value is zero, nothing to do.
+        if value.is_zero() {
+            return;
+        }
+
         // Querying minimum balance (existential deposit).
         let existential_deposit = CurrencyOf::<T>::minimum_balance();
 

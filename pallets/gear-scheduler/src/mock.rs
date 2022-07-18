@@ -154,7 +154,6 @@ impl pallet_gear_gas::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Currency = Balances;
     type BlockLimiter = GearGas;
 }
 
