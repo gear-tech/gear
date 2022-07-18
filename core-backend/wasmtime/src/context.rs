@@ -1,4 +1,4 @@
-//! Function context
+//! wasmtime function context
 
 use crate::{env::StoreData, memory};
 use gear_core::{
@@ -8,6 +8,7 @@ use gear_core::{
 use wasmtime::{AsContextMut, Caller};
 
 pub struct Context<'c, E: Ext> {
+    /// WASM function caller.
     pub caller: Caller<'c, StoreData<E>>,
 }
 
@@ -15,16 +16,12 @@ impl<'w, E: Ext> FunctionContext<E> for Context<'w, E> {
     type Error = Error;
     type Memory = wasmtime::Memory;
 
-    // fn into_inner(self) -> E {
-    //     self.caller.data().ext
-    // }
-
     fn ext(&self) -> &E {
-        &self.caller.data().ext.ext()
+        &self.caller.data().ext
     }
 
     fn ext_mut(&mut self) -> &mut E {
-        self.caller.data_mut().ext.ext_mut()
+        &mut self.caller.data_mut().ext
     }
 
     fn read_memory_into(

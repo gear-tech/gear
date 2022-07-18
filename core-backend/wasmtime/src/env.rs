@@ -30,18 +30,13 @@ use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
     ExtInfo, IntoExtInfo, TerminationReason, TrapExplanation,
 };
-use gear_core::{
-    env::{Ext, ExtCarrier},
-    gas::GasAmount,
-    memory::WasmPageNumber,
-    message::DispatchKind,
-};
+use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
 use gear_core_errors::MemoryError;
 use wasmtime::{Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store};
 
 /// Data type in wasmtime store
 pub struct StoreData<E: Ext> {
-    pub ext: ExtCarrier<E>,
+    pub ext: E,
     pub termination_reason: TerminationReason,
 }
 
@@ -69,7 +64,7 @@ pub enum WasmtimeEnvironmentError {
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
-    ext: ExtCarrier<E>,
+    ext: E,
     memory_wrap: MemoryWrapExternal<E>,
     instance: Instance,
 }

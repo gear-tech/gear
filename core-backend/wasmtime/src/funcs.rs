@@ -34,7 +34,7 @@ use gear_backend_common::{
     AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    env::{Ext, ExtCarrier, ExtCarrierWithError, FunctionContext},
+    env::{Ext, FunctionContext},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
@@ -54,8 +54,6 @@ enum FuncError<E> {
     Memory(MemoryError),
     #[display(fmt = "{}", _0)]
     SetU128(MemoryError),
-    #[display(fmt = "{}", _0)]
-    LaterExtWith(ExtCarrierWithError),
     #[display(fmt = "Failed to parse debug string: {}", _0)]
     DebugString(FromUtf8Error),
     #[display(fmt = "Not running in the reply context")]
@@ -78,12 +76,6 @@ impl<E> FuncError<E> {
             Self::Core(err) => Some(err),
             _ => None,
         }
-    }
-}
-
-impl<E> From<ExtCarrierWithError> for FuncError<E> {
-    fn from(err: ExtCarrierWithError) -> Self {
-        Self::LaterExtWith(err)
     }
 }
 
@@ -818,20 +810,17 @@ where
     // }
 
     pub fn error(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>, data_ptr: u32| {
-            // let ext = caller.as_context().data().ext;
+        let func = move |mut caller: Caller<'_, StoreData<E>>, data_ptr: u32| -> Result<(), Trap> {
             let mut ctx = Context { caller };
+            let err = ctx
+                .ext_mut()
+                .last_error()
+                .ok_or(Trap::new(FuncError::<E::Error>::SyscallErrorExpected))?;
+            let err = err.encode();
+            ctx.write_into_memory(mem, data_ptr as usize, &err)
+                .map_err(|e| Trap::new(FuncError::<E::Error>::from(e)))?;
 
-            ExtCarrier::with_fallible(ctx, |mut ctx| -> Result<(), FuncError<E::Error>> {
-                let err = ctx
-                    .ext_mut()
-                    .last_error()
-                    .ok_or(FuncError::SyscallErrorExpected)?;
-                let err = err.encode();
-                ctx.write_into_memory(mem, data_ptr as usize, &err)?;
-                Ok(())
-            })
-            .map_err(Trap::new)
+            Ok(())
         };
         Func::wrap(store, func)
     }
