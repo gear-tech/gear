@@ -317,7 +317,16 @@ where
         reason: MessageWokenReason,
     ) -> Option<StoredDispatch> {
         // TODO: add second bn - till which time.
-        let (waitlisted, bn) = WaitlistOf::<T>::remove(program_id, message_id).ok()?;
+        WaitlistOf::<T>::remove(program_id, message_id)
+            .ok()
+            .map(|v| Self::wake_requirements(v, reason))
+    }
+
+    /// Charges and deposits event for already taken from waitlist dispatch.
+    pub(crate) fn wake_requirements(
+        (waitlisted, bn): (StoredDispatch, BlockNumberFor<T>),
+        reason: MessageWokenReason,
+    ) -> StoredDispatch {
         Self::charge_for_hold(waitlisted.id(), bn, CostsPerBlockOf::<T>::waitlist());
 
         // Depositing appropriate event.
@@ -332,6 +341,6 @@ where
         //     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
         // );
 
-        Some(waitlisted)
+        waitlisted
     }
 }

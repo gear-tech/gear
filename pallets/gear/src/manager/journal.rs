@@ -158,12 +158,16 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         // TODO: update gas limit in `ValueTree` here (issue #1022).
-        for (message, bn) in WaitlistOf::<T>::drain_key(id_exited) {
-            self.charge_for_wake(message.id(), bn);
+        // TODO: use here normal charging and waking logic.
+        WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
+            let message = Pallet::<T>::wake_requirements(
+                entry,
+                MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
+            );
 
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        }
+        });
 
         let _ = common::waiting_init_take_messages(id_exited);
         let res = common::set_program_terminated_status(id_exited.into_origin());
