@@ -668,7 +668,16 @@ impl JournalHandler for ExtManager {
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            let message = dispatch.into_parts().1.into_stored();
+            let message = match dispatch.exit_code() {
+                Some(0) | None => dispatch.into_parts().1.into_stored(),
+                _ => {
+                    let message = dispatch.into_parts().1.into_stored();
+                    message
+                        .clone()
+                        .with_string_payload::<ExecutionErrorReason>()
+                        .unwrap_or(message)
+                }
+            };
 
             self.mailbox
                 .entry(message.destination())
