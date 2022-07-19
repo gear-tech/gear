@@ -194,8 +194,9 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let msg = MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let (msg, _bn) =
+                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
+                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
@@ -295,7 +296,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        )).expect("Error during mailbox insertion");
+        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
     }: _(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
@@ -377,7 +378,7 @@ benchmarks! {
             Default::default(),
             value.unique_saturated_into(),
             None,
-        )).expect("Error during mailbox insertion");
+        ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
@@ -1237,7 +1238,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             block_config,
@@ -1301,7 +1302,7 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
         let msg = gear_core::message::Message::new(msg_id, instance.addr.as_bytes().into(), ProgramId::from(instance.caller.clone().into_origin().as_bytes()), vec![], Some(1_000_000), 0, None).into_stored();
-        MailboxOf::<T>::insert(msg).expect("Error during mailbox insertion");
+        MailboxOf::<T>::insert(msg, u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let Exec {
             mut ext_manager,
             block_config,
@@ -1448,7 +1449,7 @@ benchmarks! {
         for message_id in message_ids {
             let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
             let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
-            WaitlistOf::<T>::insert(dispatch.clone()).expect("Duplicate wl message");
+            WaitlistOf::<T>::insert(dispatch.clone(), u32::MAX.unique_saturated_into()).expect("Duplicate wl message");
         }
         let Exec {
             mut ext_manager,

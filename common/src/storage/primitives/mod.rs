@@ -42,3 +42,13 @@ pub use iterable::{
 pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
 pub use map::MapStorage;
 pub use value::ValueStorage;
+
+use codec::{Decode, Encode};
+use scale_info::TypeInfo;
+
+/// Type for interval values: e.g. in time `(since, till)`.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct Interval<T> {
+    pub start: T,
+    pub finish: T,
+}
