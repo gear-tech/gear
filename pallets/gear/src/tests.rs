@@ -23,12 +23,13 @@ use crate::{
         GearProgram, MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER,
         USER_1, USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
-    GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
+    GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, program_exists, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
+    event::*, program_exists, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree,
+    Origin as _,
 };
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -1426,7 +1427,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
                 DEFAULT_GAS_LIMIT,
                 0
             ),
-            pallet_gear_messenger::Error::<Test>::MailboxElementNotFound
+            Error::<Test>::MessageNotFound
         );
 
         let prog_id = {
@@ -1566,6 +1567,9 @@ fn claim_value_from_mailbox_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
+        let bn_of_insertion = SystemPallet::<Test>::block_number();
+        let holding_duration = 4;
+
         let GasInfo {
             burned: gas_burned, ..
         } = Gear::calculate_gas_info(
@@ -1579,7 +1583,9 @@ fn claim_value_from_mailbox_works() {
 
         let gas_burned = GasPrice::gas_price(gas_burned);
 
-        run_to_block(3, None);
+        run_to_block(bn_of_insertion + holding_duration, None);
+
+        let block_producer_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
             Origin::signed(USER_1),
@@ -1595,11 +1601,16 @@ fn claim_value_from_mailbox_works() {
             expected_claimer_balance
         );
 
+        let burned_for_hold = (holding_duration * CostsPerBlockOf::<Test>::mailbox()) as u128;
         // Gas left returns to sender from consuming of value tree while claiming.
-        let expected_sender_balance = sender_balance - value_sent - gas_burned;
+        let expected_sender_balance = sender_balance - value_sent - gas_burned - burned_for_hold;
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_2),
             expected_sender_balance
+        );
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
+            block_producer_balance + burned_for_hold
         );
 
         SystemPallet::<Test>::assert_last_event(
@@ -2903,7 +2914,11 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(4, None);
 
-        assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), before_balance);
+        let after_hold_balance = before_balance - CostsPerBlockOf::<Test>::mailbox() as u128;
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            after_hold_balance
+        );
     })
 }
 

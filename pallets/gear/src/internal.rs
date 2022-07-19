@@ -19,11 +19,14 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasHandlerOf, Pallet,
-    SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasHandlerOf, MailboxOf,
+    Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::{MessageWaitedReason, MessageWokenReason},
+    event::{
+        MessageWaitedReason, MessageWokenReason, Reason, UserMessageReadReason,
+        UserMessageReadRuntimeReason,
+    },
     scheduler::*,
     storage::*,
     GasPrice, GasProvider, GasTree, Origin,
@@ -34,7 +37,7 @@ use frame_support::traits::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::StoredDispatch,
+    message::{StoredDispatch, StoredMessage},
 };
 use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 
@@ -323,6 +326,7 @@ where
         message_id: MessageId,
         reason: MessageWokenReason,
     ) -> Option<StoredDispatch> {
+        // Removing dispatch from waitlist, doing wake requirements if found.
         WaitlistOf::<T>::remove(program_id, message_id)
             .map(|v| Self::wake_requirements(v, reason))
             .ok()
@@ -346,12 +350,74 @@ where
             reason,
         });
 
-        // Delete if exists.
+        // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
             hold_interval.finish,
             ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
         );
 
         waitlisted
+    }
+
+    /// Removes message from mailbox, permanently charged for hold with
+    /// appropriate event depositing, if found.
+    ///
+    /// Note: message auto-consumes.
+    pub(crate) fn read_message(
+        user_id: T::AccountId,
+        message_id: MessageId,
+        reason: UserMessageReadReason,
+    ) -> Option<StoredMessage> {
+        // Removing message from mailbox, doing read requirements if found.
+        MailboxOf::<T>::remove(user_id, message_id)
+            .map(|v| Self::read_message_requirements(v, reason))
+            .ok()
+    }
+
+    /// Charges and deposits event for already taken from mailbox message.
+    pub(crate) fn read_message_requirements(
+        (mailboxed, hold_interval): (StoredMessage, Interval<BlockNumberFor<T>>),
+        reason: UserMessageReadReason,
+    ) -> StoredMessage {
+        // Charging for holding.
+        Self::charge_for_hold(
+            mailboxed.id(),
+            hold_interval.start,
+            CostsPerBlockOf::<T>::mailbox(),
+        );
+
+        // Consuming message.
+        Self::consume_message(mailboxed.id());
+
+        // Taking data for funds transfer.
+        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
+        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let value = mailboxed.value().unique_saturated_into();
+
+        // Determining recipients id.
+        use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
+
+        // If message was claimed or replied, destination user takes value,
+        // otherwise, it returns back (got unreserved).
+        let to = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied))
+            .then_some(&user_id)
+            .unwrap_or(&from);
+
+        // Transferring reserved funds, associated with the message.
+        Self::transfer_reserved(&from, to, value);
+
+        // Depositing appropriate event.
+        Pallet::<T>::deposit_event(Event::UserMessageRead {
+            id: mailboxed.id(),
+            reason,
+        });
+
+        // Delete task, if exists.
+        let _ = TaskPoolOf::<T>::delete(
+            hold_interval.finish,
+            ScheduledTask::RemoveFromMailbox(user_id, mailboxed.id()),
+        );
+
+        mailboxed
     }
 }
