@@ -1701,6 +1701,8 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
+            <T as Config>::Scheduler::reset();
+            <T as Config>::GasProvider::reset();
             <T as Config>::Messenger::reset();
             GearProgramPallet::<T>::reset_storage();
             common::reset_storage();

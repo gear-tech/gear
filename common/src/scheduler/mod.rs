@@ -74,6 +74,7 @@ pub trait Scheduler {
     /// It's temporary production solution to avoid DB migrations,
     /// would be available for tests purposes only in future.
     fn reset() {
+        Self::MissedBlocks::kill();
         Self::TaskPool::clear();
     }
 }
