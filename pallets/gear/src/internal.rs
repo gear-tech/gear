@@ -362,7 +362,7 @@ where
     /// Removes message from mailbox, permanently charged for hold with
     /// appropriate event depositing, if found.
     ///
-    /// Note: message auto-consumes.
+    /// Note: message auto-consumes, if reason is claim or reply.
     pub(crate) fn read_message(
         user_id: T::AccountId,
         message_id: MessageId,
@@ -379,6 +379,9 @@ where
         (mailboxed, hold_interval): (StoredMessage, Interval<BlockNumberFor<T>>),
         reason: UserMessageReadReason,
     ) -> StoredMessage {
+        // Local import for code beautification.
+        use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
+
         // Charging for holding.
         Self::charge_for_hold(
             mailboxed.id(),
@@ -386,8 +389,11 @@ where
             CostsPerBlockOf::<T>::mailbox(),
         );
 
-        // Consuming message.
-        Self::consume_message(mailboxed.id());
+        // Determining if the reason is user action.
+        let user_queries = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied));
+
+        // Optionally consuming message.
+        user_queries.then(|| Self::consume_message(mailboxed.id()));
 
         // Taking data for funds transfer.
         let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
@@ -395,13 +401,10 @@ where
         let value = mailboxed.value().unique_saturated_into();
 
         // Determining recipients id.
-        use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
-
+        //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = matches!(reason, Reason::Runtime(MessageClaimed | MessageReplied))
-            .then_some(&user_id)
-            .unwrap_or(&from);
+        let to = user_queries.then_some(&user_id).unwrap_or(&from);
 
         // Transferring reserved funds, associated with the message.
         Self::transfer_reserved(&from, to, value);
