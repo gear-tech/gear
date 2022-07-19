@@ -1092,7 +1092,13 @@ pub mod pallet {
                                     continue;
                                 }
                             } else {
-                                log::debug!(
+                                // This branch is considered unreachable,
+                                // because there can't be a program
+                                // without code.
+                                //
+                                // Reaching this code is a sign of a serious
+                                // storage or logic corruption.
+                                log::error!(
                                     "Code '{:?}' not found for program '{:?}'",
                                     code_id,
                                     dispatch.destination()
