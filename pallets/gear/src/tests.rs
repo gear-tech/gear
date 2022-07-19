@@ -4010,6 +4010,158 @@ fn test_async_messages() {
     })
 }
 
+#[test]
+fn missing_functions_are_not_executed() {
+    // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
+    let wat = r#"
+    (module
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+        (import "env" "memory" (memory 10))
+        (export "handle" (func $handle))
+        (func $handle
+            (local $msg_source i32)
+            (local $msg_val i32)
+            (i32.store offset=2
+                (get_local $msg_source)
+                (i32.const 1)
+            )
+            (i32.store offset=10
+                (get_local $msg_val)
+                (i32.const 1000)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (if
+                (then unreachable)
+                (else)
+            )
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let program_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        let GasInfo {
+            min_limit,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_eq!(min_limit, 0);
+
+        run_to_next_block(None);
+
+        // there is no 'init' so memory pages don't get loaded and
+        // no execution is performed at all and hence user was not charged.
+        assert_eq!(initial_balance, BalancesPallet::<Test>::free_balance(USER_1));
+
+        // this value is actually a constant in the wat.
+        let locked_value = 1_000;
+        assert_ok!(
+            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                &USER_1,
+                &AccountId::from_origin(program_id.into_origin()),
+                locked_value,
+                frame_support::traits::ExistenceRequirement::AllowDeath
+            )
+        );
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let reply_to_id = get_last_mail(USER_1).id();
+
+        let GasInfo {
+            min_limit,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Reply(reply_to_id, 0),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_eq!(min_limit, 0);
+
+        let reply_value = 1_500;
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1),
+            reply_to_id,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            reply_value,
+        ));
+
+        run_to_next_block(None);
+
+        // there is no 'handle_reply' too
+        assert_eq!(initial_balance - reply_value, BalancesPallet::<Test>::free_balance(USER_1));
+    });
+}
+
+#[test]
+fn missing_handle_is_not_executed() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 2))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            vec![],
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("submit_program failed");
+
+        run_to_next_block(None);
+
+        let balance_before = BalancesPallet::<Test>::free_balance(USER_1);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // there is no 'handle' so no memory pages are loaded and
+        // the program is not executed. Hence the user didn't pay for processing.
+        assert_eq!(balance_before, BalancesPallet::<Test>::free_balance(USER_1));
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
