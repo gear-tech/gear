@@ -34,7 +34,9 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{
+        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyDetails, ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
@@ -449,7 +451,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, Self::Error> {
+    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
         Ok(self.context.message_context.current().reply())
     }

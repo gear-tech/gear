@@ -1446,13 +1446,14 @@ fn send_reply_failure_to_claim_from_mailbox() {
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
-        assert!(matches!(
+        assert_eq!(
             MailboxOf::<Test>::iter_key(USER_1)
                 .next()
                 .expect("Element should be")
-                .reply(),
-            Some((_, 1))
-        ));
+                .exit_code()
+                .unwrap(),
+            1
+        );
     })
 }
 
@@ -3811,7 +3812,7 @@ fn execution_over_blocks() {
 
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
-        // deply demo-calc-hash-in-one-block
+        // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -4272,9 +4273,9 @@ mod utils {
 
         SystemPallet::<Test>::events().into_iter().for_each(|e| {
             if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some((id, exit_code)) = message.reply() {
-                    if id == message_id {
-                        assert_ne!(exit_code, 0);
+                if let Some(details) = message.reply() {
+                    if details.reply_to() == message_id {
+                        assert_ne!(details.exit_code(), 0);
                         actual_error = Some(
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
