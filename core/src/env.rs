@@ -174,7 +174,7 @@ pub trait FunctionContext<E: Ext> {
     /// Read memory into buf
     fn read_memory_into(
         &mut self,
-        mem: Self::Memory,
+        mem: &Self::Memory,
         offset: usize,
         buffer: &mut [u8],
     ) -> Result<(), Self::Error>;
@@ -182,7 +182,7 @@ pub trait FunctionContext<E: Ext> {
     /// Read memory into buf
     fn write_into_memory(
         &mut self,
-        mem: Self::Memory,
+        mem: &Self::Memory,
         offset: usize,
         buffer: &[u8],
     ) -> Result<(), Self::Error>;

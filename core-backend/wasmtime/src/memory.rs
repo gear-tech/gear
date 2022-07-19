@@ -63,9 +63,49 @@ impl<E: Ext> Memory for MemoryWrapExternal<E> {
     }
 }
 
+/// Wrapper for wasmtime memory.
+pub struct MemoryWrap<'a, E: Ext> {
+    pub mem: wasmtime::Memory,
+    pub store: StoreContextMut<'a, StoreData<E>>,
+}
+
+/// Memory interface for the allocator.
+impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
+        self.mem
+            .grow(&mut self.store, pages.0 as u64)
+            .map(|offset| (offset as u32).into())
+            .map_err(|_| Error::OutOfBounds)
+    }
+
+    fn size(&self) -> WasmPageNumber {
+        (self.mem.size(&self.store) as u32).into()
+    }
+
+    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+        self.mem
+            .write(&mut self.store, offset, buffer)
+            .map_err(|_| Error::MemoryAccessError)
+    }
+
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+        self.mem
+            .read(&self.store, offset, buffer)
+            .map_err(|_| Error::MemoryAccessError)
+    }
+
+    fn data_size(&self) -> usize {
+        self.mem.data_size(&self.store)
+    }
+
+    unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
+        self.mem.data_ptr(&self.store) as HostPointer
+    }
+}
+
 pub fn grow<T: Ext>(
     ctx: impl AsContextMut<Data = StoreData<T>>,
-    mem: wasmtime::Memory,
+    mem: &wasmtime::Memory,
     pages: WasmPageNumber,
 ) -> Result<PageNumber, Error> {
     mem.grow(ctx, pages.0 as u64)
@@ -75,14 +115,14 @@ pub fn grow<T: Ext>(
 
 pub fn size<T: Ext>(
     ctx: impl AsContext<Data = StoreData<T>>,
-    mem: wasmtime::Memory,
+    mem: &wasmtime::Memory,
 ) -> WasmPageNumber {
     (mem.size(ctx) as u32).into()
 }
 
 pub fn write<T: Ext>(
     ctx: impl AsContextMut<Data = StoreData<T>>,
-    mem: wasmtime::Memory,
+    mem: &wasmtime::Memory,
     offset: usize,
     buffer: &[u8],
 ) -> Result<(), Error> {
@@ -92,7 +132,7 @@ pub fn write<T: Ext>(
 
 pub fn read<T: Ext>(
     ctx: impl AsContext<Data = StoreData<T>>,
-    mem: wasmtime::Memory,
+    mem: &wasmtime::Memory,
     offset: usize,
     buffer: &mut [u8],
 ) -> Result<(), Error> {
@@ -100,7 +140,7 @@ pub fn read<T: Ext>(
         .map_err(|_| Error::MemoryAccessError)
 }
 
-fn data_size<T: Ext>(ctx: impl AsContext<Data = StoreData<T>>, mem: wasmtime::Memory) -> usize {
+fn data_size<T: Ext>(ctx: impl AsContext<Data = StoreData<T>>, mem: &wasmtime::Memory) -> usize {
     mem.data_size(ctx)
 }
 
