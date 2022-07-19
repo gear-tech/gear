@@ -172,6 +172,16 @@ impl ReplyDetails {
     pub fn into_parts(self) -> (MessageId, ExitCode) {
         (self.reply_to, self.exit_code)
     }
+
+    /// Destructs self in `MessageId` replied to.
+    pub fn into_reply_to(self) -> MessageId {
+        self.reply_to
+    }
+
+    /// Destructs self in `ExitCode` replied with.
+    pub fn into_exit_code(self) -> ExitCode {
+        self.exit_code
+    }
 }
 
 /// Message with entry point.

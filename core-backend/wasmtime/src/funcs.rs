@@ -160,7 +160,7 @@ where
             let ext = &caller.data().ext;
             ext.with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
                 .and_then(|v| v.ok_or(FuncError::NoReplyContext))
-                .map(|details| details.into_parts().1)
+                .map(|details| details.into_exit_code())
                 .map_err(Trap::new)
         };
         Func::wrap(store, f)
@@ -441,8 +441,12 @@ where
             ext.with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
                 .and_then(|v| v.ok_or(FuncError::NoReplyContext))
                 .and_then(|details| {
-                    let msg_id = details.into_parts().0;
-                    write_to_caller_memory(&mut caller, &mem, dest as isize as _, msg_id.as_ref())
+                    write_to_caller_memory(
+                        &mut caller,
+                        &mem,
+                        dest as isize as _,
+                        details.into_reply_to().as_ref(),
+                    )
                 })
                 .map_err(Trap::new)
         };

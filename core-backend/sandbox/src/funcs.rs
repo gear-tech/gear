@@ -369,8 +369,7 @@ where
             })?;
 
         if let Some(details) = opt_details {
-            let exit_code = details.into_parts().1;
-            return_i32(exit_code)
+            return_i32(details.into_exit_code())
         } else {
             ctx.err = FuncError::NonReplyExitCode;
             Err(HostError)
@@ -605,8 +604,7 @@ where
             })?;
 
         if let Some(details) = opt_details {
-            let message_id = details.into_parts().0;
-            wto(&mut ctx.memory, dest, message_id.as_ref()).map_err(|err| {
+            wto(&mut ctx.memory, dest, details.into_reply_to().as_ref()).map_err(|err| {
                 ctx.err = err;
                 HostError
             })?;
