@@ -29,7 +29,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{HandlePacket, ReplyPacket},
+    message::{HandlePacket, ReplyDetails, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 use sp_std::collections::btree_map::BTreeMap;
@@ -296,8 +296,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_commit(msg).map_err(Error::Processor)
     }
 
-    fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, Self::Error> {
-        self.inner.reply_to().map_err(Error::Processor)
+    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
+        self.inner.reply_details().map_err(Error::Processor)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {

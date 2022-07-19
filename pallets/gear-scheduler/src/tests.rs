@@ -113,7 +113,7 @@ fn out_of_rent_reply_exists(
         {
             msg.destination() == src
                 && msg.source() == pid
-                && msg.reply() == Some((mid, 1))
+                && msg.reply() == Some(ReplyDetails::new(mid, 1))
                 && msg.payload() == ExecutionErrorReason::OutOfRent.to_string().as_bytes()
         } else {
             false

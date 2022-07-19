@@ -38,9 +38,7 @@ use gear_core::{
 use gear_core_errors::{CoreError, MemoryError};
 use wasmtime::{AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
 
-pub struct FuncsHandler<E: Ext + 'static> {
-    _panthom: PhantomData<E>,
-}
+pub struct FuncsHandler<E: Ext + 'static>(PhantomData<E>);
 
 #[derive(Debug, derive_more::Display)]
 enum FuncError<E> {
@@ -160,9 +158,9 @@ where
     pub fn exit_code(store: &mut Store<StoreData<E>>) -> Func {
         let f = move |caller: Caller<'_, StoreData<E>>| {
             let ext = &caller.data().ext;
-            ext.with_fallible(|ext| ext.reply_to().map_err(FuncError::Core))
+            ext.with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
                 .and_then(|v| v.ok_or(FuncError::NoReplyContext))
-                .map(|(_, exit_code)| exit_code)
+                .map(|details| details.into_exit_code())
                 .map_err(Trap::new)
         };
         Func::wrap(store, f)
@@ -440,10 +438,15 @@ where
     pub fn reply_to(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>, dest: i32| {
             let ext = &caller.data().ext;
-            ext.with_fallible(|ext| ext.reply_to().map_err(FuncError::Core))
+            ext.with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
                 .and_then(|v| v.ok_or(FuncError::NoReplyContext))
-                .and_then(|(msg_id, _)| {
-                    write_to_caller_memory(&mut caller, &mem, dest as isize as _, msg_id.as_ref())
+                .and_then(|details| {
+                    write_to_caller_memory(
+                        &mut caller,
+                        &mem,
+                        dest as isize as _,
+                        details.into_reply_to().as_ref(),
+                    )
                 })
                 .map_err(Trap::new)
         };

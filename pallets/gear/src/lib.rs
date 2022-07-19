@@ -1688,7 +1688,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(T::DbWeight::get().writes(1))]
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_from_mailbox())]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
             message_id: MessageId,

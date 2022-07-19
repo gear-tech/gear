@@ -171,7 +171,7 @@ impl Log {
 
 impl PartialEq<StoredMessage> for Log {
     fn eq(&self, other: &StoredMessage) -> bool {
-        if matches!(other.reply(), Some(reply) if reply.1 != self.exit_code) {
+        if matches!(other.reply(), Some(reply) if reply.exit_code() != self.exit_code) {
             return false;
         }
         if matches!(self.source, Some(source) if source != other.source()) {
