@@ -47,8 +47,8 @@ impl From<RIError> for Error {
     }
 }
 
-fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
-    if mem.get_buffer_host_addr().is_none() {
+fn mprotect_lazy_pages(host_addr: bool, protect: bool) -> Result<(), Error> {
+    if !host_addr {
         return Ok(());
     }
 
@@ -84,11 +84,13 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
     let prog_prefix = crate::pages_prefix(prog_id.into_origin());
     gear_ri::set_program_prefix(prog_prefix);
 
+    let host_addr_is_some: bool;
     if let Some(addr) = mem.get_buffer_host_addr() {
         gear_ri::set_wasm_mem_begin_addr(addr).map_err(|e| {
             log::error!("{} (it's better to stop node now)", e);
             e
         })?;
+        host_addr_is_some = true;
     } else {
         return Ok(());
     }
@@ -102,12 +104,12 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
         .ok_or(Error::WasmMemorySizeOverflow)?;
     gear_ri::set_wasm_mem_size(size)?;
 
-    mprotect_lazy_pages(mem, true)
+    mprotect_lazy_pages(host_addr_is_some, true)
 }
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
-    mem: &impl Memory,
+    host_addr: bool,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), Error> {
     // Loads data for released lazy pages. Data which was before execution.
@@ -121,12 +123,12 @@ pub fn post_execution_actions(
     }
 
     // Removes protections from lazy pages
-    mprotect_lazy_pages(mem, false)
+    mprotect_lazy_pages(host_addr, false)
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem: &impl Memory) -> Result<(), Error> {
-    mprotect_lazy_pages(mem, false)
+pub fn remove_lazy_pages_prot(host_addr: bool) -> Result<(), Error> {
+    mprotect_lazy_pages(host_addr, false)
 }
 
 /// Protect lazy-pages and set new wasm mem addr and size, if they have been changed
@@ -168,7 +170,7 @@ pub fn update_lazy_pages_and_protect_again(
         gear_ri::set_wasm_mem_size(size)?;
     }
 
-    mprotect_lazy_pages(mem, true)
+    mprotect_lazy_pages(new_mem_addr.is_some(), true)
 }
 
 /// Returns list of realeased pages numbers
