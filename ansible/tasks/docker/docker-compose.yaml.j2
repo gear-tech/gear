@@ -17,9 +17,9 @@ services:
       {% if name is defined %} --name={{ name }} {% endif %}
       {% if rpc is not defined %} --validator {% endif %}
       {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --unsafe-rpc-external {% endif %}
-      {% if rpc is defined and unsafe == "no" %} --ws-external --rpc-external {% endif %}
+      {% if rpc is defined and unsafe == "no" and archive_node == "yes" %} --ws-external --rpc-external --pruning archive {% endif %}
       {% if rpc is defined %} --rpc-methods Unsafe --rpc-cors all {% endif %}
-      {% if archive_node is defined and archive_node == "yes" %} --pruning archive {% endif %}
+      {% if archive_node is defined and archive_node == "yes" and validator is defined and validator == "yes" %} --unsafe-ws-external --rpc-cors all --pruning archive {% endif %}
 
 {% if loki is defined and loki == "yes" and loki_url is defined %}
     logging:
