@@ -26,7 +26,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
-    gas::GasAmount,
+    gas::{GasAmount, GasAllowanceCounter, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
@@ -90,9 +90,30 @@ impl DispatchResult {
         self.dispatch.source()
     }
 
-    /// Return dispatch message value
+    /// Return dispatch message value.
     pub fn message_value(&self) -> u128 {
         self.dispatch.value()
+    }
+
+    /// Create partially initialized instance with the kind
+    /// representing Success.
+    pub fn success(
+        dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        gas_amount: GasAmount,
+    ) -> Self {
+        Self {
+            kind: DispatchResultKind::Success,
+            dispatch,
+            program_id,
+            context_store: Default::default(),
+            generated_dispatches: Default::default(),
+            awakening: Default::default(),
+            program_candidates: Default::default(),
+            gas_amount,
+            page_update: Default::default(),
+            allocations: Default::default(),
+        }
     }
 }
 
@@ -357,15 +378,16 @@ pub struct Actor {
 pub struct ExecutableActorData {
     /// Program.
     pub program: Program,
-    /// Data which some program allocated pages may have.
-    pub pages_data: BTreeMap<PageNumber, PageBuf>,
+    /// Numbers of memory pages with some data.
+    pub pages_with_data: BTreeSet<PageNumber>,
 }
 
 /// Execution context.
-#[derive(Clone, Debug, Decode, Encode)]
 pub struct WasmExecutionContext {
     /// Original user.
     pub origin: ProgramId,
-    /// Gas allowance of the block.
-    pub gas_allowance: u64,
+    /// A counter for gas.
+    pub gas_counter: GasCounter,
+    /// A counter for gas allowance.
+    pub gas_allowance_counter: GasAllowanceCounter,
 }

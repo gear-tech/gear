@@ -161,21 +161,15 @@ where
         };
 
         let balance =
-            CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
-                .unique_saturated_into();
-        let pages_data = if with_pages {
-            common::get_program_data_for_pages(id.into_origin(), active.pages_with_data.iter())
-                .ok()?
-        } else {
-            Default::default()
-        };
+        CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
+            .unique_saturated_into();
 
         Some(Actor {
             balance,
             destination_program: id,
             executable_data: Some(ExecutableActorData {
                 program,
-                pages_data,
+                pages_with_data: active.pages_with_data,
             }),
         })
     }

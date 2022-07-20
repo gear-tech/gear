@@ -21,7 +21,7 @@ use crate::{
         DispatchResult, DispatchResultKind, ExecutableActorData, ExecutionError,
         ExecutionErrorReason, WasmExecutionContext,
     },
-    configs::ExecutionSettings,
+    configs::{ExecutionSettings, AllocationsConfig},
     ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
@@ -34,7 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext}, program::Program,
 };
 
 /// Make checks that everything with memory pages go well.
@@ -67,7 +67,67 @@ fn make_checks_and_charge_gas_for_pages<'a>(
         };
 
         // Charging gas for loaded pages
-        let amount = settings.load_page_cost() * (allocations.len() as u64 + static_pages.0 as u64);
+        // let amount = settings.load_page_cost() * (allocations.len() as u64 + static_pages.0 as u64);
+
+        // if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        //     return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
+        // }
+
+        // if gas_counter.charge(amount) != ChargeResult::Enough {
+        //     return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
+        // }
+
+        // // Charging gas for mem size
+        // let amount =
+        //     settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
+
+        // if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        //     return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
+        // }
+
+        // if gas_counter.charge(amount) != ChargeResult::Enough {
+        //     return Err(ExecutionErrorReason::GrowMemoryGasExceeded);
+        // }
+
+        // +1 because pages numeration begins from 0
+        max_wasm_page + 1.into()
+    } else {
+        // Charging gas for initial pages
+        // let amount = settings.init_cost() * static_pages.0 as u64;
+
+        // if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+        //     return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
+        // }
+
+        // if gas_counter.charge(amount) != ChargeResult::Enough {
+        //     return Err(ExecutionErrorReason::InitialMemoryGasExceeded);
+        // }
+
+        static_pages
+    };
+
+    if mem_size < static_pages {
+        log::error!(
+            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
+            mem_size,
+            static_pages
+        );
+        return Err(ExecutionErrorReason::InsufficientMemorySize);
+    }
+
+    Ok(mem_size)
+}
+
+pub(crate) fn charge_gas_for_pages<'a>(
+    settings: &AllocationsConfig,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+    allocations: &BTreeSet<WasmPageNumber>,
+    static_pages: WasmPageNumber,
+) -> Result<(), ExecutionErrorReason> {
+    let mem_size = if let Some(max_wasm_page) = allocations.iter().next_back() {
+        // Charging gas for loaded pages
+        let amount = settings.load_page_cost * allocations.len() as u64;
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
@@ -79,7 +139,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
 
         // Charging gas for mem size
         let amount =
-            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
+            settings.mem_grow_cost * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
@@ -90,10 +150,10 @@ fn make_checks_and_charge_gas_for_pages<'a>(
         }
 
         // +1 because pages numeration begins from 0
-        max_wasm_page + 1.into()
+        *max_wasm_page + 1.into()
     } else {
         // Charging gas for initial pages
-        let amount = settings.init_cost() * static_pages.0 as u64;
+        let amount = settings.init_cost * static_pages.0 as u64;
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
@@ -115,7 +175,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
         return Err(ExecutionErrorReason::InsufficientMemorySize);
     }
 
-    Ok(mem_size)
+    Ok(())
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -211,7 +271,8 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     balance: u128,
-    data: ExecutableActorData,
+    program: Program,
+    mut pages_initial_data: BTreeMap<PageNumber, PageBuf>,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
@@ -225,20 +286,17 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         panic!("Cannot use ext with lazy pages without lazy pages env enabled");
     }
 
-    let ExecutableActorData {
-        program,
-        pages_data: mut pages_initial_data,
-    } = data;
-
     let program_id = program.id();
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    // Creating gas counters.
-    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
-    let mut gas_allowance_counter = GasAllowanceCounter::new(context.gas_allowance);
+    let WasmExecutionContext {
+        mut gas_counter,
+        mut gas_allowance_counter,
+        origin
+    } = context;
 
     let static_pages = program.static_pages();
 
@@ -288,7 +346,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         block_info: settings.block_info,
         config: settings.allocations_config,
         existential_deposit: settings.existential_deposit,
-        origin: context.origin,
+        origin,
         program_id,
         program_candidates_data: Default::default(),
         host_fn_weights: settings.host_fn_weights,

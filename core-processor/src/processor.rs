@@ -25,7 +25,7 @@ use crate::{
     executor,
     ext::ProcessorExt,
 };
-use alloc::{string::ToString, vec::Vec};
+use alloc::{string::ToString, vec::Vec, collections::{BTreeMap, BTreeSet}};
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
@@ -33,7 +33,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{
         DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket, StoredDispatch,
-    },
+    }, gas::{GasCounter, GasAllowanceCounter}, memory::{PageNumber, PageBuf}, program::Program,
 };
 
 enum SuccessfulDispatchResultKind {
@@ -42,11 +42,28 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
-/// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub struct PreparedMessageExecutionContext {
+    gas_counter: GasCounter,
+    gas_allowance_counter: GasAllowanceCounter,
+    dispatch: IncomingDispatch,
+    origin: ProgramId,
+    balance: u128,
+    program: Program,
+}
+
+pub enum PrepareResult {
+    Ok {
+        context: PreparedMessageExecutionContext,
+        pages_with_data: BTreeSet<PageNumber>,
+    },
+    WontExecute(Vec<JournalNote>),
+    Error(Vec<JournalNote>),
+}
+
+pub fn prepare(
     block_config: &BlockConfig,
     execution_context: MessageExecutionContext,
-) -> Vec<JournalNote> {
+) -> PrepareResult {
     let MessageExecutionContext {
         actor,
         dispatch,
@@ -59,16 +76,116 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         executable_data,
     } = actor;
 
-    match check_is_executable(executable_data, &dispatch) {
-        Err(exit_code) => process_non_executable(dispatch, destination_program, exit_code),
-        Ok(data) => process_executable::<A, E>(
-            origin,
-            gas_allowance,
-            data,
+    let data = match check_is_executable(executable_data, &dispatch) {
+        Err(exit_code) => return PrepareResult::Error(process_non_executable(dispatch, destination_program, exit_code)),
+        Ok(data) => data,
+    };
+
+    let program = &data.program;
+    let program_id = program.id();
+    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
+    if !program.code().exports().contains(&dispatch.kind()) {
+        return PrepareResult::WontExecute(process_success(SuccessfulDispatchResultKind::Success,
+            DispatchResult::success(dispatch, program_id, gas_counter.into())));
+    }
+
+    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+    if let Err(reason) = executor::charge_gas_for_pages(&block_config.allocations_config, &mut gas_counter, &mut gas_allowance_counter, program.get_allocations(), program.static_pages()) {
+        log::debug!("failed to charge for memory pages: {:?}", reason);
+        return PrepareResult::Error(process_error(dispatch, program_id, gas_counter.burned(), reason));
+    }
+
+    PrepareResult::Ok{
+        context: PreparedMessageExecutionContext {
+            gas_counter,
+            gas_allowance_counter,
             dispatch,
+            origin,
             balance,
-            block_config.clone(),
-        ),
+            program: data.program,
+        },
+        pages_with_data: data.pages_with_data,
+    }
+}
+
+/// Process program & dispatch for it and return journal for updates.
+pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+    block_config: &BlockConfig,
+    execution_context: PreparedMessageExecutionContext,
+    memory_pages: BTreeMap<PageNumber, PageBuf>,
+) -> Vec<JournalNote> {
+    use SuccessfulDispatchResultKind::*;
+
+    let BlockConfig {
+        block_info,
+        allocations_config,
+        existential_deposit,
+        outgoing_limit,
+        host_fn_weights,
+        forbidden_funcs,
+        mailbox_threshold,
+    } = block_config.clone();
+
+    let execution_settings = ExecutionSettings::new(
+        block_info,
+        existential_deposit,
+        allocations_config,
+        host_fn_weights,
+        forbidden_funcs,
+        mailbox_threshold,
+    );
+
+    let dispatch = execution_context.dispatch;
+    let balance = execution_context.balance;
+    let program = execution_context.program;
+    let execution_context = WasmExecutionContext {
+        origin: execution_context.origin,
+        gas_counter: execution_context.gas_counter,
+        gas_allowance_counter: execution_context.gas_allowance_counter,
+    };
+    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
+
+    let program_id = program.id();
+
+    let exec_result = executor::execute_wasm::<A, E>(
+        balance,
+        program,
+        memory_pages,
+        dispatch.clone(),
+        execution_context,
+        execution_settings,
+        msg_ctx_settings,
+    )
+    .map_err(|err| {
+        log::debug!("Wasm execution error: {}", err.reason);
+        err
+    });
+
+    match exec_result {
+        Ok(res) => match res.kind {
+            DispatchResultKind::Trap(reason) => process_error(
+                res.dispatch,
+                program_id,
+                res.gas_amount.burned(),
+                ExecutionErrorReason::Ext(reason),
+            ),
+            DispatchResultKind::Success => process_success(Success, res),
+            DispatchResultKind::Wait => process_success(Wait, res),
+            DispatchResultKind::Exit(value_destination) => {
+                process_success(Exit(value_destination), res)
+            }
+            DispatchResultKind::GasAllowanceExceed => {
+                process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
+            }
+        },
+        Err(e) => match e.reason {
+            ExecutionErrorReason::InitialMemoryBlockGasExceeded
+            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
+            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
+                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
+            }
+            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
+        },
     }
 }
 
@@ -267,83 +384,6 @@ fn process_success(
     });
     journal.push(JournalNote::MessageConsumed(message_id));
     journal
-}
-
-pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    origin: ProgramId,
-    gas_allowance: u64,
-    data: ExecutableActorData,
-    dispatch: IncomingDispatch,
-    balance: u128,
-    block_config: BlockConfig,
-) -> Vec<JournalNote> {
-    use SuccessfulDispatchResultKind::*;
-
-    let BlockConfig {
-        block_info,
-        allocations_config,
-        existential_deposit,
-        outgoing_limit,
-        host_fn_weights,
-        forbidden_funcs,
-        mailbox_threshold,
-    } = block_config;
-
-    let execution_settings = ExecutionSettings::new(
-        block_info,
-        existential_deposit,
-        allocations_config,
-        host_fn_weights,
-        forbidden_funcs,
-        mailbox_threshold,
-    );
-    let execution_context = WasmExecutionContext {
-        origin,
-        gas_allowance,
-    };
-    let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
-
-    let program_id = data.program.id();
-
-    let exec_result = executor::execute_wasm::<A, E>(
-        balance,
-        data,
-        dispatch.clone(),
-        execution_context,
-        execution_settings,
-        msg_ctx_settings,
-    )
-    .map_err(|err| {
-        log::debug!("Wasm execution error: {}", err.reason);
-        err
-    });
-
-    match exec_result {
-        Ok(res) => match res.kind {
-            DispatchResultKind::Trap(reason) => process_error(
-                res.dispatch,
-                program_id,
-                res.gas_amount.burned(),
-                ExecutionErrorReason::Ext(reason),
-            ),
-            DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait => process_success(Wait, res),
-            DispatchResultKind::Exit(value_destination) => {
-                process_success(Exit(value_destination), res)
-            }
-            DispatchResultKind::GasAllowanceExceed => {
-                process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
-            }
-        },
-        Err(e) => match e.reason {
-            ExecutionErrorReason::InitialMemoryBlockGasExceeded
-            | ExecutionErrorReason::GrowMemoryBlockGasExceeded
-            | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
-                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
-            }
-            _ => process_error(dispatch, program_id, e.gas_amount.burned(), e.reason),
-        },
-    }
 }
 
 fn process_allowance_exceed(

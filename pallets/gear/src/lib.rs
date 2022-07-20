@@ -141,7 +141,7 @@ pub mod pallet {
             JournalNote,
         },
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        Ext,
+        Ext, PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -788,16 +788,42 @@ pub mod pallet {
                     gas_allowance: u64::MAX,
                 };
 
-                let journal = if lazy_pages_enabled {
-                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                        &block_config,
-                        message_execution_context,
-                    )
-                } else {
-                    core_processor::process::<Ext, SandboxEnvironment<_>>(
-                        &block_config,
-                        message_execution_context,
-                    )
+                let journal = match core_processor::prepare(&block_config, message_execution_context) {
+                    PrepareResult::Ok{ context, pages_with_data } => {
+                        // load memory pages
+                        let memory_pages = if lazy_pages_enabled {
+                            Default::default()
+                        } else {
+                            match common::get_program_data_for_pages(
+                                actor_id.into_origin(),
+                                pages_with_data.iter(),
+                            ) {
+                                Ok(data) => data,
+                                Err(err) => {
+                                    log::error!(
+                                        "Page data in storage is in invalid state: {}",
+                                        err
+                                    );
+                                    continue;
+                                }
+                            }
+                        };
+
+                        if lazy_pages_enabled {
+                            core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                                &block_config,
+                                context,
+                                memory_pages,
+                            )
+                        } else {
+                            core_processor::process::<Ext, SandboxEnvironment<_>>(
+                                &block_config,
+                                context,
+                                memory_pages,
+                            )
+                        }
+                    }
+                    PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
                 };
 
                 let get_main_limit = || {
@@ -1131,27 +1157,9 @@ pub mod pallet {
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
-                            let pages_data = if lazy_pages_enabled {
-                                Default::default()
-                            } else {
-                                match common::get_program_data_for_pages(
-                                    dispatch.destination().into_origin(),
-                                    prog.pages_with_data.iter(),
-                                ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
-                                        continue;
-                                    }
-                                }
-                            };
-
                             Some(ExecutableActorData {
                                 program,
-                                pages_data,
+                                pages_with_data: prog.pages_with_data,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages
@@ -1176,10 +1184,11 @@ pub mod pallet {
                     )
                     .unique_saturated_into();
 
+                    let program_id = dispatch.destination();
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
-                            destination_program: dispatch.destination(),
+                            destination_program: program_id,
                             executable_data: active_actor_data,
                         },
                         dispatch: dispatch.into_incoming(gas_limit),
@@ -1187,16 +1196,43 @@ pub mod pallet {
                         gas_allowance: GasAllowanceOf::<T>::get(),
                     };
 
-                    let journal = if lazy_pages_enabled {
-                        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                            &block_config,
-                            message_execution_context,
-                        )
-                    } else {
-                        core_processor::process::<Ext, SandboxEnvironment<_>>(
-                            &block_config,
-                            message_execution_context,
-                        )
+                    let journal = match core_processor::prepare(&block_config, message_execution_context) {
+                        PrepareResult::Ok{ context, pages_with_data } => {
+                            // load memory pages
+                            // todo!();
+                            let memory_pages = if lazy_pages_enabled {
+                                Default::default()
+                            } else {
+                                match common::get_program_data_for_pages(
+                                    program_id.into_origin(),
+                                    pages_with_data.iter(),
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!(
+                                            "Page data in storage is in invalid state: {}",
+                                            err
+                                        );
+                                        continue;
+                                    }
+                                }
+                            };
+    
+                            if lazy_pages_enabled {
+                                core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            } else {
+                                core_processor::process::<Ext, SandboxEnvironment<_>>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            }
+                        }
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
                     };
 
                     core_processor::handle_journal(journal, &mut ext_manager);
