@@ -33,7 +33,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{
         DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket, StoredDispatch,
-    }, gas::{GasCounter, GasAllowanceCounter}, memory::{PageNumber, PageBuf}, program::Program,
+    }, gas::{GasCounter, GasAllowanceCounter}, memory::{PageNumber, PageBuf, WasmPageNumber}, program::Program,
 };
 
 enum SuccessfulDispatchResultKind {
@@ -49,6 +49,7 @@ pub struct PreparedMessageExecutionContext {
     origin: ProgramId,
     balance: u128,
     program: Program,
+    memory_size: WasmPageNumber,
 }
 
 pub enum PrepareResult {
@@ -90,10 +91,13 @@ pub fn prepare(
     }
 
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    if let Err(reason) = executor::charge_gas_for_pages(&block_config.allocations_config, &mut gas_counter, &mut gas_allowance_counter, program.get_allocations(), program.static_pages()) {
-        log::debug!("failed to charge for memory pages: {:?}", reason);
-        return PrepareResult::Error(process_error(dispatch, program_id, gas_counter.burned(), reason));
-    }
+    let memory_size = match executor::charge_gas_for_pages(&block_config.allocations_config, &mut gas_counter, &mut gas_allowance_counter, program.get_allocations(), program.static_pages(), dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init)) {
+        Ok(size) => size,
+        Err(reason) => {
+            log::debug!("failed to charge for memory pages: {:?}", reason);
+            return PrepareResult::Error(process_error(dispatch, program_id, gas_counter.burned(), reason));
+        }
+    };
 
     PrepareResult::Ok{
         context: PreparedMessageExecutionContext {
@@ -103,6 +107,7 @@ pub fn prepare(
             origin,
             balance,
             program: data.program,
+            memory_size,
         },
         pages_with_data: data.pages_with_data,
     }
@@ -138,6 +143,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
     let program = execution_context.program;
+    let memory_size = execution_context.memory_size;
     let execution_context = WasmExecutionContext {
         origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
@@ -151,6 +157,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         balance,
         program,
         memory_pages,
+        memory_size,
         dispatch.clone(),
         execution_context,
         execution_settings,

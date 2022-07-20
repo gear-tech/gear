@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutableActorData, ExecutionError,
+        DispatchResult, DispatchResultKind, ExecutionError,
         ExecutionErrorReason, WasmExecutionContext,
     },
     configs::{ExecutionSettings, AllocationsConfig},
@@ -34,21 +34,16 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext}, program::Program,
+    message::{ContextSettings, IncomingDispatch, MessageContext}, program::Program,
 };
 
-/// Make checks that everything with memory pages go well.
-/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
-/// Returns size of wasm memory buffer which must be created in execution environment.
-fn make_checks_and_charge_gas_for_pages<'a>(
-    settings: &ExecutionSettings,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
+/// Make checks that everything with memory goes well.
+fn check_memory<'a>(
     allocations: &BTreeSet<WasmPageNumber>,
     pages_with_data: impl Iterator<Item = &'a PageNumber>,
     static_pages: WasmPageNumber,
-    initial_execution: bool,
-) -> Result<WasmPageNumber, ExecutionErrorReason> {
+    memory_size: WasmPageNumber,
+) -> Result<(), ExecutionErrorReason> {
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
         let wasm_page = page.to_wasm_page();
@@ -57,7 +52,29 @@ fn make_checks_and_charge_gas_for_pages<'a>(
         }
     }
 
-    let mem_size = if !initial_execution {
+    if memory_size < static_pages {
+        log::error!(
+            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
+            memory_size,
+            static_pages
+        );
+        return Err(ExecutionErrorReason::InsufficientMemorySize);
+    }
+
+    Ok(())
+}
+
+/// Charge gas for pages init/load/grow and checks that there is enough gas for that.
+/// Returns size of wasm memory buffer which must be created in execution environment.
+pub(crate) fn charge_gas_for_pages(
+    settings: &AllocationsConfig,
+    gas_counter: &mut GasCounter,
+    gas_allowance_counter: &mut GasAllowanceCounter,
+    allocations: &BTreeSet<WasmPageNumber>,
+    static_pages: WasmPageNumber,
+    initial_execution: bool,
+) -> Result<WasmPageNumber, ExecutionErrorReason> {
+    if !initial_execution {
         let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
             *page
         } else if static_pages != WasmPageNumber(0) {
@@ -66,66 +83,6 @@ fn make_checks_and_charge_gas_for_pages<'a>(
             return Ok(0.into());
         };
 
-        // Charging gas for loaded pages
-        // let amount = settings.load_page_cost() * (allocations.len() as u64 + static_pages.0 as u64);
-
-        // if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        //     return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
-        // }
-
-        // if gas_counter.charge(amount) != ChargeResult::Enough {
-        //     return Err(ExecutionErrorReason::LoadMemoryGasExceeded);
-        // }
-
-        // // Charging gas for mem size
-        // let amount =
-        //     settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
-
-        // if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        //     return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
-        // }
-
-        // if gas_counter.charge(amount) != ChargeResult::Enough {
-        //     return Err(ExecutionErrorReason::GrowMemoryGasExceeded);
-        // }
-
-        // +1 because pages numeration begins from 0
-        max_wasm_page + 1.into()
-    } else {
-        // Charging gas for initial pages
-        // let amount = settings.init_cost() * static_pages.0 as u64;
-
-        // if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
-        //     return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
-        // }
-
-        // if gas_counter.charge(amount) != ChargeResult::Enough {
-        //     return Err(ExecutionErrorReason::InitialMemoryGasExceeded);
-        // }
-
-        static_pages
-    };
-
-    if mem_size < static_pages {
-        log::error!(
-            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
-            mem_size,
-            static_pages
-        );
-        return Err(ExecutionErrorReason::InsufficientMemorySize);
-    }
-
-    Ok(mem_size)
-}
-
-pub(crate) fn charge_gas_for_pages<'a>(
-    settings: &AllocationsConfig,
-    gas_counter: &mut GasCounter,
-    gas_allowance_counter: &mut GasAllowanceCounter,
-    allocations: &BTreeSet<WasmPageNumber>,
-    static_pages: WasmPageNumber,
-) -> Result<(), ExecutionErrorReason> {
-    let mem_size = if let Some(max_wasm_page) = allocations.iter().next_back() {
         // Charging gas for loaded pages
         let amount = settings.load_page_cost * allocations.len() as u64;
 
@@ -150,7 +107,7 @@ pub(crate) fn charge_gas_for_pages<'a>(
         }
 
         // +1 because pages numeration begins from 0
-        *max_wasm_page + 1.into()
+        Ok(max_wasm_page + 1.into())
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.0 as u64;
@@ -163,19 +120,8 @@ pub(crate) fn charge_gas_for_pages<'a>(
             return Err(ExecutionErrorReason::InitialMemoryGasExceeded);
         }
 
-        static_pages
-    };
-
-    if mem_size < static_pages {
-        log::error!(
-            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
-            mem_size,
-            static_pages
-        );
-        return Err(ExecutionErrorReason::InsufficientMemorySize);
+        Ok(static_pages)
     }
-
-    Ok(())
 }
 
 /// Writes initial pages data to memory and prepare memory for execution.
@@ -273,6 +219,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     balance: u128,
     program: Program,
     mut pages_initial_data: BTreeMap<PageNumber, PageBuf>,
+    memory_size: WasmPageNumber,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
@@ -293,35 +240,31 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::debug!("Executing dispatch {:?}", dispatch);
 
     let WasmExecutionContext {
-        mut gas_counter,
-        mut gas_allowance_counter,
+        gas_counter,
+        gas_allowance_counter,
         origin
     } = context;
 
     let static_pages = program.static_pages();
+    let allocations = program.get_allocations();
 
-    let mem_size = match make_checks_and_charge_gas_for_pages(
-        &settings,
-        &mut gas_counter,
-        &mut gas_allowance_counter,
-        program.get_allocations(),
+    match check_memory(
+        allocations,
         pages_initial_data.keys(),
         static_pages,
-        dispatch.context().is_none() && matches!(kind, DispatchKind::Init),
+        memory_size,
     ) {
-        Ok(mem_size) => mem_size,
-        Err(reason) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason,
-            })
-        }
-    };
+        Err(reason) => return Err(ExecutionError {
+            program_id,
+            gas_amount: gas_counter.into(),
+            reason,
+        }),
+        _ => (),
+    }
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::new(
-        program.get_allocations().clone(),
+        allocations.clone(),
         static_pages,
         settings.max_pages(),
     );
@@ -361,7 +304,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         ext,
         program.raw_code(),
         program.code().exports().clone(),
-        mem_size,
+        memory_size,
     )
     .map_err(|err| {
         log::debug!("Setup instance error: {}", err);
