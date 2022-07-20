@@ -20,5 +20,5 @@ gtest = { path = "../../../gtest" }
 [lib]
 
 [features]
-std = []
+std = ["codec/std"]
 default = ["std"]
