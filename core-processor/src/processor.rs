@@ -25,15 +25,22 @@ use crate::{
     executor,
     ext::ProcessorExt,
 };
-use alloc::{string::ToString, vec::Vec, collections::{BTreeMap, BTreeSet}};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    string::ToString,
+    vec::Vec,
+};
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
+    gas::{GasAllowanceCounter, GasCounter},
     ids::{MessageId, ProgramId},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
         DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket, StoredDispatch,
-    }, gas::{GasCounter, GasAllowanceCounter}, memory::{PageNumber, PageBuf, WasmPageNumber}, program::Program,
+    },
+    program::Program,
 };
 
 enum SuccessfulDispatchResultKind {
@@ -42,6 +49,7 @@ enum SuccessfulDispatchResultKind {
     Success,
 }
 
+/// Checked parameters for message execution across processing runs.
 pub struct PreparedMessageExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
@@ -53,20 +61,32 @@ pub struct PreparedMessageExecutionContext {
 }
 
 impl PreparedMessageExecutionContext {
+    /// Returns reference to the GasCounter.
     pub fn gas_counter(&self) -> &GasCounter {
         &self.gas_counter
     }
 }
 
+/// Defines result variants of the function `prepare`.
+#[allow(clippy::large_enum_variant)]
 pub enum PrepareResult {
+    /// Successfully precharged for memory pages.
     Ok {
+        /// A context for `process` function.
         context: PreparedMessageExecutionContext,
+        /// A set with numbers of memory pages which contain some data.
         pages_with_data: BTreeSet<PageNumber>,
     },
+    /// Required function is not exported. The program will not be executed.
     WontExecute(Vec<JournalNote>),
+    /// Provided actor is not executable or there is not enough gas for memory pages size.
     Error(Vec<JournalNote>),
 }
 
+/// Prepares environment for the execution of a program.
+/// Checks if there is a required export and tries to pre-charge for memory pages.
+/// Returns either `PreparedMessageExecutionContext` for `process` or an array of journal notes.
+/// See `PrepareResult` for details.
 pub fn prepare(
     block_config: &BlockConfig,
     execution_context: MessageExecutionContext,
@@ -85,7 +105,13 @@ pub fn prepare(
     } = actor;
 
     let data = match check_is_executable(executable_data, &dispatch) {
-        Err(exit_code) => return PrepareResult::Error(process_non_executable(dispatch, destination_program, exit_code)),
+        Err(exit_code) => {
+            return PrepareResult::Error(process_non_executable(
+                dispatch,
+                destination_program,
+                exit_code,
+            ))
+        }
         Ok(data) => data,
     };
 
@@ -93,20 +119,37 @@ pub fn prepare(
     let program_id = program.id();
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     if !program.code().exports().contains(&dispatch.kind()) {
-        return PrepareResult::WontExecute(process_success(SuccessfulDispatchResultKind::Success,
-            DispatchResult::success(dispatch, program_id, gas_counter.into())));
+        return PrepareResult::WontExecute(process_success(
+            SuccessfulDispatchResultKind::Success,
+            DispatchResult::success(dispatch, program_id, gas_counter.into()),
+        ));
     }
 
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let memory_size = match executor::charge_gas_for_pages(&block_config.allocations_config, &mut gas_counter, &mut gas_allowance_counter, program.get_allocations(), program.static_pages(), dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init), subsequent_execution) {
+    let memory_size = match executor::charge_gas_for_pages(
+        &block_config.allocations_config,
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        program.get_allocations(),
+        program.static_pages(),
+        dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
+        subsequent_execution,
+    ) {
         Ok(size) => size,
         Err(reason) => {
             log::debug!("failed to charge for memory pages: {:?}", reason);
-            return PrepareResult::Error(process_error(dispatch, program_id, gas_counter.burned(), reason));
+            return PrepareResult::Error(match reason {
+                ExecutionErrorReason::InitialMemoryBlockGasExceeded
+                | ExecutionErrorReason::GrowMemoryBlockGasExceeded
+                | ExecutionErrorReason::LoadMemoryBlockGasExceeded => {
+                    process_allowance_exceed(dispatch, program_id, gas_counter.burned())
+                }
+                _ => process_error(dispatch, program_id, gas_counter.burned(), reason),
+            });
         }
     };
 
-    PrepareResult::Ok{
+    PrepareResult::Ok {
         context: PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
@@ -149,22 +192,19 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
-    let program = execution_context.program;
-    let memory_size = execution_context.memory_size;
+    let program_id = execution_context.program.id();
     let execution_context = WasmExecutionContext {
         origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
+        program: execution_context.program,
+        pages_initial_data: memory_pages,
+        memory_size: execution_context.memory_size,
     };
     let msg_ctx_settings = gear_core::message::ContextSettings::new(0, outgoing_limit);
 
-    let program_id = program.id();
-
     let exec_result = executor::execute_wasm::<A, E>(
         balance,
-        program,
-        memory_pages,
-        memory_size,
         dispatch.clone(),
         execution_context,
         execution_settings,

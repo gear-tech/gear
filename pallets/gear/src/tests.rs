@@ -92,7 +92,8 @@ fn unstoppable_block_execution_works() {
             ));
         }
 
-        let real_gas_to_burn = expected_burned_gas + executions_amount.saturating_sub(1) * (expected_burned_gas - may_be_returned);
+        let real_gas_to_burn = expected_burned_gas
+            + executions_amount.saturating_sub(1) * (expected_burned_gas - may_be_returned);
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
@@ -4050,10 +4051,7 @@ fn missing_functions_are_not_executed() {
             res.expect("submit result was asserted")
         };
 
-        let GasInfo {
-            min_limit,
-            ..
-        } = Gear::calculate_gas_info(
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
             EMPTY_PAYLOAD.to_vec(),
@@ -4068,7 +4066,10 @@ fn missing_functions_are_not_executed() {
 
         // there is no 'init' so memory pages don't get loaded and
         // no execution is performed at all and hence user was not charged.
-        assert_eq!(initial_balance, BalancesPallet::<Test>::free_balance(USER_1));
+        assert_eq!(
+            initial_balance,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
 
         // this value is actually a constant in the wat.
         let locked_value = 1_000;
@@ -4093,10 +4094,7 @@ fn missing_functions_are_not_executed() {
 
         let reply_to_id = get_last_mail(USER_1).id();
 
-        let GasInfo {
-            min_limit,
-            ..
-        } = Gear::calculate_gas_info(
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Reply(reply_to_id, 0),
             EMPTY_PAYLOAD.to_vec(),
@@ -4119,7 +4117,10 @@ fn missing_functions_are_not_executed() {
         run_to_next_block(None);
 
         // there is no 'handle_reply' too
-        assert_eq!(initial_balance - reply_value, BalancesPallet::<Test>::free_balance(USER_1));
+        assert_eq!(
+            initial_balance - reply_value,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
     });
 }
 

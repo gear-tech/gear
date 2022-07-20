@@ -18,10 +18,10 @@
 
 use crate::{
     common::{
-        DispatchResult, DispatchResultKind, ExecutionError,
-        ExecutionErrorReason, WasmExecutionContext,
+        DispatchResult, DispatchResultKind, ExecutionError, ExecutionErrorReason,
+        WasmExecutionContext,
     },
-    configs::{ExecutionSettings, AllocationsConfig},
+    configs::{AllocationsConfig, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExt},
 };
 use alloc::{
@@ -34,7 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, IncomingDispatch, MessageContext}, program::Program,
+    message::{ContextSettings, IncomingDispatch, MessageContext},
 };
 
 /// Make checks that everything with memory goes well.
@@ -86,7 +86,8 @@ pub(crate) fn charge_gas_for_pages(
 
         if !subsequent_execution {
             // Charging gas for loaded pages
-        let amount = settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
+            let amount =
+                settings.load_page_cost * (allocations.len() as u64 + static_pages.0 as u64);
             if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
             }
@@ -97,8 +98,7 @@ pub(crate) fn charge_gas_for_pages(
         }
 
         // Charging gas for mem size
-        let amount =
-            settings.mem_grow_cost * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
+        let amount = settings.mem_grow_cost * (max_wasm_page.0 as u64 + 1 - static_pages.0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::GrowMemoryBlockGasExceeded);
@@ -219,9 +219,6 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     balance: u128,
-    program: Program,
-    mut pages_initial_data: BTreeMap<PageNumber, PageBuf>,
-    memory_size: WasmPageNumber,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
@@ -235,41 +232,40 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         panic!("Cannot use ext with lazy pages without lazy pages env enabled");
     }
 
+    let WasmExecutionContext {
+        gas_counter,
+        gas_allowance_counter,
+        origin,
+        program,
+        mut pages_initial_data,
+        memory_size,
+    } = context;
+
     let program_id = program.id();
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    let WasmExecutionContext {
-        gas_counter,
-        gas_allowance_counter,
-        origin
-    } = context;
-
     let static_pages = program.static_pages();
     let allocations = program.get_allocations();
 
-    match check_memory(
+    if let Err(reason) = check_memory(
         allocations,
         pages_initial_data.keys(),
         static_pages,
         memory_size,
     ) {
-        Err(reason) => return Err(ExecutionError {
+        return Err(ExecutionError {
             program_id,
             gas_amount: gas_counter.into(),
             reason,
-        }),
-        _ => (),
+        });
     }
 
     // Creating allocations context.
-    let allocations_context = AllocationsContext::new(
-        allocations.clone(),
-        static_pages,
-        settings.max_pages(),
-    );
+    let allocations_context =
+        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
 
     // Creating message context.
     let message_context = MessageContext::new_with_settings(

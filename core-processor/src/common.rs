@@ -26,7 +26,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
-    gas::{GasAmount, GasAllowanceCounter, GasCounter},
+    gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
@@ -390,4 +390,10 @@ pub struct WasmExecutionContext {
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
     pub gas_allowance_counter: GasAllowanceCounter,
+    /// Program to be executed.
+    pub program: Program,
+    /// Memory pages with initial data.
+    pub pages_initial_data: BTreeMap<PageNumber, PageBuf>,
+    /// Size of the memory block.
+    pub memory_size: WasmPageNumber,
 }

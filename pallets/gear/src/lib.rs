@@ -642,7 +642,10 @@ pub mod pallet {
                 )
                 .map(
                     |GasInfo {
-                         reserved, burned, may_be_returned, ..
+                         reserved,
+                         burned,
+                         may_be_returned,
+                         ..
                      }| GasInfo {
                         min_limit,
                         reserved,
@@ -794,58 +797,70 @@ pub mod pallet {
                     subsequent_execution,
                 };
 
-                let may_be_returned_context = (!subsequent_execution && actor_id == main_program_id).then(|| MessageExecutionContext {
-                    subsequent_execution: true,
-                    ..message_execution_context.clone()
-                });
+                let may_be_returned_context = (!subsequent_execution
+                    && actor_id == main_program_id)
+                    .then(|| MessageExecutionContext {
+                        subsequent_execution: true,
+                        ..message_execution_context.clone()
+                    });
 
-                let journal = match core_processor::prepare(&block_config, message_execution_context) {
-                    PrepareResult::Ok{ context, pages_with_data } => {
-                        let memory_pages = if lazy_pages_enabled {
-                            Default::default()
-                        } else {
-                            match common::get_program_data_for_pages(
-                                actor_id.into_origin(),
-                                pages_with_data.iter(),
-                            ) {
-                                Ok(data) => data,
-                                Err(err) => {
-                                    log::error!(
-                                        "Page data in storage is in invalid state: {}",
-                                        err
-                                    );
-                                    continue;
+                let journal =
+                    match core_processor::prepare(&block_config, message_execution_context) {
+                        PrepareResult::Ok {
+                            context,
+                            pages_with_data,
+                        } => {
+                            let memory_pages = if lazy_pages_enabled {
+                                Default::default()
+                            } else {
+                                match common::get_program_data_for_pages(
+                                    actor_id.into_origin(),
+                                    pages_with_data.iter(),
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!(
+                                            "Page data in storage is in invalid state: {}",
+                                            err
+                                        );
+                                        continue;
+                                    }
                                 }
-                            }
-                        };
-
-                        ext_manager.insert_program_id_loaded_pages(actor_id);
-
-                        may_be_returned += may_be_returned_context.map(|c| {
-                            let burned = match core_processor::prepare(&block_config, c) {
-                                PrepareResult::Ok { context, .. } => context.gas_counter().burned(),
-                                _ => context.gas_counter().burned(),
                             };
 
-                            context.gas_counter().burned() - burned
-                        }).unwrap_or(0);
+                            ext_manager.insert_program_id_loaded_pages(actor_id);
 
-                        if lazy_pages_enabled {
-                            core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                                &block_config,
-                                context,
-                                memory_pages,
-                            )
-                        } else {
-                            core_processor::process::<Ext, SandboxEnvironment<_>>(
-                                &block_config,
-                                context,
-                                memory_pages,
-                            )
+                            may_be_returned += may_be_returned_context
+                                .map(|c| {
+                                    let burned = match core_processor::prepare(&block_config, c) {
+                                        PrepareResult::Ok { context, .. } => {
+                                            context.gas_counter().burned()
+                                        }
+                                        _ => context.gas_counter().burned(),
+                                    };
+
+                                    context.gas_counter().burned() - burned
+                                })
+                                .unwrap_or(0);
+
+                            if lazy_pages_enabled {
+                                core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            } else {
+                                core_processor::process::<Ext, SandboxEnvironment<_>>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            }
                         }
-                    }
-                    PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-                };
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                            journal
+                        }
+                    };
 
                 let get_main_limit = || {
                     GasHandlerOf::<T>::get_limit(main_message_id).map_err(|_| {
@@ -1219,44 +1234,50 @@ pub mod pallet {
                         subsequent_execution: ext_manager.program_pages_loaded(&program_id),
                     };
 
-                    let journal = match core_processor::prepare(&block_config, message_execution_context) {
-                        PrepareResult::Ok{ context, pages_with_data } => {
-                            let memory_pages = if lazy_pages_enabled {
-                                Default::default()
-                            } else {
-                                match common::get_program_data_for_pages(
-                                    program_id.into_origin(),
-                                    pages_with_data.iter(),
-                                ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
-                                        continue;
+                    let journal =
+                        match core_processor::prepare(&block_config, message_execution_context) {
+                            PrepareResult::Ok {
+                                context,
+                                pages_with_data,
+                            } => {
+                                let memory_pages = if lazy_pages_enabled {
+                                    Default::default()
+                                } else {
+                                    match common::get_program_data_for_pages(
+                                        program_id.into_origin(),
+                                        pages_with_data.iter(),
+                                    ) {
+                                        Ok(data) => data,
+                                        Err(err) => {
+                                            log::error!(
+                                                "Page data in storage is in invalid state: {}",
+                                                err
+                                            );
+                                            continue;
+                                        }
                                     }
-                                }
-                            };
+                                };
 
-                            ext_manager.insert_program_id_loaded_pages(program_id);
-    
-                            if lazy_pages_enabled {
-                                core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
-                                    &block_config,
-                                    context,
-                                    memory_pages,
-                                )
-                            } else {
-                                core_processor::process::<Ext, SandboxEnvironment<_>>(
-                                    &block_config,
-                                    context,
-                                    memory_pages,
-                                )
+                                ext_manager.insert_program_id_loaded_pages(program_id);
+
+                                if lazy_pages_enabled {
+                                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                                        &block_config,
+                                        context,
+                                        memory_pages,
+                                    )
+                                } else {
+                                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                                        &block_config,
+                                        context,
+                                        memory_pages,
+                                    )
+                                }
                             }
-                        }
-                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-                    };
+                            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                                journal
+                            }
+                        };
 
                     core_processor::handle_journal(journal, &mut ext_manager);
 

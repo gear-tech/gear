@@ -177,8 +177,8 @@ where
         };
 
         let balance =
-        CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
-            .unique_saturated_into();
+            CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
+                .unique_saturated_into();
 
         Some(Actor {
             balance,

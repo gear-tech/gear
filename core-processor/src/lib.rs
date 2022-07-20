@@ -53,4 +53,4 @@ pub const RE_INIT_EXIT_CODE: ExitCode = 3;
 pub use executor::execute_wasm;
 pub use ext::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 pub use handler::handle_journal;
-pub use processor::{process, prepare, PrepareResult};
+pub use processor::{prepare, process, PrepareResult, PreparedMessageExecutionContext};

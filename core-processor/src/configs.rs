@@ -107,26 +107,6 @@ impl ExecutionSettings {
     pub fn max_pages(&self) -> WasmPageNumber {
         self.allocations_config.max_pages
     }
-
-    /// Cost of initial memory.
-    pub fn init_cost(&self) -> u64 {
-        self.allocations_config.init_cost
-    }
-
-    /// Cost of allocating memory.
-    pub fn alloc_cost(&self) -> u64 {
-        self.allocations_config.alloc_cost
-    }
-
-    /// Memory grow cost.
-    pub fn mem_grow_cost(&self) -> u64 {
-        self.allocations_config.mem_grow_cost
-    }
-
-    /// Load gear page cost.
-    pub fn load_page_cost(&self) -> u64 {
-        self.allocations_config.load_page_cost
-    }
 }
 
 /// Stable parameters for the whole block across processing runs.

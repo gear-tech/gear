@@ -422,7 +422,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
         }
 
-        let actors_data: Vec<ExecutableActorData> = snapshot
+        let actors_data: Vec<_> = snapshot
             .programs
             .iter()
             .filter_map(|p| {
@@ -440,13 +440,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         .map(|p| p.to_wasm_page())
                         .collect();
                     let program = CoreProgram::from_parts(*pid, code, pages, true);
-                    Some(ExecutableActorData {
-                        program,
-                        pages_data: vec_page_data_map_to_page_buf_map(
-                            info.persistent_pages.clone(),
-                        )
-                        .unwrap(),
-                    })
+                    let memory =
+                        vec_page_data_map_to_page_buf_map(info.persistent_pages.clone()).unwrap();
+                    Some((
+                        ExecutableActorData {
+                            program,
+                            pages_with_data: memory.keys().cloned().collect(),
+                        },
+                        memory,
+                    ))
                 } else {
                     None
                 }
@@ -464,7 +466,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             if let Err(alloc_errors) = gear_test::check::check_allocations(
                 &actors_data
                     .into_iter()
-                    .map(|a| a.program)
+                    .map(|(d, _)| d.program)
                     .collect::<Vec<gear_core::program::Program>>(),
                 alloc,
             ) {
