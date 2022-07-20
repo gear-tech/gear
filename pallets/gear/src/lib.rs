@@ -120,6 +120,8 @@ pub struct GasInfo {
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
+    /// The value may be returned if a program happens to be executed the second or next time in a block.
+    pub may_be_returned: u64,
 }
 
 #[frame_support::pallet]
@@ -640,11 +642,12 @@ pub mod pallet {
                 )
                 .map(
                     |GasInfo {
-                         reserved, burned, ..
+                         reserved, burned, may_be_returned, ..
                      }| GasInfo {
                         min_limit,
                         reserved,
                         burned,
+                        may_be_returned,
                     },
                 )
                 .map_err(|e| {
@@ -758,6 +761,7 @@ pub mod pallet {
             let mut min_limit = 0;
             let mut reserved = 0;
             let mut burned = 0;
+            let mut may_be_returned = 0;
 
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -770,7 +774,7 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_actor(actor_id, !lazy_pages_enabled)
+                    .get_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
@@ -781,16 +785,22 @@ pub mod pallet {
                         b"Internal error: unable to get gas limit after execution".to_vec()
                     })?;
 
+                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
                 let message_execution_context = MessageExecutionContext {
                     actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
                     gas_allowance: u64::MAX,
+                    subsequent_execution,
                 };
+
+                let may_be_returned_context = (!subsequent_execution && actor_id == main_program_id).then(|| MessageExecutionContext {
+                    subsequent_execution: true,
+                    ..message_execution_context.clone()
+                });
 
                 let journal = match core_processor::prepare(&block_config, message_execution_context) {
                     PrepareResult::Ok{ context, pages_with_data } => {
-                        // load memory pages
                         let memory_pages = if lazy_pages_enabled {
                             Default::default()
                         } else {
@@ -808,6 +818,17 @@ pub mod pallet {
                                 }
                             }
                         };
+
+                        ext_manager.insert_program_id_loaded_pages(actor_id);
+
+                        may_be_returned += may_be_returned_context.map(|c| {
+                            let burned = match core_processor::prepare(&block_config, c) {
+                                PrepareResult::Ok { context, .. } => context.gas_counter().burned(),
+                                _ => context.gas_counter().burned(),
+                            };
+
+                            context.gas_counter().burned() - burned
+                        }).unwrap_or(0);
 
                         if lazy_pages_enabled {
                             core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
@@ -895,6 +916,7 @@ pub mod pallet {
                 min_limit,
                 reserved,
                 burned,
+                may_be_returned,
             })
         }
 
@@ -1194,12 +1216,11 @@ pub mod pallet {
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(external.into_origin()),
                         gas_allowance: GasAllowanceOf::<T>::get(),
+                        subsequent_execution: ext_manager.program_pages_loaded(&program_id),
                     };
 
                     let journal = match core_processor::prepare(&block_config, message_execution_context) {
                         PrepareResult::Ok{ context, pages_with_data } => {
-                            // load memory pages
-                            // todo!();
                             let memory_pages = if lazy_pages_enabled {
                                 Default::default()
                             } else {
@@ -1217,6 +1238,8 @@ pub mod pallet {
                                     }
                                 }
                             };
+
+                            ext_manager.insert_program_id_loaded_pages(program_id);
     
                             if lazy_pages_enabled {
                                 core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(

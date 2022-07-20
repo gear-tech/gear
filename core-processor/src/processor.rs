@@ -52,6 +52,12 @@ pub struct PreparedMessageExecutionContext {
     memory_size: WasmPageNumber,
 }
 
+impl PreparedMessageExecutionContext {
+    pub fn gas_counter(&self) -> &GasCounter {
+        &self.gas_counter
+    }
+}
+
 pub enum PrepareResult {
     Ok {
         context: PreparedMessageExecutionContext,
@@ -70,6 +76,7 @@ pub fn prepare(
         dispatch,
         origin,
         gas_allowance,
+        subsequent_execution,
     } = execution_context;
     let Actor {
         balance,
@@ -91,7 +98,7 @@ pub fn prepare(
     }
 
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let memory_size = match executor::charge_gas_for_pages(&block_config.allocations_config, &mut gas_counter, &mut gas_allowance_counter, program.get_allocations(), program.static_pages(), dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init)) {
+    let memory_size = match executor::charge_gas_for_pages(&block_config.allocations_config, &mut gas_counter, &mut gas_allowance_counter, program.get_allocations(), program.static_pages(), dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init), subsequent_execution) {
         Ok(size) => size,
         Err(reason) => {
             log::debug!("failed to charge for memory pages: {:?}", reason);

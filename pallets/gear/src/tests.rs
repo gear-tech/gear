@@ -69,6 +69,7 @@ fn unstoppable_block_execution_works() {
 
         let GasInfo {
             burned: expected_burned_gas,
+            may_be_returned,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -91,7 +92,7 @@ fn unstoppable_block_execution_works() {
             ));
         }
 
-        let real_gas_to_burn = expected_burned_gas * executions_amount;
+        let real_gas_to_burn = expected_burned_gas + executions_amount.saturating_sub(1) * (expected_burned_gas - may_be_returned);
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
@@ -1566,7 +1567,9 @@ fn claim_value_from_mailbox_works() {
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let GasInfo {
-            burned: gas_burned, ..
+            burned: gas_burned,
+            may_be_returned,
+            ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -1576,7 +1579,7 @@ fn claim_value_from_mailbox_works() {
         )
         .expect("calculate_gas_info failed");
 
-        let gas_burned = GasPrice::gas_price(gas_burned);
+        let gas_burned = GasPrice::gas_price(gas_burned - may_be_returned);
 
         run_to_block(3, None);
 
