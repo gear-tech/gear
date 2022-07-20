@@ -214,10 +214,13 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info(
+    fn into_ext_info<M>(
         self,
-        memory: &impl Memory,
-    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
+        memory: M,
+    ) -> Result<(ExtInfo, Option<TrapExplanation>, M), (MemoryError, GasAmount)>
+    where
+        M: Memory,
+    {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -251,7 +254,7 @@ impl IntoExtInfo for Ext {
         let trap_explanation = self
             .error_explanation
             .and_then(ProcessorError::into_trap_explanation);
-        Ok((info, trap_explanation))
+        Ok((info, trap_explanation, memory))
     }
 
     fn into_gas_amount(self) -> GasAmount {

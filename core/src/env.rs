@@ -24,9 +24,8 @@ use crate::{
     memory::{Memory, WasmPageNumber},
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
-use alloc::{collections::BTreeSet, rc::Rc};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use core::{cell::RefCell, marker::PhantomData};
 use gear_core_errors::CoreError;
 
 /// Page access rights.

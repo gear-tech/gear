@@ -22,10 +22,10 @@
 
 extern crate alloc;
 
+mod context;
 pub mod env;
 mod funcs;
-// pub mod funcs_tree;
-mod context;
+pub mod funcs_tree;
 pub mod memory;
 
 pub use env::WasmtimeEnvironment;

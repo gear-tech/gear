@@ -3,17 +3,13 @@
 use crate::{
     env::StoreData,
     funcs::FuncError,
-    memory::{self, MemoryWrap},
+    memory::{self},
 };
 use alloc::{rc::Rc, vec, vec::Vec};
 use core::cell::RefCell;
 use gear_backend_common::TerminationReason;
-use gear_core::{
-    env::{Ext, FunctionContext},
-    memory::{Error, Memory},
-};
-use gear_core_errors::MemoryError;
-use wasmtime::{AsContextMut, Caller, StoreContextMut, Trap};
+use gear_core::env::{Ext, FunctionContext};
+use wasmtime::{Caller, Trap};
 
 pub struct Context<'c, E: Ext> {
     /// WASM function caller.
@@ -21,7 +17,7 @@ pub struct Context<'c, E: Ext> {
 }
 
 impl<'c, E: Ext> Context<'c, E> {
-    pub fn rc(mut self) -> Rc<RefCell<Caller<'c, StoreData<E>>>> {
+    pub fn rc(self) -> Rc<RefCell<Caller<'c, StoreData<E>>>> {
         Rc::new(RefCell::new(self.caller))
     }
 

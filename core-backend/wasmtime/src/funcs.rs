@@ -18,7 +18,7 @@
 
 use core::marker::PhantomData;
 
-use crate::{context::Context, env::StoreData, memory};
+use crate::{context::Context, env::StoreData};
 use alloc::{
     string::{FromUtf8Error, String, ToString},
     vec,
@@ -26,17 +26,15 @@ use alloc::{
 use codec::Encode;
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
-    funcs::*,
     AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::{Ext, FunctionContext},
     ids::{MessageId, ProgramId},
-    memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, MemoryError};
-use wasmtime::{AsContext, AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
+use wasmtime::{AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _panthom: PhantomData<E>,
@@ -103,8 +101,8 @@ where
     E::Error: AsTerminationReason + IntoExtError,
 {
     pub fn alloc(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {
-            let mut ctx = Context { caller }.rc();
+        let func = move |caller: Caller<'_, StoreData<E>>, pages: i32| {
+            let ctx = Context { caller }.rc();
             let pages = pages as u32;
             let page = ctx
                 .borrow_mut()
@@ -172,7 +170,7 @@ where
     }
 
     pub fn debug(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let f = move |mut caller: Caller<'_, StoreData<E>>,
+        let f = move |caller: Caller<'_, StoreData<E>>,
                       str_ptr: i32,
                       str_len: i32|
               -> Result<_, Trap> {
@@ -229,7 +227,7 @@ where
     }
 
     pub fn exit(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          program_id_ptr: i32|
               -> Result<(), Trap> {
             let mut ctx = Context { caller };
@@ -247,7 +245,7 @@ where
     }
 
     pub fn origin(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>, origin_ptr: i32| {
+        let func = move |caller: Caller<'_, StoreData<E>>, origin_ptr: i32| {
             let mut ctx = Context { caller };
             let id = ctx
                 .ext_mut()
@@ -259,21 +257,20 @@ where
     }
 
     pub fn msg_id(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, msg_id_ptr: i32| -> Result<_, Trap> {
-                let mut ctx = Context { caller };
-                let message_id = ctx
-                    .ext_mut()
-                    .message_id()
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+        let func = move |caller: Caller<'_, StoreData<E>>, msg_id_ptr: i32| -> Result<_, Trap> {
+            let mut ctx = Context { caller };
+            let message_id = ctx
+                .ext_mut()
+                .message_id()
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
 
-                ctx.write_into_memory(&mem, msg_id_ptr as isize as _, message_id.as_ref())
-            };
+            ctx.write_into_memory(&mem, msg_id_ptr as isize as _, message_id.as_ref())
+        };
         Func::wrap(store, func)
     }
 
     pub fn read(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>, at: i32, len: i32, dest: i32| {
+        let func = move |caller: Caller<'_, StoreData<E>>, at: i32, len: i32, dest: i32| {
             let mut ctx = Context { caller };
             let at = at as u32 as usize;
             let len = len as u32 as usize;
@@ -285,7 +282,7 @@ where
     }
 
     pub fn reply(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          payload_ptr: i32,
                          payload_len: i32,
                          value_ptr: i32,
@@ -309,7 +306,7 @@ where
     }
 
     pub fn reply_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          payload_ptr: i32,
                          payload_len: i32,
                          gas_limit: i64,
@@ -333,7 +330,7 @@ where
     }
 
     pub fn reply_commit(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          value_ptr: i32,
                          message_id_ptr: i32|
               -> Result<_, Trap> {
@@ -354,7 +351,7 @@ where
     }
 
     pub fn reply_commit_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          gas_limit: i64,
                          value_ptr: i32,
                          message_id_ptr: i32|
@@ -380,7 +377,7 @@ where
     }
 
     pub fn reply_push(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          payload_ptr: i32,
                          payload_len: i32|
               -> Result<u32, Trap> {
@@ -399,7 +396,7 @@ where
     }
 
     pub fn reply_to(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>, dest: i32| {
+        let func = move |caller: Caller<'_, StoreData<E>>, dest: i32| {
             let mut ctx = Context { caller };
 
             ctx.ext_mut()
@@ -416,7 +413,7 @@ where
     }
 
     pub fn send(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          program_id_ptr: i32,
                          payload_ptr: i32,
                          payload_len: i32,
@@ -443,7 +440,7 @@ where
     }
 
     pub fn send_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          program_id_ptr: i32,
                          payload_ptr: i32,
                          payload_len: i32,
@@ -475,7 +472,7 @@ where
     }
 
     pub fn send_commit(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          handle_ptr: i32,
                          message_id_ptr: i32,
                          program_id_ptr: i32,
@@ -501,7 +498,7 @@ where
     }
 
     pub fn send_commit_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          handle_ptr: i32,
                          message_id_ptr: i32,
                          program_id_ptr: i32,
@@ -528,25 +525,24 @@ where
     }
 
     pub fn send_init(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, handle_ptr: i32| -> Result<_, Trap> {
-                let mut ctx = Context { caller };
-                let error_len = ctx
-                    .ext_mut()
-                    .send_init()
-                    .process_error()
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?
-                    .error_len_on_success(|handle| {
-                        ctx.write_into_memory(&mem, handle_ptr as _, &handle.to_le_bytes())
-                    })?;
+        let func = move |caller: Caller<'_, StoreData<E>>, handle_ptr: i32| -> Result<_, Trap> {
+            let mut ctx = Context { caller };
+            let error_len = ctx
+                .ext_mut()
+                .send_init()
+                .process_error()
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?
+                .error_len_on_success(|handle| {
+                    ctx.write_into_memory(&mem, handle_ptr as _, &handle.to_le_bytes())
+                })?;
 
-                Ok(error_len)
-            };
+            Ok(error_len)
+        };
         Func::wrap(store, func)
     }
 
     pub fn send_push(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          handle_ptr: i32,
                          payload_ptr: i32,
                          payload_len: i32| {
@@ -565,7 +561,7 @@ where
     }
 
     pub fn create_program(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          code_hash_ptr: i32,
                          salt_ptr: i32,
                          salt_len: i32,
@@ -594,7 +590,7 @@ where
     }
 
     pub fn create_program_wgas(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
+        let func = move |caller: Caller<'_, StoreData<E>>,
                          code_hash_ptr: i32,
                          salt_ptr: i32,
                          salt_len: i32,
@@ -636,65 +632,61 @@ where
     }
 
     pub fn source(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, source_ptr: i32| -> Result<(), Trap> {
-                let mut ctx = Context { caller };
-                let source = ctx
-                    .ext_mut()
-                    .source()
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
-                ctx.write_into_memory(&mem, source_ptr as _, source.as_ref());
+        let func = move |caller: Caller<'_, StoreData<E>>, source_ptr: i32| -> Result<(), Trap> {
+            let mut ctx = Context { caller };
+            let source = ctx
+                .ext_mut()
+                .source()
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+            ctx.write_into_memory(&mem, source_ptr as _, source.as_ref());
 
-                Ok(())
-            };
+            Ok(())
+        };
         Func::wrap(store, func)
     }
 
     pub fn program_id(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, source_ptr: i32| -> Result<(), Trap> {
-                let mut ctx = Context { caller };
-                let actor_id = ctx
-                    .ext_mut()
-                    .program_id()
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+        let func = move |caller: Caller<'_, StoreData<E>>, source_ptr: i32| -> Result<(), Trap> {
+            let mut ctx = Context { caller };
+            let actor_id = ctx
+                .ext_mut()
+                .program_id()
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
 
-                ctx.write_into_memory(&mem, source_ptr as _, actor_id.as_ref());
-                Ok(())
-            };
+            ctx.write_into_memory(&mem, source_ptr as _, actor_id.as_ref());
+            Ok(())
+        };
         Func::wrap(store, func)
     }
 
     pub fn value(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, value_ptr: i32| -> Result<(), Trap> {
-                let mut ctx = Context { caller };
-                let value_available = ctx
-                    .ext_mut()
-                    .value()
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+        let func = move |caller: Caller<'_, StoreData<E>>, value_ptr: i32| -> Result<(), Trap> {
+            let mut ctx = Context { caller };
+            let value_available = ctx
+                .ext_mut()
+                .value()
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
 
-                ctx.set_u128(&mem, value_ptr as usize, value_available)?;
+            ctx.set_u128(&mem, value_ptr as usize, value_available)?;
 
-                Ok(())
-            };
+            Ok(())
+        };
 
         Func::wrap(store, func)
     }
 
     pub fn value_available(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, value_ptr: i32| -> Result<(), Trap> {
-                let mut ctx = Context { caller };
-                let value_available = ctx
-                    .ext_mut()
-                    .value_available()
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+        let func = move |caller: Caller<'_, StoreData<E>>, value_ptr: i32| -> Result<(), Trap> {
+            let mut ctx = Context { caller };
+            let value_available = ctx
+                .ext_mut()
+                .value_available()
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
 
-                ctx.set_u128(&mem, value_ptr as usize, value_available)?;
+            ctx.set_u128(&mem, value_ptr as usize, value_available)?;
 
-                Ok(())
-            };
+            Ok(())
+        };
         Func::wrap(store, func)
     }
 
@@ -731,21 +723,20 @@ where
     }
 
     pub fn wake(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func =
-            move |mut caller: Caller<'_, StoreData<E>>, waker_id_ptr: i32| -> Result<(), Trap> {
-                let mut ctx = Context { caller };
-                let waker_id: MessageId = ctx.get_bytes32(&mem, waker_id_ptr as usize)?.into();
+        let func = move |caller: Caller<'_, StoreData<E>>, waker_id_ptr: i32| -> Result<(), Trap> {
+            let mut ctx = Context { caller };
+            let waker_id: MessageId = ctx.get_bytes32(&mem, waker_id_ptr as usize)?.into();
 
-                ctx.ext_mut()
-                    .wake(waker_id)
-                    .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
-                Ok(())
-            };
+            ctx.ext_mut()
+                .wake(waker_id)
+                .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
+            Ok(())
+        };
         Func::wrap(store, func)
     }
 
     pub fn error(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>, data_ptr: u32| -> Result<(), Trap> {
+        let func = move |caller: Caller<'_, StoreData<E>>, data_ptr: u32| -> Result<(), Trap> {
             let mut ctx = Context { caller };
             let err = ctx
                 .ext_mut()
