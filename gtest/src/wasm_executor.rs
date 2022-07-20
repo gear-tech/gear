@@ -20,7 +20,7 @@ use core_processor::{Ext, ProcessorContext, ProcessorExt};
 use gear_backend_common::TerminationReason;
 use gear_backend_wasmtime::{env::StoreData, funcs_tree};
 use gear_core::{
-    env::{Ext as ExtTrait, ExtCarrier},
+    env::{Ext as ExtTrait, ExtHelper},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{IncomingMessage, MessageContext, Payload},
@@ -51,9 +51,8 @@ impl WasmExecutor {
         payload: Option<Payload>,
     ) -> Result<Self> {
         let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
-        let ext_carrier = ExtCarrier::new(ext);
         let store_data = StoreData {
-            ext: ext_carrier.cloned(),
+            ext,
             termination_reason: TerminationReason::Success,
         };
 
@@ -110,9 +109,9 @@ impl WasmExecutor {
             .map_err(|err| {
                 if let Some(processor_error) = self
                     .store
-                    .data()
+                    .data_mut()
                     .ext
-                    .with(|a| a.error_explanation.clone())
+                    .with(|a| -> Result<_, TestError> { Ok(a.error_explanation.clone()) })
                     .expect("`with` is expected to be called only after `inner` is set")
                 {
                     processor_error.into()
