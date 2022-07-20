@@ -3259,7 +3259,7 @@ fn test_two_contracts_composition_works() {
             Origin::signed(USER_1),
             compose_id,
             100_u64.to_le_bytes().to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
