@@ -77,12 +77,6 @@ impl<E> From<MemoryError> for FuncError<E> {
     }
 }
 
-impl<E: CoreError> Into<Trap> for FuncError<E> {
-    fn into(self) -> Trap {
-        Trap::new(self)
-    }
-}
-
 // for Trap::new
 impl<E> From<FuncError<E>> for String
 where
@@ -196,7 +190,7 @@ where
         let func = move |mut caller: Caller<'_, StoreData<E>>, val: i32| {
             let ext = &mut caller.data_mut().ext;
             ext.gas(val as _)
-                .map_err(|e| FuncError::<E::Error>::Core(e))
+                .map_err(FuncError::<E::Error>::Core)
                 .map_err(|e| {
                     if let Some(TerminationReason::GasAllowanceExceeded) = e
                         .as_core()
@@ -218,7 +212,7 @@ where
 
             Ok(ext
                 .gas_available()
-                .map_err(|e| FuncError::<E::Error>::Core(e))
+                .map_err(FuncError::<E::Error>::Core)
                 .unwrap_or(0) as i64)
         };
         Func::wrap(store, func)
@@ -400,7 +394,7 @@ where
             ctx.ext_mut()
                 .reply_details()
                 .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))
-                .and_then(|v| v.ok_or(Trap::new(FuncError::<E::Error>::NoReplyContext)))
+                .and_then(|v| v.ok_or_else(|| Trap::new(FuncError::<E::Error>::NoReplyContext)))
                 .and_then(|details| {
                     ctx.write_into_memory(
                         &mem,
@@ -695,7 +689,7 @@ where
     pub fn leave(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
             let ext = &mut caller.data_mut().ext;
-            let trap = if let Err(err) = ext.leave().map_err(|e| FuncError::<E::Error>::Core(e)) {
+            let trap = if let Err(err) = ext.leave().map_err(FuncError::<E::Error>::Core) {
                 Trap::new(err)
             } else {
                 caller.data_mut().termination_reason = TerminationReason::Leave;
@@ -711,7 +705,7 @@ where
         let func = move |mut caller: Caller<'_, StoreData<E>>| -> Result<(), Trap> {
             let ext = &mut caller.data_mut().ext;
 
-            let trap = if let Err(err) = ext.wait().map_err(|e| FuncError::<E::Error>::Core(e)) {
+            let trap = if let Err(err) = ext.wait().map_err(FuncError::<E::Error>::Core) {
                 Trap::new(err)
             } else {
                 caller.data_mut().termination_reason = TerminationReason::Wait;
@@ -743,7 +737,7 @@ where
             let err = ctx
                 .ext_mut()
                 .last_error()
-                .ok_or(Trap::new(FuncError::<E::Error>::SyscallErrorExpected))?;
+                .ok_or_else(|| Trap::new(FuncError::<E::Error>::SyscallErrorExpected))?;
             let err = err.encode();
             ctx.write_into_memory(&mem, data_ptr as usize, &err)?;
 
