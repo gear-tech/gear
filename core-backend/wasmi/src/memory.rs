@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! sp-sandbox extensions for memory.
+//! wasmi extensions for memory.
 
 use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
 use wasmi::{memory_units::Pages, MemoryRef};
 
-/// Wrapper for sp_sandbox::Memory.
+/// Wrapper for wasmi::MemoryRef.
 pub struct MemoryWrap(MemoryRef);
 
 impl MemoryWrap {
-    /// Wrap sp_sandbox::Memory for Memory trait.
+    /// Wrap wasmi::MemoryRef for Memory trait.
     pub fn new(mem: MemoryRef) -> Self {
         MemoryWrap(mem)
     }

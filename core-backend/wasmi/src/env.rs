@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! sp-sandbox environment for running a module.
+//! wasmi environment for running a module.
 
 use crate::{
     funcs::{FuncError, FuncsHandler as Funcs},
