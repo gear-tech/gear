@@ -30,7 +30,12 @@ use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
     ExtInfo, IntoExtInfo, TerminationReason, TrapExplanation,
 };
-use gear_core::{env::Ext, gas::GasAmount, memory::WasmPageNumber, message::DispatchKind};
+use gear_core::{
+    env::Ext,
+    gas::GasAmount,
+    memory::{Memory, WasmPageNumber},
+    message::DispatchKind,
+};
 use gear_core_errors::MemoryError;
 use wasmtime::{Engine, Extern, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store};
 
@@ -197,7 +202,7 @@ where
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
+        F: FnOnce(bool) -> Result<(), T>,
         T: fmt::Display,
     {
         struct PreparedInfo {
@@ -209,12 +214,15 @@ where
             .instance
             .get_func(&mut self.memory_wrap.store, entry_point.into_entry());
 
+        let host_addr = self.memory_wrap.get_buffer_host_addr().is_some();
         let prepare_info = |this: Self| -> Result<PreparedInfo, BackendError<Self::Error>> {
+            let pages_data = E::pages_data(&this.memory_wrap);
+
             this.memory_wrap
                 .store
                 .into_data()
                 .ext
-                .into_ext_info(&this.memory_wrap)
+                .into_ext_info(pages_data)
                 .map_err(|(reason, gas_amount)| BackendError {
                     reason: WasmtimeEnvironmentError::MemoryAccess(reason),
                     gas_amount,
@@ -235,7 +243,7 @@ where
             } = prepare_info(self)?;
 
             // Entry function not found, so we mean this as empty function
-            return match post_execution_handler(&self.memory_wrap) {
+            return match post_execution_handler(host_addr) {
                 Ok(_) => Ok(BackendReport {
                     termination: TerminationReason::Success,
                     info,
@@ -272,7 +280,7 @@ where
             TerminationReason::Success
         };
 
-        match post_execution_handler(&self.memory_wrap) {
+        match post_execution_handler(host_addr) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: WasmtimeEnvironmentError::PostExecutionHandler(e.to_string()),

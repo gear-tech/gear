@@ -638,7 +638,7 @@ where
                 .ext_mut()
                 .source()
                 .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
-            ctx.write_into_memory(&mem, source_ptr as _, source.as_ref());
+            ctx.write_into_memory(&mem, source_ptr as _, source.as_ref())?;
 
             Ok(())
         };
@@ -653,7 +653,7 @@ where
                 .program_id()
                 .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))?;
 
-            ctx.write_into_memory(&mem, source_ptr as _, actor_id.as_ref());
+            ctx.write_into_memory(&mem, source_ptr as _, actor_id.as_ref())?;
             Ok(())
         };
         Func::wrap(store, func)

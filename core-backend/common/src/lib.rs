@@ -110,9 +110,11 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
+    fn pages_data(memory: &impl Memory) -> BTreeMap<PageNumber, PageBuf>;
+
     fn into_ext_info(
         self,
-        memory: &impl Memory,
+        pages_data: BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
@@ -167,7 +169,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
+        F: FnOnce(bool) -> Result<(), T>,
         T: fmt::Display;
 
     /// Consumes environment and returns gas state.

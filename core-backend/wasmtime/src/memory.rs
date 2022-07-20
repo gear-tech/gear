@@ -139,14 +139,3 @@ pub fn read<T: Ext>(
     mem.read(ctx, offset, buffer)
         .map_err(|_| Error::MemoryAccessError)
 }
-
-fn data_size<T: Ext>(ctx: impl AsContext<Data = StoreData<T>>, mem: &wasmtime::Memory) -> usize {
-    mem.data_size(ctx)
-}
-
-unsafe fn get_buffer_host_addr_unsafe<T: Ext>(
-    ctx: impl AsContext<Data = StoreData<T>>,
-    mem: wasmtime::Memory,
-) -> HostPointer {
-    mem.data_ptr(ctx) as HostPointer
-}
