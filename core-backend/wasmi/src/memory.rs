@@ -19,7 +19,7 @@
 //! sp-sandbox extensions for memory.
 
 use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
-use wasmi::{memory_units::Pages, MemoryInstance, MemoryRef};
+use wasmi::{memory_units::Pages, MemoryRef};
 
 /// Wrapper for sp_sandbox::Memory.
 pub struct MemoryWrap(MemoryRef);
@@ -72,7 +72,7 @@ mod tests {
     use gear_core::memory::AllocationsContext;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap) {
-        use MemoryInstance as WasmMemory;
+        use wasmi::MemoryInstance as WasmMemory;
 
         let memory = MemoryWrap::new(
             WasmMemory::alloc(

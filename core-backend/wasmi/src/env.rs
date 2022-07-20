@@ -34,12 +34,12 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, ExtCarrier},
     gas::GasAmount,
-    memory::{Memory, WasmPageNumber},
+    memory::WasmPageNumber,
     message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
 use wasmi::{
-    memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef, HostError,
+    memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef,
     ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef,
     RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap, TrapKind,
 };
@@ -130,7 +130,7 @@ impl<'a, T, E> Externals for GuestExternals<'a, T, E> {
         index: usize,
         args: RuntimeArgs,
     ) -> Result<Option<RuntimeValue>, Trap> {
-        let args = args.as_ref().iter().cloned().collect::<Vec<_>>();
+        let args = args.as_ref().to_vec();
 
         let result = (self.defined_host_functions.funcs[index])(self.state, &args);
         match result {
@@ -138,7 +138,7 @@ impl<'a, T, E> Externals for GuestExternals<'a, T, E> {
                 ReturnValue::Value(v) => Some(v),
                 ReturnValue::Unit => None,
             }),
-            Err(e) => Err(TrapKind::Host(Box::new(DummyHostError)).into()),
+            Err(_e) => Err(TrapKind::Host(Box::new(DummyHostError)).into()),
         }
     }
 }

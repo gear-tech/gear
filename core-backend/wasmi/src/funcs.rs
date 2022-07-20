@@ -674,7 +674,7 @@ where
             .with_fallible(|ext| ext.gas_available().map_err(FuncError::Core))
             .map_err(|_| FuncError::HostError)?;
 
-        Ok(return_i64(gas_available).unwrap_or(ReturnValue::Value(i64::MAX.into())))
+        Ok(return_i64(gas_available).unwrap_or_else(|_| ReturnValue::Value(i64::MAX.into())))
     }
 
     pub fn msg_id(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {

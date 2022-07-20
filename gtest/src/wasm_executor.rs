@@ -19,7 +19,7 @@
 use core_processor::{Ext, ProcessorContext, ProcessorExt};
 use gear_backend_common::TerminationReason;
 use gear_backend_wasmi::{
-    env::{DefinedHostFunctions, EnvironmentDefinitionBuilder, Runtime, GuestExternals},
+    env::{DefinedHostFunctions, EnvironmentDefinitionBuilder, GuestExternals, Runtime},
     funcs::{FuncError, FuncsHandler as Funcs},
     MemoryWrap,
 };
@@ -30,11 +30,9 @@ use gear_core::{
     message::{IncomingMessage, MessageContext, Payload},
     program::Program,
 };
-use std::{collections::BTreeMap, mem, ops::Deref};
+use std::{collections::BTreeMap, mem};
 use wasmi::{
-    memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef, HostError,
-    ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef,
-    NopExternals, RuntimeArgs, RuntimeValue,
+    memory_units::Pages, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef, RuntimeValue,
 };
 
 use crate::{Result, TestError, MAILBOX_THRESHOLD};
@@ -160,10 +158,7 @@ impl WasmExecutor {
             })?;
 
         match res {
-            Some(ptr_to_result) => match ptr_to_result {
-                RuntimeValue::I32(ptr_to_result) => self.read_result(ptr_to_result),
-                _ => Err(TestError::InvalidReturnType),
-            },
+            Some(RuntimeValue::I32(ptr_to_result)) => self.read_result(ptr_to_result),
             _ => Err(TestError::InvalidReturnType),
         }
     }

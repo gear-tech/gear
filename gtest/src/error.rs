@@ -20,7 +20,6 @@ use anyhow::Error as AnyhowError;
 use codec::Error as CodecError;
 use core_processor::ProcessorError;
 use gear_core::{ids::ProgramId, memory::WasmPageNumber};
-// use wasmtime::MemoryAccessError;
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
