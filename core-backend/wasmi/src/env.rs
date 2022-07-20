@@ -80,8 +80,6 @@ struct HostFuncIndex(usize);
 
 /// Function pointer for specifying functions by the
 /// supervisor in [`EnvironmentDefinitionBuilder`].
-///
-/// [`EnvironmentDefinitionBuilder`]: struct.EnvironmentDefinitionBuilder.html
 pub type HostFuncType<T, E> = fn(&mut T, &[RuntimeValue]) -> Result<ReturnValue, FuncError<E>>;
 
 pub struct DefinedHostFunctions<T, E> {
@@ -165,7 +163,7 @@ enum ExternVal {
     Memory(MemoryRef),
 }
 
-/// A builder for the environment of the sandboxed WASM module.
+/// A builder for the environment of the WASM module.
 pub struct EnvironmentDefinitionBuilder<T, E> {
     map: BTreeMap<(Vec<u8>, Vec<u8>), ExternVal>,
     pub defined_host_functions: DefinedHostFunctions<T, E>,
@@ -240,15 +238,6 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             })?
         };
 
-        // let externval = self.map.get(&key).ok_or_else(|| {
-        //     log::debug!(
-        //         target: "gwasm",
-        //         "Export {}:{} not found",
-        //         module_name,
-        //         field_name
-        //     );
-        //     wasmi::Error::Instantiation(String::new())
-        // })?;
         let host_func_idx = match *externval {
             ExternVal::HostFunc(ref idx) => idx,
             _ => {

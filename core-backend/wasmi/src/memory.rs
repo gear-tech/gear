@@ -21,11 +21,11 @@
 use gear_core::memory::{Error, HostPointer, Memory, PageNumber, WasmPageNumber};
 use wasmi::{memory_units::Pages, MemoryRef};
 
-/// Wrapper for wasmi::MemoryRef.
+/// Wrapper for [`wasmi::MemoryRef`].
 pub struct MemoryWrap(MemoryRef);
 
 impl MemoryWrap {
-    /// Wrap wasmi::MemoryRef for Memory trait.
+    /// Wrap [`wasmi::MemoryRef`] for Memory trait.
     pub fn new(mem: MemoryRef) -> Self {
         MemoryWrap(mem)
     }
