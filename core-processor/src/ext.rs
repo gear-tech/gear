@@ -95,7 +95,7 @@ pub trait ProcessorExt {
 
     /// Lazy pages contract post execution actions
     fn lazy_pages_post_execution_actions(
-        mem: &impl Memory,
+        host_addr: bool,
         memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error>;
 }
@@ -206,7 +206,7 @@ impl ProcessorExt for Ext {
     }
 
     fn lazy_pages_post_execution_actions(
-        _mem: &impl Memory,
+        _mem: bool,
         _memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
     ) -> Result<(), Self::Error> {
         unreachable!()
@@ -214,13 +214,25 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<M>(
+    fn pages_data(
+        &self,
+        memory: &impl Memory,
+    ) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
+        let wasm_pages = self.context.allocations_context.allocations().clone();
+        let mut pages_data = BTreeMap::new();
+        for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
+            let mut buf = PageBuf::new_zeroed();
+            memory.read(page.offset(), buf.as_mut_slice())?;
+            pages_data.insert(page, buf);
+        }
+
+        Ok(pages_data)
+    }
+
+    fn into_ext_info(
         self,
-        memory: M,
-    ) -> Result<(ExtInfo, Option<TrapExplanation>, M), (MemoryError, GasAmount)>
-    where
-        M: Memory,
-    {
+        pages_data: BTreeMap<PageNumber, PageBuf>,
+    ) -> (ExtInfo, Option<TrapExplanation>) {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -230,15 +242,6 @@ impl IntoExtInfo for Ext {
         } = self.context;
 
         let wasm_pages = allocations_context.allocations().clone();
-        let mut pages_data = BTreeMap::new();
-        for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
-            let mut buf = PageBuf::new_zeroed();
-            if let Err(err) = memory.read(page.offset(), buf.as_mut_slice()) {
-                return Err((err, gas_counter.into()));
-            }
-            pages_data.insert(page, buf);
-        }
-
         let (outcome, context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
@@ -254,7 +257,8 @@ impl IntoExtInfo for Ext {
         let trap_explanation = self
             .error_explanation
             .and_then(ProcessorError::into_trap_explanation);
-        Ok((info, trap_explanation, memory))
+
+        (info, trap_explanation)
     }
 
     fn into_gas_amount(self) -> GasAmount {

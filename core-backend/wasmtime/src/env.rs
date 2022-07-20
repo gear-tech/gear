@@ -216,21 +216,32 @@ where
 
         let host_addr = self.memory_wrap.get_buffer_host_addr().is_some();
         let prepare_info = |this: Self| -> Result<PreparedInfo, BackendError<Self::Error>> {
-            let pages_data = E::pages_data(&this.memory_wrap);
-
-            this.memory_wrap
+            match this
+                .memory_wrap
                 .store
-                .into_data()
+                .data()
                 .ext
-                .into_ext_info(pages_data)
-                .map_err(|(reason, gas_amount)| BackendError {
+                .pages_data(&this.memory_wrap)
+            {
+                Ok(pages_data) => {
+                    let (info, trap_explanation) = this
+                        .memory_wrap
+                        .store
+                        .into_data()
+                        .ext
+                        .into_ext_info(pages_data);
+
+                    Ok(PreparedInfo {
+                        info,
+                        trap_explanation,
+                    })
+                }
+
+                Err(reason) => Err(BackendError {
                     reason: WasmtimeEnvironmentError::MemoryAccess(reason),
-                    gas_amount,
-                })
-                .map(|(info, trap_explanation)| PreparedInfo {
-                    info,
-                    trap_explanation,
-                })
+                    gas_amount: this.into_gas_amount(),
+                }),
+            }
         };
 
         let entry_func = if let Some(f) = func {

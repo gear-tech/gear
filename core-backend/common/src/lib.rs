@@ -110,12 +110,15 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn pages_data(memory: &impl Memory) -> BTreeMap<PageNumber, PageBuf>;
+    fn pages_data(
+        &self,
+        memory: &impl Memory,
+    ) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError>;
 
     fn into_ext_info(
         self,
         pages_data: BTreeMap<PageNumber, PageBuf>,
-    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
+    ) -> (ExtInfo, Option<TrapExplanation>);
 
     fn into_gas_amount(self) -> GasAmount;
 

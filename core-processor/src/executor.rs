@@ -325,10 +325,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Execute program in backend env.
-    let BackendReport { termination, info } = match env.execute(&kind, |mem| {
+    let BackendReport { termination, info } = match env.execute(&kind, |host_addr| {
         // released pages initial data will be added to `pages_initial_data` after execution.
         if A::is_lazy_pages_enabled() {
-            A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
+            A::lazy_pages_post_execution_actions(host_addr, &mut pages_initial_data)
         } else {
             Ok(())
         }

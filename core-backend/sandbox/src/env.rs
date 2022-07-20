@@ -32,9 +32,9 @@ use gear_backend_common::{
     IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    env::{Ext, ExtCarrier},
+    env::Ext,
     gas::GasAmount,
-    memory::WasmPageNumber,
+    memory::{Memory, WasmPageNumber},
     message::DispatchKind,
 };
 use gear_core_errors::MemoryError;
@@ -69,7 +69,7 @@ pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
 }
 
 pub(crate) struct Runtime<E: Ext> {
-    pub ext: ExtCarrier<E>,
+    pub ext: E,
     pub memory: MemoryWrap,
     pub err: FuncError<E::Error>,
 }
@@ -154,14 +154,12 @@ where
         builder.add_func("gr_wake", Funcs::wake);
         let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
 
-        let ext_carrier = ExtCarrier::new(ext);
-
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::CreateEnvMemory(e),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
+                    gas_amount: ext.into_gas_amount(),
                 })
             }
         };
@@ -172,7 +170,7 @@ where
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut runtime = Runtime {
-            ext: ext_carrier,
+            ext,
             memory: MemoryWrap::new(mem),
             err: FuncError::Terminated(TerminationReason::Success),
         };
@@ -182,7 +180,7 @@ where
             Err(e) => {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::ModuleInstantiation(e),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
+                    gas_amount: ext.into_gas_amount(),
                 })
             }
         };
@@ -222,7 +220,7 @@ where
         post_execution_handler: F,
     ) -> Result<BackendReport, BackendError<Self::Error>>
     where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
+        F: FnOnce(bool) -> Result<(), T>,
         T: fmt::Display,
     {
         let res = if self.entries.contains(entry_point) {
@@ -240,13 +238,16 @@ where
 
         log::debug!("execution res = {:?}", res);
 
-        let (info, trap_explanation) =
-            ext.into_inner()
-                .into_ext_info(&memory)
-                .map_err(|(reason, gas_amount)| BackendError {
+        let host_addr = memory.get_buffer_host_addr().is_some();
+        let (info, trap_explanation) = match ext.pages_data(&memory) {
+            Ok(pages_data) => ext.into_ext_info(pages_data),
+            Err(reason) => {
+                return Err(BackendError {
                     reason: SandboxEnvironmentError::Memory(reason),
-                    gas_amount,
-                })?;
+                    gas_amount: ext.into_gas_amount(),
+                })
+            }
+        };
 
         let termination = if res.is_err() {
             let reason = trap_explanation
@@ -263,7 +264,7 @@ where
             TerminationReason::Success
         };
 
-        match post_execution_handler(&memory) {
+        match post_execution_handler(host_addr) {
             Ok(_) => Ok(BackendReport { termination, info }),
             Err(e) => Err(BackendError {
                 reason: SandboxEnvironmentError::PostExecutionHandler(e.to_string()),
@@ -273,6 +274,6 @@ where
     }
 
     fn into_gas_amount(self) -> GasAmount {
-        self.runtime.ext.into_inner().into_gas_amount()
+        self.runtime.ext.into_gas_amount()
     }
 }
