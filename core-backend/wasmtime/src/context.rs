@@ -17,6 +17,9 @@ pub struct Context<'c, E: Ext> {
 }
 
 impl<'c, E: Ext> Context<'c, E> {
+    /// # TODO
+    ///
+    /// Remove this method when it is possible
     pub fn rc(self) -> Rc<RefCell<Caller<'c, StoreData<E>>>> {
         Rc::new(RefCell::new(self.caller))
     }

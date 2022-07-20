@@ -337,8 +337,14 @@ pub mod pallet {
 
     // Private storage for mailbox elements.
     #[pallet::storage]
-    type Mailbox<T: Config> =
-        StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
+    type Mailbox<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        T::AccountId,
+        Identity,
+        MessageId,
+        (StoredMessage, Interval<T::BlockNumber>),
+    >;
 
     // Public wrap of the mailbox elements.
     common::wrap_extended_storage_double_map!(
@@ -346,7 +352,7 @@ pub mod pallet {
         name: MailboxWrap,
         key1: T::AccountId,
         key2: MessageId,
-        value: StoredMessage,
+        value: (StoredMessage, Interval<T::BlockNumber>),
         length: usize
     );
 
@@ -391,7 +397,7 @@ pub mod pallet {
         ProgramId,
         Identity,
         MessageId,
-        (StoredDispatch, T::BlockNumber),
+        (StoredDispatch, Interval<T::BlockNumber>),
     >;
 
     // Public wrap of the waitlist elements.
@@ -400,7 +406,7 @@ pub mod pallet {
         name: WaitlistWrap,
         key1: ProgramId,
         key2: MessageId,
-        value: (StoredDispatch, T::BlockNumber),
+        value: (StoredDispatch, Interval<T::BlockNumber>),
         length: usize
     );
 
@@ -490,13 +496,15 @@ pub mod pallet {
     //
     // Remove from mailbox means auto-claim in Gear Messenger Context,
     // so if value present, it will be added to user's balance.
-    impl<T: crate::Config> FallibleCallback<StoredMessage> for OnRemove<T>
+    impl<T: crate::Config> FallibleCallback<(StoredMessage, Interval<T::BlockNumber>)> for OnRemove<T>
     where
         T::AccountId: Origin,
     {
         type Error = DispatchError;
 
-        fn call(message: &StoredMessage) -> Result<(), Self::Error> {
+        fn call(
+            (message, _bn): &(StoredMessage, Interval<T::BlockNumber>),
+        ) -> Result<(), Self::Error> {
             if message.value() > 0 {
                 // Assuming the programs has enough balance
                 <T as Config>::Currency::repatriate_reserved(
@@ -526,7 +534,9 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type Value = <Pallet<T> as Messenger>::MailboxedMessage;
+        type BlockNumber = T::BlockNumber;
 
+        type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
         type OnRemove = OnRemove<T>;
     }
@@ -569,7 +579,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type Value = <Pallet<T> as Messenger>::WaitlistedMessage;
-        type BlockNumber = <Pallet<T> as Messenger>::BlockNumber;
+        type BlockNumber = T::BlockNumber;
 
         type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
@@ -626,6 +636,8 @@ pub mod pallet {
 
         type Mailbox = MailboxImpl<
             MailboxWrap<T>,
+            Self::MailboxedMessage,
+            Self::BlockNumber,
             Self::Error,
             DispatchError,
             MailBoxCallbacks<T>,

@@ -23,7 +23,8 @@ use crate::{
     GearRuntimeTestCmd,
 };
 use colored::{ColoredString, Colorize};
-use gear_common::{storage::*, CodeStorage, GasTree, Origin as _};
+use frame_support::traits::ReservableCurrency;
+use gear_common::{storage::*, CodeStorage, GasPrice, GasTree, Origin as _};
 use gear_core::{
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
@@ -38,7 +39,8 @@ use gear_test::{
     proc::*,
     sample::{self, ChainProgram, PayloadVariant},
 };
-use pallet_gear::{GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
+use junit_common::{TestCase, TestSuite, TestSuites};
+use pallet_gear::{Config, GasAllowanceOf, GasHandlerOf, Pallet as GearPallet};
 use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
@@ -50,8 +52,6 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
-
-use junit_common::{TestCase, TestSuite, TestSuites};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -303,9 +303,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         // Force push to MQ if msg.source.is_some()
         if let Some(source) = &message.source {
             let source = H256::from_slice(source.to_program_id().as_ref());
-            let origin = <AccountId32 as gear_common::Origin>::from_origin(source);
+            let origin =
+                <AccountId32 as gear_common::Origin>::from_origin(crate::HACK.into_origin());
             let id = GearPallet::<Runtime>::next_message_id(source);
 
+            <Runtime as Config>::Currency::reserve(
+                &origin,
+                <Runtime as Config>::GasPrice::gas_price(gas_limit),
+            )
+            .expect("No more funds");
             let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit);
 
             let msg = StoredMessage::new(

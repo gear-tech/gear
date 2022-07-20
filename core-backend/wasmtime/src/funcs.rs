@@ -36,9 +36,7 @@ use gear_core::{
 use gear_core_errors::{CoreError, MemoryError};
 use wasmtime::{AsContextMut, Caller, Func, Memory as WasmtimeMemory, Store, Trap};
 
-pub struct FuncsHandler<E: Ext + 'static> {
-    _panthom: PhantomData<E>,
-}
+pub struct FuncsHandler<E: Ext + 'static>(PhantomData<E>);
 
 #[derive(Debug, derive_more::Display)]
 pub enum FuncError<E> {
@@ -145,10 +143,10 @@ where
     pub fn exit_code(store: &mut Store<StoreData<E>>) -> Func {
         let f = move |mut caller: Caller<'_, StoreData<E>>| {
             let ext = &mut caller.data_mut().ext;
-            ext.reply_to()
+            ext.reply_details()
                 .map_err(FuncError::<E::Error>::Core)
                 .and_then(|v| v.ok_or(FuncError::<E::Error>::NoReplyContext))
-                .map(|(_, exit_code)| exit_code)
+                .map(|details| details.into_exit_code())
                 .map_err(Trap::new)
         };
         Func::wrap(store, f)
@@ -400,11 +398,15 @@ where
             let mut ctx = Context { caller };
 
             ctx.ext_mut()
-                .reply_to()
+                .reply_details()
                 .map_err(|e| Trap::new(FuncError::<E::Error>::Core(e)))
                 .and_then(|v| v.ok_or(Trap::new(FuncError::<E::Error>::NoReplyContext)))
-                .and_then(|(msg_id, _)| {
-                    ctx.write_into_memory(&mem, dest as isize as _, msg_id.as_ref())
+                .and_then(|details| {
+                    ctx.write_into_memory(
+                        &mem,
+                        dest as isize as _,
+                        details.into_reply_to().as_ref(),
+                    )
                 })?;
 
             Ok(())

@@ -19,7 +19,8 @@
 use super::*;
 use codec::MaxEncodedLen;
 
-#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
+// TODO remove children refs for Unspecified (https://github.com/gear-tech/gear/issues/1179)
+#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub enum GasNodeType<ExternalId, Id, Balance> {
     External { id: ExternalId, value: Balance },
     ReservedLocal { id: ExternalId, value: Balance },
@@ -27,7 +28,25 @@ pub enum GasNodeType<ExternalId, Id, Balance> {
     UnspecifiedLocal { parent: Id },
 }
 
-#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
+impl<ExternalId, Id, Balance> GasNodeType<ExternalId, Id, Balance> {
+    pub(crate) fn is_external(&self) -> bool {
+        matches!(self, GasNodeType::External { .. })
+    }
+
+    pub(crate) fn is_specified_local(&self) -> bool {
+        matches!(self, GasNodeType::SpecifiedLocal { .. })
+    }
+
+    pub(crate) fn is_unspecified_local(&self) -> bool {
+        matches!(self, GasNodeType::UnspecifiedLocal { .. })
+    }
+
+    pub(crate) fn is_reserved_local(&self) -> bool {
+        matches!(self, GasNodeType::ReservedLocal { .. })
+    }
+}
+
+#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub struct GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     pub spec_refs: u32,
     pub unspec_refs: u32,
@@ -45,6 +64,18 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             unspec_refs: 0,
             consumed: false,
         }
+    }
+
+    /// Returns whether the node is patron or not
+    ///
+    /// The flag signals whether the node isn't available for the gas to be spent from it. These are nodes that:
+    /// 1. Have unspec refs (regardless of being consumed).
+    /// 2. Are not consumed.
+    ///
+    /// Patron nodes are those on which other nodes of the tree rely (including the self node).
+    pub fn is_patron(&self) -> bool {
+        (self.inner.is_external() || self.inner.is_specified_local())
+            && (!self.consumed || self.unspec_refs != 0)
     }
 
     pub fn inner_value(&self) -> Option<Balance> {

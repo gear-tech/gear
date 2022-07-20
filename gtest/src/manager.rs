@@ -387,7 +387,7 @@ impl ExtManager {
     pub(crate) fn claim_value_from_mailbox(&mut self, id: &ProgramId) {
         let messages = self.mailbox.remove(id);
         if let Some(messages) = messages {
-            messages.iter().for_each(|message| {
+            messages.into_iter().for_each(|message| {
                 self.send_value(
                     message.source(),
                     Some(message.destination()),
@@ -668,7 +668,16 @@ impl JournalHandler for ExtManager {
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            let message = dispatch.into_parts().1.into_stored();
+            let message = match dispatch.exit_code() {
+                Some(0) | None => dispatch.into_parts().1.into_stored(),
+                _ => {
+                    let message = dispatch.into_parts().1.into_stored();
+                    message
+                        .clone()
+                        .with_string_payload::<ExecutionErrorReason>()
+                        .unwrap_or(message)
+                }
+            };
 
             self.mailbox
                 .entry(message.destination())
@@ -747,6 +756,10 @@ impl JournalHandler for ExtManager {
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
+        if value == 0 {
+            // Nothing to do
+            return;
+        }
         if let Some(ref to) = to {
             if !self.is_user(&from) {
                 let (_, balance) = self.actors.get_mut(&from).expect("Can't fail");

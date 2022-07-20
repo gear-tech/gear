@@ -34,7 +34,9 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
+    message::{
+        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyDetails, ReplyPacket,
+    },
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
@@ -218,9 +220,15 @@ impl IntoExtInfo for Ext {
         &self,
         memory: &impl Memory,
     ) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
-        let wasm_pages = self.context.allocations_context.allocations().clone();
+        let allocations_context = self.context.allocations_context.clone();
+        let static_pages = allocations_context.static_pages();
+        let (_, wasm_pages) = allocations_context.into_parts();
         let mut pages_data = BTreeMap::new();
-        for page in wasm_pages.iter().flat_map(|p| p.to_gear_pages_iter()) {
+        for page in (0..static_pages.0)
+            .map(WasmPageNumber)
+            .chain(wasm_pages.iter().copied())
+            .flat_map(|p| p.to_gear_pages_iter())
+        {
             let mut buf = PageBuf::new_zeroed();
             memory.read(page.offset(), buf.as_mut_slice())?;
             pages_data.insert(page, buf);
@@ -241,13 +249,13 @@ impl IntoExtInfo for Ext {
             ..
         } = self.context;
 
-        let wasm_pages = allocations_context.allocations().clone();
+        let (initial_allocations, wasm_pages) = allocations_context.into_parts();
         let (outcome, context_store) = message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            allocations: wasm_pages,
+            allocations: wasm_pages.ne(&initial_allocations).then_some(wasm_pages),
             pages_data,
             generated_dispatches,
             awakening,
@@ -451,7 +459,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, Self::Error> {
+    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
         Ok(self.context.message_context.current().reply())
     }

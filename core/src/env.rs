@@ -22,7 +22,7 @@ use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId},
     memory::{Memory, WasmPageNumber},
-    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyDetails, ReplyPacket},
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -46,7 +46,7 @@ pub trait Ext {
 
     /// Allocate number of pages.
     ///
-    /// The resulting page number should point to `pages` consecutives memory pages.
+    /// The resulting page number should point to `pages` consecutive memory pages.
     fn alloc(
         &mut self,
         pages: WasmPageNumber,
@@ -90,7 +90,7 @@ pub trait Ext {
     }
 
     /// Read the message id, if current message is a reply.
-    fn reply_to(&mut self) -> Result<Option<(MessageId, ExitCode)>, Self::Error>;
+    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
