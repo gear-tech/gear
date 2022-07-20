@@ -31,16 +31,18 @@ use common::{
     storage::*,
     GasPrice, GasProvider, GasTree, Origin,
 };
+use core_processor::common::ExecutionErrorReason;
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{StoredDispatch, StoredMessage},
+    message::{Message, StoredDispatch, StoredMessage},
 };
-use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{Get, Saturating, UniqueSaturatedInto, Zero};
 
+// TODO: doc coverage.
 pub(crate) struct Deadline<T: Config> {
     pub(crate) schedule_at: BlockNumberFor<T>,
     #[allow(unused)]
@@ -87,7 +89,7 @@ where
 
             // Validating unrevealed funds after repatriation.
             if !unrevealed.is_zero() {
-                unreachable!("Reserved funds wasn't fully repatriated.")
+                unreachable!("Reserved funds wasn't fully repatriated")
             }
         } else {
             // Unreserving funds from sender to transfer them directly.
@@ -422,5 +424,61 @@ where
         );
 
         mailboxed
+    }
+
+    pub(crate) fn send_user_message(origin_msg: MessageId, message: Message) {
+        let threshold = T::MailboxThreshold::get();
+
+        let gas_limit = message
+            .gas_limit()
+            .or_else(|| {
+                // Querying gas limit. Fails in cases of `GasTree` invalidations.
+                let opt_limit = GasHandlerOf::<T>::get_limit(origin_msg)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+                // Gas limit may not be found only for inexistent node.
+                let (limit, _) =
+                    opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+
+                (limit >= threshold).then_some(threshold)
+            })
+            .unwrap_or_default();
+
+        let message = message
+            .with_string_payload::<ExecutionErrorReason>()
+            .unwrap_or_else(|e| {
+                log::debug!("Failed to decode error to string");
+                e
+            }).into_stored();
+
+        let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
+        let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
+        let value = message.value().unique_saturated_into();
+
+        let expiration = if gas_limit >= threshold {
+            // TODO: properly calculate deadline.
+            let deadline = Deadline::<T> {
+                schedule_at: BlockNumberFor::<T>::zero(),
+                gas_lock: 0,
+            };
+
+            GasHandlerOf::<T>::cut(origin_msg, message.id(), gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+            <T as Config>::Currency::reserve(&from, value)
+                .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
+
+            Some(deadline.schedule_at)
+        } else {
+            CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+
+            None
+        };
+
+        Self::deposit_event(Event::UserMessageSent {
+            message,
+            expiration,
+        });
     }
 }

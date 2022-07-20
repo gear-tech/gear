@@ -20,6 +20,7 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{DispatchKind, ExitCode, GasLimit, Payload, StoredDispatch, StoredMessage, Value},
 };
+use alloc::string::ToString;
 use codec::{Decode, Encode};
 use core::ops::Deref;
 use scale_info::TypeInfo;
@@ -132,6 +133,18 @@ impl Message {
     /// Exit code of the message, if reply.
     pub fn exit_code(&self) -> Option<ExitCode> {
         self.reply.map(|(_, exit_code)| exit_code)
+    }
+
+    /// Consumes self in order to create new `StoredMessage`, which payload
+    /// contains string representation of initial bytes,
+    /// decoded into given type.
+    pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
+        D::decode(&mut self.payload.as_ref())
+            .map(|payload| {
+                let payload = payload.to_string().into_bytes();
+                Self { payload, ..self }
+            })
+            .map_err(|_| self)
     }
 }
 

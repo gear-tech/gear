@@ -191,13 +191,6 @@ where
         let gas_limit = dispatch.gas_limit();
         let dispatch = dispatch.into_stored();
 
-        if dispatch.value() != 0 {
-            <T as Config>::Currency::reserve(
-                &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
-                dispatch.value().unique_saturated_into(),
-            ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
-        }
-
         log::debug!(
             "Sending message {:?} from {:?} with gas limit {:?}",
             dispatch.message(),
@@ -206,6 +199,13 @@ where
         );
 
         if self.check_program_id(&dispatch.destination()) {
+            if dispatch.value() != 0 {
+                <T as Config>::Currency::reserve(
+                    &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
+                    dispatch.value().unique_saturated_into(),
+                ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
+            }
+
             if let Some(gas_limit) = gas_limit {
                 let _ = GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit);
             } else {
