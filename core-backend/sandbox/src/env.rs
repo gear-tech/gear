@@ -180,7 +180,7 @@ where
             Err(e) => {
                 return Err(BackendError {
                     reason: SandboxEnvironmentError::ModuleInstantiation(e),
-                    gas_amount: ext.into_gas_amount(),
+                    gas_amount: runtime.ext.into_gas_amount(),
                 })
             }
         };

@@ -35,7 +35,7 @@ use gear_backend_common::{
     funcs, AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    env::Ext,
+    env::{Ext, ExtHelper},
     ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
@@ -329,9 +329,9 @@ where
 
     pub fn size(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         ctx.ext
-            .with(|ext| ext.msg().len())
+            .with(|ext| Ok(ext.msg().len()))
             .map(return_i32)
-            .unwrap_or_else(|_| return_i32(0))
+            .unwrap_or_else(|_: FuncError<E::Error>| return_i32(0))
     }
 
     pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {

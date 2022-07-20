@@ -155,6 +155,32 @@ pub trait Ext {
     fn forbidden_funcs(&self) -> &BTreeSet<&'static str>;
 }
 
+/// # TODO
+///
+/// remove this trait after the refactor
+pub trait ExtHelper<E: Ext> {
+    /// Calls fallible fn with inner ext.
+    fn with<T, U>(&mut self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U>;
+
+    /// Calls fallible fn with inner ext.
+    fn with_fallible<T, U>(&mut self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U>;
+}
+
+impl<E> ExtHelper<E> for E
+where
+    E: Ext,
+{
+    /// Calls fallible fn with inner ext.
+    fn with<T, U>(&mut self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U> {
+        f(self)
+    }
+
+    /// Calls fallible fn with inner ext.
+    fn with_fallible<T, U>(&mut self, f: impl FnOnce(&mut E) -> Result<T, U>) -> Result<T, U> {
+        f(self)
+    }
+}
+
 /// Ext with function context
 ///
 /// Rerseved memory operations for adapting wasmtime
