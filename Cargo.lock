@@ -2544,6 +2544,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-backend-wasmi"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "gear-backend-common",
+ "gear-core",
+ "gear-core-errors",
+ "log",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "wasmi",
+]
+
+[[package]]
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
@@ -2806,7 +2820,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "gear-backend-common",
- "gear-backend-wasmtime",
+ "gear-backend-wasmi",
  "gear-common",
  "gear-core",
  "gear-core-processor",
@@ -2994,7 +3008,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "gear-backend-common",
- "gear-backend-wasmtime",
+ "gear-backend-wasmi",
  "gear-core",
  "gear-core-processor",
  "gear-wasm-builder",
@@ -3003,7 +3017,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "wasm-instrument",
- "wasmtime 0.35.3",
+ "wasmi",
 ]
 
 [[package]]

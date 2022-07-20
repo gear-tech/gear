@@ -27,7 +27,7 @@ use core_processor::{
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
     Ext,
 };
-use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -585,7 +585,7 @@ impl ExtManager {
             origin: self.origin,
             gas_allowance: u64::MAX,
         };
-        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
             &block_config,
             message_execution_context,
         );

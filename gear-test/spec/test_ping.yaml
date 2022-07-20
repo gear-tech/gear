@@ -2,7 +2,7 @@ title: Ping-pong
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
+    path: ../gear-program/demo-ping/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
     source:
       kind: account
       value: alice
