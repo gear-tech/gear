@@ -221,7 +221,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
-    /// Set of wasm pages numbers, which are allocated by the program.
+    /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
@@ -375,9 +375,6 @@ pub fn set_program_and_pages_data(
     persistent_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), PageIsNotAllocatedErr> {
     for (page_num, page_buf) in persistent_pages {
-        if !program.allocations.contains(&page_num.to_wasm_page()) {
-            return Err(PageIsNotAllocatedErr(page_num));
-        }
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, page_buf.as_slice());
     }

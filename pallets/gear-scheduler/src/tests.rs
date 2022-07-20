@@ -71,7 +71,7 @@ fn populate_wl_from(
 
     TaskPoolOf::<Test>::add(bn, ScheduledTask::RemoveFromWaitlist(pid, mid))
         .expect("Failed to insert task");
-    WaitlistOf::<Test>::insert(dispatch).expect("Failed to insert to waitlist");
+    WaitlistOf::<Test>::insert(dispatch, u64::MAX).expect("Failed to insert to waitlist");
     Balances::reserve(&src, DEFAULT_GAS as u128).expect("Cannot reserve gas");
     GasHandlerOf::<Test>::create(src, mid, DEFAULT_GAS).expect("Failed to create gas handler");
 
@@ -113,7 +113,7 @@ fn out_of_rent_reply_exists(
         {
             msg.destination() == src
                 && msg.source() == pid
-                && msg.reply() == Some((mid, 1))
+                && msg.reply() == Some(ReplyDetails::new(mid, 1))
                 && msg.payload() == ExecutionErrorReason::OutOfRent.to_string().as_bytes()
         } else {
             false

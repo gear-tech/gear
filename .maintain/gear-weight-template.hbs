@@ -35,6 +35,10 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions needed for {{pallet}}.
 pub trait WeightInfo {
+	fn allocation_cost() -> Weight;
+	fn grow_cost() -> Weight;
+	fn initial_cost() -> Weight;
+	fn load_cost() -> Weight;
 	{{#each benchmarks as |benchmark|}}
 	fn {{benchmark.name~}}
 	(
@@ -51,6 +55,20 @@ impl<T: crate::Config> WeightInfo for GearWeight<T> {
 {{else}}
 impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 {{/if}}
+	fn allocation_cost() -> Weight {
+		// To be changed with the proper value.
+		T::DbWeight::get().writes(1 as Weight)
+	}
+	fn grow_cost() -> Weight {
+		// To be changed with the proper value.
+		T::DbWeight::get().writes(1 as Weight)
+	}
+	fn initial_cost() -> Weight {
+		T::DbWeight::get().writes(1 as Weight)
+	}
+	fn load_cost() -> Weight {
+		T::DbWeight::get().reads(1 as Weight)
+	}
 	{{#each benchmarks as |benchmark|}}
 	fn {{benchmark.name~}}
 	(
@@ -80,6 +98,20 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
+	fn allocation_cost() -> Weight {
+		// To be changed with the proper value.
+		RocksDbWeight::get().writes(1 as Weight)
+	}
+	fn grow_cost() -> Weight {
+		// To be changed with the proper value.
+		RocksDbWeight::get().writes(1 as Weight)
+	}
+	fn initial_cost() -> Weight {
+		RocksDbWeight::get().writes(1 as Weight)
+	}
+	fn load_cost() -> Weight {
+		RocksDbWeight::get().reads(1 as Weight)
+	}
 	{{#each benchmarks as |benchmark|}}
 	fn {{benchmark.name~}}
 	(

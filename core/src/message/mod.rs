@@ -30,7 +30,7 @@ mod init;
 mod reply;
 mod stored;
 
-pub use common::{Dispatch, Message};
+pub use common::{Dispatch, Message, ReplyDetails};
 pub use context::{ContextOutcome, ContextSettings, ContextStore, MessageContext};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
@@ -92,7 +92,7 @@ impl DispatchKind {
 
 /// Message packet.
 ///
-/// Provides common behaviour for any message's packet: accessing to payload, gas limit and value.
+/// Provides common behavior for any message's packet: accessing to payload, gas limit and value.
 pub trait Packet {
     /// Packet payload reference.
     fn payload(&self) -> &[u8];

@@ -17,23 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::{ExtManager, TOL},
-    Authorship, Config, CostsPerBlockOf, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet,
-    MailboxOf, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
+    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
+    Pallet, QueueOf, SentOf, WaitlistOf,
 };
-use common::{event::*, scheduler::*, storage::*, CodeStorage, GasPrice, GasTree, Origin, Program};
+use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
 };
-use frame_support::traits::{
-    BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
-};
+use frame_support::traits::{Currency, ExistenceRequirement, Get, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
     message::{Dispatch, StoredDispatch},
 };
-use sp_runtime::traits::{SaturatedConversion, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -56,12 +53,11 @@ where
             common::waiting_init_take_messages(p_id)
                 .into_iter()
                 .for_each(|m_id| {
-                    if let Some(m) = self.wake_message_impl(p_id, m_id) {
-                        Pallet::<T>::deposit_event(Event::<T>::MessageWoken {
-                            id: m_id,
-                            reason: MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
-                        });
-
+                    if let Some(m) = Pallet::<T>::wake_dispatch(
+                        p_id,
+                        m_id,
+                        MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
+                    ) {
                         QueueOf::<T>::queue(m)
                             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
                     } else {
@@ -154,77 +150,21 @@ where
 
         GasAllowanceOf::<T>::decrease(amount);
 
-        match GasHandlerOf::<T>::spend(message_id, amount) {
-            Ok(_) => {
-                match GasHandlerOf::<T>::get_external(message_id) {
-                    Ok(maybe_origin) => {
-                        if let Some(origin) = maybe_origin {
-                            let charge = T::GasPrice::gas_price(amount);
-                            if let Some(author) = Authorship::<T>::author() {
-                                match <T as Config>::Currency::repatriate_reserved(
-                                    &origin,
-                                    &author,
-                                    charge,
-                                    BalanceStatus::Free,
-                                ) {
-                                    Ok(leftover) => {
-                                        if leftover > TOL.unique_saturated_into() {
-                                            log::debug!(
-                                                target: "essential",
-                                                "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                                origin,
-                                                author,
-                                                charge,
-                                                leftover,
-                                            );
-                                        }
-                                    }
-                                    Err(e) => {
-                                        log::debug!(
-                                            target: "essential",
-                                            "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
-                                            charge,
-                                            origin,
-                                            author,
-                                            e,
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            log::debug!(
-                                target: "essential",
-                                "Failed to get limit of {:?}",
-                                message_id,
-                            );
-                        }
-                    }
-                    Err(_err) => {
-                        // We only can get an error here if the gas tree is invalidated
-                        // TODO: handle appropriately
-                        unreachable!("Can never happen unless gas tree corrupted");
-                    }
-                }
-            }
-            Err(err) => {
-                log::debug!(
-                    "Error spending {:?} gas for message_id {:?}: {:?}",
-                    amount,
-                    message_id,
-                    err
-                )
-            }
-        }
+        Pallet::<T>::spend_gas(message_id, amount)
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         // TODO: update gas limit in `ValueTree` here (issue #1022).
-        for (message, bn) in WaitlistOf::<T>::drain_key(id_exited) {
-            self.charge_for_wake(message.id(), bn);
+        // TODO: use here normal charging and waking logic.
+        WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
+            let message = Pallet::<T>::wake_requirements(
+                entry,
+                MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
+            );
 
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-        }
+        });
 
         let _ = common::waiting_init_take_messages(id_exited);
         let res = common::set_program_terminated_status(id_exited.into_origin());
@@ -244,30 +184,7 @@ where
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        match GasHandlerOf::<T>::consume(message_id) {
-            Err(_e) => {
-                // We only can get an error here if the gas tree is invalidated
-                // TODO: handle appropriately
-                unreachable!("Can never happen unless gas tree corrupted");
-            }
-            Ok(maybe_outcome) => {
-                if let Some((neg_imbalance, external)) = maybe_outcome {
-                    let gas_left = neg_imbalance.peek();
-
-                    if gas_left > 0 {
-                        log::debug!(
-                            "Unreserve balance on message processed: {} to {:?}",
-                            gas_left,
-                            external
-                        );
-
-                        let refund = T::GasPrice::gas_price(gas_left);
-
-                        let _ = <T as Config>::Currency::unreserve(&external, refund);
-                    }
-                }
-            }
-        }
+        Pallet::<T>::consume_message(message_id)
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
@@ -322,12 +239,12 @@ where
             });
 
             if gas_limit >= mailbox_threshold {
-                MailboxOf::<T>::insert(message.clone())
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
                 // TODO: replace this temporary (zero) value for expiration
                 // block number with properly calculated one
                 // (issues #646 and #969).
+                MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
+                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
                     expiration: Some(T::BlockNumber::zero()),
@@ -342,51 +259,10 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        if let Ok(Some((limit, _))) = GasHandlerOf::<T>::get_limit(dispatch.id()) {
-            let message_id = dispatch.id();
-            let program_id = dispatch.destination();
-
-            WaitlistOf::<T>::insert(dispatch)
-                .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
-
-            let current_bn = <frame_system::Pallet<T>>::block_number().saturated_into::<u32>();
-
-            let can_cover = limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
-            let reserve_for = CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
-
-            let duration = (can_cover as u32).saturating_sub(reserve_for);
-
-            let deadline = current_bn.saturating_add(duration);
-            let deadline: T::BlockNumber = deadline.unique_saturated_into();
-
-            TaskPoolOf::<T>::add(
-                deadline,
-                ScheduledTask::RemoveFromWaitlist(program_id, message_id),
-            )
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            let origin_key = if let Some(key) = GasHandlerOf::<T>::get_origin_key(message_id)
-                .unwrap_or_else(|e| unreachable!("ValueTree corrupted: {:?}!", e))
-            {
-                if key == message_id {
-                    None
-                } else {
-                    Some(key)
-                }
-            } else {
-                unreachable!("ValueTree corrupted!")
-            };
-
-            // TODO: replace this temporary (zero) value
-            // for expiration block number with properly
-            // calculated one (issues #646 and #969).
-            Pallet::<T>::deposit_event(Event::MessageWaited {
-                id: message_id,
-                origin: origin_key,
-                reason: MessageWaitedRuntimeReason::WaitCalled.into_reason(),
-                expiration: T::BlockNumber::zero(),
-            });
-        }
+        Pallet::<T>::wait_dispatch(
+            dispatch,
+            MessageWaitedRuntimeReason::WaitCalled.into_reason(),
+        )
     }
 
     fn wake_message(
@@ -395,17 +271,16 @@ where
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some(dispatch) = self.wake_message_impl(program_id, awakening_id) {
-            Pallet::<T>::deposit_event(Event::MessageWoken {
-                id: dispatch.id(),
-                reason: MessageWokenRuntimeReason::WakeCalled.into_reason(),
-            });
-
+        if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+            program_id,
+            awakening_id,
+            MessageWokenRuntimeReason::WakeCalled.into_reason(),
+        ) {
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             log::debug!(
-                "Attempt to awaken unknown message {:?} from {:?}",
+                "Attempt to wake unknown message {:?} from {:?}",
                 awakening_id,
                 message_id
             );
@@ -451,83 +326,11 @@ where
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let from = from.into_origin();
+        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = to.map(|v| <T::AccountId as Origin>::from_origin(v.into_origin()));
         let value = value.unique_saturated_into();
-        if let Some(to) = to.map(|id| id.into_origin()) {
-            let from_account = <T::AccountId as Origin>::from_origin(from);
-            let to_account = <T::AccountId as Origin>::from_origin(to);
-            log::debug!(
-                "Sending value of amount {:?} from {:?} to {:?}",
-                value,
-                from,
-                to
-            );
-            let res = if <T as Config>::Currency::can_reserve(
-                &to_account,
-                <T as Config>::Currency::minimum_balance(),
-            ) {
-                // `to` account exists, so we can repatriate reserved value for it.
-                match <T as Config>::Currency::repatriate_reserved(
-                    &from_account,
-                    &to_account,
-                    value,
-                    BalanceStatus::Free,
-                ) {
-                    Ok(leftover) => {
-                        if leftover > TOL.unique_saturated_into() {
-                            log::debug!(
-                                target: "essential",
-                                "Reserved funds not fully repatriated from 0x{:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                from_account,
-                                to_account,
-                                value,
-                                leftover,
-                            );
-                        }
-                        Ok(())
-                    }
-                    Err(e) => {
-                        // This is a error, as reserved should always be repatriatable
-                        log::error!(
-                            target: "essential",
-                            "Failure to repatriate reserves of {:?} from 0x{:?} to 0x{:?}: {:?}",
-                            value,
-                            from_account,
-                            to_account,
-                            e,
-                        );
-                        Ok(())
-                    }
-                }
-            } else {
-                let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
-                if not_freed != 0u128.unique_saturated_into() {
-                    unreachable!("All requested value for unreserve must be freed. For more info, see module docs.");
-                }
-                <T as Config>::Currency::transfer(
-                    &from_account,
-                    &to_account,
-                    value,
-                    ExistenceRequirement::AllowDeath,
-                )
-            };
 
-            res.unwrap_or_else(|_| {
-                unreachable!("Value transfers can't fail. For more info, see module docs.")
-            });
-        } else {
-            let from_account = <T::AccountId as Origin>::from_origin(from);
-            let not_freed = <T as Config>::Currency::unreserve(&from_account, value);
-            if not_freed == 0u128.unique_saturated_into() {
-                log::debug!(
-                    "Value amount amount {:?} successfully unreserved from {:?}",
-                    value,
-                    from,
-                );
-            } else {
-                unreachable!("All requested value for unreserve must be freed. For more info, see module docs.");
-            }
-        }
+        Pallet::<T>::transfer_reserved(&from, to.as_ref().unwrap_or(&from), value);
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {

@@ -25,7 +25,7 @@ use common::{
     storage::*,
     GasTree, Origin,
 };
-use core_processor::common::{ExecutionErrorReason, JournalHandler};
+use core_processor::common::ExecutionErrorReason;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::ReplyMessage,
@@ -57,15 +57,12 @@ where
         // Note:
         // `assert_eq!(waitlisted.id(), message_id)`
         // `assert_eq!(waitlisted.destination(), program_id)`
-        let waitlisted = self
-            .wake_message_impl(program_id, message_id)
-            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
-
-        // Depositing appropriate event.
-        Pallet::<T>::deposit_event(Event::MessageWoken {
-            id: waitlisted.id(),
-            reason: MessageWokenSystemReason::OutOfRent.into_reason(),
-        });
+        let waitlisted = Pallet::<T>::wake_dispatch(
+            program_id,
+            message_id,
+            MessageWokenSystemReason::OutOfRent.into_reason(),
+        )
+        .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
         // Trap explanation.
         let trap = ExecutionErrorReason::OutOfRent;
@@ -105,7 +102,7 @@ where
         }
 
         // Consuming gas handler for waitlisted message.
-        self.message_consumed(waitlisted.id());
+        Pallet::<T>::consume_message(waitlisted.id());
     }
 
     fn remove_paused_program(&mut self, _program_id: ProgramId) {

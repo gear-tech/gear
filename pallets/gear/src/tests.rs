@@ -1133,7 +1133,7 @@ fn mailbox_works() {
             OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
         );
 
-        let mailbox_message = {
+        let (mailbox_message, _bn) = {
             let res = MailboxOf::<Test>::remove(USER_1, reply_to_id);
             assert!(res.is_ok());
             res.expect("was asserted previously")
@@ -1446,13 +1446,13 @@ fn send_reply_failure_to_claim_from_mailbox() {
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
-        assert!(matches!(
+        assert_eq!(
             MailboxOf::<Test>::iter_key(USER_1)
                 .next()
-                .expect("Element should be")
-                .reply(),
-            Some((_, 1))
-        ));
+                .and_then(|(msg, _interval)| msg.exit_code())
+                .unwrap(),
+            1
+        );
     })
 }
 
@@ -1904,8 +1904,8 @@ fn uninitialized_program_should_accept_replies() {
         // there should be one message for the program author
         let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
-            .expect("Element should be")
-            .id();
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
@@ -1945,8 +1945,8 @@ fn defer_program_initialization() {
 
         let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
-            .expect("Element should be")
-            .id();
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -1972,9 +1972,8 @@ fn defer_program_initialization() {
         assert_eq!(
             MailboxOf::<Test>::iter_key(USER_1)
                 .next()
-                .expect("Element should be")
-                .payload()
-                .to_vec(),
+                .map(|(msg, _bn)| msg.payload().to_vec())
+                .expect("Element should be"),
             b"Hello, world!".encode()
         );
     })
@@ -2018,8 +2017,8 @@ fn wake_messages_after_program_inited() {
 
         let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
-            .expect("Element should be")
-            .id();
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -2031,7 +2030,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, (m, _bn)| {
             assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
             i + 1
         });
@@ -2747,8 +2746,9 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         let msg_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
-            .expect("Element should be")
-            .id();
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
             msg_id,
@@ -2887,8 +2887,8 @@ fn replies_to_paused_program_skipped() {
 
         let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
-            .expect("Element should be")
-            .id();
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -2991,8 +2991,8 @@ fn resume_program_works() {
 
         let message_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
-            .expect("Element should be")
-            .id();
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
@@ -3037,7 +3037,7 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, m| {
+        let actual_n = MailboxOf::<Test>::iter_key(USER_3).fold(0usize, |i, (m, _bn)| {
             assert_eq!(m.payload(), b"Hello, world!".encode());
             i + 1
         });
@@ -3553,8 +3553,6 @@ fn test_reply_to_terminated_program() {
             Error::<Test>::ProgramIsTerminated,
         );
 
-        log::debug!("mailbox: {:?}", MailboxOf::<Test>::iter_key(USER_1).next());
-
         // the only way to claim value from terminated destination is a corresponding extrinsic call
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
             Origin::signed(USER_1),
@@ -3811,7 +3809,7 @@ fn execution_over_blocks() {
 
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
-        // deply demo-calc-hash-in-one-block
+        // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::submit_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
@@ -4272,9 +4270,9 @@ mod utils {
 
         SystemPallet::<Test>::events().into_iter().for_each(|e| {
             if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some((id, exit_code)) = message.reply() {
-                    if id == message_id {
-                        assert_ne!(exit_code, 0);
+                if let Some(details) = message.reply() {
+                    if details.reply_to() == message_id {
+                        assert_ne!(details.exit_code(), 0);
                         actual_error = Some(
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
@@ -4375,6 +4373,7 @@ mod utils {
     pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
         MailboxOf::<Test>::iter_key(account)
             .last()
+            .map(|(msg, _bn)| msg)
             .expect("Element should be")
     }
 
