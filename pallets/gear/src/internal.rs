@@ -19,8 +19,8 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasHandlerOf, MailboxOf,
-    Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
+    Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
+    MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::{
@@ -40,13 +40,95 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Message, StoredDispatch, StoredMessage},
 };
-use sp_runtime::traits::{Get, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
 // TODO: doc coverage.
-pub(crate) struct Deadline<T: Config> {
-    pub(crate) schedule_at: BlockNumberFor<T>,
-    #[allow(unused)]
-    pub(crate) gas_lock: <T::GasProvider as GasProvider>::Balance,
+pub(crate) struct HoldBoundCost<T: Config>(SchedulingCostOf<T>);
+
+#[allow(unused)]
+impl<T: Config> HoldBoundCost<T> {
+    pub fn at(self, expected: BlockNumberFor<T>) -> HoldBound<T> {
+        HoldBound {
+            cost: self.0,
+            expected,
+        }
+    }
+
+    pub fn deadline(self, deadline: BlockNumberFor<T>) -> HoldBound<T> {
+        let expected = deadline.saturating_sub(CostsPerBlockOf::<T>::reserve_for());
+
+        self.at(expected)
+    }
+
+    pub fn duration(self, duration: BlockNumberFor<T>) -> HoldBound<T> {
+        let expected = SystemPallet::<T>::block_number().saturating_add(duration);
+
+        self.at(expected)
+    }
+
+    pub fn maximum_for(self, gas: GasBalanceOf<T>) -> HoldBound<T> {
+        let deadline_duration = gas
+            .saturating_div(self.0.max(One::one()))
+            .saturated_into::<BlockNumberFor<T>>();
+        let deadline = SystemPallet::<T>::block_number().saturating_add(deadline_duration);
+
+        self.deadline(deadline)
+    }
+
+    pub fn maximum_for_message(self, message_id: MessageId) -> HoldBound<T> {
+        // Querying gas limit. Fails in cases of `GasTree` invalidations.
+        let opt_limit = GasHandlerOf::<T>::get_limit(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Gas limit may not be found only for inexistent node.
+        let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+
+        self.maximum_for(limit)
+    }
+
+    pub fn zero(self) -> HoldBound<T> {
+        self.at(SystemPallet::<T>::block_number())
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub(crate) struct HoldBound<T: Config> {
+    cost: SchedulingCostOf<T>,
+    expected: BlockNumberFor<T>,
+}
+
+#[allow(unused)]
+impl<T: Config> HoldBound<T> {
+    pub fn by(cost: SchedulingCostOf<T>) -> HoldBoundCost<T> {
+        assert!(!cost.is_zero());
+        HoldBoundCost(cost)
+    }
+    pub fn cost(&self) -> SchedulingCostOf<T> {
+        self.cost
+    }
+    pub fn expected(&self) -> BlockNumberFor<T> {
+        self.expected
+    }
+    pub fn expected_duration(&self) -> BlockNumberFor<T> {
+        self.expected
+            .saturating_sub(SystemPallet::<T>::block_number())
+    }
+    pub fn deadline(&self) -> BlockNumberFor<T> {
+        self.expected
+            .saturating_add(CostsPerBlockOf::<T>::reserve_for())
+    }
+    pub fn deadline_duration(&self) -> BlockNumberFor<T> {
+        self.deadline()
+            .saturating_sub(SystemPallet::<T>::block_number())
+    }
+    pub fn lock(&self) -> GasBalanceOf<T> {
+        self.deadline_duration()
+            .saturated_into::<GasBalanceOf<T>>()
+            .saturating_mul(self.cost())
+    }
+    pub fn is_zero(&self) -> bool {
+        self.expected == SystemPallet::<T>::block_number()
+    }
 }
 
 impl<T: Config> Pallet<T>
@@ -75,11 +157,8 @@ where
         // Querying minimum balance (existential deposit).
         let existential_deposit = CurrencyOf::<T>::minimum_balance();
 
-        // Bool var to check if we need just unreserve in case of self transfer.
-        let self_transfer = from == to;
-
         // Checking balance existence of destination address.
-        if !self_transfer && CurrencyOf::<T>::can_reserve(to, existential_deposit) {
+        if CurrencyOf::<T>::can_reserve(to, existential_deposit) {
             // Repatriating reserved to existent account.
             let unrevealed =
                 CurrencyOf::<T>::repatriate_reserved(from, to, value, BalanceStatus::Free)
@@ -87,9 +166,14 @@ where
                         unreachable!("Failed to repatriate reserved funds: {:?}", e)
                     });
 
+            // TODO: remove this once substrate PR merged.
+            let unrevealed = (from != to)
+                .then_some(unrevealed)
+                .unwrap_or_else(|| value.saturating_sub(unrevealed));
+
             // Validating unrevealed funds after repatriation.
             if !unrevealed.is_zero() {
-                unreachable!("Reserved funds wasn't fully repatriated")
+                unreachable!("Reserved funds wasn't fully repatriated: {:?}", unrevealed)
             }
         } else {
             // Unreserving funds from sender to transfer them directly.
@@ -100,11 +184,9 @@ where
                 unreachable!("Not all requested value was unreserved");
             }
 
-            // Transfer to inexistent account, if need.
-            if !self_transfer {
-                CurrencyOf::<T>::transfer(from, to, value, ExistenceRequirement::AllowDeath)
-                    .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-            }
+            // Transfer to inexistent account.
+            CurrencyOf::<T>::transfer(from, to, value, ExistenceRequirement::AllowDeath)
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
         }
     }
 
@@ -173,93 +255,6 @@ where
         }
     }
 
-    /// Calculates maximal deadline for given `MessageId` and cost.
-    #[must_use]
-    pub(crate) fn maximal_deadline(
-        message_id: MessageId,
-        cost: SchedulingCostOf<T>,
-    ) -> Option<Deadline<T>> {
-        // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let opt_limit = GasHandlerOf::<T>::get_limit(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // Gas limit may not be found only for inexistent node.
-        let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
-
-        // Amount of blocks might be payed for holding with given cost.
-        let maximal_duration: BlockNumberFor<T> =
-            limit.saturating_div(cost).unique_saturated_into();
-
-        // Default reserve/stock to make sure that we process task in time.
-        let reserve = CostsPerBlockOf::<T>::reserve_for();
-
-        // Safety duration (maximal subtracted by reserve).
-        let safety_duration = maximal_duration.saturating_sub(reserve);
-
-        // Calling inner implementation.
-        Self::deadline_for(safety_duration, cost)
-    }
-
-    /// Calculates deadline at specific block for given `MessageId` and cost.
-    #[allow(unused)]
-    #[must_use]
-    pub(crate) fn deadline_at(
-        message_id: MessageId,
-        cost: SchedulingCostOf<T>,
-        at: BlockNumberFor<T>,
-    ) -> Option<Deadline<T>> {
-        // Current block number.
-        let current = SystemPallet::<T>::block_number();
-
-        // Expected safety duration.
-        let safety_duration = at.saturating_sub(current);
-
-        // Calling inner implementation.
-        let deadline = Self::deadline_for(safety_duration, cost)?;
-
-        // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let opt_limit = GasHandlerOf::<T>::get_limit(message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // Gas limit may not be found only for inexistent node.
-        let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
-
-        // Checking that message gas limit can cover required lock.
-        (limit >= deadline.gas_lock).then(|| deadline)
-    }
-
-    // Calculates deadline for duration holding.
-    fn deadline_for(
-        safety_duration: BlockNumberFor<T>,
-        cost: SchedulingCostOf<T>,
-    ) -> Option<Deadline<T>> {
-        // Checking if duration is zero.
-        if safety_duration.is_zero() {
-            return None;
-        }
-
-        // Current block number.
-        let current = SystemPallet::<T>::block_number();
-
-        // Expected block number for task to be processed.
-        let schedule_at = current.saturating_add(safety_duration);
-
-        // Default reserve/stock to make sure that we process task in time.
-        let reserve = CostsPerBlockOf::<T>::reserve_for();
-
-        // Maximal duration to be payed.
-        let maximal_duration: u64 = schedule_at.saturating_add(reserve).unique_saturated_into();
-
-        // Gas limit to lock for charging for maximal duration.
-        let gas_lock = maximal_duration.saturating_mul(cost);
-
-        // Aggregating data.
-        Some(Deadline {
-            schedule_at,
-            gas_lock,
-        })
-    }
-
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
         message_id: MessageId,
@@ -285,40 +280,41 @@ where
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
     pub(crate) fn wait_dispatch(dispatch: StoredDispatch, reason: MessageWaitedReason) {
         // Figuring out maximal deadline of holding.
-        if let Some(maximal_deadline) =
-            Self::maximal_deadline(dispatch.id(), CostsPerBlockOf::<T>::waitlist())
-        {
-            // Querying origin message id. Fails in cases of `GasTree` invalidations.
-            let opt_origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        let hold =
+            HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist()).maximum_for_message(dispatch.id());
 
-            // Gas origin message id may not be found only for inexistent node.
-            let origin_msg =
-                opt_origin_msg.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
-
-            // TODO: lock funds for holding here.
-            // Depositing appropriate event.
-            Self::deposit_event(Event::MessageWaited {
-                id: dispatch.id(),
-                origin: origin_msg.ne(&dispatch.id()).then_some(origin_msg),
-                expiration: maximal_deadline.schedule_at,
-                reason,
-            });
-
-            // Adding wake request in task pool.
-            TaskPoolOf::<T>::add(
-                maximal_deadline.schedule_at,
-                ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
-            )
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            // Adding message in waitlist.
-            WaitlistOf::<T>::insert(dispatch, maximal_deadline.schedule_at)
-                .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
-        } else {
-            // Corner case. Should be rechecked for unreachable usage.
-            log::error!("Unable to figure out deadline for: {dispatch:?}");
+        if hold.is_zero() {
+            log::error!("Unable to figure out deadline for: {:?}", dispatch);
+            return;
         }
+
+        // Querying origin message id. Fails in cases of `GasTree` invalidations.
+        let opt_origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // Gas origin message id may not be found only for inexistent node.
+        let origin_msg =
+            opt_origin_msg.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
+
+        // TODO: lock funds for holding here.
+        // Depositing appropriate event.
+        Self::deposit_event(Event::MessageWaited {
+            id: dispatch.id(),
+            origin: origin_msg.ne(&dispatch.id()).then_some(origin_msg),
+            expiration: hold.expected(),
+            reason,
+        });
+
+        // Adding wake request in task pool.
+        TaskPoolOf::<T>::add(
+            hold.expected(),
+            ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
+        )
+        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
+        // Adding message in waitlist.
+        WaitlistOf::<T>::insert(dispatch, hold.expected())
+            .unwrap_or_else(|e| unreachable!("Waitlist corrupted! {:?}", e));
     }
 
     /// Wakes dispatch from waitlist, permanently charged for hold with
@@ -330,12 +326,12 @@ where
     ) -> Option<StoredDispatch> {
         // Removing dispatch from waitlist, doing wake requirements if found.
         WaitlistOf::<T>::remove(program_id, message_id)
-            .map(|v| Self::wake_requirements(v, reason))
+            .map(|v| Self::wake_dispatch_requirements(v, reason))
             .ok()
     }
 
     /// Charges and deposits event for already taken from waitlist dispatch.
-    pub(crate) fn wake_requirements(
+    pub(crate) fn wake_dispatch_requirements(
         (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
@@ -426,6 +422,7 @@ where
         mailboxed
     }
 
+    #[allow(unused)]
     pub(crate) fn send_user_message(origin_msg: MessageId, message: Message) {
         let threshold = T::MailboxThreshold::get();
 
@@ -444,23 +441,27 @@ where
             })
             .unwrap_or_default();
 
-        let message = message
-            .with_string_payload::<ExecutionErrorReason>()
-            .unwrap_or_else(|e| {
-                log::debug!("Failed to decode error to string");
-                e
-            }).into_stored();
+        let message = match message.exit_code() {
+            Some(0) | None => message,
+            _ => message
+                .with_string_payload::<ExecutionErrorReason>()
+                .unwrap_or_else(|e| {
+                    log::debug!("Failed to decode error to string");
+                    e
+                }),
+        };
+        let message = message.into_stored();
 
         let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
         let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
         let value = message.value().unique_saturated_into();
 
         let expiration = if gas_limit >= threshold {
-            // TODO: properly calculate deadline.
-            let deadline = Deadline::<T> {
-                schedule_at: BlockNumberFor::<T>::zero(),
-                gas_lock: 0,
-            };
+            let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
+
+            if hold.is_zero() {
+                unreachable!("Threshold for mailbox invalidated")
+            }
 
             GasHandlerOf::<T>::cut(origin_msg, message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
@@ -468,7 +469,10 @@ where
             <T as Config>::Currency::reserve(&from, value)
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
 
-            Some(deadline.schedule_at)
+            MailboxOf::<T>::insert(message.clone(), hold.expected())
+                .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
+
+            Some(hold.expected())
         } else {
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
                 .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));

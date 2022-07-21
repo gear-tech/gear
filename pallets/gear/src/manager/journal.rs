@@ -17,14 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
-    Pallet, QueueOf, SentOf, WaitlistOf,
+    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet,
+    QueueOf, SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
-use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
-};
-use frame_support::traits::{Currency, ExistenceRequirement, Get, ReservableCurrency};
+use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
+use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
@@ -157,7 +155,7 @@ where
         // TODO: update gas limit in `ValueTree` here (issue #1022).
         // TODO: use here normal charging and waking logic.
         WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
-            let message = Pallet::<T>::wake_requirements(
+            let message = Pallet::<T>::wake_dispatch_requirements(
                 entry,
                 MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
             );
@@ -188,17 +186,17 @@ where
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        let gas_limit = dispatch.gas_limit();
-        let dispatch = dispatch.into_stored();
-
-        log::debug!(
-            "Sending message {:?} from {:?} with gas limit {:?}",
-            dispatch.message(),
-            message_id,
-            gas_limit,
-        );
-
         if self.check_program_id(&dispatch.destination()) {
+            let gas_limit = dispatch.gas_limit();
+            let dispatch = dispatch.into_stored();
+
+            log::debug!(
+                "Sending message {:?} from {:?} with gas limit {:?}",
+                dispatch.message(),
+                message_id,
+                gas_limit,
+            );
+
             if dispatch.value() != 0 {
                 <T as Config>::Currency::reserve(
                     &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
@@ -215,46 +213,13 @@ where
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
-            let message = match dispatch.exit_code() {
-                Some(0) | None => dispatch.into_parts().1,
-                _ => {
-                    let message = dispatch.into_parts().1;
-                    message
-                        .clone()
-                        .with_string_payload::<ExecutionErrorReason>()
-                        .unwrap_or(message)
-                }
-            };
-
-            let mailbox_threshold = T::MailboxThreshold::get();
-
-            // TODO: replace this unwrap_or_default in #1130.
-            let gas_limit = gas_limit.unwrap_or_else(|| {
-                GasHandlerOf::<T>::get_limit(message_id)
-                    .ok()
-                    .flatten()
-                    .map(|(v, _)| v)
-                    .unwrap_or_default()
-                    .min(mailbox_threshold)
-            });
-
-            if gas_limit >= mailbox_threshold {
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                })
-            } else {
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: None,
-                });
-            }
+            log::debug!(
+                "Sending user message {:?} from {:?} with gas limit {:?}",
+                dispatch.message(),
+                message_id,
+                dispatch.gas_limit(),
+            );
+            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1);
         }
     }
 

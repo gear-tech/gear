@@ -1527,7 +1527,6 @@ fn send_reply_value_claiming_works() {
 
             let currently_sent = value_to_reply + GasPrice::gas_price(gas_limit_to_reply);
 
-            print_gear_events::<Test>();
             assert_eq!(
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_balance + locked_value - currently_sent
@@ -4491,8 +4490,8 @@ mod utils {
         }
     }
 
-    pub(super) fn print_gear_events<T: crate::Config>() {
-        let v = SystemPallet::<T>::events()
+    pub(super) fn print_gear_events() {
+        let v = SystemPallet::<Test>::events()
             .into_iter()
             .map(|r| r.event)
             .collect::<Vec<_>>();

@@ -83,6 +83,7 @@ pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPoo
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
+pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
