@@ -338,7 +338,7 @@ pub fn get_program_page_data(program_id: H256, page: PageNumber) -> Result<PageB
     PageBuf::new_from_vec(data).map_err(Into::into)
 }
 
-/// Returns data for all `program` pages, which has data
+/// Returns data for all program pages, that have data in storage.
 pub fn get_program_pages_data(
     program_id: H256,
     program: &ActiveProgram,
@@ -346,7 +346,7 @@ pub fn get_program_pages_data(
     get_program_data_for_pages(program_id, program.pages_with_data.iter())
 }
 
-/// Returns program data for each `pages`
+/// Returns program data for each page from `pages`
 pub fn get_program_data_for_pages<'a>(
     program_id: H256,
     pages: impl Iterator<Item = &'a PageNumber>,
@@ -362,7 +362,8 @@ pub fn get_program_data_for_pages<'a>(
     Ok(pages_data)
 }
 
-/// Returns program data for each `pages`, which has data in storage
+/// Returns program data for each page from `pages`,
+/// which has data in storage.
 pub fn get_program_data_for_pages_optional(
     program_id: H256,
     pages: impl Iterator<Item = PageNumber>,
