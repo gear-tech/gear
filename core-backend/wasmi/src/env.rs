@@ -462,7 +462,7 @@ where
             err: trap,
         } = self.runtime;
 
-        log::debug!("execution res = {:?}", res);
+        log::debug!("WasmiEnvironment::execute result = {res:?}");
 
         let (info, trap_explanation) =
             ext.into_inner()
