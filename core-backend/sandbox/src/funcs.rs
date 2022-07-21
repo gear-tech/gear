@@ -66,6 +66,7 @@ pub(crate) fn return_i32<T: TryInto<i32>>(val: T) -> SyscallOutput {
 }
 
 pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
+    // Issue (#1208)
     val.try_into()
         .map(|v| Value::I64(v).into())
         .map_err(|_| HostError)
@@ -345,13 +346,14 @@ where
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let reply_tuple = ctx.ext().reply_to().map_err(FuncError::Core).map_err(|e| {
-            ctx.set_err(e);
-            HostError
-        })?;
+        let opt_details = ctx.ext().with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
+            .map_err(|e| {
+                ctx.err = e;
+                HostError
+            })?;
 
-        if let Some((_, exit_code)) = reply_tuple {
-            return_i32(exit_code)
+        if let Some(details) = opt_details {
+            return_i32(details.into_exit_code())
         } else {
             ctx.set_err(FuncError::NonReplyExitCode);
             Err(HostError)
@@ -576,15 +578,14 @@ where
 
         let maybe_message_id = ctx
             .ext()
-            .reply_to()
-            .map_err(FuncError::Core)
+            .with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
             .map_err(|err| {
                 ctx.set_err(err);
                 HostError
             })?;
 
-        if let Some((message_id, _)) = maybe_message_id {
-            ctx.write_sandbox_output(dest, message_id.as_ref())
+        if let Some(details) = opt_details {
+            ctx.write_sandbox_output(dest, details.into_reply_to().as_ref())
                 .map_err(|err| {
                     ctx.set_err(err.into());
                     HostError

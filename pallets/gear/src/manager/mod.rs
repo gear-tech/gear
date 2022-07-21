@@ -49,29 +49,23 @@ mod task;
 pub use journal::*;
 pub use task::*;
 
-use crate::{Authorship, Config, CostsPerBlockOf, GasHandlerOf, GearProgramPallet, WaitlistOf};
+use crate::{Config, CurrencyOf, GearProgramPallet};
 use codec::{Decode, Encode};
-use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasPrice, GasTree, Origin,
-    ProgramState,
-};
+use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::traits::{BalanceStatus, Currency, ReservableCurrency};
+use frame_support::traits::Currency;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::{ExitCode, StoredDispatch},
+    message::ExitCode,
     program::Program as NativeProgram,
 };
-use sp_runtime::traits::{SaturatedConversion, UniqueSaturatedInto};
+use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
     marker::PhantomData,
     prelude::*,
 };
-
-// Tolerance towards rounding error when converting gas to balance etc.
-pub(crate) const TOL: u128 = 10;
 
 #[derive(Clone, Decode, Encode)]
 pub enum HandleKind {
@@ -166,10 +160,9 @@ where
             )
         };
 
-        let balance = <T as Config>::Currency::free_balance(
-            &<T::AccountId as Origin>::from_origin(id.into_origin()),
-        )
-        .unique_saturated_into();
+        let balance =
+            CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
+                .unique_saturated_into();
         let pages_data = if with_pages {
             common::get_program_data_for_pages(id.into_origin(), active.pages_with_data.iter())
                 .ok()?
@@ -204,92 +197,5 @@ where
         };
 
         common::set_program(program_id.into_origin(), program);
-    }
-
-    pub fn charge_for_wake(
-        &self,
-        message_id: MessageId,
-        bn: <T as frame_system::Config>::BlockNumber,
-    ) {
-        let duration = <frame_system::Pallet<T>>::block_number()
-            .saturated_into::<u32>()
-            .saturating_sub(bn.saturated_into::<u32>());
-
-        let holding_cost = (duration as u64).saturating_mul(CostsPerBlockOf::<T>::waitlist());
-
-        match GasHandlerOf::<T>::spend(message_id, holding_cost) {
-            Ok(_) => {
-                match GasHandlerOf::<T>::get_external(message_id) {
-                    Ok(maybe_origin) => {
-                        if let Some(origin) = maybe_origin {
-                            let charge = T::GasPrice::gas_price(holding_cost);
-                            if let Some(author) = Authorship::<T>::author() {
-                                match <T as Config>::Currency::repatriate_reserved(
-                                    &origin,
-                                    &author,
-                                    charge,
-                                    BalanceStatus::Free,
-                                ) {
-                                    Ok(leftover) => {
-                                        if leftover > TOL.unique_saturated_into() {
-                                            log::debug!(
-                                                target: "essential",
-                                                "Reserved funds not fully repatriated from {:?} to 0x{:?}: amount = {:?}, leftover = {:?}",
-                                                origin,
-                                                author,
-                                                charge,
-                                                leftover,
-                                            );
-                                        }
-                                    }
-                                    Err(e) => {
-                                        log::debug!(
-                                            target: "essential",
-                                            "Failure to repatriate reserves of {:?} from {:?} to 0x{:?}: {:?}",
-                                            charge,
-                                            origin,
-                                            author,
-                                            e,
-                                        );
-                                    }
-                                }
-                            }
-                        } else {
-                            log::debug!(
-                                target: "essential",
-                                "Failed to get origin of {:?}",
-                                message_id,
-                            );
-                        }
-                    }
-                    Err(_err) => {
-                        // We only can get an error here if the gas tree is invalidated
-                        // TODO: handle appropriately
-                        unreachable!("Can never happen unless gas tree corrupted");
-                    }
-                }
-            }
-            Err(err) => {
-                log::debug!(
-                    target: "essential",
-                    "Error charging {:?} of gas rent for awakening message {:?}: {:?}",
-                    holding_cost,
-                    message_id,
-                    err,
-                );
-            }
-        }
-    }
-
-    pub fn wake_message_impl(
-        &self,
-        program_id: ProgramId,
-        message_id: MessageId,
-    ) -> Option<StoredDispatch> {
-        let (waitlisted, bn) = WaitlistOf::<T>::remove(program_id, message_id).ok()?;
-
-        self.charge_for_wake(waitlisted.id(), bn);
-
-        Some(waitlisted)
     }
 }

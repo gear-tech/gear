@@ -26,6 +26,7 @@ use codec::{Decode, Encode};
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod ext;
+mod internal;
 mod schedule;
 
 pub mod manager;
@@ -59,13 +60,16 @@ use gear_core::{
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
+use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
     prelude::*,
 };
 
+pub(crate) use frame_system::Pallet as SystemPallet;
+
+pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
@@ -78,6 +82,7 @@ pub(crate) type MessengerCapacityOf<T> = <<T as Config>::Messenger as Messenger>
 pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPool;
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
+pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
@@ -1030,49 +1035,28 @@ pub mod pallet {
                 T::DebugInfo::remap_id();
             }
 
+            let lazy_pages_enabled =
+                cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
+
             while QueueProcessingOf::<T>::allowed() {
                 if let Some(dispatch) = QueueOf::<T>::dequeue()
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
-                    let msg_id = dispatch.id();
-                    let gas_limit: u64;
-                    match GasHandlerOf::<T>::get_limit(msg_id) {
-                        Ok(maybe_limit) => {
-                            if let Some((limit, _)) = maybe_limit {
-                                gas_limit = limit;
-                            } else {
-                                log::debug!(
-                                    target: "essential",
-                                    "No gas handler for message: {:?} to {:?}",
-                                    dispatch.id(),
-                                    dispatch.destination(),
-                                );
+                    // Querying gas limit. Fails in cases of `GasTree` invalidations.
+                    let opt_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-                                QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
-                                    unreachable!("Message queue corrupted! {:?}", e)
-                                });
+                    // Gas limit may not be found only for inexistent node.
+                    let (gas_limit, _) =
+                        opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
-                                // Since we requeue the message without GasHandler we have to take
-                                // into account that there can left only such messages in the queue.
-                                // So stop processing when there is not enough gas/weight.
-                                let consumed =
-                                    T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
+                    // Querying external id. Fails in cases of `GasTree` invalidations.
+                    let opt_external = GasHandlerOf::<T>::get_external(dispatch.id())
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-                                GasAllowanceOf::<T>::decrease(consumed);
-
-                                if GasAllowanceOf::<T>::get() < consumed {
-                                    break;
-                                }
-
-                                continue;
-                            };
-                        }
-                        Err(_err) => {
-                            // We only can get an error here if the gas tree is invalidated
-                            // TODO: handle appropriately
-                            unreachable!("Can never happen unless gas tree corrupted");
-                        }
-                    };
+                    // External id may not be found only for inexistent node.
+                    let external = opt_external
+                        .unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     log::debug!(
                         "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
@@ -1082,14 +1066,8 @@ pub mod pallet {
                         GasAllowanceOf::<T>::get(),
                     );
 
-                    let lazy_pages_enabled =
-                        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
-                    let program_id = dispatch.destination();
-                    let current_message_id = dispatch.id();
-                    let maybe_message_reply = dispatch.reply();
-
                     let active_actor_data = if let Some(maybe_active_program) =
-                        common::get_program(program_id.into_origin())
+                        common::get_program(dispatch.destination().into_origin())
                     {
                         // Check whether message should be added to the wait list
                         if let Program::Active(prog) = maybe_active_program {
@@ -1109,82 +1087,45 @@ pub mod pallet {
                                     log::debug!(
                                         "Can not instrument code '{:?}' for program '{:?}'",
                                         code_id,
-                                        program_id
+                                        dispatch.destination()
                                     );
                                     continue;
                                 }
                             } else {
-                                log::debug!(
+                                // This branch is considered unreachable,
+                                // because there can't be a program
+                                // without code.
+                                //
+                                // Reaching this code is a sign of a serious
+                                // storage or logic corruption.
+                                log::error!(
                                     "Code '{:?}' not found for program '{:?}'",
                                     code_id,
-                                    program_id
+                                    dispatch.destination()
                                 );
 
                                 continue;
                             };
 
-                            if maybe_message_reply.is_none()
-                                && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id)
+                            if matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != dispatch.id())
+                                && dispatch.reply().is_none()
                             {
-                                let origin = if let Some(origin) =
-                                    GasHandlerOf::<T>::get_origin_key(dispatch.id()).unwrap_or_else(
-                                        |e| unreachable!("ValueTree corrupted: {:?}!", e),
-                                    ) {
-                                    if origin == dispatch.id() {
-                                        None
-                                    } else {
-                                        Some(origin)
-                                    }
-                                } else {
-                                    unreachable!("ValueTree corrupted!")
-                                };
-
-                                // TODO: replace this temporary (zero) value
-                                // for expiration block number with properly
-                                // calculated one (issues #646 and #969).
-                                Pallet::<T>::deposit_event(Event::MessageWaited {
-                                    id: dispatch.id(),
-                                    origin,
-                                    reason: MessageWaitedSystemReason::ProgramIsNotInitialized
-                                        .into_reason(),
-                                    expiration: T::BlockNumber::zero(),
-                                });
+                                // Adding id in on-init wake list.
                                 common::waiting_init_append_message_id(
-                                    program_id,
-                                    current_message_id,
+                                    dispatch.destination(),
+                                    dispatch.id(),
                                 );
 
-                                let message_id = dispatch.id();
-                                let program_id = dispatch.destination();
-                                WaitlistOf::<T>::insert(dispatch).unwrap_or_else(|e| {
-                                    unreachable!("Waitlist corrupted! {:?}", e)
-                                });
-
-                                let current_bn = <frame_system::Pallet<T>>::block_number()
-                                    .saturated_into::<u32>();
-
-                                let can_cover =
-                                    gas_limit.saturating_div(CostsPerBlockOf::<T>::waitlist());
-                                let reserve_for =
-                                    CostsPerBlockOf::<T>::reserve_for().saturated_into::<u32>();
-
-                                let duration = (can_cover as u32).saturating_sub(reserve_for);
-
-                                let deadline = current_bn.saturating_add(duration);
-                                let deadline: T::BlockNumber = deadline.unique_saturated_into();
-
-                                TaskPoolOf::<T>::add(
-                                    deadline,
-                                    ScheduledTask::RemoveFromWaitlist(program_id, message_id),
-                                )
-                                .unwrap_or_else(|e| {
-                                    unreachable!("Scheduling logic invalidated! {:?}", e)
-                                });
+                                Self::wait_dispatch(
+                                    dispatch,
+                                    MessageWaitedSystemReason::ProgramIsNotInitialized
+                                        .into_reason(),
+                                );
                                 continue;
                             }
 
                             let program = NativeProgram::from_parts(
-                                program_id,
+                                dispatch.destination(),
                                 code,
                                 prog.allocations,
                                 matches!(prog.state, ProgramState::Initialized),
@@ -1194,15 +1135,12 @@ pub mod pallet {
                                 Default::default()
                             } else {
                                 match common::get_program_data_for_pages(
-                                    program_id.into_origin(),
+                                    dispatch.destination().into_origin(),
                                     prog.pages_with_data.iter(),
                                 ) {
                                     Ok(data) => data,
                                     Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
+                                        log::error!("Cannot get data for program pages: {}", err);
                                         continue;
                                     }
                                 }
@@ -1215,7 +1153,7 @@ pub mod pallet {
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages
                             // were already in the queue/were added to the queue (for example. moved from wait list in case of async init)
-                            log::debug!("Program '{:?}' is not active", program_id,);
+                            log::debug!("Program '{:?}' is not active", dispatch.destination());
                             None
                         }
                     } else {
@@ -1229,33 +1167,20 @@ pub mod pallet {
                     };
 
                     let balance = <T as Config>::Currency::free_balance(
-                        &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
+                        &<T::AccountId as Origin>::from_origin(
+                            dispatch.destination().into_origin(),
+                        ),
                     )
                     .unique_saturated_into();
-
-                    let origin = match GasHandlerOf::<T>::get_external(msg_id) {
-                        Ok(maybe_origin) => {
-                            // NOTE: intentional expect.
-                            // Given gas tree is valid, a node with such id exists and has origin
-                            maybe_origin.expect(
-                                "Gas node is guaranteed to exist for the key due to earlier checks",
-                            )
-                        }
-                        Err(_err) => {
-                            // Error can only be due to invalid gas tree
-                            // TODO: handle appropriately
-                            unreachable!("Can never happen unless gas tree corrupted");
-                        }
-                    };
 
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
-                            destination_program: program_id,
+                            destination_program: dispatch.destination(),
                             executable_data: active_actor_data,
                         },
                         dispatch: dispatch.into_incoming(gas_limit),
-                        origin: ProgramId::from_origin(origin.into_origin()),
+                        origin: ProgramId::from_origin(external.into_origin()),
                         gas_allowance: GasAllowanceOf::<T>::get(),
                     };
 
@@ -1704,7 +1629,7 @@ pub mod pallet {
             );
 
             // Claim outstanding value from the original message first
-            let original_message = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
+            let (original_message, _bn) = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
             // TODO: burn here for holding #646.
             let mut ext_manager: ExtManager<T> = Default::default();
             ext_manager.message_consumed(reply_to_id);
@@ -1766,12 +1691,12 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(T::DbWeight::get().writes(1))]
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_from_mailbox())]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
-            let _ = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
+            let (_, _bn) = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
             // TODO: burn here for holding #646.
             let mut ext_manager: ExtManager<T> = Default::default();
             ext_manager.message_consumed(message_id);

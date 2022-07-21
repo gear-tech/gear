@@ -21,7 +21,7 @@ use codec::Encode;
 use core_processor::common::JournalHandler;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, StoredMessage},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails, StoredMessage},
 };
 use std::cell::RefCell;
 
@@ -113,7 +113,7 @@ impl<'a> MessageReplier<'a> {
             value,
             self.log
                 .exit_code()
-                .map(|exit_code| (self.log.id(), exit_code)),
+                .map(|exit_code| ReplyDetails::new(self.log.id(), exit_code)),
         );
 
         self.manager

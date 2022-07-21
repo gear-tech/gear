@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::common::ReplyDetails;
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
@@ -43,7 +44,7 @@ pub struct IncomingMessage {
     /// Message value.
     value: Value,
     /// Message id replied on with exit code.
-    reply: Option<(MessageId, ExitCode)>,
+    reply: Option<ReplyDetails>,
 }
 
 impl IncomingMessage {
@@ -54,7 +55,7 @@ impl IncomingMessage {
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
-        reply: Option<(MessageId, ExitCode)>,
+        reply: Option<ReplyDetails>,
     ) -> Self {
         Self {
             id,
@@ -103,7 +104,7 @@ impl IncomingMessage {
     }
 
     /// Message reply.
-    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
+    pub fn reply(&self) -> Option<ReplyDetails> {
         self.reply
     }
 
@@ -114,12 +115,12 @@ impl IncomingMessage {
 
     /// Message id what this message replies to, if reply.
     pub fn reply_to(&self) -> Option<MessageId> {
-        self.reply.map(|(id, _)| id)
+        self.reply.map(|v| v.reply_to())
     }
 
     /// Exit code of the message, if reply.
     pub fn exit_code(&self) -> Option<ExitCode> {
-        self.reply.map(|(_, exit_code)| exit_code)
+        self.reply.map(|v| v.exit_code())
     }
 }
 

@@ -29,7 +29,7 @@ use gear_core::{
     gas::GasAmount,
     ids::{MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{HandlePacket, ReplyPacket},
+    message::{HandlePacket, ReplyDetails, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 use sp_std::collections::btree_map::BTreeMap;
@@ -97,9 +97,13 @@ impl IntoExtInfo for LazyPagesExt {
         } = self.inner.context;
 
         // Accessed pages are all pages except current lazy pages
-        let allocations = allocations_context.allocations().clone();
+        let static_pages = allocations_context.static_pages();
+        let (initial_allocations, allocations) = allocations_context.into_parts();
         let mut accessed_pages = lazy_pages::get_released_pages();
-        accessed_pages.retain(|p| allocations.contains(&p.to_wasm_page()));
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_wasm_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
@@ -117,7 +121,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            allocations,
+            allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,
@@ -289,8 +293,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_commit(msg).map_err(Error::Processor)
     }
 
-    fn reply_to(&mut self) -> Result<Option<(MessageId, i32)>, Self::Error> {
-        self.inner.reply_to().map_err(Error::Processor)
+    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
+        self.inner.reply_details().map_err(Error::Processor)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
