@@ -236,7 +236,7 @@ where
                     .ok()
                     .flatten()
                     .map(|(v, _)| v)
-                    .unwrap_or_default()
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e))
                     .min(mailbox_threshold)
             });
 
