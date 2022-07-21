@@ -27,7 +27,7 @@ use core_processor::{
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
     Ext, PrepareResult,
 };
-use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -598,7 +598,7 @@ impl ExtManager {
             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
             PrepareResult::Ok { context, .. } => core_processor::process::<
                 Ext,
-                WasmtimeEnvironment<Ext>,
+                WasmiEnvironment<Ext>,
             >(&block_config, context, memory_pages),
         };
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provide wasmtime-runtime support.
+//! Provide wasmi support.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
 pub mod env;
-mod funcs;
-pub mod funcs_tree;
+pub mod funcs;
 pub mod memory;
 
-pub use env::WasmtimeEnvironment;
+pub use env::WasmiEnvironment;
+pub use memory::MemoryWrap;
