@@ -207,9 +207,11 @@ where
 
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
-                let _ = GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit);
+                let _ = GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             } else {
-                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id());
+                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id())
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 
             QueueOf::<T>::queue(dispatch)
@@ -244,7 +246,8 @@ where
                 // (issues #646 and #969).
                 MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
                     .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit);
+                let _ = GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
                     expiration: Some(T::BlockNumber::zero()),
