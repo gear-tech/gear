@@ -65,7 +65,6 @@ impl Memory for MemoryWrap {
     }
 }
 
-/// can't be tested outside the node runtime
 #[cfg(test)]
 mod tests {
     use super::*;

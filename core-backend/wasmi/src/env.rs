@@ -213,14 +213,11 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
 
         let externval = if self.forbidden_funcs.contains(field_name) {
             self.map
-                .get(&(
-                    "env".as_bytes().to_owned(),
-                    "forbidden".as_bytes().to_owned(),
-                ))
+                .get(&(b"env".to_vec(), b"forbidden".to_vec()))
                 .ok_or_else(|| {
                     log::debug!(
                         target: "gwasm",
-                        "Export {}:{} not found",
+                        "Export {}:{} is forbidden",
                         module_name,
                         field_name
                     );
@@ -276,7 +273,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
         let externval = self.map.get(&key).ok_or_else(|| {
             log::debug!(
                 target: "gwasm",
-                "Export {}:{} not found",
+                "Memory export {}:{} not found",
                 module_name,
                 field_name
             );
@@ -388,10 +385,16 @@ where
         };
 
         let defined_host_functions = builder.defined_host_functions.clone();
-        let instance = match ModuleInstance::new(
-            &wasmi::Module::from_buffer(binary).expect("wasmi can't load module binary"),
-            &builder,
-        ) {
+        let module = match wasmi::Module::from_buffer(binary) {
+            Ok(module) => module,
+            Err(e) => {
+                return Err(BackendError {
+                    reason: WasmiEnvironmentError::ModuleInstantiation(e),
+                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
+                })
+            }
+        };
+        let instance = match ModuleInstance::new(&module, &builder) {
             Ok(inst) => inst.not_started_instance().clone(),
             Err(e) => {
                 return Err(BackendError {
