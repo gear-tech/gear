@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2022 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Techn&&ologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::env::Runtime;
+use crate::env::{ReturnValue, Runtime};
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 use alloc::{
@@ -41,35 +41,44 @@ use gear_core::{
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use gear_core_errors::MemoryError;
-use sp_sandbox::{HostError, ReturnValue, Value};
+use wasmi::{Error, RuntimeValue};
 
-pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
+pub(crate) type SyscallOutput<E> = Result<ReturnValue, FuncError<E>>;
 
-pub(crate) fn pop_i32<T: TryFrom<i32>>(arg: &mut Iter<'_, Value>) -> Result<T, HostError> {
+pub(crate) fn pop_i32<T: TryFrom<i32>>(arg: &mut Iter<'_, RuntimeValue>) -> Result<T, Error>
+where
+    <T as TryFrom<i32>>::Error: std::fmt::Display,
+{
     match arg.next() {
-        Some(Value::I32(val)) => Ok((*val).try_into().map_err(|_| HostError)?),
-        _ => Err(HostError),
+        Some(RuntimeValue::I32(val)) => Ok((*val)
+            .try_into()
+            .map_err(|e| Error::Value(format!("{}", e)))?),
+        _ => Err(Error::Value("popi32".to_string())),
     }
 }
 
-pub(crate) fn pop_i64<T: TryFrom<i64>>(arg: &mut Iter<'_, Value>) -> Result<T, HostError> {
+pub(crate) fn pop_i64<T: TryFrom<i64>>(arg: &mut Iter<'_, RuntimeValue>) -> Result<T, Error>
+where
+    <T as TryFrom<i64>>::Error: std::fmt::Display,
+{
     match arg.next() {
-        Some(Value::I64(val)) => Ok((*val).try_into().map_err(|_| HostError)?),
-        _ => Err(HostError),
+        Some(RuntimeValue::I64(val)) => Ok((*val)
+            .try_into()
+            .map_err(|e| Error::Value(format!("{}", e)))?),
+        _ => Err(Error::Value("popi64".to_string())),
     }
 }
 
-pub(crate) fn return_i32<T: TryInto<i32>>(val: T) -> SyscallOutput {
+pub(crate) fn return_i32<T: TryInto<i32>>(val: T) -> Result<ReturnValue, Error> {
     val.try_into()
-        .map(|v| Value::I32(v).into())
-        .map_err(|_| HostError)
+        .map(|v| RuntimeValue::I32(v).into())
+        .map_err(|_| Error::Value("return_i32 err".to_string()))
 }
 
-pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
-    // Issue (#1208)
+pub(crate) fn return_i64<T: TryInto<i64> + fmt::Display>(val: T) -> Result<ReturnValue, Error> {
     val.try_into()
-        .map(|v| Value::I64(v).into())
-        .map_err(|_| HostError)
+        .map(|v| RuntimeValue::I64(v).into())
+        .map_err(|_| Error::Value("return_i64 err".to_string()))
 }
 
 fn wto<E>(memory: &mut impl Memory, ptr: usize, buff: &[u8]) -> Result<(), FuncError<E>> {
@@ -82,6 +91,8 @@ pub enum FuncError<E> {
     Core(E),
     #[display(fmt = "{}", _0)]
     LaterExtWith(ExtCarrierWithError),
+    #[display(fmt = "Runtime Error")]
+    HostError,
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "Cannot set u128: {}", _0)]
@@ -129,7 +140,7 @@ impl<E> From<MemoryError> for FuncError<E> {
     }
 }
 
-pub(crate) struct FuncsHandler<E: Ext + 'static> {
+pub struct FuncsHandler<E: Ext + 'static> {
     _phantom: PhantomData<E>,
 }
 
@@ -138,14 +149,14 @@ where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
-    pub fn send(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn send(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let program_id_ptr = pop_i32(&mut args)?;
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -162,22 +173,22 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn send_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn send_wgas(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let program_id_ptr = pop_i32(&mut args)?;
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
-        let gas_limit = pop_i64(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -195,20 +206,20 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn send_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn send_commit(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let handle_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
-        let program_id_ptr = pop_i32(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
+        let handle_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -228,21 +239,24 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn send_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn send_commit_wgas(
+        ctx: &mut Runtime<E>,
+        args: &[RuntimeValue],
+    ) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let handle_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
-        let program_id_ptr = pop_i32(&mut args)?;
-        let gas_limit = pop_i64(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
+        let handle_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -262,17 +276,17 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn send_init(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn send_init(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let handle_ptr = pop_i32(&mut args)?;
+        let handle_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -284,19 +298,19 @@ where
                 .error_len_on_success(|handle| wto(memory, handle_ptr, &handle.to_le_bytes()))?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn send_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn send_push(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let handle_ptr = pop_i32(&mut args)?;
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
+        let handle_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -309,19 +323,19 @@ where
                 .error_len();
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn read(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let at = pop_i32(&mut args)?;
-        let len: usize = pop_i32(&mut args)?;
-        let dest = pop_i32(&mut args)?;
+        let at = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let len: usize = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let dest = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -332,19 +346,20 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn size(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn size(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         ctx.ext
             .with(|ext| ext.msg().len())
             .map(return_i32)
             .unwrap_or_else(|_| return_i32(0))
+            .map_err(|_| FuncError::HostError)
     }
 
-    pub fn exit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-        let value_dest_ptr = pop_i32(&mut args.iter())?;
+    pub fn exit(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let value_dest_ptr = pop_i32(&mut args.iter()).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -357,30 +372,30 @@ where
             ctx.err = err;
         }
 
-        Err(HostError)
+        Err(FuncError::HostError)
     }
 
-    pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn exit_code(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let opt_details = ctx
             .ext
             .with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
             .map_err(|e| {
                 ctx.err = e;
-                HostError
+                FuncError::HostError
             })?;
 
         if let Some(details) = opt_details {
-            return_i32(details.into_exit_code())
+            return_i32(details.into_exit_code()).map_err(|_| FuncError::HostError)
         } else {
             ctx.err = FuncError::NonReplyExitCode;
-            Err(HostError)
+            Err(FuncError::HostError)
         }
     }
 
-    pub fn gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn gas(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let val = pop_i32(&mut args)?;
+        let val = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         ctx.ext
             .with_fallible(|ext| ext.gas(val).map_err(FuncError::Core))
@@ -393,32 +408,32 @@ where
                 {
                     ctx.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
                 }
-                HostError
+                FuncError::HostError
             })
     }
 
-    pub fn alloc(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn alloc(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let pages: u32 = pop_i32(&mut args)?;
+        let pages: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
         ext.with_fallible(|ext| ext.alloc(pages.into(), memory).map_err(FuncError::Core))
             .map(|page| {
                 log::debug!("ALLOC: {} pages at {:?}", pages, page);
-                Value::I32(page.0 as i32).into()
+                RuntimeValue::I32(page.0 as i32).into()
             })
             .map_err(|e| {
                 ctx.err = e;
-                HostError
+                FuncError::HostError
             })
     }
 
-    pub fn free(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn free(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let page: u32 = pop_i32(&mut args)?;
+        let page: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         if let Err(err) = ctx
             .ext
@@ -426,41 +441,36 @@ where
         {
             log::debug!("FREE ERROR: {}", err);
             ctx.err = err;
-            Err(HostError)
+            Err(FuncError::HostError)
         } else {
             log::debug!("FREE: {}", page);
             Ok(ReturnValue::Unit)
         }
     }
 
-    pub fn block_height(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn block_height(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let block_height = ctx
             .ext
-            .with_fallible(|ext| ext.block_height().map_err(FuncError::Core))
-            .map_err(|err| {
-                ctx.err = err;
-                HostError
-            })?;
+            .with_fallible(|ext| ext.block_height().map_err(FuncError::Core))?;
 
-        return_i32(block_height)
+        return_i32(block_height).map_err(|_| FuncError::HostError)
     }
 
-    pub fn block_timestamp(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn block_timestamp(
+        ctx: &mut Runtime<E>,
+        _args: &[RuntimeValue],
+    ) -> SyscallOutput<E::Error> {
         let block_timestamp = ctx
             .ext
-            .with_fallible(|ext| ext.block_timestamp().map_err(FuncError::Core))
-            .map_err(|err| {
-                ctx.err = err;
-                HostError
-            })?;
+            .with_fallible(|ext| ext.block_timestamp().map_err(FuncError::Core))?;
 
-        return_i64(block_timestamp)
+        return_i64(block_timestamp).map_err(|_| FuncError::HostError)
     }
 
-    pub fn origin(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn origin(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let origin_ptr = pop_i32(&mut args)?;
+        let origin_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -471,17 +481,17 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn reply(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -497,21 +507,21 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply_wgas(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
-        let gas_limit = pop_i64(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -527,18 +537,18 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn reply_commit(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply_commit(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let value_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -553,19 +563,22 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn reply_commit_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply_commit_wgas(
+        ctx: &mut Runtime<E>,
+        args: &[RuntimeValue],
+    ) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let gas_limit = pop_i64(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let message_id_ptr = pop_i32(&mut args)?;
+        let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let message_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -584,44 +597,44 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn reply_to(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply_to(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let dest = pop_i32(&mut args)?;
+        let dest = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let opt_details = ctx
             .ext
             .with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
             .map_err(|err| {
                 ctx.err = err;
-                HostError
+                FuncError::HostError
             })?;
 
         if let Some(details) = opt_details {
             wto(&mut ctx.memory, dest, details.into_reply_to().as_ref()).map_err(|err| {
                 ctx.err = err;
-                HostError
+                FuncError::HostError
             })?;
 
             Ok(ReturnValue::Unit)
         } else {
             ctx.err = FuncError::NoReplyContext;
-            Err(HostError)
+            Err(FuncError::HostError)
         }
     }
 
-    pub fn reply_push(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn reply_push(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -634,18 +647,18 @@ where
                 .error_len();
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn debug(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn debug(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let str_ptr = pop_i32(&mut args)?;
-        let str_len = pop_i32(&mut args)?;
+        let str_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let str_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -659,23 +672,23 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn gas_available(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let gas_available = ctx
             .ext
             .with_fallible(|ext| ext.gas_available().map_err(FuncError::Core))
-            .map_err(|_| HostError)?;
+            .map_err(|_| FuncError::HostError)?;
 
-        return_i64(gas_available)
+        Ok(return_i64(gas_available).unwrap_or_else(|_| ReturnValue::Value(i64::MAX.into())))
     }
 
-    pub fn msg_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn msg_id(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let msg_id_ptr = pop_i32(&mut args)?;
+        let msg_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -686,14 +699,14 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn program_id(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn program_id(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let program_id_ptr = pop_i32(&mut args)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -704,14 +717,14 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn source(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn source(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let source_ptr = pop_i32(&mut args)?;
+        let source_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -722,14 +735,14 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn value(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn value(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let value_ptr = pop_i32(&mut args)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -740,14 +753,14 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn value_available(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn value_available(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let value_ptr = pop_i32(&mut args)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -758,32 +771,32 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn leave(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn leave(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         ctx.err = ctx
             .ext
             .with_fallible(|ext| ext.leave().map_err(FuncError::Core))
             .err()
             .unwrap_or(FuncError::Terminated(TerminationReason::Leave));
-        Err(HostError)
+        Err(FuncError::HostError)
     }
 
-    pub fn wait(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn wait(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         ctx.err = ctx
             .ext
             .with_fallible(|ext| ext.wait().map_err(FuncError::Core))
             .err()
             .unwrap_or(FuncError::Terminated(TerminationReason::Wait));
-        Err(HostError)
+        Err(FuncError::HostError)
     }
 
-    pub fn wake(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn wake(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let waker_id_ptr = pop_i32(&mut args)?;
+        let waker_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -794,20 +807,20 @@ where
         .map(|_| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn create_program(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn create_program(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let code_hash_ptr = pop_i32(&mut args)?;
-        let salt_ptr = pop_i32(&mut args)?;
-        let salt_len = pop_i32(&mut args)?;
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let program_id_ptr = pop_i32(&mut args)?;
+        let code_hash_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let salt_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let salt_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -825,24 +838,27 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn create_program_wgas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    pub fn create_program_wgas(
+        ctx: &mut Runtime<E>,
+        args: &[RuntimeValue],
+    ) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let code_hash_ptr = pop_i32(&mut args)?;
-        let salt_ptr = pop_i32(&mut args)?;
-        let salt_len = pop_i32(&mut args)?;
-        let payload_ptr = pop_i32(&mut args)?;
-        let payload_len = pop_i32(&mut args)?;
-        let gas_limit = pop_i64(&mut args)?;
-        let value_ptr = pop_i32(&mut args)?;
-        let program_id_ptr = pop_i32(&mut args)?;
+        let code_hash_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let salt_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let salt_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let payload_len = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let gas_limit = pop_i64(&mut args).map_err(|_| FuncError::HostError)?;
+        let value_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let program_id_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -866,17 +882,20 @@ where
                 })?;
             Ok(error_len)
         })
-        .map(|code| Value::I32(code as i32).into())
+        .map(|code| RuntimeValue::I32(code as i32).into())
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn error(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+    pub fn error(
+        ctx: &mut Runtime<E>,
+        args: &[RuntimeValue],
+    ) -> Result<ReturnValue, FuncError<E::Error>> {
         let mut args = args.iter();
 
-        let data_ptr = pop_i32(&mut args)?;
+        let data_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let Runtime { ext, memory, .. } = ctx;
 
@@ -889,13 +908,13 @@ where
         .map(|()| ReturnValue::Unit)
         .map_err(|err| {
             ctx.err = err;
-            HostError
+            FuncError::HostError
         })
     }
 
-    pub fn forbidden(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    pub fn forbidden(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         ctx.err =
             FuncError::Terminated(TerminationReason::Trap(TrapExplanation::ForbiddenFunction));
-        Err(HostError)
+        Err(FuncError::HostError)
     }
 }
