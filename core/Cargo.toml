@@ -10,6 +10,7 @@ gear-core-errors = { path = "../core-errors" }
 blake2-rfc = { version = "0.2.18", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.1.2", features = [
     "derive",
+    "max-encoded-len"
 ], default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 derive_more = "0.99.17"

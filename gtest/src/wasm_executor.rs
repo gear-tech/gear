@@ -19,42 +19,37 @@
 use core_processor::{Ext, ProcessorContext, ProcessorExt};
 use gear_backend_common::TerminationReason;
 use gear_backend_wasmi::{
-    env::{DefinedHostFunctions, EnvironmentDefinitionBuilder, GuestExternals, Runtime},
+    env::{EnvironmentDefinitionBuilder, GuestExternals},
     funcs::{FuncError, FuncsHandler as Funcs},
+    runtime::Runtime,
     MemoryWrap,
 };
 use gear_core::{
-    env::{Ext as ExtTrait, ExtCarrier},
+    env::Ext as ExtTrait,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{IncomingMessage, MessageContext, Payload},
     program::Program,
 };
 use std::{collections::BTreeMap, mem};
-use wasmi::{
-    memory_units::Pages, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef, RuntimeValue,
-};
+use wasmi::{memory_units::Pages, MemoryInstance, MemoryRef, ModuleInstance, RuntimeValue};
 
 use crate::{Result, TestError, MAILBOX_THRESHOLD};
 
 /// Binary meta-functions executor for testing purposes
-pub(crate) struct WasmExecutor {
-    instance: ModuleRef,
-    store: Runtime<Ext>,
-    memory: MemoryRef,
-    defined_host_functions: DefinedHostFunctions<Runtime<Ext>, <Ext as ExtTrait>::Error>,
-}
+pub(crate) struct WasmExecutor;
 
 impl WasmExecutor {
-    /// Creates a WasmExecutor instance from a program.
-    /// Also uses provided memory pages for future execution
-    pub(crate) fn new(
+    /// Executes non-void function by provided name.
+    /// Panics if function is void
+    pub(crate) fn execute(
         program: &Program,
         meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         payload: Option<Payload>,
-    ) -> Result<Self> {
-        let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
+        function_name: &str,
+    ) -> Result<Vec<u8>> {
+        let mut ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
         let mut builder: EnvironmentDefinitionBuilder<Runtime<Ext>, <Ext as ExtTrait>::Error> =
             EnvironmentDefinitionBuilder::new(
                 ext.forbidden_funcs()
@@ -98,8 +93,6 @@ impl WasmExecutor {
         builder.add_host_func("env", "gr_wait", Funcs::wait);
         builder.add_host_func("env", "gr_wake", Funcs::wake);
 
-        let ext_carrier = ExtCarrier::new(ext);
-
         let mem: MemoryRef = MemoryInstance::alloc(Pages(program.static_pages().0 as usize), None)?;
 
         builder.add_memory("env", "memory", mem.clone());
@@ -107,10 +100,12 @@ impl WasmExecutor {
         builder.add_host_func("env", "free", Funcs::free);
         builder.add_host_func("env", "gas", Funcs::gas);
 
-        let runtime = Runtime {
-            ext: ext_carrier,
+        let mut memory_wrap = MemoryWrap::new(mem.clone());
+        let mut runtime = Runtime {
+            ext: &mut ext,
             err: FuncError::Terminated(TerminationReason::Success),
-            memory: MemoryWrap::new(mem.clone()),
+            memory: &mem,
+            memory_wrap: &mut memory_wrap,
         };
 
         let defined_host_functions = builder.defined_host_functions.clone();
@@ -123,34 +118,17 @@ impl WasmExecutor {
         };
         WasmExecutor::set_pages(mem.clone(), memory_pages)?;
 
-        Ok(Self {
-            instance,
-            store: runtime,
-            memory: mem,
-            defined_host_functions,
-        })
-    }
-
-    /// Executes non-void function by provided name.
-    /// Panics if function is void
-    pub(crate) fn execute(&mut self, function_name: &str) -> Result<Vec<u8>> {
         let mut externals = GuestExternals {
-            state: &mut self.store,
-            defined_host_functions: &self.defined_host_functions,
+            state: &mut runtime,
+            defined_host_functions: &defined_host_functions,
         };
-        let res = self
-            .instance
+        let res = instance
             .invoke_export(function_name, &[], &mut externals)
             .map_err(|err| {
                 if let wasmi::Error::Function(_) = err {
                     return TestError::FunctionNotFound(function_name.to_string());
                 }
-                if let Some(processor_error) = self
-                    .store
-                    .ext
-                    .with(|a| a.error_explanation.clone())
-                    .expect("`with` is expected to be called only after `inner` is set")
-                {
+                if let Some(processor_error) = runtime.ext().error_explanation.clone() {
                     processor_error.into()
                 } else {
                     TestError::WasmiError(err.into())
@@ -158,7 +136,9 @@ impl WasmExecutor {
             })?;
 
         match res {
-            Some(RuntimeValue::I32(ptr_to_result)) => self.read_result(ptr_to_result),
+            Some(RuntimeValue::I32(ptr_to_result)) => {
+                Self::read_result(runtime.memory, ptr_to_result)
+            }
             _ => Err(TestError::InvalidReturnType),
         }
     }
@@ -190,17 +170,16 @@ impl WasmExecutor {
         })
     }
 
-    fn read_result(&mut self, ptr_to_result_data: i32) -> Result<Vec<u8>> {
+    fn read_result(memory: &MemoryRef, ptr_to_result_data: i32) -> Result<Vec<u8>> {
         let offset = ptr_to_result_data as usize;
 
         // Reading a fat pointer from the `offset`
         let mut ptr = [0_u8; mem::size_of::<i32>()];
         let mut len = [0_u8; mem::size_of::<i32>()];
 
-        self.memory.get_into(offset as u32, &mut ptr)?;
+        memory.get_into(offset as u32, &mut ptr)?;
 
-        self.memory
-            .get_into((offset + ptr.len()) as u32, &mut len)?;
+        memory.get_into((offset + ptr.len()) as u32, &mut len)?;
 
         let ptr = i32::from_ne_bytes(ptr) as usize;
         let len = i32::from_ne_bytes(len) as usize;
@@ -208,7 +187,7 @@ impl WasmExecutor {
         // Reading a vector from `ptr`
         let mut result = vec![0; len];
 
-        self.memory.get_into(ptr as u32, &mut result)?;
+        memory.get_into(ptr as u32, &mut result)?;
 
         Ok(result)
     }

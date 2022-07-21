@@ -23,7 +23,6 @@
 extern crate alloc;
 
 pub mod error_processor;
-pub mod funcs;
 
 mod utils;
 

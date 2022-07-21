@@ -346,7 +346,10 @@ where
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let opt_details = ctx.ext().with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
+        let opt_details = ctx
+            .ext()
+            .reply_details()
+            .map_err(FuncError::Core)
             .map_err(|e| {
                 ctx.err = e;
                 HostError
@@ -452,7 +455,7 @@ where
         };
         f().map(|()| ReturnValue::Unit)
             .map_err(|err: FuncError<_>| {
-                ctx.set_err(err.into());
+                ctx.set_err(err);
                 HostError
             })
     }
@@ -576,9 +579,10 @@ where
 
         let dest = pop_i32(&mut args)?;
 
-        let maybe_message_id = ctx
+        let opt_details = ctx
             .ext()
-            .with_fallible(|ext| ext.reply_details().map_err(FuncError::Core))
+            .reply_details()
+            .map_err(FuncError::Core)
             .map_err(|err| {
                 ctx.set_err(err);
                 HostError

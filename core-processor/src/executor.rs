@@ -30,7 +30,7 @@ use alloc::{
 };
 use gear_backend_common::{Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
-    env::{Ext as EnvExt, ExtCarrier},
+    env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},

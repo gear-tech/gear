@@ -356,8 +356,7 @@ impl ExtManager {
         payload: Option<Payload>,
         function_name: &str,
     ) -> Result<Vec<u8>> {
-        let mut executor = self.get_executor(program_id, payload)?;
-        executor.execute(function_name)
+        self.execute(program_id, payload, function_name)
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
@@ -593,11 +592,12 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    fn get_executor(
+    fn execute(
         &mut self,
         program_id: &ProgramId,
         payload: Option<Payload>,
-    ) -> Result<WasmExecutor> {
+        function_name: &str,
+    ) -> Result<Vec<u8>> {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
@@ -617,7 +617,13 @@ impl ExtManager {
             .map(Vec::as_slice)
             .ok_or(TestError::MetaBinaryNotProvided)?;
 
-        WasmExecutor::new(&data.program, meta_binary, &pages_initial_data, payload)
+        WasmExecutor::execute(
+            &data.program,
+            meta_binary,
+            &pages_initial_data,
+            payload,
+            function_name,
+        )
     }
 }
 
