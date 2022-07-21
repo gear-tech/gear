@@ -78,7 +78,7 @@ where
 
             // Splitting gas for newly created reply message.
             // TODO: handle error case for `split` (#1130).
-            let _ = GasHandlerOf::<T>::split(trap_reply.id(), message_id)
+            GasHandlerOf::<T>::split(trap_reply.id(), message_id)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Enqueueing dispatch into message queue.
