@@ -152,13 +152,12 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+
         // TODO: update gas limit in `ValueTree` here (issue #1022).
         // TODO: use here normal charging and waking logic.
         WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
-            let message = Pallet::<T>::wake_dispatch_requirements(
-                entry,
-                MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
-            );
+            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
 
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));

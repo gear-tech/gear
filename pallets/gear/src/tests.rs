@@ -1447,13 +1447,13 @@ fn send_reply_failure_to_claim_from_mailbox() {
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
-        assert!(matches!(
+        assert_eq!(
             MailboxOf::<Test>::iter_key(USER_1)
                 .next()
-                .map(|(msg, _bn)| msg.reply())
-                .expect("Element should be"),
-            Some((_, 1))
-        ));
+                .and_then(|(msg, _interval)| msg.exit_code())
+                .unwrap(),
+            1
+        );
     })
 }
 
@@ -4285,9 +4285,9 @@ mod utils {
 
         SystemPallet::<Test>::events().into_iter().for_each(|e| {
             if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some((id, exit_code)) = message.reply() {
-                    if id == message_id {
-                        assert_ne!(exit_code, 0);
+                if let Some(details) = message.reply() {
+                    if details.reply_to() == message_id {
+                        assert_ne!(details.exit_code(), 0);
                         actual_error = Some(
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),

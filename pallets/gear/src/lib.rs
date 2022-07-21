@@ -1085,7 +1085,13 @@ pub mod pallet {
                                     continue;
                                 }
                             } else {
-                                log::debug!(
+                                // This branch is considered unreachable,
+                                // because there can't be a program
+                                // without code.
+                                //
+                                // Reaching this code is a sign of a serious
+                                // storage or logic corruption.
+                                log::error!(
                                     "Code '{:?}' not found for program '{:?}'",
                                     code_id,
                                     dispatch.destination()
@@ -1127,10 +1133,7 @@ pub mod pallet {
                                 ) {
                                     Ok(data) => data,
                                     Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
+                                        log::error!("Cannot get data for program pages: {}", err);
                                         continue;
                                     }
                                 }
@@ -1683,7 +1686,7 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
-        #[pallet::weight(T::DbWeight::get().writes(1))]
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_from_mailbox())]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
             message_id: MessageId,

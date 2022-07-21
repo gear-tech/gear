@@ -102,7 +102,7 @@ fn pause_program_works() {
 
         // although the memory pages should be removed
         assert!(
-            common::get_program_data_for_pages(program_id.into_origin(), memory_pages.keys())
+            common::get_program_data_for_pages_optional(program_id.into_origin(), memory_pages.keys().copied())
                 .unwrap()
                 .is_empty()
         );
@@ -204,11 +204,12 @@ fn pause_uninitialized_program_works() {
         assert!(Pallet::<Test>::get_code(code_id).is_some());
 
         // although the memory pages should be removed
-        assert!(
-            common::get_program_data_for_pages(program_id.into_origin(), memory_pages.keys())
-                .unwrap()
-                .is_empty()
-        );
+        assert!(common::get_program_data_for_pages_optional(
+            program_id.into_origin(),
+            memory_pages.keys().copied()
+        )
+        .unwrap()
+        .is_empty());
 
         assert!(WaitlistOf::<Test>::remove(program_id, msg_1.id()).is_err());
         assert!(WaitlistOf::<Test>::remove(program_id, msg_2.id()).is_err());
@@ -251,9 +252,11 @@ fn resume_uninitialized_program_works() {
         ));
         assert!(!GearProgram::program_paused(program_id));
 
-        let new_memory_pages =
-            common::get_program_data_for_pages(program_id.into_origin(), memory_pages.keys())
-                .unwrap();
+        let new_memory_pages = common::get_program_data_for_pages_optional(
+            program_id.into_origin(),
+            memory_pages.keys().copied(),
+        )
+        .unwrap();
         assert_eq!(memory_pages, new_memory_pages);
 
         let waiting_init = common::waiting_init_take_messages(program_id);
