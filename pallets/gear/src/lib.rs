@@ -388,8 +388,8 @@ pub mod pallet {
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
-        /// Messages has alread been replied.
-        MessagesAlreadyReplied,
+        /// Message has alread been replied.
+        MessageAlreadyReplied,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
         /// User contains mailboxed message from other user.
@@ -1689,7 +1689,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit)
-                .map_err(|_| Error::<T>::MessagesAlreadyReplied)?;
+                .map_err(|_| Error::<T>::MessageAlreadyReplied)?;
 
             Self::deposit_event(Event::UserMessageRead {
                 id: reply_to_id,

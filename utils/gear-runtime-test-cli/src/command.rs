@@ -312,8 +312,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 <Runtime as Config>::GasPrice::gas_price(gas_limit),
             )
             .expect("No more funds");
-            let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit).unwrap_or_else(|_| {
-                unreachable!("This is unreachable since the `message_id` is new generated with `Self::next_message_id`.");
+            let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit).unwrap_or_else(|e| {
+                // # Safty
+                //
+                // This is unreachable since the `message_id` is new generated
+                // with `GearPallet::next_message_id`.
+                unreachable!("GasTree corrupted! {:?}", e)
             });
 
             let msg = StoredMessage::new(

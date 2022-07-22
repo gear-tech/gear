@@ -212,8 +212,7 @@ where
                         // # Safty
                         //
                         // 1. there is no logic spliting value from the reserved nodes.
-                        // 2. the `message_id` has been checked before.
-                        // 3. the `gas_limit` has been checked before.
+                        // 2. the `gas_limit` has been checked before.
                         unreachable!("GasTree corrupted! {:?}", e)
                     });
             } else {
@@ -221,7 +220,10 @@ where
                     // # Safty
                     //
                     // 1. there is no logic spliting value from the reserved nodes.
-                    // 2. the `message_id` has been checked before.
+                    //
+                    // # TODO
+                    //
+                    // handle duplicated `dispatch.id()`
                     unreachable!("GasTree corrupted! {:?}", e)
                 });
             }
@@ -242,13 +244,19 @@ where
 
             let mailbox_threshold = T::MailboxThreshold::get();
 
-            // TODO: replace this unwrap_or_default in #1130.
             let gas_limit = gas_limit.unwrap_or_else(|| {
                 GasHandlerOf::<T>::get_limit(message_id)
                     .ok()
                     .flatten()
                     .map(|(v, _)| v)
-                    .unwrap_or_default()
+                    // # TODO
+                    //
+                    // Could fail on valueless node, check if it is possible.
+                    //
+                    // - if the dispatch is generated from `split`
+                    // - if the dispatch is generated from `cut`
+                    // - if node not exists
+                    .unwrap_or_else(|| unreachable!("Can't fail"))
                     .min(mailbox_threshold)
             });
 
@@ -262,8 +270,11 @@ where
                     // # Safty
                     //
                     // 1. there is no logic spliting value from the reserved nodes.
-                    // 2. the `message_id` has been checked before.
-                    // 3. the `gas_limit` has been checked before.
+                    // 2. the `gas_limit` has been checked before.
+                    //
+                    // # TODO
+                    //
+                    // handle the dpublicated `dispatch.id()`
                     unreachable!("GasTree corrupted! {:?}", e)
                 });
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
