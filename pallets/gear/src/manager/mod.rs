@@ -80,6 +80,8 @@ pub struct ExtManager<T: Config> {
     users: BTreeSet<ProgramId>,
     /// Ids checked that they are programs.
     programs: BTreeSet<ProgramId>,
+    /// Ids of programs which memory pages have been loaded earlier during processing a block.
+    program_loaded_pages: BTreeSet<ProgramId>,
     /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
@@ -114,6 +116,7 @@ where
             _phantom: PhantomData,
             users: Default::default(),
             programs: Default::default(),
+            program_loaded_pages: Default::default(),
             dispatch_statuses: Default::default(),
             state_changes: Default::default(),
         }
@@ -145,9 +148,22 @@ where
         !self.check_program_id(id)
     }
 
+    /// Checks if memory pages of a program were loaded.
+    pub fn program_pages_loaded(&self, id: &ProgramId) -> bool {
+        self.program_loaded_pages.contains(id)
+    }
+
+    /// Adds program's id to the collection of programs with
+    /// loaded memory pages.
+    pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
+        assert!(self.check_program_id(&id));
+
+        self.program_loaded_pages.insert(id);
+    }
+
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId, with_pages: bool) -> Option<Actor> {
+    pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
         let active: ActiveProgram = common::get_program(id.into_origin())?.try_into().ok()?;
         let program = {
             let code_id = CodeId::from_origin(active.code_hash);
@@ -163,19 +179,13 @@ where
         let balance =
             CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
                 .unique_saturated_into();
-        let pages_data = if with_pages {
-            common::get_program_data_for_pages(id.into_origin(), active.pages_with_data.iter())
-                .ok()?
-        } else {
-            Default::default()
-        };
 
         Some(Actor {
             balance,
             destination_program: id,
             executable_data: Some(ExecutableActorData {
                 program,
-                pages_data,
+                pages_with_data: active.pages_with_data,
             }),
         })
     }

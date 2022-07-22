@@ -77,20 +77,25 @@ pub trait CollectState {
 pub struct TestActor {
     pub balance: u128,
     pub executable_data: Option<ExecutableActorData>,
+    pub memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
 impl TestActor {
-    pub fn into_core(self, dest: ProgramId) -> Actor {
+    pub fn into_parts(self, dest: ProgramId) -> (Actor, BTreeMap<PageNumber, PageBuf>) {
         let Self {
             balance,
             executable_data,
+            memory_pages,
         } = self;
 
-        Actor {
-            balance,
-            destination_program: dest,
-            executable_data,
-        }
+        (
+            Actor {
+                balance,
+                destination_program: dest,
+                executable_data,
+            },
+            memory_pages,
+        )
     }
 }
 
@@ -143,8 +148,9 @@ impl ExecutionContext for InMemoryExtManager {
                 balance: 0,
                 executable_data: Some(ExecutableActorData {
                     program: program.clone(),
-                    pages_data: Default::default(),
+                    pages_with_data: Default::default(),
                 }),
+                memory_pages: Default::default(),
             },
         );
         program
@@ -281,14 +287,15 @@ impl JournalHandler for InMemoryExtManager {
         mut pages_data: BTreeMap<PageNumber, PageBuf>,
     ) {
         if let TestActor {
-            executable_data: Some(data),
+            executable_data: Some(_),
+            memory_pages,
             ..
         } = self
             .actors
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
-            data.pages_data.append(&mut pages_data);
+            memory_pages.append(&mut pages_data);
         } else {
             unreachable!("Can't update page for terminated program");
         }
@@ -297,6 +304,7 @@ impl JournalHandler for InMemoryExtManager {
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPageNumber>) {
         if let TestActor {
             executable_data: Some(data),
+            memory_pages,
             ..
         } = self
             .actors
@@ -309,7 +317,7 @@ impl JournalHandler for InMemoryExtManager {
                 .difference(&allocations)
                 .flat_map(|p| p.to_gear_pages_iter())
             {
-                data.pages_data.remove(&page);
+                memory_pages.remove(&page);
             }
 
             *data.program.get_allocations_mut() = allocations;
