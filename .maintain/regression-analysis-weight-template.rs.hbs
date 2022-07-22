@@ -52,13 +52,11 @@ impl<T: frame_system::Config> WeightInfo for BenchmarkWeight<T> {
 	fn {{benchmark.name~}}
 	(
 		{{~#each benchmark.components as |c| ~}}
-		{{~#if (not c.is_used)}}_{{/if}}{{c.name}}: u32, {{/each~}}
+		{{c.name}}: u32, {{/each~}}
 	) -> Weight {
         let components = [
         {{#each benchmark.components as |c|}}
-            {{#if c.is_used}}
             ("{{c.name}}", {{c.name}} as Weight),
-            {{/if}}
         {{/each}}
         ].into();
 

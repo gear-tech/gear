@@ -23,7 +23,7 @@
 //! EXECUTION: Some(Native), WASM-EXECUTION: Compiled, CHAIN: Some("dev"), DB CACHE: 1024
 
 // Executed Command:
-// .\target\release\gear-node.exe benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic=* --execution=native --output .\utils\regression-analysis\src\weights.rs --template .\.maintain\regression-analysis-weight-template.rs.hbs
+// .\target\release\gear-node.exe benchmark pallet --steps 1 --repeat 1 --chain=dev --pallet=pallet_gear --extrinsic=* --execution=native --heap-pages=4096 --output .\utils\regression-analysis\src\weights.rs --template .\.maintain\regression-analysis-weight-template.rs.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
@@ -48,8 +48,9 @@ impl<T: frame_system::Config> WeightInfo for BenchmarkWeight<T> {
     fn load_cost() -> Weight {
         pallet_gear::GearWeight::<T>::load_cost()
     }
-	fn submit_code(_c: u32, ) -> Weight {
+	fn submit_code(c: u32, ) -> Weight {
         let components = [
+            ("c", c as Weight),
         ].into();
 
         WEIGHTS_JSON["submit_code"].calc_weight::<T>(components)
@@ -62,524 +63,611 @@ impl<T: frame_system::Config> WeightInfo for BenchmarkWeight<T> {
 
         WEIGHTS_JSON["submit_program"].calc_weight::<T>(components)
 	}
-	fn send_message(_p: u32, ) -> Weight {
+	fn send_message(p: u32, ) -> Weight {
         let components = [
+            ("p", p as Weight),
         ].into();
 
         WEIGHTS_JSON["send_message"].calc_weight::<T>(components)
 	}
-	fn send_reply(_p: u32, ) -> Weight {
+	fn send_reply(p: u32, ) -> Weight {
         let components = [
+            ("p", p as Weight),
         ].into();
 
         WEIGHTS_JSON["send_reply"].calc_weight::<T>(components)
 	}
-	fn initial_allocation(_q: u32, ) -> Weight {
+	fn initial_allocation(q: u32, ) -> Weight {
         let components = [
+            ("q", q as Weight),
         ].into();
 
         WEIGHTS_JSON["initial_allocation"].calc_weight::<T>(components)
 	}
-	fn alloc_in_handle(_q: u32, ) -> Weight {
+	fn alloc_in_handle(q: u32, ) -> Weight {
         let components = [
+            ("q", q as Weight),
         ].into();
 
         WEIGHTS_JSON["alloc_in_handle"].calc_weight::<T>(components)
 	}
-	fn reinstrument(_c: u32, ) -> Weight {
+	fn reinstrument(c: u32, ) -> Weight {
         let components = [
+            ("c", c as Weight),
         ].into();
 
         WEIGHTS_JSON["reinstrument"].calc_weight::<T>(components)
 	}
-	fn alloc(_r: u32, ) -> Weight {
+	fn alloc(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
-        dbg!(WEIGHTS_JSON["alloc"].calc_weight::<T>(components))
+        WEIGHTS_JSON["alloc"].calc_weight::<T>(components)
 	}
-	fn gas(_r: u32, ) -> Weight {
+	fn gas(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gas"].calc_weight::<T>(components)
 	}
-	fn gr_gas_available(_r: u32, ) -> Weight {
+	fn gr_gas_available(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_gas_available"].calc_weight::<T>(components)
 	}
-	fn gr_msg_id(_r: u32, ) -> Weight {
+	fn gr_msg_id(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_msg_id"].calc_weight::<T>(components)
 	}
-	fn gr_origin(_r: u32, ) -> Weight {
+	fn gr_origin(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_origin"].calc_weight::<T>(components)
 	}
-	fn gr_program_id(_r: u32, ) -> Weight {
+	fn gr_program_id(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_program_id"].calc_weight::<T>(components)
 	}
-	fn gr_source(_r: u32, ) -> Weight {
+	fn gr_source(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_source"].calc_weight::<T>(components)
 	}
-	fn gr_value(_r: u32, ) -> Weight {
+	fn gr_value(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_value"].calc_weight::<T>(components)
 	}
-	fn gr_value_available(_r: u32, ) -> Weight {
+	fn gr_value_available(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_value_available"].calc_weight::<T>(components)
 	}
-	fn gr_size(_r: u32, ) -> Weight {
+	fn gr_size(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_size"].calc_weight::<T>(components)
 	}
-	fn gr_read(_r: u32, ) -> Weight {
+	fn gr_read(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_read"].calc_weight::<T>(components)
 	}
-	fn gr_read_per_kb(_n: u32, ) -> Weight {
+	fn gr_read_per_kb(n: u32, ) -> Weight {
         let components = [
+            ("n", n as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_read_per_kb"].calc_weight::<T>(components)
 	}
-	fn gr_block_height(_r: u32, ) -> Weight {
+	fn gr_block_height(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_block_height"].calc_weight::<T>(components)
 	}
-	fn gr_block_timestamp(_r: u32, ) -> Weight {
+	fn gr_block_timestamp(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_block_timestamp"].calc_weight::<T>(components)
 	}
-	fn gr_send_init(_r: u32, ) -> Weight {
+	fn gr_send_init(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_send_init"].calc_weight::<T>(components)
 	}
-	fn gr_send_push(_r: u32, ) -> Weight {
+	fn gr_send_push(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_send_push"].calc_weight::<T>(components)
 	}
-	fn gr_send_push_per_kb(_n: u32, ) -> Weight {
+	fn gr_send_push_per_kb(n: u32, ) -> Weight {
         let components = [
+            ("n", n as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_send_push_per_kb"].calc_weight::<T>(components)
 	}
-	fn gr_send_commit(_r: u32, ) -> Weight {
+	fn gr_send_commit(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_send_commit"].calc_weight::<T>(components)
 	}
-	fn gr_send_commit_per_kb(_n: u32, ) -> Weight {
+	fn gr_send_commit_per_kb(n: u32, ) -> Weight {
         let components = [
+            ("n", n as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_send_commit_per_kb"].calc_weight::<T>(components)
 	}
-	fn gr_reply_commit(_r: u32, ) -> Weight {
+	fn gr_reply_commit(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_reply_commit"].calc_weight::<T>(components)
 	}
-	fn gr_reply_commit_per_kb(_n: u32, ) -> Weight {
+	fn gr_reply_commit_per_kb(n: u32, ) -> Weight {
         let components = [
+            ("n", n as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_reply_commit_per_kb"].calc_weight::<T>(components)
 	}
-	fn gr_reply_push(_r: u32, ) -> Weight {
+	fn gr_reply_push(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_reply_push"].calc_weight::<T>(components)
 	}
-	fn gr_reply_push_per_kb(_n: u32, ) -> Weight {
+	fn gr_reply_push_per_kb(n: u32, ) -> Weight {
         let components = [
+            ("n", n as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_reply_push_per_kb"].calc_weight::<T>(components)
 	}
-	fn gr_reply_to(_r: u32, ) -> Weight {
+	fn gr_reply_to(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_reply_to"].calc_weight::<T>(components)
 	}
-	fn gr_debug(_r: u32, ) -> Weight {
+	fn gr_debug(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_debug"].calc_weight::<T>(components)
 	}
-	fn gr_exit_code(_r: u32, ) -> Weight {
+	fn gr_exit_code(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_exit_code"].calc_weight::<T>(components)
 	}
-	fn gr_exit(_r: u32, ) -> Weight {
+	fn gr_exit(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_exit"].calc_weight::<T>(components)
 	}
-	fn gr_leave(_r: u32, ) -> Weight {
+	fn gr_leave(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_leave"].calc_weight::<T>(components)
 	}
-	fn gr_wait(_r: u32, ) -> Weight {
+	fn gr_wait(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_wait"].calc_weight::<T>(components)
 	}
-	fn gr_wake(_r: u32, ) -> Weight {
+	fn gr_wake(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_wake"].calc_weight::<T>(components)
 	}
-	fn gr_create_program_wgas(_r: u32, ) -> Weight {
+	fn gr_create_program_wgas(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_create_program_wgas"].calc_weight::<T>(components)
 	}
-	fn gr_create_program_wgas_per_kb(_n: u32, ) -> Weight {
+	fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight {
         let components = [
+            ("n", n as Weight),
         ].into();
 
         WEIGHTS_JSON["gr_create_program_wgas_per_kb"].calc_weight::<T>(components)
 	}
-	fn instr_i64const(_r: u32, ) -> Weight {
+	fn instr_i64const(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64const"].calc_weight::<T>(components)
 	}
-	fn instr_i64load(_r: u32, ) -> Weight {
+	fn instr_i64load(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64load"].calc_weight::<T>(components)
 	}
-	fn instr_i64store(_r: u32, ) -> Weight {
+	fn instr_i64store(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64store"].calc_weight::<T>(components)
 	}
-	fn instr_select(_r: u32, ) -> Weight {
+	fn instr_select(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_select"].calc_weight::<T>(components)
 	}
-	fn instr_if(_r: u32, ) -> Weight {
+	fn instr_if(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_if"].calc_weight::<T>(components)
 	}
-	fn instr_br(_r: u32, ) -> Weight {
+	fn instr_br(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_br"].calc_weight::<T>(components)
 	}
-	fn instr_br_if(_r: u32, ) -> Weight {
+	fn instr_br_if(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_br_if"].calc_weight::<T>(components)
 	}
-	fn instr_br_table(_r: u32, ) -> Weight {
+	fn instr_br_table(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_br_table"].calc_weight::<T>(components)
 	}
-	fn instr_br_table_per_entry(_e: u32, ) -> Weight {
+	fn instr_br_table_per_entry(e: u32, ) -> Weight {
         let components = [
+            ("e", e as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_br_table_per_entry"].calc_weight::<T>(components)
 	}
-	fn instr_call(_r: u32, ) -> Weight {
+	fn instr_call(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_call"].calc_weight::<T>(components)
 	}
-	fn instr_call_indirect(_r: u32, ) -> Weight {
+	fn instr_call_indirect(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_call_indirect"].calc_weight::<T>(components)
 	}
-	fn instr_call_indirect_per_param(_p: u32, ) -> Weight {
+	fn instr_call_indirect_per_param(p: u32, ) -> Weight {
         let components = [
+            ("p", p as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_call_indirect_per_param"].calc_weight::<T>(components)
 	}
-	fn instr_local_get(_r: u32, ) -> Weight {
+	fn instr_local_get(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_local_get"].calc_weight::<T>(components)
 	}
-	fn instr_local_set(_r: u32, ) -> Weight {
+	fn instr_local_set(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_local_set"].calc_weight::<T>(components)
 	}
-	fn instr_local_tee(_r: u32, ) -> Weight {
+	fn instr_local_tee(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_local_tee"].calc_weight::<T>(components)
 	}
-	fn instr_global_get(_r: u32, ) -> Weight {
+	fn instr_global_get(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_global_get"].calc_weight::<T>(components)
 	}
-	fn instr_global_set(_r: u32, ) -> Weight {
+	fn instr_global_set(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_global_set"].calc_weight::<T>(components)
 	}
-	fn instr_memory_current(_r: u32, ) -> Weight {
+	fn instr_memory_current(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_memory_current"].calc_weight::<T>(components)
 	}
-	fn instr_i64clz(_r: u32, ) -> Weight {
+	fn instr_i64clz(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64clz"].calc_weight::<T>(components)
 	}
-	fn instr_i64ctz(_r: u32, ) -> Weight {
+	fn instr_i64ctz(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64ctz"].calc_weight::<T>(components)
 	}
-	fn instr_i64popcnt(_r: u32, ) -> Weight {
+	fn instr_i64popcnt(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64popcnt"].calc_weight::<T>(components)
 	}
-	fn instr_i64eqz(_r: u32, ) -> Weight {
+	fn instr_i64eqz(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64eqz"].calc_weight::<T>(components)
 	}
-	fn instr_i64extendsi32(_r: u32, ) -> Weight {
+	fn instr_i64extendsi32(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64extendsi32"].calc_weight::<T>(components)
 	}
-	fn instr_i64extendui32(_r: u32, ) -> Weight {
+	fn instr_i64extendui32(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64extendui32"].calc_weight::<T>(components)
 	}
-	fn instr_i32wrapi64(_r: u32, ) -> Weight {
+	fn instr_i32wrapi64(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i32wrapi64"].calc_weight::<T>(components)
 	}
-	fn instr_i64eq(_r: u32, ) -> Weight {
+	fn instr_i64eq(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64eq"].calc_weight::<T>(components)
 	}
-	fn instr_i64ne(_r: u32, ) -> Weight {
+	fn instr_i64ne(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64ne"].calc_weight::<T>(components)
 	}
-	fn instr_i64lts(_r: u32, ) -> Weight {
+	fn instr_i64lts(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64lts"].calc_weight::<T>(components)
 	}
-	fn instr_i64ltu(_r: u32, ) -> Weight {
+	fn instr_i64ltu(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64ltu"].calc_weight::<T>(components)
 	}
-	fn instr_i64gts(_r: u32, ) -> Weight {
+	fn instr_i64gts(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64gts"].calc_weight::<T>(components)
 	}
-	fn instr_i64gtu(_r: u32, ) -> Weight {
+	fn instr_i64gtu(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64gtu"].calc_weight::<T>(components)
 	}
-	fn instr_i64les(_r: u32, ) -> Weight {
+	fn instr_i64les(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64les"].calc_weight::<T>(components)
 	}
-	fn instr_i64leu(_r: u32, ) -> Weight {
+	fn instr_i64leu(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64leu"].calc_weight::<T>(components)
 	}
-	fn instr_i64ges(_r: u32, ) -> Weight {
+	fn instr_i64ges(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64ges"].calc_weight::<T>(components)
 	}
-	fn instr_i64geu(_r: u32, ) -> Weight {
+	fn instr_i64geu(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64geu"].calc_weight::<T>(components)
 	}
-	fn instr_i64add(_r: u32, ) -> Weight {
+	fn instr_i64add(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64add"].calc_weight::<T>(components)
 	}
-	fn instr_i64sub(_r: u32, ) -> Weight {
+	fn instr_i64sub(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64sub"].calc_weight::<T>(components)
 	}
-	fn instr_i64mul(_r: u32, ) -> Weight {
+	fn instr_i64mul(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64mul"].calc_weight::<T>(components)
 	}
-	fn instr_i64divs(_r: u32, ) -> Weight {
+	fn instr_i64divs(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64divs"].calc_weight::<T>(components)
 	}
-	fn instr_i64divu(_r: u32, ) -> Weight {
+	fn instr_i64divu(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64divu"].calc_weight::<T>(components)
 	}
-	fn instr_i64rems(_r: u32, ) -> Weight {
+	fn instr_i64rems(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64rems"].calc_weight::<T>(components)
 	}
-	fn instr_i64remu(_r: u32, ) -> Weight {
+	fn instr_i64remu(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64remu"].calc_weight::<T>(components)
 	}
-	fn instr_i64and(_r: u32, ) -> Weight {
+	fn instr_i64and(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64and"].calc_weight::<T>(components)
 	}
-	fn instr_i64or(_r: u32, ) -> Weight {
+	fn instr_i64or(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64or"].calc_weight::<T>(components)
 	}
-	fn instr_i64xor(_r: u32, ) -> Weight {
+	fn instr_i64xor(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64xor"].calc_weight::<T>(components)
 	}
-	fn instr_i64shl(_r: u32, ) -> Weight {
+	fn instr_i64shl(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64shl"].calc_weight::<T>(components)
 	}
-	fn instr_i64shrs(_r: u32, ) -> Weight {
+	fn instr_i64shrs(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64shrs"].calc_weight::<T>(components)
 	}
-	fn instr_i64shru(_r: u32, ) -> Weight {
+	fn instr_i64shru(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64shru"].calc_weight::<T>(components)
 	}
-	fn instr_i64rotl(_r: u32, ) -> Weight {
+	fn instr_i64rotl(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64rotl"].calc_weight::<T>(components)
 	}
-	fn instr_i64rotr(_r: u32, ) -> Weight {
+	fn instr_i64rotr(r: u32, ) -> Weight {
         let components = [
+            ("r", r as Weight),
         ].into();
 
         WEIGHTS_JSON["instr_i64rotr"].calc_weight::<T>(components)
