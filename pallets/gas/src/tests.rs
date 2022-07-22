@@ -740,11 +740,3 @@ fn catch_value_all_catch() {
         assert_eq!(Gas::total_supply(), 0);
     })
 }
-
-#[test]
-fn print_error() {
-    println!(
-        "{:?}",
-        Into::<sp_runtime::DispatchError>::into(Error::<Test>::NodeAlreadyExists)
-    );
-}
