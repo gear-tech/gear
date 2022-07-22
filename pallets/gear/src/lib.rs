@@ -41,9 +41,9 @@ mod tests;
 pub use crate::{
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, Schedule},
+    schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
-pub use weights::WeightInfo;
+pub use weights::{GearWeight, WeightInfo};
 
 use common::{storage::*, CodeStorage};
 use frame_support::{

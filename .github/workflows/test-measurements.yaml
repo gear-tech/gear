@@ -88,6 +88,19 @@ jobs:
           mkdir ./target/runtime-tests-output/
           for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test rtest > ./target/runtime-tests-output/$i 2>&1; mv ./target/runtime-test-junit.xml ./target/runtime-tests/$i; done
           ./target/release/regression-analysis collect-data --disable-filter --data-folder-path ./target/runtime-tests/ --output-path ./target/runtime-tests.json
+          
+      - name: "Collect: pallet-gear benches"
+        run: >-
+          ./target/release/gear-node benchmark pallet --pallet=pallet_gear
+          --steps=50 
+          --repeat=20 
+          --chain=dev  
+          --extrinsic=* 
+          --execution=wasm
+          --wasm-execution=compiled
+          --heap-pages=4096 
+          --output ./target/weights.json 
+          --template ./.maintain/regression-analysis-weight-template.json.hbs
 
       - name: "Generate report: Gear workspace tests"
         run: >-
@@ -101,6 +114,12 @@ jobs:
           --disable-filter
           --data-folder-path ./target/runtime-tests/
           --output-file ./target/action-runtime-output.json
+          
+      - name: "Generate report: pallet-gear benches"
+        run: |
+          ./target/release/regression-analysis weights --output-file ./target/action-hostfn-weights.json host-fn
+          ./target/release/regression-analysis weights --output-file ./target/action-instruction-weights.json instruction
+          ./target/release/regression-analysis weights --output-file ./target/action-memory-weights.json memory
 
       - name: "Store result: Gear workspace tests"
         uses: benchmark-action/github-action-benchmark@v1
@@ -116,7 +135,7 @@ jobs:
           gh-pages-branch: master
           benchmark-data-dir-path: ./
           
-      - name: "Store result: Clean after 1 run"
+      - name: "Store result: Clean after run"
         run: rm -r ./benchmark-data-repository
        
       - name: "Store result: Node runtime tests"
@@ -125,6 +144,57 @@ jobs:
           name: Node runtime tests
           tool: 'customSmallerIsBetter'
           output-file-path: ./target/action-runtime-output.json
+          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
+          fail-on-alert: true
+          # Push and deploy GitHub pages branch automatically
+          auto-push: true
+          gh-repository: github.com/gear-tech/performance-charts
+          gh-pages-branch: master
+          benchmark-data-dir-path: ./
+
+      - name: "Store result: Clean after run"
+        run: rm -r ./benchmark-data-repository
+
+      - name: "Store result: pallet-gear host function weights"
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: pallet-gear host function weights
+          tool: 'customSmallerIsBetter'
+          output-file-path: ./target/action-hostfn-weights.json
+          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
+          fail-on-alert: true
+          # Push and deploy GitHub pages branch automatically
+          auto-push: true
+          gh-repository: github.com/gear-tech/performance-charts
+          gh-pages-branch: master
+          benchmark-data-dir-path: ./
+          
+      - name: "Store result: Clean after run"
+        run: rm -r ./benchmark-data-repository
+
+      - name: "Store result: pallet-gear instruction weights"
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: pallet-gear instruction weights
+          tool: 'customSmallerIsBetter'
+          output-file-path: ./target/action-instruction-weights.json
+          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
+          fail-on-alert: true
+          # Push and deploy GitHub pages branch automatically
+          auto-push: true
+          gh-repository: github.com/gear-tech/performance-charts
+          gh-pages-branch: master
+          benchmark-data-dir-path: ./
+          
+      - name: "Store result: pallet-gear memory weights"
+        run: rm -r ./benchmark-data-repository
+
+      - name: "Store result: Node runtime tests"
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: pallet-gear memory weights
+          tool: 'customSmallerIsBetter'
+          output-file-path: ./target/action-memory-weights.json
           github-token: ${{ secrets.PERFORMANCE_CHARTS }}
           fail-on-alert: true
           # Push and deploy GitHub pages branch automatically
