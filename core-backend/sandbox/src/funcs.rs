@@ -36,7 +36,7 @@ use gear_backend_common::{
     AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    env::{Ext, ExtCarrierWithError},
+    env::Ext,
     ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -77,8 +77,6 @@ pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     Core(E),
     #[display(fmt = "{}", _0)]
-    LaterExtWith(ExtCarrierWithError),
-    #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "Cannot set u128: {}", _0)]
     SetU128(MemoryError),
@@ -110,12 +108,6 @@ where
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
-    }
-}
-
-impl<E> From<ExtCarrierWithError> for FuncError<E> {
-    fn from(err: ExtCarrierWithError) -> Self {
-        Self::LaterExtWith(err)
     }
 }
 

@@ -35,7 +35,7 @@ use gear_backend_common::{
     AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{
-    env::{Ext, ExtCarrierWithError},
+    env::Ext,
     ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
@@ -84,8 +84,6 @@ pub(crate) fn return_i64<T: TryInto<i64> + fmt::Display>(val: T) -> Result<Retur
 pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     Core(E),
-    #[display(fmt = "{}", _0)]
-    LaterExtWith(ExtCarrierWithError),
     #[display(fmt = "Runtime Error")]
     HostError,
     #[display(fmt = "{}", _0)]
@@ -120,12 +118,6 @@ where
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
-    }
-}
-
-impl<E> From<ExtCarrierWithError> for FuncError<E> {
-    fn from(err: ExtCarrierWithError) -> Self {
-        Self::LaterExtWith(err)
     }
 }
 
