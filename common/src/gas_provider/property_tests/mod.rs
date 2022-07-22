@@ -420,7 +420,7 @@ proptest! {
                 // ...existing consumed node with no unspec children has 0 inner value.
                 // That's because anytime node becomes consumed without unspec children, it's no longer a patron.
                 // So `consume` call on non-patron leads a value to be moved upstream or returned to the `origin`.
-                if node.unspec_refs == 0 {
+                if node.unspec_refs() == 0 {
                     let value = node.inner_value().expect("node with value, checked");
                     assert!(value == 0);
                 }

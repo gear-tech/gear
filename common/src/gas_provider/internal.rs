@@ -130,10 +130,10 @@ where
 
         match node.inner {
             GasNodeType::SpecifiedLocal { .. } => {
-                parent.spec_refs = parent.spec_refs.saturating_sub(1)
+                parent.decrease_spec_refs();
             }
             GasNodeType::UnspecifiedLocal { .. } => {
-                parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
+                parent.decrease_unspec_refs();
             }
             _ => return Err(InternalError::unexpected_node_type().into()),
         }
@@ -266,7 +266,7 @@ where
             consume_output =
                 consume_output.or_else(|| catch_output.into_consume_output(origin.clone()));
 
-            if node.spec_refs == 0 {
+            if node.spec_refs() == 0 {
                 Self::decrease_parents_ref(&node)?;
                 StorageMap::remove(node_id);
 
@@ -321,11 +321,12 @@ where
             let id = Self::get_external(key)?.expect("existing node always have origin");
             GasNodeType::ReservedLocal { id, value: amount }
         } else {
-            node.spec_refs = node.spec_refs.saturating_add(1);
+            node.increase_spec_refs();
 
             GasNodeType::SpecifiedLocal {
                 value: amount,
                 parent: node_id,
+                refs: Default::default(),
             }
         };
 
@@ -340,8 +341,6 @@ where
 
         let new_node = GasNode {
             inner,
-            spec_refs: 0,
-            unspec_refs: 0,
             consumed: false,
         };
 
@@ -558,12 +557,10 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        node.unspec_refs = node.unspec_refs.saturating_add(1);
+        node.increase_unspec_refs();
 
         let new_node = GasNode {
             inner: GasNodeType::UnspecifiedLocal { parent: node_id },
-            spec_refs: 0,
-            unspec_refs: 0,
             consumed: false,
         };
 
