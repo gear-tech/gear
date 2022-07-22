@@ -51,20 +51,22 @@ where
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
-        // Generate trap reply.
-        let trap = ExecutionErrorReason::OutOfRent.encode();
+        // TODO: allow splitting on cut node to provide trap reply.
 
-        // Creating reply message.
-        let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
-            .into_stored_dispatch(mailboxed.destination(), mailboxed.source(), message_id);
+        // // Generate trap reply.
+        // let trap = ExecutionErrorReason::OutOfRent.encode();
 
-        // Splitting gas for newly created reply message.
-        GasHandlerOf::<T>::split(trap_reply.id(), message_id)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        // // Creating reply message.
+        // let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
+        //     .into_stored_dispatch(mailboxed.destination(), mailboxed.source(), message_id);
 
-        // Enqueueing dispatch into message queue.
-        QueueOf::<T>::queue(trap_reply)
-            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        // // Splitting gas for newly created reply message.
+        // GasHandlerOf::<T>::split(message_id, trap_reply.id())
+        //     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        // // Enqueueing dispatch into message queue.
+        // QueueOf::<T>::queue(trap_reply)
+        //     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
         // Consuming gas handler for mailboxed message.
         Pallet::<T>::consume_message(mailboxed.id());

@@ -472,6 +472,13 @@ where
             MailboxOf::<T>::insert(message.clone(), hold.expected())
                 .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
+            // Adding removal request in task pool.
+            TaskPoolOf::<T>::add(
+                hold.expected(),
+                ScheduledTask::RemoveFromMailbox(to, message.id()),
+            )
+            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+
             Some(hold.expected())
         } else {
             CurrencyOf::<T>::transfer(&from, &to, value, ExistenceRequirement::AllowDeath)
