@@ -234,8 +234,8 @@ impl IntoExtInfo for Ext {
         let mut pages_data = BTreeMap::new();
         for page in (0..static_pages.0)
             .map(WasmPageNumber)
-            .skip_while(|page| *page < stack_page_count)
             .chain(wasm_pages.iter().copied())
+            .skip_while(|page| *page < stack_page_count)
             .flat_map(|p| p.to_gear_pages_iter())
         {
             let mut buf = PageBuf::new_zeroed();
