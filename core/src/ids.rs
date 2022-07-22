@@ -51,6 +51,7 @@ macro_rules! declare_id {
             PartialOrd,
             codec::Decode,
             codec::Encode,
+            codec::MaxEncodedLen,
             derive_more::From,
             scale_info::TypeInfo,
         )]
