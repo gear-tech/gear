@@ -547,7 +547,7 @@ pub mod pallet {
             .unwrap_or_else(|e| {
                 // # Safty
                 //
-                // This is unreachable since the message_id is new generated
+                // This is unreachable since the `message_id` is new generated
                 // with `Self::next_message_id`.
                 unreachable!("GasTree corrupted! {:?}", e)
             });
@@ -1478,7 +1478,7 @@ pub mod pallet {
             .unwrap_or_else(|e| {
                 // # Safty
                 //
-                // This is unreachable since the message_id is new generated
+                // This is unreachable since the `message_id is new generated
                 // with `Self::next_message_id`.
                 unreachable!("GasTree corrupted! {:?}", e)
             });
@@ -1574,7 +1574,13 @@ pub mod pallet {
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let _ = GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                    .unwrap_or_else(|e| {
+                        // # Safty
+                        //
+                        // This is unreachable since the `message_id` is new generated
+                        // with `Self::next_message_id`.
+                        unreachable!("GasTree corrupted! {:?}", e)
+                    });
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 

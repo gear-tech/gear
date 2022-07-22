@@ -208,10 +208,22 @@ where
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
                 GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                    .unwrap_or_else(|e| {
+                        // # Safty
+                        //
+                        // 1. there is no logic spliting value from the reserved nodes.
+                        // 2. the `message_id` has been checked before.
+                        // 3. the `gas_limit` has been checked before.
+                        unreachable!("GasTree corrupted! {:?}", e)
+                    });
             } else {
-                GasHandlerOf::<T>::split(message_id, dispatch.id())
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                GasHandlerOf::<T>::split(message_id, dispatch.id()).unwrap_or_else(|e| {
+                    // # Safty
+                    //
+                    // 1. there is no logic spliting value from the reserved nodes.
+                    // 2. the `message_id` has been checked before.
+                    unreachable!("GasTree corrupted! {:?}", e)
+                });
             }
 
             QueueOf::<T>::queue(dispatch)
@@ -246,8 +258,14 @@ where
                 // (issues #646 and #969).
                 MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
                     .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-                GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit).unwrap_or_else(|e| {
+                    // # Safty
+                    //
+                    // 1. there is no logic spliting value from the reserved nodes.
+                    // 2. the `message_id` has been checked before.
+                    // 3. the `gas_limit` has been checked before.
+                    unreachable!("GasTree corrupted! {:?}", e)
+                });
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
                     expiration: Some(T::BlockNumber::zero()),
