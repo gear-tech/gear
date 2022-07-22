@@ -388,6 +388,8 @@ pub mod pallet {
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
+        /// Messages has alread been replied.
+        MessagesAlreadyReplied,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
         /// User contains mailboxed message from other user.
@@ -542,7 +544,13 @@ pub mod pallet {
                 message_id,
                 packet.gas_limit().expect("Can't fail"),
             )
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| {
+                // # Safty
+                //
+                // This is unreachable since the message_id is new generated
+                // with `Self::next_message_id`.
+                unreachable!("GasTree corrupted! {:?}", e)
+            });
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1467,7 +1475,13 @@ pub mod pallet {
                 message_id,
                 packet.gas_limit().expect("Can't fail"),
             )
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+            .unwrap_or_else(|e| {
+                // # Safty
+                //
+                // This is unreachable since the message_id is new generated
+                // with `Self::next_message_id`.
+                unreachable!("GasTree corrupted! {:?}", e)
+            });
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1669,7 +1683,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit)
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                .map_err(|_| Error::<T>::MessagesAlreadyReplied)?;
 
             Self::deposit_event(Event::UserMessageRead {
                 id: reply_to_id,
