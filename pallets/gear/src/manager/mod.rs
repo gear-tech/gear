@@ -44,6 +44,7 @@
 //! Due to these 3 conditions implemented in `pallet_gear`, we have a guarantee that value management calls, performed by user or program, won't fail.
 
 mod journal;
+mod result;
 mod task;
 
 pub use journal::*;

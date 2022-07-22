@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
-    Pallet, QueueOf, SentOf, WaitlistOf,
+    manager::{result, ExtManager},
+    Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet, QueueOf,
+    SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{
@@ -213,18 +214,15 @@ where
                         //
                         // 1. there is no logic spliting value from the reserved nodes.
                         // 2. the `gas_limit` has been checked before.
-                        unreachable!("GasTree corrupted! {:?}", e)
+                        // 3. the `value` of the value node has been checked before.
+                        result::gas_tree(e)
                     });
             } else {
                 GasHandlerOf::<T>::split(message_id, dispatch.id()).unwrap_or_else(|e| {
                     // # Safty
                     //
-                    // 1. there is no logic spliting value from the reserved nodes.
-                    //
-                    // # TODO
-                    //
-                    // handle duplicated `dispatch.id()`
-                    unreachable!("GasTree corrupted! {:?}", e)
+                    // There is no logic spliting value from the reserved nodes.
+                    result::gas_tree(e)
                 });
             }
 
@@ -249,14 +247,10 @@ where
                     .ok()
                     .flatten()
                     .map(|(v, _)| v)
-                    // # TODO
+                    // # Safty
                     //
-                    // Could fail on valueless node, check if it is possible.
-                    //
-                    // - if the dispatch is generated from `split`
-                    // - if the dispatch is generated from `cut`
-                    // - if node not exists
-                    .unwrap_or_else(|| unreachable!("Can't fail"))
+                    // The result of `get_limit` has been checked in `process_queue`
+                    .unwrap_or_else(|| unreachable!("Checked before."))
                     .min(mailbox_threshold)
             });
 
@@ -271,11 +265,8 @@ where
                     //
                     // 1. there is no logic spliting value from the reserved nodes.
                     // 2. the `gas_limit` has been checked before.
-                    //
-                    // # TODO
-                    //
-                    // handle the dpublicated `dispatch.id()`
-                    unreachable!("GasTree corrupted! {:?}", e)
+                    // 3. the `value` of the value node has been checked before.
+                    result::gas_tree(e)
                 });
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,

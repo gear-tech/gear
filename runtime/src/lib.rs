@@ -445,7 +445,9 @@ construct_runtime!(
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
-        GearGas: pallet_gear_gas,
+        // Please update the implementation of `pallet_gear::manager::result::gas_tree`
+        // when modify this.
+        GearGas: pallet_gear_gas = 12,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
 
