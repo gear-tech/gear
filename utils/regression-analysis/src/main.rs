@@ -25,7 +25,7 @@ use junit_common::TestSuites;
 use once_cell::sync::Lazy;
 use pallet_gear::{HostFnWeights, InstructionWeights, MemoryWeights, Schedule};
 use quick_xml::de::from_str;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs, iter,
@@ -173,7 +173,7 @@ struct WeightBenchmarkComponentName(String);
 
 impl WeightBenchmarkComponentName {
     fn as_weight(&self, components: &HashMap<&str, Weight>) -> Weight {
-        *&components[self.0.as_str()]
+        components[self.0.as_str()]
     }
 }
 
