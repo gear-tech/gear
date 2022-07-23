@@ -6,8 +6,7 @@ services:
       - "9933:9933"
       - "9944:9944"
       - "9165:9165"
-#    network_mode: host
-    image: schernovgear/gear:nightly
+    image: ghcr.io/gear-tech/node:latest
     volumes:
       - "gear-data:/data"
     command: gear-node --dev --unsafe-ws-external --rpc-external  --prometheus-external --base-path /data

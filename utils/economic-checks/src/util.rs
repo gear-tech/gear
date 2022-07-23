@@ -22,16 +22,15 @@ use common::{
     GasTree,
 };
 use frame_support::{
-    assert_ok,
-    traits::{GenesisBuild, OffchainWorker, OnFinalize, OnIdle, OnInitialize},
+    traits::{GenesisBuild, OnFinalize, OnIdle, OnInitialize},
     BasicExternalities,
 };
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
 use gear_runtime::{
-    AuraConfig, Balances, Call, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
+    AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
     GrandpaConfig, Runtime, Signature, SudoConfig, System, TransactionPayment,
-    TransactionPaymentConfig, UncheckedExtrinsic, Usage,
+    TransactionPaymentConfig, UncheckedExtrinsic,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use parking_lot::RwLock;
@@ -40,18 +39,18 @@ use sp_consensus_aura::{sr25519::AuthorityId as AuraId, Slot, AURA_ENGINE_ID};
 use sp_core::{
     offchain::{
         testing::{PoolState, TestOffchainExt, TestTransactionPoolExt},
-        Duration, OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
+        OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
     },
     sr25519, Pair, Public,
 };
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_io::offchain;
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     AccountId32, Digest, DigestItem,
 };
 use sp_std::collections::btree_map::BTreeMap;
 use std::sync::Arc;
+use system::pallet_prelude::BlockNumberFor;
 
 type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
 type GasBalanceOf<T> = <GasHandlerOf<T> as GasTree>::Balance;
@@ -99,11 +98,51 @@ pub(crate) fn create_random_accounts(
     accounts
 }
 
+pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
+    log::debug!("📦 Initializing block {}", new_blk);
+
+    // All blocks are to be authored by validator at index 0
+    let slot = Slot::from(0);
+    let pre_digest = Digest {
+        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
+    };
+
+    System::initialize(&new_blk, &System::parent_hash(), &pre_digest);
+    System::set_block_number(new_blk);
+}
+
+// Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
+pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
+    System::on_initialize(new_block_number);
+    Balances::on_initialize(new_block_number);
+    TransactionPayment::on_initialize(new_block_number);
+    Authorship::on_initialize(new_block_number);
+    GearProgram::on_initialize(new_block_number);
+    GearMessenger::on_initialize(new_block_number);
+    Gear::on_initialize(new_block_number);
+    GearGas::on_initialize(new_block_number);
+}
+
+// Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
+pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
+    GearPayment::on_finalize(current_blk);
+    GearGas::on_finalize(current_blk);
+    Gear::on_finalize(current_blk);
+    GearMessenger::on_finalize(current_blk);
+    GearProgram::on_finalize(current_blk);
+    Authorship::on_finalize(current_blk);
+    TransactionPayment::on_finalize(current_blk);
+    Balances::on_finalize(current_blk);
+    System::on_finalize(current_blk);
+}
+
 pub(crate) fn new_test_ext(
     balances: Vec<(impl Into<AccountId32>, u128)>,
     initial_authorities: Vec<(AccountId32, AuraId, GrandpaId)>,
     root_key: AccountId32,
 ) -> sp_io::TestExternalities {
+    assert!(!initial_authorities.is_empty());
+
     let mut t = system::GenesisConfig::default()
         .build_storage::<Runtime>()
         .unwrap();
@@ -149,8 +188,13 @@ pub(crate) fn new_test_ext(
     .assimilate_storage(&mut t)
     .unwrap();
 
-    let mut ext: sp_io::TestExternalities = t.into(); //= sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
+    let mut ext: sp_io::TestExternalities = t.into();
+
+    ext.execute_with(|| {
+        let new_blk = 1;
+        initialize(new_blk);
+        on_initialize(new_blk);
+    });
     ext
 }
 
@@ -167,48 +211,28 @@ pub(crate) fn with_offchain_ext(
     ext.register_extension(OffchainWorkerExt::new(offchain));
     ext.register_extension(TransactionPoolExt::new(pool));
 
+    ext.execute_with(|| {
+        let new_blk = 1;
+        initialize(new_blk);
+        on_initialize(new_blk);
+    });
+
     (ext, pool_state)
 }
 
 #[allow(unused)]
 pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
-    // All blocks are to be authored by validator at index 0
-    let slot = Slot::from(0);
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-
     while System::block_number() < n {
         // Run on_idle hook that processes the queue
         let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
         Gear::on_idle(System::block_number(), remaining_weight);
 
-        // Run on_finalize hooks in pallets reverse order (as they appear in AllPalletsWithSystem)
         let current_blk = System::block_number();
-        GearPayment::on_finalize(current_blk);
-        GearGas::on_finalize(current_blk);
-        Usage::on_finalize(current_blk);
-        Gear::on_finalize(current_blk);
-        GearMessenger::on_finalize(current_blk);
-        GearProgram::on_finalize(current_blk);
-        TransactionPayment::on_finalize(current_blk);
-        Balances::on_finalize(current_blk);
-        System::on_finalize(current_blk);
+        on_finalize(current_blk);
 
         let new_block_number = current_blk + 1;
-        System::set_block_number(new_block_number);
-        System::initialize(&new_block_number, &System::parent_hash(), &pre_digest);
-
-        // Run on_initialize hooks in order as they appear in AllPalletsWithSystem
-        System::on_initialize(new_block_number);
-        Balances::on_initialize(new_block_number);
-        TransactionPayment::on_initialize(new_block_number);
-        GearProgram::on_initialize(new_block_number);
-        GearMessenger::on_initialize(new_block_number);
-        Gear::on_initialize(new_block_number);
-        Usage::on_initialize(new_block_number);
-        GearGas::on_initialize(new_block_number);
-        GearPayment::on_finalize(new_block_number);
+        initialize(new_block_number);
+        on_initialize(new_block_number);
     }
 }
 
@@ -217,12 +241,6 @@ pub(crate) fn run_to_block_with_ocw(
     pool: &Arc<RwLock<PoolState>>,
     remaining_weight: Option<u64>,
 ) {
-    // All blocks are to be authored by validator at index 0
-    let slot = Slot::from(0);
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-
     let now = System::block_number();
     for i in now..n {
         // Processing extrinsics in current block, if pool supplied
@@ -233,41 +251,12 @@ pub(crate) fn run_to_block_with_ocw(
         // Processing message queue
         Gear::on_idle(i, remaining_weight);
 
-        // Offchain worker to charge rent
-        increase_offchain_time(1_000);
-        Usage::offchain_worker(i);
-
-        // on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
-        GearPayment::on_finalize(i);
-        GearGas::on_finalize(i);
-        Usage::on_finalize(i);
-        Gear::on_finalize(i);
-        GearMessenger::on_finalize(i);
-        GearProgram::on_finalize(i);
-        TransactionPayment::on_finalize(i);
-        Balances::on_finalize(i);
-        System::on_finalize(i);
+        on_finalize(i);
 
         let new_blk = i + 1;
-        System::set_block_number(i + 1);
-        log::debug!("📦 Initializing block {}", new_blk);
-        System::initialize(&new_blk, &System::parent_hash(), &pre_digest);
-
-        // Run on_initialize hooks in order as they appear in AllPalletsWithSystem
-        System::on_initialize(new_blk);
-        Gear::on_initialize(new_blk);
-        TransactionPayment::on_initialize(new_blk);
-        GearProgram::on_initialize(new_blk);
-        GearMessenger::on_initialize(new_blk);
-        Gear::on_initialize(new_blk);
-        Usage::on_initialize(new_blk);
-        GearGas::on_initialize(new_blk);
-        GearPayment::on_finalize(new_blk);
+        initialize(new_blk);
+        on_initialize(new_blk);
     }
-}
-
-fn increase_offchain_time(ms: u64) {
-    offchain::sleep_until(offchain::timestamp().add(Duration::from_millis(ms)));
 }
 
 pub(crate) fn init_logger() {
@@ -284,18 +273,7 @@ pub(crate) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
 pub(crate) fn process_tx_pool(pool: &Arc<RwLock<PoolState>>) {
     let mut guard = pool.write();
     guard.transactions.iter().cloned().for_each(|bytes| {
-        let tx = UncheckedExtrinsic::decode(&mut &bytes[..]).unwrap();
-        if let Call::Usage(pallet_usage::Call::collect_waitlist_rent { payees_list }) = tx.function
-        {
-            log::debug!(
-                "Sending collect_wait_list extrinsic with payees_list {:?}",
-                payees_list
-            );
-            assert_ok!(Usage::collect_waitlist_rent(
-                system::RawOrigin::None.into(),
-                payees_list
-            ));
-        }
+        let _tx = UncheckedExtrinsic::decode(&mut &bytes[..]).unwrap();
     });
     guard.transactions = vec![];
 }

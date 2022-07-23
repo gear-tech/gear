@@ -27,7 +27,7 @@ use core_processor::{
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
     Ext,
 };
-use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -248,7 +248,42 @@ impl ExtManager {
         self.id_nonce
     }
 
+    fn validate_dispatch(&mut self, dispatch: &Dispatch) {
+        if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "Value greater than 0, but less than \
+                required existential deposit ({})",
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
+        if !self.is_user(&dispatch.source()) {
+            panic!("Sending messages allowed only from users id");
+        }
+
+        let (_, balance) = self
+            .actors
+            .entry(dispatch.source())
+            .or_insert((TestActor::User, 0));
+
+        if *balance < dispatch.value() {
+            panic!(
+                "Insufficient value: user ({}) tries to send \
+                ({}) value, while his balance ({})",
+                dispatch.source(),
+                dispatch.value(),
+                balance
+            );
+        } else {
+            *balance -= dispatch.value();
+            if *balance < crate::EXISTENTIAL_DEPOSIT {
+                *balance = 0;
+            }
+        }
+    }
+
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.validate_dispatch(&dispatch);
         self.prepare_for(&dispatch);
 
         self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
@@ -330,6 +365,14 @@ impl ExtManager {
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
+        if value < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "An attempt to mint value ({}) less than existential deposit ({})",
+                value,
+                crate::EXISTENTIAL_DEPOSIT
+            );
+        }
+
         let (_, balance) = self.actors.entry(*id).or_insert((TestActor::User, 0));
         *balance = balance.saturating_add(value);
     }
@@ -344,7 +387,7 @@ impl ExtManager {
     pub(crate) fn claim_value_from_mailbox(&mut self, id: &ProgramId) {
         let messages = self.mailbox.remove(id);
         if let Some(messages) = messages {
-            messages.iter().for_each(|message| {
+            messages.into_iter().for_each(|message| {
                 self.send_value(
                     message.source(),
                     Some(message.destination()),
@@ -542,7 +585,7 @@ impl ExtManager {
             origin: self.origin,
             gas_allowance: u64::MAX,
         };
-        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
             &block_config,
             message_execution_context,
         );
@@ -625,7 +668,16 @@ impl JournalHandler for ExtManager {
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            let message = dispatch.into_parts().1.into_stored();
+            let message = match dispatch.exit_code() {
+                Some(0) | None => dispatch.into_parts().1.into_stored(),
+                _ => {
+                    let message = dispatch.into_parts().1.into_stored();
+                    message
+                        .clone()
+                        .with_string_payload::<ExecutionErrorReason>()
+                        .unwrap_or(message)
+                }
+            };
 
             self.mailbox
                 .entry(message.destination())
@@ -704,16 +756,28 @@ impl JournalHandler for ExtManager {
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
+        if value == 0 {
+            // Nothing to do
+            return;
+        }
         if let Some(ref to) = to {
-            if let Some((_, balance)) = self.actors.get_mut(&from) {
+            if !self.is_user(&from) {
+                let (_, balance) = self.actors.get_mut(&from).expect("Can't fail");
+
                 if *balance < value {
-                    panic!("Actor {:?} balance is less then sent value", from);
+                    unreachable!("Actor {:?} balance is less then sent value", from);
                 }
 
                 *balance -= value;
-            };
+
+                if *balance < crate::EXISTENTIAL_DEPOSIT {
+                    *balance = 0;
+                }
+            }
 
             self.mint_to(to, value);
+        } else {
+            self.mint_to(&from, value);
         }
     }
 

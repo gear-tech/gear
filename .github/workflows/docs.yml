@@ -1,6 +1,8 @@
 name: Docs
 
 on:
+  pull_request:
+    branches: [master]
   push:
     branches: [master]
 
@@ -13,17 +15,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: "Install nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v1
+
       - name: Build docs
-        run: |
-          cargo doc -p galloc -p gcore -p gear-backend-common -p gear-backend-sandbox \
-                -p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-                -p gstd -p gtest -p gear-wasm-builder -p gear-common --no-deps
-          echo "<html><head><meta http-equiv=\"refresh\" content=\"0; url=/galloc/index.html\" /></head><body></body></html>" > ./target/doc/index.html
+        run: make doc
 
       - name: Copy logo image
         run: cp ./images/logo.svg ./target/doc/
 
       - name: Deploy
+        if: github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -32,3 +39,11 @@ jobs:
           force_orphan: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Deploy PR
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          destination_dir: pr-${{ github.event.number }}

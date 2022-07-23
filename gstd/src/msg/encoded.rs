@@ -45,16 +45,19 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
 }
 
+/// Send a new message as a reply to the message currently being processed.
 #[wait_for_reply]
 pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
 
+/// Send a new message to the program or user.
 #[wait_for_reply]
 pub fn send<E: Encode>(program: ActorId, payload: E, value: u128) -> Result<MessageId> {
     super::send_bytes(program, payload.encode(), value)
 }
 
+/// Same as [`send`], but with explicit gas limit.
 #[wait_for_reply]
 pub fn send_with_gas<E: Encode>(
     program: ActorId,

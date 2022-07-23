@@ -18,7 +18,11 @@
 
 use core_processor::{Ext, ProcessorContext, ProcessorExt};
 use gear_backend_common::TerminationReason;
-use gear_backend_wasmtime::{env::StoreData, funcs_tree};
+use gear_backend_wasmi::{
+    env::{DefinedHostFunctions, EnvironmentDefinitionBuilder, GuestExternals, Runtime},
+    funcs::{FuncError, FuncsHandler as Funcs},
+    MemoryWrap,
+};
 use gear_core::{
     env::{Ext as ExtTrait, ExtCarrier},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
@@ -27,18 +31,18 @@ use gear_core::{
     program::Program,
 };
 use std::{collections::BTreeMap, mem};
-use wasmtime::{
-    Config, Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
-    Val,
+use wasmi::{
+    memory_units::Pages, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef, RuntimeValue,
 };
 
 use crate::{Result, TestError, MAILBOX_THRESHOLD};
 
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor {
-    instance: Instance,
-    store: Store<StoreData<Ext>>,
-    memory: WasmtimeMemory,
+    instance: ModuleRef,
+    store: Runtime<Ext>,
+    memory: MemoryRef,
+    defined_host_functions: DefinedHostFunctions<Runtime<Ext>, <Ext as ExtTrait>::Error>,
 }
 
 impl WasmExecutor {
@@ -51,78 +55,110 @@ impl WasmExecutor {
         payload: Option<Payload>,
     ) -> Result<Self> {
         let ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
+        let mut builder: EnvironmentDefinitionBuilder<Runtime<Ext>, <Ext as ExtTrait>::Error> =
+            EnvironmentDefinitionBuilder::new(
+                ext.forbidden_funcs()
+                    .clone()
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+            );
+
+        builder.add_host_func("env", "forbidden", Funcs::forbidden);
+        builder.add_host_func("env", "gr_block_height", Funcs::block_height);
+        builder.add_host_func("env", "gr_block_timestamp", Funcs::block_timestamp);
+        builder.add_host_func("env", "gr_create_program", Funcs::create_program);
+        builder.add_host_func("env", "gr_create_program_wgas", Funcs::create_program_wgas);
+        builder.add_host_func("env", "gr_debug", Funcs::debug);
+        builder.add_host_func("env", "gr_error", Funcs::error);
+        builder.add_host_func("env", "gr_exit", Funcs::exit);
+        builder.add_host_func("env", "gr_exit_code", Funcs::exit_code);
+        builder.add_host_func("env", "gr_gas_available", Funcs::gas_available);
+        builder.add_host_func("env", "gr_leave", Funcs::leave);
+        builder.add_host_func("env", "gr_msg_id", Funcs::msg_id);
+        builder.add_host_func("env", "gr_origin", Funcs::origin);
+        builder.add_host_func("env", "gr_program_id", Funcs::program_id);
+        builder.add_host_func("env", "gr_read", Funcs::read);
+        builder.add_host_func("env", "gr_reply", Funcs::reply);
+        builder.add_host_func("env", "gr_reply_commit", Funcs::reply_commit);
+        builder.add_host_func("env", "gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_host_func("env", "gr_reply_push", Funcs::reply_push);
+        builder.add_host_func("env", "gr_reply_to", Funcs::reply_to);
+        builder.add_host_func("env", "gr_reply_wgas", Funcs::reply_wgas);
+        builder.add_host_func("env", "gr_send", Funcs::send);
+        builder.add_host_func("env", "gr_send_commit", Funcs::send_commit);
+        builder.add_host_func("env", "gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_host_func("env", "gr_send_init", Funcs::send_init);
+        builder.add_host_func("env", "gr_send_push", Funcs::send_push);
+        builder.add_host_func("env", "gr_send_wgas", Funcs::send_wgas);
+        builder.add_host_func("env", "gr_size", Funcs::size);
+        builder.add_host_func("env", "gr_source", Funcs::source);
+        builder.add_host_func("env", "gr_value", Funcs::value);
+        builder.add_host_func("env", "gr_value_available", Funcs::value_available);
+        builder.add_host_func("env", "gr_wait", Funcs::wait);
+        builder.add_host_func("env", "gr_wake", Funcs::wake);
+
         let ext_carrier = ExtCarrier::new(ext);
-        let store_data = StoreData {
-            ext: ext_carrier.cloned(),
-            termination_reason: TerminationReason::Success,
+
+        let mem: MemoryRef = MemoryInstance::alloc(Pages(program.static_pages().0 as usize), None)?;
+
+        builder.add_memory("env", "memory", mem.clone());
+        builder.add_host_func("env", "alloc", Funcs::alloc);
+        builder.add_host_func("env", "free", Funcs::free);
+        builder.add_host_func("env", "gas", Funcs::gas);
+
+        let runtime = Runtime {
+            ext: ext_carrier,
+            err: FuncError::Terminated(TerminationReason::Success),
+            memory: MemoryWrap::new(mem.clone()),
         };
 
-        let config = Config::new();
-        let engine = Engine::new(&config)?;
-        let mut store = Store::<StoreData<Ext>>::new(&engine, store_data);
-
-        let module = Module::new(&engine, meta_binary)?;
-
-        let mut linker = wasmtime::Linker::<StoreData<Ext>>::new(&engine);
-
-        let mut memory =
-            WasmtimeMemory::new(&mut store, MemoryType::new(program.static_pages().0, None))?;
-
-        let funcs = funcs_tree::build(&mut store, memory, None);
-        for import in module.imports() {
-            if import.module() != "env" {
-                return Err(TestError::InvalidImportModule(import.module().to_string()));
-            }
-            match import.name() {
-                Some("memory") => {
-                    linker.define("env", "memory", Extern::Memory(memory))?;
-                }
-                Some(key) => {
-                    if funcs.contains_key(key) {
-                        linker.define("env", key, funcs[key])?;
-                    } else {
-                        return Err(TestError::UnsupportedFunction(key.to_string()));
-                    }
-                }
-                _ => continue,
-            };
-        }
-
-        let instance = linker.instantiate(&mut store, &module)?;
-
-        WasmExecutor::set_pages(&mut store, &mut memory, memory_pages)?;
+        let defined_host_functions = builder.defined_host_functions.clone();
+        let instance = match ModuleInstance::new(
+            &wasmi::Module::from_buffer(meta_binary).expect("wasmi can't load module binary"),
+            &builder,
+        ) {
+            Ok(inst) => inst.not_started_instance().clone(),
+            Err(e) => return Err(TestError::WasmiError(e.into())),
+        };
+        WasmExecutor::set_pages(mem.clone(), memory_pages)?;
 
         Ok(Self {
             instance,
-            store,
-            memory,
+            store: runtime,
+            memory: mem,
+            defined_host_functions,
         })
     }
 
     /// Executes non-void function by provided name.
     /// Panics if function is void
     pub(crate) fn execute(&mut self, function_name: &str) -> Result<Vec<u8>> {
-        let function = self.get_function(function_name)?;
-        let mut ptr_to_result_array = [Val::I32(0)];
-
-        function
-            .call(&mut self.store, &[], &mut ptr_to_result_array)
+        let mut externals = GuestExternals {
+            state: &mut self.store,
+            defined_host_functions: &self.defined_host_functions,
+        };
+        let res = self
+            .instance
+            .invoke_export(function_name, &[], &mut externals)
             .map_err(|err| {
+                if let wasmi::Error::Function(_) = err {
+                    return TestError::FunctionNotFound(function_name.to_string());
+                }
                 if let Some(processor_error) = self
                     .store
-                    .data()
                     .ext
                     .with(|a| a.error_explanation.clone())
                     .expect("`with` is expected to be called only after `inner` is set")
                 {
                     processor_error.into()
                 } else {
-                    TestError::WasmtimeError(err)
+                    TestError::WasmiError(err.into())
                 }
             })?;
 
-        match ptr_to_result_array[0] {
-            Val::I32(ptr_to_result) => self.read_result(ptr_to_result),
+        match res {
+            Some(RuntimeValue::I32(ptr_to_result)) => self.read_result(ptr_to_result),
             _ => Err(TestError::InvalidReturnType),
         }
     }
@@ -154,12 +190,6 @@ impl WasmExecutor {
         })
     }
 
-    fn get_function(&mut self, function_name: &str) -> Result<Func> {
-        self.instance
-            .get_func(&mut self.store, function_name)
-            .ok_or_else(|| TestError::FunctionNotFound(function_name.to_string()))
-    }
-
     fn read_result(&mut self, ptr_to_result_data: i32) -> Result<Vec<u8>> {
         let offset = ptr_to_result_data as usize;
 
@@ -167,10 +197,10 @@ impl WasmExecutor {
         let mut ptr = [0_u8; mem::size_of::<i32>()];
         let mut len = [0_u8; mem::size_of::<i32>()];
 
-        self.memory.read(&self.store, offset, &mut ptr)?;
+        self.memory.get_into(offset as u32, &mut ptr)?;
 
         self.memory
-            .read(&self.store, offset + ptr.len(), &mut len)?;
+            .get_into((offset + ptr.len()) as u32, &mut len)?;
 
         let ptr = i32::from_ne_bytes(ptr) as usize;
         let len = i32::from_ne_bytes(len) as usize;
@@ -178,23 +208,19 @@ impl WasmExecutor {
         // Reading a vector from `ptr`
         let mut result = vec![0; len];
 
-        self.memory.read(&self.store, ptr, &mut result)?;
+        self.memory.get_into(ptr as u32, &mut result)?;
 
         Ok(result)
     }
 
-    fn set_pages<T: ExtTrait>(
-        mut store: &mut Store<StoreData<T>>,
-        memory: &mut WasmtimeMemory,
-        pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-    ) -> Result<()> {
-        let memory_size = WasmPageNumber(memory.size(&mut store) as u32);
+    fn set_pages(memory: MemoryRef, pages: &BTreeMap<PageNumber, Box<PageBuf>>) -> Result<()> {
+        let memory_size = WasmPageNumber(memory.current_size().0 as u32);
         for (page_number, buffer) in pages {
             let wasm_page_number = page_number.to_wasm_page();
             if memory_size <= wasm_page_number {
                 return Err(TestError::InsufficientMemory(memory_size, wasm_page_number));
             }
-            memory.write(&mut store, page_number.offset(), &buffer[..])?;
+            memory.set(page_number.offset() as u32, &buffer[..])?;
         }
         Ok(())
     }

@@ -123,6 +123,31 @@ impl From<[u8; 32]> for ProgramIdWrapper {
     }
 }
 
+impl From<&[u8]> for ProgramIdWrapper {
+    fn from(other: &[u8]) -> Self {
+        if other.len() != 32 {
+            panic!("Invalid identifier: {:?}", other)
+        }
+
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(other);
+
+        bytes.into()
+    }
+}
+
+impl From<Vec<u8>> for ProgramIdWrapper {
+    fn from(other: Vec<u8>) -> Self {
+        other[..].into()
+    }
+}
+
+impl From<&Vec<u8>> for ProgramIdWrapper {
+    fn from(other: &Vec<u8>) -> Self {
+        other[..].into()
+    }
+}
+
 impl From<String> for ProgramIdWrapper {
     fn from(other: String) -> Self {
         other[..].into()
@@ -356,17 +381,6 @@ impl<'a> Program<'a> {
 
         let source = from.into().0;
 
-        if !system.is_user(&source) {
-            panic!("Sending messages allowed only from users id");
-        }
-
-        if 0 < value && value < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "Value greater than 0, but less than required existential deposit ({})",
-                crate::EXISTENTIAL_DEPOSIT
-            );
-        }
-
         let message = Message::new(
             MessageId::generate_from_user(
                 system.block_info.height,
@@ -383,20 +397,14 @@ impl<'a> Program<'a> {
 
         let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
 
-        let kind = if let TestActor::Uninitialized(id, _) = actor {
-            if id.is_none() {
-                *id = Some(message.id());
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
-            }
+        let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
+            *id = Some(message.id());
+            DispatchKind::Init
         } else {
             DispatchKind::Handle
         };
 
-        let dispatch = Dispatch::new(kind, message);
-
-        system.run_dispatch(dispatch)
+        system.run_dispatch(Dispatch::new(kind, message))
     }
 
     pub fn id(&self) -> ProgramId {
@@ -466,6 +474,11 @@ mod tests {
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
+
+        let log = run_result.log();
+        assert!(!log.is_empty());
+
+        assert_eq!(log[0].payload(), b"'Invalid input, should be three IDs separated by comma', futures-unordered/src/lib.rs:17:9");
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
@@ -542,5 +555,61 @@ mod tests {
 
         // Check program's balance is empty
         assert_eq!(prog.balance(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "An attempt to mint value (1) less than existential deposit (500)")]
+    fn mint_less_than_deposit() {
+        System::new().mint_to(1, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient value: user \
+    (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
+    to send (501) value, while his balance (500)")]
+    fn fails_on_insufficient_balance() {
+        let sys = System::new();
+
+        let user = 1;
+        let prog = Program::from_file_with_id(
+            &sys,
+            2,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        assert_eq!(sys.balance_of(user), 0);
+        sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
+
+        prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
+    }
+
+    #[test]
+    fn claim_zero_value() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let sender = 42;
+        let receiver = 84;
+
+        sys.mint_to(sender, 10000);
+
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_piggy_bank.wasm",
+        );
+
+        prog.send_bytes(receiver, b"init");
+
+        // Get zero value to the receiver's mailbox
+        prog.send_bytes(receiver, b"smash");
+
+        // Get the value > ED to the receiver's mailbox
+        prog.send_bytes_with_value(sender, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes(receiver, b"smash");
+
+        // Check receiver's balance
+        sys.claim_value_from_mailbox(receiver);
+        assert_eq!(sys.balance_of(receiver), 2 * crate::EXISTENTIAL_DEPOSIT);
     }
 }
