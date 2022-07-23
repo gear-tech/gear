@@ -34,6 +34,7 @@ pub struct WasmProject {
     target_dir: PathBuf,
     wasm_target_dir: PathBuf,
     file_base_name: Option<String>,
+    profile: String,
 }
 
 impl WasmProject {
@@ -67,6 +68,13 @@ impl WasmProject {
         wasm_target_dir.push(profile);
 
         target_dir.push("wasm-projects");
+        target_dir.push(profile);
+
+        let profile = if profile == "debug" {
+            "dev".to_string()
+        } else {
+            profile.to_string_lossy().into()
+        };
 
         WasmProject {
             original_dir,
@@ -74,6 +82,7 @@ impl WasmProject {
             target_dir,
             wasm_target_dir,
             file_base_name: None,
+            profile,
         }
     }
 
@@ -85,6 +94,11 @@ impl WasmProject {
     /// Return the path to the target directory.
     pub fn target_dir(&self) -> PathBuf {
         self.target_dir.clone()
+    }
+
+    /// Return the profile name based on the `OUT_DIR` path.
+    pub fn profile(&self) -> &str {
+        &self.profile
     }
 
     /// Generate a temporary cargo project that includes the original package as a dependency.
