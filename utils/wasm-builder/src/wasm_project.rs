@@ -54,7 +54,9 @@ impl WasmProject {
             .take_while(|c| c.as_os_str() != "target")
             .last()
             .expect("Path should have subdirs in the `target` dir")
-            .as_os_str();
+            .as_os_str()
+            .to_string_lossy()
+            .into();
 
         let mut target_dir = out_dir.clone();
         while target_dir.pop() {
@@ -65,16 +67,10 @@ impl WasmProject {
 
         let mut wasm_target_dir = target_dir.clone();
         wasm_target_dir.push("wasm32-unknown-unknown");
-        wasm_target_dir.push(profile);
+        wasm_target_dir.push(&profile);
 
         target_dir.push("wasm-projects");
-        target_dir.push(profile);
-
-        let profile = if profile == "debug" {
-            "dev".to_string()
-        } else {
-            profile.to_string_lossy().into()
-        };
+        target_dir.push(&profile);
 
         WasmProject {
             original_dir,
@@ -172,7 +168,7 @@ impl WasmProject {
 
         let from_path = self
             .target_dir
-            .join("wasm32-unknown-unknown/release")
+            .join(format!("wasm32-unknown-unknown/{}", self.profile))
             .join(format!("{}.wasm", &file_base_name));
 
         fs::create_dir_all(&self.target_dir)?;
