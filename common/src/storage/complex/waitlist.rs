@@ -22,9 +22,12 @@
 //! addressed to programs, by their storing out of message queue.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, GetCallback, IterableByKeyMap, IterableMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, GetCallback, Interval, IterableByKeyMap, IterableMap,
+    KeyFor,
 };
 use core::marker::PhantomData;
+
+pub type ValueWithInterval<T, B> = (T, Interval<B>);
 
 /// Represents waitlist managing logic.
 pub trait Waitlist {
@@ -47,14 +50,14 @@ pub trait Waitlist {
     fn contains(key1: &Self::Key1, key2: &Self::Key2) -> bool;
 
     /// Inserts given value in waitlist.
-    fn insert(value: Self::Value) -> Result<(), Self::OutputError>;
+    fn insert(value: Self::Value, bn: Self::BlockNumber) -> Result<(), Self::OutputError>;
 
     /// Removes and returns value from waitlist by given keys,
     /// if present, else returns error.
     fn remove(
         key1: Self::Key1,
         key2: Self::Key2,
-    ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError>;
+    ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError>;
 
     /// Removes all values from all key's waitlisted.
     fn clear();
@@ -76,9 +79,9 @@ pub trait WaitlistCallbacks {
     /// Callback used for getting current block number.
     type GetBlockNumber: GetCallback<Self::BlockNumber>;
     /// Callback on success `insert`.
-    type OnInsert: Callback<(Self::Value, Self::BlockNumber)>;
+    type OnInsert: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
     /// Callback on success `remove`.
-    type OnRemove: Callback<(Self::Value, Self::BlockNumber)>;
+    type OnRemove: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
 }
 
 /// Represents waitlist error type.
@@ -102,7 +105,7 @@ pub struct WaitlistImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, Ke
     PhantomData<(T, Error, OutputError, Callbacks, KeyGen)>,
 )
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)>,
+    T: DoubleMapStorage<Value = (Value, Interval<BlockNumber>)>,
     Error: WaitlistError,
     OutputError: From<Error>,
     Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
@@ -112,7 +115,7 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> Waitlist
     for WaitlistImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)>,
+    T: DoubleMapStorage<Value = (Value, Interval<BlockNumber>)>,
     Error: WaitlistError,
     OutputError: From<Error>,
     Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
@@ -129,7 +132,10 @@ where
         T::contains_keys(program_id, message_id)
     }
 
-    fn insert(message: Self::Value) -> Result<(), Self::OutputError> {
+    fn insert(
+        message: Self::Value,
+        scheduled_at: Self::BlockNumber,
+    ) -> Result<(), Self::OutputError> {
         let (key1, key2) = KeyGen::key_for(&message);
 
         if Self::contains(&key1, &key2) {
@@ -137,7 +143,13 @@ where
         }
 
         let block_number = Callbacks::GetBlockNumber::call();
-        let message_with_bn = (message, block_number);
+        let message_with_bn = (
+            message,
+            Interval {
+                start: block_number,
+                finish: scheduled_at,
+            },
+        );
 
         Callbacks::OnInsert::call(&message_with_bn);
         T::insert(key1, key2, message_with_bn);
@@ -147,7 +159,7 @@ where
     fn remove(
         program_id: Self::Key1,
         message_id: Self::Key2,
-    ) -> Result<(Self::Value, Self::BlockNumber), Self::OutputError> {
+    ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError> {
         if let Some(message_with_bn) = T::take(program_id, message_id) {
             Callbacks::OnRemove::call(&message_with_bn);
             Ok(message_with_bn)
@@ -166,7 +178,7 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> CountedByKey
     for WaitlistImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)> + CountedByKey<Key = T::Key1>,
+    T: DoubleMapStorage<Value = (Value, Interval<BlockNumber>)> + CountedByKey<Key = T::Key1>,
     Error: WaitlistError,
     OutputError: From<Error>,
     Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
@@ -185,7 +197,8 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableByKeyMap<T::Value>
     for WaitlistImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableByKeyMap<T::Value, Key = T::Key1>,
+    T: DoubleMapStorage<Value = (Value, Interval<BlockNumber>)>
+        + IterableByKeyMap<T::Value, Key = T::Key1>,
     Error: WaitlistError,
     OutputError: From<Error>,
     Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,
@@ -209,7 +222,7 @@ where
 impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableMap<T::Value>
     for WaitlistImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
 where
-    T: DoubleMapStorage<Value = (Value, BlockNumber)> + IterableMap<T::Value>,
+    T: DoubleMapStorage<Value = (Value, Interval<BlockNumber>)> + IterableMap<T::Value>,
     Error: WaitlistError,
     OutputError: From<Error>,
     Callbacks: WaitlistCallbacks<Value = Value, BlockNumber = BlockNumber>,

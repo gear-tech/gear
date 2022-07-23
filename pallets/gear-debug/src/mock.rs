@@ -136,17 +136,24 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = super::Pallet<Test>;
-    type WaitListFeePerBlock = ();
     type Schedule = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ConstU64<0>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
 }
 
 impl pallet_gear_messenger::Config for Test {
     type Currency = Balances;
+    type BlockLimiter = GearGas;
+}
+
+impl pallet_gear_scheduler::Config for Test {
+    type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU64<1>;
+    type WaitlistCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Test {
@@ -160,14 +167,15 @@ construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Storage},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
-        GearMessenger: pallet_gear_messenger::{Pallet},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        System: system,
+        GearDebug: pallet_gear_debug,
+        Balances: pallet_balances,
+        Authorship: pallet_authorship,
+        Timestamp: pallet_timestamp,
+        GearProgram: pallet_gear_program,
+        GearMessenger: pallet_gear_messenger,
+        GearScheduler: pallet_gear_scheduler,
+        Gear: pallet_gear,
         GearGas: pallet_gear_gas,
     }
 );

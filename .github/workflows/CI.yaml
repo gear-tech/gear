@@ -197,7 +197,6 @@ jobs:
           cargo test -p pallet-gear --features=lazy-pages --release
           cargo test -p pallet-gear-debug --features=lazy-pages --release
           cargo test -p pallet-gear-payment --features=lazy-pages --release
-          cargo test -p pallet-usage --features=lazy-pages --release
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
@@ -371,6 +370,15 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
+      - name: "Install: rustup 1.24.3"
+        run: |
+          Invoke-WebRequest "https://static.rust-lang.org/rustup/archive/1.24.3/x86_64-pc-windows-msvc/rustup-init.exe" -OutFile "rustup-init.exe"
+          .\rustup-init.exe -y
+          rustup --version
+
+      - name: "Install: Disable rustup autoupdate"
+        run: rustup set auto-self-update disable
+
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
@@ -397,10 +405,9 @@ jobs:
           command: nextest
           args: >-
             run
-            -p pallet-gear 
+            -p pallet-gear
             -p pallet-gear-debug
             -p pallet-gear-payment
-            -p pallet-usage
             -p gear-lazy-pages
             -p gear-runtime-interface
             --features=lazy-pages

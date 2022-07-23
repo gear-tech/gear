@@ -23,6 +23,7 @@ extern crate gear_common_codegen;
 
 pub mod event;
 pub mod lazy_pages;
+pub mod scheduler;
 pub mod storage;
 
 pub mod code_storage;
@@ -44,7 +45,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
 };
-use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
@@ -156,7 +156,7 @@ pub trait PaymentProvider<AccountId> {
 /// Contains various limits for the block.
 pub trait BlockLimiter {
     /// The maximum amount of gas that can be used within a single block.
-    type BlockGasLimit: Get<u64>;
+    type BlockGasLimit: Get<Self::Balance>;
 
     /// Type representing a quantity of value.
     type Balance;
@@ -171,11 +171,24 @@ pub enum Program {
     Terminated,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum ProgramError {
-    CodeHashNotFound,
+#[derive(Clone, Debug, derive_more::Display)]
+pub enum CommonError {
+    #[display(fmt = "Program is terminated")]
     IsTerminated,
-    DoesNotExist,
+    #[display(fmt = "Program does not exist for id = {}", _0)]
+    DoesNotExist(H256),
+    #[display(fmt = "Cannot find data for {:?}, program {}", page, program_id)]
+    CannotFindDataForPage {
+        program_id: H256,
+        page: PageNumber,
+    },
+    MemoryError(MemoryError),
+}
+
+impl From<MemoryError> for CommonError {
+    fn from(err: MemoryError) -> Self {
+        Self::MemoryError(err)
+    }
 }
 
 impl Program {
@@ -209,19 +222,19 @@ impl Program {
 }
 
 impl core::convert::TryFrom<Program> for ActiveProgram {
-    type Error = ProgramError;
+    type Error = CommonError;
 
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
-            Program::Terminated => Err(ProgramError::IsTerminated),
+            Program::Terminated => Err(CommonError::IsTerminated),
         }
     }
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram {
-    /// Set of wasm pages numbers, which are allocated by the program.
+    /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
@@ -297,10 +310,10 @@ pub fn set_program_initialized(id: H256) {
     }
 }
 
-pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
+pub fn set_program_terminated_status(id: H256) -> Result<(), CommonError> {
     if let Some(program) = get_program(id) {
         if program.is_terminated() {
-            return Err(ProgramError::IsTerminated);
+            return Err(CommonError::IsTerminated);
         }
 
         sp_io::storage::clear_prefix(&pages_prefix(id), None);
@@ -308,7 +321,7 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
 
         Ok(())
     } else {
-        Err(ProgramError::DoesNotExist)
+        Err(CommonError::DoesNotExist(id))
     }
 }
 
@@ -318,42 +331,48 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(
-    id: H256,
-    page_idx: PageNumber,
-) -> Option<Result<PageBuf, MemoryError>> {
-    let key = page_key(id, page_idx);
-    let data = sp_io::storage::get(&key)?;
-    Some(PageBuf::new_from_vec(data))
+pub fn get_program_page_data(program_id: H256, page: PageNumber) -> Result<PageBuf, CommonError> {
+    let key = page_key(program_id, page);
+    let data =
+        sp_io::storage::get(&key).ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
+    PageBuf::new_from_vec(data).map_err(Into::into)
 }
 
-/// Save page data key in storage
-pub fn save_page_lazy_info(id: H256, page_nums: impl Iterator<Item = PageNumber>) {
-    let prefix = pages_prefix(id);
-    let pages = page_nums.map(|p| p.0).collect();
-    log::trace!("lazy pages = {:?}", &pages);
-    gear_ri::gear_ri::save_page_lazy_info(pages, prefix);
-}
-
+/// Returns data for all program pages, that have data in storage.
 pub fn get_program_pages_data(
-    id: H256,
+    program_id: H256,
     program: &ActiveProgram,
-) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
-    get_program_data_for_pages(id, program.pages_with_data.iter())
+) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
+    get_program_data_for_pages(program_id, program.pages_with_data.iter())
 }
 
-/// Returns data for all pages from `pages` arg, which has data in storage.
+/// Returns program data for each page from `pages`.
 pub fn get_program_data_for_pages<'a>(
-    id: H256,
+    program_id: H256,
     pages: impl Iterator<Item = &'a PageNumber>,
-) -> Result<BTreeMap<PageNumber, PageBuf>, MemoryError> {
+) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
+    let mut pages_data = BTreeMap::new();
+    for &page in pages {
+        let key = page_key(program_id, page);
+        let data = sp_io::storage::get(&key)
+            .ok_or(CommonError::CannotFindDataForPage { program_id, page })?;
+        let page_buf = PageBuf::new_from_vec(data)?;
+        pages_data.insert(page, page_buf);
+    }
+    Ok(pages_data)
+}
+
+/// Returns program data for each page from `pages`, which has data in storage.
+pub fn get_program_data_for_pages_optional(
+    program_id: H256,
+    pages: impl Iterator<Item = PageNumber>,
+) -> Result<BTreeMap<PageNumber, PageBuf>, CommonError> {
     let mut pages_data = BTreeMap::new();
     for page in pages {
-        let key = page_key(id, *page);
-        let data = sp_io::storage::get(&key);
-        if let Some(data) = data {
+        let key = page_key(program_id, page);
+        if let Some(data) = sp_io::storage::get(&key) {
             let page_buf = PageBuf::new_from_vec(data)?;
-            pages_data.insert(*page, page_buf);
+            pages_data.insert(page, page_buf);
         }
     }
     Ok(pages_data)
@@ -383,9 +402,6 @@ pub fn set_program_and_pages_data(
     persistent_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), PageIsNotAllocatedErr> {
     for (page_num, page_buf) in persistent_pages {
-        if !program.allocations.contains(&page_num.to_wasm_page()) {
-            return Err(PageIsNotAllocatedErr(page_num));
-        }
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, page_buf.as_slice());
     }

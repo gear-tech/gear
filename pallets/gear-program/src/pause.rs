@@ -27,6 +27,7 @@ use gear_core::{
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
+use sp_runtime::SaturatedConversion;
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, vec::Vec};
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
@@ -74,7 +75,7 @@ impl<T: Config> pallet::Pallet<T> {
             program,
             wait_list_hash: wait_list_hash(
                 &WaitlistOf::<T>::drain_key(program_id)
-                    .map(|(d, _)| (d.id(), d))
+                    .map(|(d, ..)| (d.id(), d))
                     .collect(),
             ),
             waiting_init: common::waiting_init_take_messages(program_id),
@@ -124,7 +125,8 @@ impl<T: Config> pallet::Pallet<T> {
         }
 
         wait_list.into_iter().for_each(|(_, d)| {
-            WaitlistOf::<T>::insert(d).expect("Duplicate message is wl");
+            WaitlistOf::<T>::insert(d, u64::MAX.saturated_into::<T::BlockNumber>())
+                .expect("Duplicate message is wl");
         });
         sp_io::storage::set(
             &common::waiting_init_prefix(program_id),

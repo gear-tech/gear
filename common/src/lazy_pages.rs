@@ -22,21 +22,23 @@ use crate::Origin;
 use core::fmt;
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageBuf, PageNumber},
+    memory::{HostPointer, Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use gear_runtime_interface::{gear_ri, RIError};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
-    #[display(fmt = "RUNTIME INTERFACE ERROR: {}", _0)]
+    #[display(fmt = "{}", _0)]
     RIError(RIError),
-    #[display(fmt = "RUNTIME INTERFACE ERROR: {:?} has no released data", _0)]
+    #[display(fmt = "{:?} has no released data", _0)]
     ReleasedPageHasNoData(PageNumber),
-    #[display(fmt = "RUNTIME ERROR: released page {:?} has initial data", _0)]
+    #[display(fmt = "Released page {:?} has initial data", _0)]
     ReleasedPageHasInitialData(PageNumber),
-    #[display(fmt = "RUNTIME ERROR: wasm memory buffer is undefined")]
+    #[display(fmt = "Wasm memory buffer is undefined")]
     WasmMemBufferIsUndefined,
+    #[display(fmt = "Wasm memory buffer size is bigger then u32::MAX")]
+    WasmMemorySizeOverflow,
 }
 
 impl From<RIError> for Error {
@@ -46,16 +48,23 @@ impl From<RIError> for Error {
 }
 
 fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
-    let wasm_mem_addr = match mem.get_buffer_host_addr() {
-        None => return Ok(()),
-        Some(addr) => addr,
-    };
-    gear_ri::mprotect_lazy_pages(wasm_mem_addr, protect)
-        .map_err(Into::into)
-        .map_err(|e| {
-            log::error!("{} (it's better to stop node now)", e);
-            e
-        })
+    if mem.get_buffer_host_addr().is_none() {
+        return Ok(());
+    }
+
+    // Cannot panic, unless OS has some problems with pages protection.
+    gear_ri::mprotect_lazy_pages(protect).expect("Cannot set/unset protection for wasm mem");
+
+    Ok(())
+}
+
+fn get_memory_size_in_bytes(size_in_wasm_pages: WasmPageNumber) -> Result<u32, Error> {
+    size_in_wasm_pages
+        .0
+        .checked_add(1)
+        .ok_or(Error::WasmMemorySizeOverflow)?
+        .checked_mul(WasmPageNumber::size() as u32)
+        .ok_or(Error::WasmMemorySizeOverflow)
 }
 
 /// Try to enable and initialize lazy pages env
@@ -76,33 +85,27 @@ pub fn is_lazy_pages_enabled() -> bool {
 }
 
 /// Protect and save storage keys for pages which has no data
-pub fn protect_pages_and_init_info(
-    mem: &impl Memory,
-    lazy_pages: impl Iterator<Item = PageNumber>,
-    prog_id: ProgramId,
-) -> Result<(), Error> {
-    let prog_id_hash = prog_id.into_origin();
-    let mut lay_pages_peekable = lazy_pages.peekable();
-
+pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Result<(), Error> {
     gear_ri::reset_lazy_pages_info();
 
-    let addr = match mem.get_buffer_host_addr() {
-        None => {
-            return if lay_pages_peekable.peek().is_none() {
-                // In this case wasm buffer cannot be undefined
-                Err(Error::WasmMemBufferIsUndefined)
-            } else {
-                Ok(())
-            };
-        }
-        Some(addr) => addr,
-    };
-    gear_ri::set_wasm_mem_begin_addr(addr).map_err(|e| {
-        log::error!("{} (it's better to stop node now)", e);
-        e
-    })?;
+    let prog_prefix = crate::pages_prefix(prog_id.into_origin());
+    gear_ri::set_program_prefix(prog_prefix);
 
-    crate::save_page_lazy_info(prog_id_hash, lay_pages_peekable);
+    if let Some(addr) = mem.get_buffer_host_addr() {
+        // Cannot panic, unless OS allocates wasm mem buffer in not aligned by native page addr.
+        gear_ri::set_wasm_mem_begin_addr(addr).expect("Cannot set wasm mem addr");
+    } else {
+        return Ok(());
+    }
+
+    let size = mem
+        .size()
+        .0
+        .checked_add(1)
+        .ok_or(Error::WasmMemorySizeOverflow)?
+        .checked_mul(WasmPageNumber::size() as u32)
+        .ok_or(Error::WasmMemorySizeOverflow)?;
+    gear_ri::set_wasm_mem_size(size)?;
 
     mprotect_lazy_pages(mem, true)
 }
@@ -131,10 +134,11 @@ pub fn remove_lazy_pages_prot(mem: &impl Memory) -> Result<(), Error> {
     mprotect_lazy_pages(mem, false)
 }
 
-/// Protect lazy-pages and set new wasm mem addr if it has been changed
-pub fn protect_lazy_pages_and_update_wasm_mem_addr(
+/// Protect lazy-pages and set new wasm mem addr and size, if they have been changed
+pub fn update_lazy_pages_and_protect_again(
     mem: &impl Memory,
     old_mem_addr: Option<HostPointer>,
+    old_mem_size: WasmPageNumber,
 ) -> Result<(), Error> {
     struct PointerDisplay(HostPointer);
 
@@ -151,21 +155,19 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
             old_mem_addr.map(PointerDisplay),
             new_mem_addr.map(PointerDisplay)
         );
-        gear_ri::set_wasm_mem_begin_addr(new_mem_addr.ok_or(Error::WasmMemBufferIsUndefined)?)
-            .map_err(|e| {
-                log::error!("{} (it's better to stop node now)", e);
-                e
-            })?;
-    }
-    mprotect_lazy_pages(mem, true)
-}
+        let new_mem_addr = new_mem_addr.ok_or(Error::WasmMemBufferIsUndefined)?;
 
-/// Returns list of current lazy pages numbers
-pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
-    gear_ri::get_lazy_pages_numbers()
-        .iter()
-        .map(|p| PageNumber(*p))
-        .collect()
+        // Cannot panic, unless OS allocates wasm mem buffer in not aligned by native page addr.
+        gear_ri::set_wasm_mem_begin_addr(new_mem_addr).expect("Cannot not set new wasm mem addr");
+    }
+
+    let new_mem_size = mem.size();
+    if new_mem_size > old_mem_size {
+        let size = get_memory_size_in_bytes(new_mem_size)?;
+        gear_ri::set_wasm_mem_size(size)?;
+    }
+
+    mprotect_lazy_pages(mem, true)
 }
 
 /// Returns list of realeased pages numbers

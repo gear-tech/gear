@@ -27,6 +27,7 @@
 //! on each iteration, while `Iter` used for
 //! just checking them.
 
+use super::TransposeCallback;
 use core::marker::PhantomData;
 
 /// Represents iterable logic for double key maps
@@ -62,56 +63,99 @@ pub trait IterableMap<Item> {
     fn iter() -> Self::Iter;
 }
 
-/// Represents value iterator wrap for (key, value) iterator.
-pub struct KeyValueIteratorWrap<K, V, I>(I, PhantomData<(K, V)>)
-where
-    I: Iterator<Item = (K, V)>;
+/// Represents iterable over second keys logic for double key maps
+/// (Key1 -> Key2 -> Value).
+///
+/// Returns the iterators over specified (associated)
+/// type of the second map keys by given first key.
+pub trait KeyIterableByKeyMap {
+    /// Map's first key type.
+    type Key1;
+    /// Map's second key type.
+    type Key2;
+    /// Removal iterator type.
+    type DrainIter: Iterator<Item = Self::Key2>;
+    /// Getting iterator type.
+    type Iter: Iterator<Item = Self::Key2>;
 
-// `From` implementation `KeyValueIteratorWrap` for soft iterator wrapping.
-impl<K, V, I> From<I> for KeyValueIteratorWrap<K, V, I>
-where
-    I: Iterator<Item = (K, V)>,
-{
-    fn from(other: I) -> Self {
-        Self(other, PhantomData)
+    /// Creates the removal iterator over double map Items.
+    fn drain_prefix_keys(key: Self::Key1) -> Self::DrainIter;
+    /// Creates the getting iterator over double map Items.
+    fn iter_prefix_keys(key: Self::Key1) -> Self::Iter;
+}
+
+/// Transpose callback for getting first element of tuple.
+pub struct GetFirstPos;
+
+// `TransposeCallback` implementation for tuple with two elements.
+impl<K, V> TransposeCallback<(K, V), K> for GetFirstPos {
+    fn call(arg: (K, V)) -> K {
+        arg.0
     }
 }
 
-// `Iterator` implementation for `KeyValueIteratorWrap`.
-impl<K, V, I> Iterator for KeyValueIteratorWrap<K, V, I>
+// `TransposeCallback` implementation for tuple with three elements.
+impl<K1, K2, V> TransposeCallback<(K1, K2, V), K1> for GetFirstPos {
+    fn call(arg: (K1, K2, V)) -> K1 {
+        arg.0
+    }
+}
+
+/// Transpose callback for getting second element of tuple.
+pub struct GetSecondPos;
+
+// `TransposeCallback` implementation for tuple with two elements.
+impl<K, V> TransposeCallback<(K, V), V> for GetSecondPos {
+    fn call(arg: (K, V)) -> V {
+        arg.1
+    }
+}
+
+// `TransposeCallback` implementation for tuple with three elements.
+impl<K1, K2, V> TransposeCallback<(K1, K2, V), K2> for GetSecondPos {
+    fn call(arg: (K1, K2, V)) -> K2 {
+        arg.1
+    }
+}
+
+/// Transpose callback for getting third element of tuple.
+pub struct GetThirdPos;
+
+// `TransposeCallback` implementation for tuple with three elements.
+impl<K1, K2, V> TransposeCallback<(K1, K2, V), V> for GetThirdPos {
+    fn call(arg: (K1, K2, V)) -> V {
+        arg.2
+    }
+}
+
+/// Represents wrapper for any iterator with ability
+/// to transpose `.next()` result.
+pub struct IteratorWrap<I, Item = <I as Iterator>::Item, TC = ()>(I, PhantomData<(Item, TC)>)
 where
-    I: Iterator<Item = (K, V)>,
+    I: Iterator,
+    TC: TransposeCallback<I::Item, Item>;
+
+// Implementation of `From` for any iterator.
+impl<I, Item, TC> From<I> for IteratorWrap<I, Item, TC>
+where
+    I: Iterator,
+    TC: TransposeCallback<I::Item, Item>,
 {
-    type Item = V;
+    fn from(iterator: I) -> Self {
+        Self(iterator, PhantomData)
+    }
+}
+
+// Implementation of `Iterator` itself for the wrapper
+// based on inner iterator and transpose callback.
+impl<I, Item, TC> Iterator for IteratorWrap<I, Item, TC>
+where
+    I: Iterator,
+    TC: TransposeCallback<I::Item, Item>,
+{
+    type Item = Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|v| v.1)
-    }
-}
-
-/// Represents value iterator wrap for (key1, key2, value) iterator.
-pub struct KeysValueIteratorWrap<K1, K2, V, I>(I, PhantomData<(K1, K2, V)>)
-where
-    I: Iterator<Item = (K1, K2, V)>;
-
-// `From` implementation `KeysValueIteratorWrap` for soft iterator wrapping.
-impl<K1, K2, V, I> From<I> for KeysValueIteratorWrap<K1, K2, V, I>
-where
-    I: Iterator<Item = (K1, K2, V)>,
-{
-    fn from(other: I) -> Self {
-        Self(other, PhantomData)
-    }
-}
-
-// `Iterator` implementation for `KeysValueIteratorWrap`.
-impl<K1, K2, V, I> Iterator for KeysValueIteratorWrap<K1, K2, V, I>
-where
-    I: Iterator<Item = (K1, K2, V)>,
-{
-    type Item = V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|v| v.2)
+        self.0.next().map(TC::call)
     }
 }

@@ -32,10 +32,23 @@ mod map;
 mod value;
 
 // Public exports from primitive modules.
-pub use callback::{Callback, EmptyCallback, FallibleCallback, GetCallback};
+pub use callback::{Callback, EmptyCallback, FallibleCallback, GetCallback, TransposeCallback};
 pub use counted::{Counted, CountedByKey};
 pub use double_map::DoubleMapStorage;
-pub use iterable::{IterableByKeyMap, IterableMap, KeyValueIteratorWrap, KeysValueIteratorWrap};
+pub use iterable::{
+    GetFirstPos, GetSecondPos, GetThirdPos, IterableByKeyMap, IterableMap, IteratorWrap,
+    KeyIterableByKeyMap,
+};
 pub use key::{KeyFor, MailboxKeyGen, QueueKeyGen, WaitlistKeyGen};
 pub use map::MapStorage;
 pub use value::ValueStorage;
+
+use codec::{Decode, Encode};
+use scale_info::TypeInfo;
+
+/// Type for interval values: e.g. in time `(since, till)`.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct Interval<T> {
+    pub start: T,
+    pub finish: T,
+}

@@ -25,7 +25,6 @@ gear-core = { path = "../../core", default-features = false }
 gear-runtime = { path = "../../runtime", default-features = false }
 pallet-gear-gas = { path = "../../pallets/gas", default-features = false }
 pallet-gear = { path = "../../pallets/gear", default-features = false }
-pallet-usage = { path = "../../pallets/usage", default-features = false }
 demo-contract-template = { path = "../../examples/binaries/contract-template", default-features = false }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const", default-features = false }
 demo-ncompose = { path = "../../examples/binaries/ncompose", default-features = false }
@@ -34,6 +33,7 @@ demo-ncompose = { path = "../../examples/binaries/ncompose", default-features = 
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-aura = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -64,7 +64,6 @@ std = [
     "gear-runtime/std",
     "pallet-gear-gas/std",
     "pallet-gear/std",
-    "pallet-usage/std",
     "demo-contract-template/std",
     "demo-mul-by-const/std",
     "demo-ncompose/std",

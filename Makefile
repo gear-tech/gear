@@ -172,11 +172,11 @@ run-node-release:
 
 .PHONY: run-dev-node
 run-dev-node:
-	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug,pallet-usage=debug" ./scripts/gear.sh run node -- --dev -l0
+	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug" ./scripts/gear.sh run node -- --dev -l0
 
 .PHONY: run-dev-node-release
 run-dev-node-release:
-	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug,pallet-usage=debug" ./scripts/gear.sh run node --release -- --dev -l0
+	@ RUST_LOG="gear_core_processor=debug,gwasm=debug,pallet_gas=debug,pallet_gear=debug" ./scripts/gear.sh run node --release -- --dev -l0
 
 .PHONY: purge-chain
 purge-chain:
@@ -232,6 +232,15 @@ test-pallet-release:
 .PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
+
+# Misc section
+.PHONY: doc
+doc:
+	@ RUSTDOCFLAGS="--enable-index-page -Zunstable-options" cargo +nightly doc --no-deps \
+		-p galloc -p gcore -p gear-backend-common -p gear-backend-sandbox \
+		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
+		-p gstd -p gtest -p gear-wasm-builder -p gear-common
+	@ cp -f images/logo.svg target/doc/rust-logo.svg
 
 .PHONY: fuzz
 fuzz:

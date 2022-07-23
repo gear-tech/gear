@@ -30,7 +30,7 @@ mod negative_imbalance;
 mod node;
 mod positive_imbalance;
 
-#[cfg(all(test, not(feature = "std")))]
+#[cfg(test)]
 mod property_tests;
 
 pub use error::Error;
@@ -92,14 +92,14 @@ pub trait Tree {
 
     /// The external origin for a key, if the latter exists, `None` otherwise.
     ///
-    /// Check [`get_origin`] for more details.
+    /// Check [`get_origin`](Self::get_origin) for more details.
     fn get_external(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error> {
         Self::get_origin(key).map(|result| result.map(|(_, external)| external))
     }
 
     /// The id of external node for a key, if the latter exists, `None` otherwise.
     ///
-    /// Check [`get_origin`] for more details.
+    /// Check [`get_origin`](Self::get_origin) for more details.
     fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error> {
         Self::get_origin(key).map(|result| result.map(|(key, _)| key))
     }

@@ -12,7 +12,7 @@ derive_more = "0.99"
 env_logger = "0.9"
 colored = "2.0.0"
 regex = "^1.6"
-serde_yaml = "0.8.24"
+serde_yaml = "0.8.26"
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
@@ -27,7 +27,7 @@ gear-core = { path = "../core" }
 common = { package = "gear-common", path = "../common" }
 core-processor = { package = "gear-core-processor", path = "../core-processor", default-features = false }
 gear-backend-common = { path = "../core-backend/common" }
-gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
+gear-backend-wasmi = { path = "../core-backend/wasmi" }
 
 [dev-dependencies]
 parity-scale-codec = { version = "3.1.2", features = ["derive"], default-features = false }

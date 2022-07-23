@@ -21,7 +21,7 @@
 //! Messenger provides API for all available gear message storing.
 
 use crate::storage::{
-    Counted, CountedByKey, Counter, DequeueError, IterableByKeyMap, IterableMap, Mailbox,
+    Counted, CountedByKey, Counter, DequeueError, Interval, IterableByKeyMap, IterableMap, Mailbox,
     MailboxError, Queue, Toggler, Waitlist, WaitlistError,
 };
 use core::fmt::Debug;
@@ -113,10 +113,14 @@ pub trait Messenger {
             Key1 = Self::MailboxFirstKey,
             Key2 = Self::MailboxSecondKey,
             Value = Self::MailboxedMessage,
+            BlockNumber = Self::BlockNumber,
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
-        + IterableByKeyMap<Self::MailboxedMessage, Key = Self::MailboxFirstKey>;
+        + IterableByKeyMap<
+            (Self::MailboxedMessage, Interval<Self::BlockNumber>),
+            Key = Self::MailboxFirstKey,
+        >;
 
     /// Gear waitlist.
     ///
@@ -141,7 +145,7 @@ pub trait Messenger {
     /// Gear runtime also charges rent for holding in waitlist.
     /// Note, that system can remove message from waitlist,
     /// if it couldn't pay rent for holding there further.
-    /// For details, see `pallet-usage`.
+    /// For details, see `pallet-gear-scheduler`.
     type Waitlist: Waitlist<
             Key1 = Self::WaitlistFirstKey,
             Key2 = Self::WaitlistSecondKey,
@@ -150,8 +154,11 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::WaitlistFirstKey, Length = usize>
-        + IterableByKeyMap<(Self::WaitlistedMessage, Self::BlockNumber), Key = Self::WaitlistFirstKey>
-        + IterableMap<(Self::WaitlistedMessage, Self::BlockNumber)>;
+        + IterableMap<(Self::WaitlistedMessage, Interval<Self::BlockNumber>)>
+        + IterableByKeyMap<
+            (Self::WaitlistedMessage, Interval<Self::BlockNumber>),
+            Key = Self::WaitlistFirstKey,
+        >;
 
     /// Resets all related to messenger storages.
     ///
