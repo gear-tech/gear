@@ -18,12 +18,11 @@
 
 mod weights;
 
-use crate::runtime::BenchmarkConfig;
 use clap::{Parser, Subcommand};
 use frame_support::{traits::Get, weights::Weight};
 use junit_common::TestSuites;
 use once_cell::sync::Lazy;
-use pallet_gear::{HostFnWeights, InstructionWeights, MemoryWeights, Schedule};
+use pallet_gear::{HostFnWeights, InstructionWeights, MemoryWeights};
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -331,7 +330,7 @@ fn weights(kind: WeightsKind, output_file: PathBuf) {
         };
     }
 
-    let schedule: Schedule<BenchmarkConfig> = dbg!(Schedule::default());
+    let schedule = runtime::Schedule::get();
     let mut benches = vec![];
 
     match kind {

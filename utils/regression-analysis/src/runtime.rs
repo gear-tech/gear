@@ -1,20 +1,7 @@
 use crate::weights::BenchmarkWeight;
-use frame_support::{
-    construct_runtime, parameter_types,
-    sp_runtime::traits::{BlakeTwo256, IdentityLookup},
-    weights::constants::RocksDbWeight,
-};
-use sp_runtime::{testing::Header, traits::ConstU64};
+use frame_support::{construct_runtime, parameter_types};
+use gear_runtime::{Block, UncheckedExtrinsic};
 use std::convert::{TryFrom, TryInto};
-
-pub struct GasConverter;
-
-impl common::GasPrice for GasConverter {
-    type Balance = u128;
-}
-
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<BenchmarkConfig>;
-type Block = frame_system::mocking::MockBlock<BenchmarkConfig>;
 
 construct_runtime!(
     pub enum BenchmarkConfig
@@ -34,99 +21,98 @@ construct_runtime!(
 );
 
 parameter_types! {
-    pub const ExistentialDeposit: u64 = 0;
-    pub const BlockGasLimit: u64 = 0;
+    pub Schedule: pallet_gear::Schedule<BenchmarkConfig> = Default::default();
 }
 
-// TODO: type Something = <gear_runtime::Config>::Something;
-
 impl frame_system::Config for BenchmarkConfig {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
+    type BaseCallFilter = <gear_runtime::Runtime as frame_system::Config>::BaseCallFilter;
+    type BlockWeights = <gear_runtime::Runtime as frame_system::Config>::BlockWeights;
+    type BlockLength = <gear_runtime::Runtime as frame_system::Config>::BlockLength;
     type Origin = Origin;
     type Call = Call;
-    type Index = u128;
-    type BlockNumber = u64;
-    type Hash = sp_core::H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = u64;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
+    type Index = <gear_runtime::Runtime as frame_system::Config>::Index;
+    type BlockNumber = <gear_runtime::Runtime as frame_system::Config>::BlockNumber;
+    type Hash = <gear_runtime::Runtime as frame_system::Config>::Hash;
+    type Hashing = <gear_runtime::Runtime as frame_system::Config>::Hashing;
+    type AccountId = <gear_runtime::Runtime as frame_system::Config>::AccountId;
+    type Lookup = <gear_runtime::Runtime as frame_system::Config>::Lookup;
+    type Header = <gear_runtime::Runtime as frame_system::Config>::Header;
     type Event = Event;
-    type BlockHashCount = ();
-    type DbWeight = RocksDbWeight;
-    type Version = ();
+    type BlockHashCount = <gear_runtime::Runtime as frame_system::Config>::BlockHashCount;
+    type DbWeight = <gear_runtime::Runtime as frame_system::Config>::DbWeight;
+    type Version = <gear_runtime::Runtime as frame_system::Config>::Version;
     type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = ();
-    type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
+    type AccountData = <gear_runtime::Runtime as frame_system::Config>::AccountData;
+    type OnNewAccount = <gear_runtime::Runtime as frame_system::Config>::OnNewAccount;
+    type OnKilledAccount = <gear_runtime::Runtime as frame_system::Config>::OnKilledAccount;
+    type SystemWeightInfo = <gear_runtime::Runtime as frame_system::Config>::SystemWeightInfo;
+    type SS58Prefix = <gear_runtime::Runtime as frame_system::Config>::SS58Prefix;
+    type OnSetCode = <gear_runtime::Runtime as frame_system::Config>::OnSetCode;
+    type MaxConsumers = <gear_runtime::Runtime as frame_system::Config>::MaxConsumers;
 }
 
 impl pallet_balances::Config for BenchmarkConfig {
-    type Balance = u128;
-    type DustRemoval = ();
+    type Balance = <gear_runtime::Runtime as pallet_balances::Config>::Balance;
+    type DustRemoval = <gear_runtime::Runtime as pallet_balances::Config>::DustRemoval;
     type Event = Event;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
+    type ExistentialDeposit =
+        <gear_runtime::Runtime as pallet_balances::Config>::ExistentialDeposit;
+    type AccountStore = <gear_runtime::Runtime as pallet_balances::Config>::AccountStore;
+    type WeightInfo = pallet_balances::weights::SubstrateWeight<Self>;
+    type MaxLocks = <gear_runtime::Runtime as pallet_balances::Config>::MaxLocks;
+    type MaxReserves = <gear_runtime::Runtime as pallet_balances::Config>::MaxReserves;
+    type ReserveIdentifier = <gear_runtime::Runtime as pallet_balances::Config>::ReserveIdentifier;
 }
 
 impl pallet_authorship::Config for BenchmarkConfig {
-    type FindAuthor = ();
-    type UncleGenerations = ();
-    type FilterUncle = ();
-    type EventHandler = ();
+    type FindAuthor = <gear_runtime::Runtime as pallet_authorship::Config>::FindAuthor;
+    type UncleGenerations = <gear_runtime::Runtime as pallet_authorship::Config>::UncleGenerations;
+    type FilterUncle = <gear_runtime::Runtime as pallet_authorship::Config>::FilterUncle;
+    type EventHandler = <gear_runtime::Runtime as pallet_authorship::Config>::EventHandler;
 }
 
 impl pallet_timestamp::Config for BenchmarkConfig {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = ();
-    type WeightInfo = ();
+    type Moment = <gear_runtime::Runtime as pallet_timestamp::Config>::Moment;
+    type OnTimestampSet = <gear_runtime::Runtime as pallet_timestamp::Config>::OnTimestampSet;
+    type MinimumPeriod = <gear_runtime::Runtime as pallet_timestamp::Config>::MinimumPeriod;
+    type WeightInfo = <gear_runtime::Runtime as pallet_timestamp::Config>::WeightInfo;
 }
 
 impl pallet_gear_program::Config for BenchmarkConfig {
     type Event = Event;
-    type WeightInfo = ();
-    type Currency = Balances;
-    type Messenger = GearMessenger;
+    type WeightInfo = <gear_runtime::Runtime as pallet_gear_program::Config>::WeightInfo;
+    type Currency = <gear_runtime::Runtime as pallet_gear_program::Config>::Currency;
+    type Messenger = <gear_runtime::Runtime as pallet_gear_program::Config>::Messenger;
 }
 
 impl pallet_gear_messenger::Config for BenchmarkConfig {
-    type Currency = Balances;
-    type BlockLimiter = GearGas;
+    type Currency = <gear_runtime::Runtime as pallet_gear_messenger::Config>::Currency;
+    type BlockLimiter = <gear_runtime::Runtime as pallet_gear_messenger::Config>::BlockLimiter;
 }
 
 impl pallet_gear_gas::Config for BenchmarkConfig {
-    type BlockGasLimit = BlockGasLimit;
+    type BlockGasLimit = <gear_runtime::Runtime as pallet_gear_gas::Config>::BlockGasLimit;
 }
 
 impl pallet_gear_scheduler::Config for BenchmarkConfig {
-    type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
-    type WaitlistCost = ConstU64<100>;
+    type BlockLimiter = <gear_runtime::Runtime as pallet_gear_scheduler::Config>::BlockLimiter;
+    type ReserveThreshold =
+        <gear_runtime::Runtime as pallet_gear_scheduler::Config>::ReserveThreshold;
+    type WaitlistCost = <gear_runtime::Runtime as pallet_gear_scheduler::Config>::WaitlistCost;
 }
 
 impl pallet_gear::Config for BenchmarkConfig {
     type Event = Event;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
+    type Currency = <gear_runtime::Runtime as pallet_gear::Config>::Currency;
+    type GasPrice = <gear_runtime::Runtime as pallet_gear::Config>::GasPrice;
     type WeightInfo = BenchmarkWeight<BenchmarkConfig>;
-    type Schedule = ();
-    type OutgoingLimit = ();
-    type DebugInfo = ();
-    type CodeStorage = GearProgram;
-    type MailboxThreshold = ();
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
+    type Schedule = Schedule;
+    type OutgoingLimit = <gear_runtime::Runtime as pallet_gear::Config>::OutgoingLimit;
+    type DebugInfo = <gear_runtime::Runtime as pallet_gear::Config>::DebugInfo;
+    type CodeStorage = <gear_runtime::Runtime as pallet_gear::Config>::CodeStorage;
+    type MailboxThreshold = <gear_runtime::Runtime as pallet_gear::Config>::MailboxThreshold;
+    type Messenger = <gear_runtime::Runtime as pallet_gear::Config>::Messenger;
+    type GasProvider = <gear_runtime::Runtime as pallet_gear::Config>::GasProvider;
+    type BlockLimiter = <gear_runtime::Runtime as pallet_gear::Config>::BlockLimiter;
+    type Scheduler = <gear_runtime::Runtime as pallet_gear::Config>::Scheduler;
 }

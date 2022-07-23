@@ -6134,7 +6134,7 @@ dependencies = [
  "clap",
  "frame-support",
  "frame-system",
- "gear-common",
+ "gear-runtime",
  "junit-common",
  "once_cell",
  "pallet-authorship",
@@ -6150,9 +6150,6 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
- "sp-core",
- "sp-runtime",
- "sp-std",
  "tabled",
  "thousands",
 ]
