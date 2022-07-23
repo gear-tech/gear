@@ -117,9 +117,9 @@ jobs:
           
       - name: "Generate report: pallet-gear benches"
         run: |
-          ./target/release/regression-analysis weights --output-file ./target/action-hostfn-weights.json host-fn
-          ./target/release/regression-analysis weights --output-file ./target/action-instruction-weights.json instruction
-          ./target/release/regression-analysis weights --output-file ./target/action-memory-weights.json memory
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-hostfn-weights.json host-fn
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-instruction-weights.json instruction
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-memory-weights.json memory
 
       - name: "Store result: Gear workspace tests"
         uses: benchmark-action/github-action-benchmark@v1

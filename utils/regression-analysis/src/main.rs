@@ -21,13 +21,13 @@ mod weights;
 use clap::{Parser, Subcommand};
 use frame_support::{traits::Get, weights::Weight};
 use junit_common::TestSuites;
-use once_cell::sync::Lazy;
 use pallet_gear::{HostFnWeights, InstructionWeights, MemoryWeights};
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs, iter,
+    ops::Deref,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -52,11 +52,7 @@ const PREALLOCATE: usize = 1_000;
 
 const TEST_SUITES_TEXT: &str = "Test suites";
 
-// TODO: load from user input file
-static WEIGHTS_JSON: Lazy<HashMap<String, WeightBenchmark>> = Lazy::new(|| {
-    let file = fs::File::open("./target/weights.json").unwrap();
-    serde_json::from_reader(file).unwrap()
-});
+static WEIGHTS_JSON: WeightJson = WeightJson::new();
 
 #[derive(Parser)]
 struct Cli {
@@ -94,6 +90,8 @@ enum Commands {
         #[clap(subcommand)]
         kind: WeightsKind,
         #[clap(long, value_parser)]
+        input_file: PathBuf,
+        #[clap(long, value_parser)]
         output_file: PathBuf,
     },
 }
@@ -114,6 +112,28 @@ struct GithubActionBenchmark {
     range: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     extra: Option<String>,
+}
+
+struct WeightJson(once_cell::sync::OnceCell<HashMap<String, WeightBenchmark>>);
+
+impl WeightJson {
+    const fn new() -> Self {
+        Self(once_cell::sync::OnceCell::new())
+    }
+
+    fn init(&self, input_file: PathBuf) {
+        let file = fs::File::open(input_file).unwrap();
+        let map = serde_json::from_reader(file).unwrap();
+        self.0.get_or_init(move || map);
+    }
+}
+
+impl Deref for WeightJson {
+    type Target = HashMap<String, WeightBenchmark>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.get().unwrap()
+    }
 }
 
 #[derive(Deserialize)]
@@ -300,7 +320,7 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
     fs::write(output_file, output).unwrap();
 }
 
-fn weights(kind: WeightsKind, output_file: PathBuf) {
+fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
     macro_rules! add_weights {
         (
             benches = $benches:ident;
@@ -329,6 +349,8 @@ fn weights(kind: WeightsKind, output_file: PathBuf) {
             })
         };
     }
+
+    WEIGHTS_JSON.init(input_file);
 
     let schedule = runtime::Schedule::get();
     let mut benches = vec![];
@@ -478,6 +500,10 @@ fn main() {
         } => {
             convert(data_folder_path, output_file, disable_filter);
         }
-        Commands::Weights { kind, output_file } => weights(kind, output_file),
+        Commands::Weights {
+            kind,
+            input_file,
+            output_file,
+        } => weights(kind, input_file, output_file),
     }
 }
