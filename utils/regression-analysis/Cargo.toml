@@ -22,6 +22,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../../pallets/gear-messenger" }
 pallet-gear-gas = { path = "../../pallets/gas", default-features = false }
 pallet-gear-program = { path = "../../pallets/gear-program" }
+pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../../pallets/gear-scheduler" }
 pallet-gear = { path = "../../pallets/gear" }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }

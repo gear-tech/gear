@@ -6143,6 +6143,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
+ "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
  "quick-xml",

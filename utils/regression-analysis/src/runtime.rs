@@ -4,7 +4,7 @@ use frame_support::{
     sp_runtime::traits::{BlakeTwo256, IdentityLookup},
     weights::constants::RocksDbWeight,
 };
-use sp_runtime::testing::Header;
+use sp_runtime::{testing::Header, traits::ConstU64};
 use std::convert::{TryFrom, TryInto};
 
 pub struct GasConverter;
@@ -28,6 +28,7 @@ construct_runtime!(
             GearProgram: pallet_gear_program,
             GearMessenger: pallet_gear_messenger,
             GearGas: pallet_gear_gas,
+            GearScheduler: pallet_gear_scheduler,
             Gear: pallet_gear,
         }
 );
@@ -101,10 +102,17 @@ impl pallet_gear_program::Config for BenchmarkConfig {
 
 impl pallet_gear_messenger::Config for BenchmarkConfig {
     type Currency = Balances;
+    type BlockLimiter = GearGas;
 }
 
 impl pallet_gear_gas::Config for BenchmarkConfig {
     type BlockGasLimit = BlockGasLimit;
+}
+
+impl pallet_gear_scheduler::Config for BenchmarkConfig {
+    type BlockLimiter = GearGas;
+    type ReserveThreshold = ConstU64<1>;
+    type WaitlistCost = ConstU64<100>;
 }
 
 impl pallet_gear::Config for BenchmarkConfig {
@@ -114,11 +122,11 @@ impl pallet_gear::Config for BenchmarkConfig {
     type WeightInfo = BenchmarkWeight<BenchmarkConfig>;
     type Schedule = ();
     type OutgoingLimit = ();
-    type WaitListFeePerBlock = ();
     type DebugInfo = ();
     type CodeStorage = GearProgram;
     type MailboxThreshold = ();
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
+    type Scheduler = GearScheduler;
 }
