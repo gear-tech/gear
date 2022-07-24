@@ -90,6 +90,7 @@ impl IntoExtInfo for LazyPagesExt {
     fn into_ext_info(
         self,
         memory: &impl Memory,
+        stack_page_count: WasmPageNumber,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
@@ -105,7 +106,8 @@ impl IntoExtInfo for LazyPagesExt {
         let mut accessed_pages = lazy_pages::get_released_pages();
         accessed_pages.retain(|p| {
             let wasm_page = p.to_wasm_page();
-            wasm_page < static_pages || allocations.contains(&wasm_page)
+            let not_stack_page = wasm_page >= stack_page_count;
+            not_stack_page && (wasm_page < static_pages || allocations.contains(&wasm_page))
         });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);

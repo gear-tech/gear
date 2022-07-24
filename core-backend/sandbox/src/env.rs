@@ -232,21 +232,25 @@ where
             Ok(ReturnValue::Unit)
         };
 
+        // Page which is right after stack last page
+        let stack_end_page = self.get_stack_mem_end();
+        log::trace!("Stack end page = {stack_end_page:?}");
+
         let Runtime {
             ext,
             memory,
             err: trap,
         } = self.runtime;
 
-        log::debug!("execution res = {:?}", res);
+        log::debug!("SandboxEnvironment::execute res = {res:?}");
 
-        let (info, trap_explanation) =
-            ext.into_inner()
-                .into_ext_info(&memory)
-                .map_err(|(reason, gas_amount)| BackendError {
-                    reason: SandboxEnvironmentError::Memory(reason),
-                    gas_amount,
-                })?;
+        let (info, trap_explanation) = ext
+            .into_inner()
+            .into_ext_info(&memory, stack_end_page.unwrap_or_default())
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason: SandboxEnvironmentError::Memory(reason),
+                gas_amount,
+            })?;
 
         let termination = if res.is_err() {
             let reason = trap_explanation
