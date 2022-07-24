@@ -81,7 +81,7 @@ where
 
             // Splitting gas for newly created reply message.
             GasHandlerOf::<T>::split(trap_reply.id(), message_id).unwrap_or_else(|e| {
-                // # Safty
+                // # Safety.
                 //
                 // There is no logic spliting value from the reserved nodes.
                 result::gas_tree(e)
