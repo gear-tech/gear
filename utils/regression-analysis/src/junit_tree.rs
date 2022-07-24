@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::TestSuites;
+use junit_common::TestSuites;
 use std::{collections::BTreeMap, str::FromStr};
 
 pub fn build_tree<Filter>(
