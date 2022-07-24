@@ -69,6 +69,7 @@ demo-calc-hash-over-blocks = { path = "../../examples/binaries/calc-hash/over-bl
 demo-calc-hash-in-one-block = { path = "../../examples/binaries/calc-hash/in-one-block" }
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
+demo-value-sender = { path = "../../examples/binaries/value-sender" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas", default-features = false }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }

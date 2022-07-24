@@ -1474,6 +1474,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-value-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
@@ -4900,6 +4909,7 @@ dependencies = [
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-with-gas",
+ "demo-value-sender",
  "demo-waiting-proxy",
  "env_logger",
  "frame-benchmarking",

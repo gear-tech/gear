@@ -117,6 +117,7 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
+        + IterableMap<(Self::MailboxedMessage, Interval<Self::BlockNumber>)>
         + IterableByKeyMap<
             (Self::MailboxedMessage, Interval<Self::BlockNumber>),
             Key = Self::MailboxFirstKey,

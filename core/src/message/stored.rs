@@ -129,13 +129,13 @@ impl StoredMessage {
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
-    pub fn with_string_payload<D: Decode + ToString>(self) -> Option<Self> {
-        let payload = D::decode(&mut self.payload.as_ref())
-            .ok()?
-            .to_string()
-            .into_bytes();
-
-        Some(Self { payload, ..self })
+    pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
+        D::decode(&mut self.payload.as_ref())
+            .map(|payload| {
+                let payload = payload.to_string().into_bytes();
+                Self { payload, ..self }
+            })
+            .map_err(|_| self)
     }
 }
 

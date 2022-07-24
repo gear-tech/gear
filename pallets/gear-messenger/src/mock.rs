@@ -99,7 +99,6 @@ impl system::Config for Test {
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Currency = ();
     type BlockLimiter = GearGas;
 }
 

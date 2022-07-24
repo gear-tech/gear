@@ -171,7 +171,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
-    type MailboxThreshold = ConstU64<0>;
+    type MailboxThreshold = ConstU64<3000>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
@@ -193,10 +193,10 @@ impl pallet_gear_scheduler::Config for Test {
     type BlockLimiter = GearGas;
     type ReserveThreshold = ConstU64<1>;
     type WaitlistCost = ConstU64<100>;
+    type MailboxCost = ConstU64<100>;
 }
 
 impl pallet_gear_messenger::Config for Test {
-    type Currency = Balances;
     type BlockLimiter = GearGas;
 }
 

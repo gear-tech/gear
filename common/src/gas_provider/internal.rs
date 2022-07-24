@@ -578,4 +578,9 @@ where
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, new_key, amount, true)
     }
+
+    fn clear() {
+        TotalValue::kill();
+        StorageMap::clear();
+    }
 }
