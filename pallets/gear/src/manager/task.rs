@@ -77,8 +77,12 @@ where
                 .into_stored_dispatch(program_id, waitlisted.source(), message_id);
 
             // Splitting gas for newly created reply message.
-            // TODO: handle error case for `split` (#1130).
-            let _ = GasHandlerOf::<T>::split(trap_reply.id(), message_id);
+            //
+            // # Safety.
+            //
+            // There is no logic spliting value from the reserved nodes.
+            GasHandlerOf::<T>::split(trap_reply.id(), message_id)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Enqueueing dispatch into message queue.
             QueueOf::<T>::queue(trap_reply)

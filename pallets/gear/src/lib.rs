@@ -388,6 +388,8 @@ pub mod pallet {
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
+        /// Message has alread been replied.
+        MessageAlreadyReplied,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
         /// User contains mailboxed message from other user.
@@ -537,11 +539,16 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = GasHandlerOf::<T>::create(
+            // # Safety.
+            //
+            // This is unreachable since the `message_id` is new generated
+            // with `Self::next_message_id`.
+            GasHandlerOf::<T>::create(
                 who.clone(),
                 message_id,
                 packet.gas_limit().expect("Can't fail"),
-            );
+            )
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1461,11 +1468,16 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = GasHandlerOf::<T>::create(
+            // # Safety.
+            //
+            // This is unreachable since the `message_id is new generated
+            // with `Self::next_message_id`.
+            GasHandlerOf::<T>::create(
                 who.clone(),
                 message_id,
                 packet.gas_limit().expect("Can't fail"),
-            );
+            )
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1557,7 +1569,12 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit);
+                // # Safety.
+                //
+                // This is unreachable since the `message_id` is new generated
+                // with `Self::next_message_id`.
+                GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
@@ -1665,7 +1682,8 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
+            GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit)
+                .map_err(|_| Error::<T>::MessageAlreadyReplied)?;
 
             Self::deposit_event(Event::UserMessageRead {
                 id: reply_to_id,

@@ -108,7 +108,7 @@ where
     ) {
         // Spending gas amount from `GasNode`.
         // Here is a negative imbalance. Used `_` to force drop in place.
-        let _ = GasHandlerOf::<T>::spend(message_id, amount)
+        GasHandlerOf::<T>::spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
@@ -215,7 +215,7 @@ where
         let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
         // Checking that message gas limit can cover required lock.
-        (limit >= deadline.gas_lock).then(|| deadline)
+        (limit >= deadline.gas_lock).then_some(deadline)
     }
 
     // Calculates deadline for duration holding.
