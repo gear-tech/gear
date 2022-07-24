@@ -119,7 +119,6 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub const MailboxThreshold: u64 = 3_000;
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
@@ -134,7 +133,7 @@ impl pallet_gear::Config for Test {
     type OutgoingLimit = OutgoingLimit;
     type DebugInfo = ();
     type CodeStorage = GearProgram;
-    type MailboxThreshold = MailboxThreshold;
+    type MailboxThreshold = ConstU64<3000>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;

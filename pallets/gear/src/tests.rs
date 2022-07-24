@@ -21,8 +21,7 @@ use crate::{
     manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
-        GearProgram, MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER,
-        USER_1, USER_2, USER_3,
+        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
     GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
@@ -39,7 +38,10 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
-    assert_noop, assert_ok, dispatch::Dispatchable, sp_runtime::traits::Zero, traits::Currency,
+    assert_noop, assert_ok,
+    dispatch::Dispatchable,
+    sp_runtime::traits::{TypedGet, Zero},
+    traits::Currency,
 };
 use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::TrapExplanation;
@@ -557,7 +559,7 @@ fn mailbox_threshold_works() {
         ));
 
         let proxy = utils::get_last_program_id();
-        let rent = MailboxThreshold::get();
+        let rent = <Test as Config>::MailboxThreshold::get();
         let check_result = |sufficient: bool| -> MessageId {
             run_to_next_block(None);
 
