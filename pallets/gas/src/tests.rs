@@ -629,7 +629,7 @@ fn subtree_gas_limit_remains_intact() {
         // Consume node_2
         assert!(matches!(Gas::consume(node_2).unwrap(), None));
         // Marked as consumed
-        assert!(GasTree::get(node_2).map(|node| node.consumed).unwrap());
+        assert!(GasTree::get(node_2).map(|node| node.is_consumed()).unwrap());
         // Expect gas limit of the node_4 to remain unchanged
         assert_eq!(Gas::get_limit(node_4).unwrap().map(|(g, _)| g), Some(250));
 
