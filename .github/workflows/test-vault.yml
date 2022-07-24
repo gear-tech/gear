@@ -1,0 +1,27 @@
+name: Test Vault
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+        - name: read secrets
+          uses: hashicorp/vault-action@v2.4.1
+          with:
+            url: http://vault.kvsdevops.kz/
+            tlsSkipVerify: true
+            method: github
+            githubToken: ${{ secret.VAULT_SECRET }}
+            secrets: |
+              aws/v_krinitsyn aws_access_key_id | AWS_ID ;
+              aws/v_krinitsyn aws_secret_access_key | AWS_KEY ;
+              aws/v_krinitsyn aws_eks_region | AWS_REGION          
+
+        - name: aws login
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
