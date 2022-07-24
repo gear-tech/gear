@@ -16,20 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// todo refactoring ideas
-// 1. leave refs as Option in GasNode
-// 2. the idea I wrote in the notebook
-
-
 use super::*;
 use codec::MaxEncodedLen;
 
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub enum GasNodeType<ExternalId, Id, Balance> {
-    External { id: ExternalId, value: Balance, refs: ChildrenRefs },
-    ReservedLocal { id: ExternalId, value: Balance },
-    SpecifiedLocal { parent: Id, value: Balance, refs: ChildrenRefs },
-    UnspecifiedLocal { parent: Id },
+    External {
+        id: ExternalId,
+        value: Balance,
+        refs: ChildrenRefs,
+    },
+    ReservedLocal {
+        id: ExternalId,
+        value: Balance,
+    },
+    SpecifiedLocal {
+        parent: Id,
+        value: Balance,
+        refs: ChildrenRefs,
+    },
+    UnspecifiedLocal {
+        parent: Id,
+    },
 }
 
 #[derive(Clone, Copy, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
@@ -67,7 +75,11 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 {
     pub fn new(origin: ExternalId, value: Balance) -> Self {
         Self {
-            inner: GasNodeType::External { id: origin, value, refs: Default::default() },
+            inner: GasNodeType::External {
+                id: origin,
+                value,
+                refs: Default::default(),
+            },
             consumed: false,
         }
     }
@@ -105,7 +117,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     ///
     /// Patron nodes are those on which other nodes of the tree rely (including the self node).
     pub fn is_patron(&self) -> bool {
-        if let GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } = self.inner {
+        if let GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } =
+            self.inner
+        {
             !self.consumed || refs.unspec_refs != 0
         } else {
             false
@@ -136,22 +150,26 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 
     pub fn spec_refs(&self) -> u32 {
         match self.inner {
-            GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } => refs.spec_refs,
-            _ => 0
+            GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } => {
+                refs.spec_refs
+            }
+            _ => 0,
         }
     }
 
     pub fn unspec_refs(&self) -> u32 {
         match self.inner {
-            GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } => refs.unspec_refs,
-            _ => 0
+            GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } => {
+                refs.unspec_refs
+            }
+            _ => 0,
         }
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
         let refs = match &mut self.inner {
             GasNodeType::External { refs, .. } | GasNodeType::SpecifiedLocal { refs, .. } => refs,
-            _ => return
+            _ => return,
         };
 
         match (increase, spec) {
