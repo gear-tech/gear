@@ -1,31 +1,26 @@
 name: CD
 
 on:
+  workflow_dispatch:
   push:
     branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
-  docker:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3.1.0
         with:
           file: ../../docker/Dockerfile
           push: true
@@ -33,46 +28,57 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: docker
+    needs: build
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Read secrets
+        uses: hashicorp/vault-action@v2.4.1
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          tlsSkipVerify: true
+          method: github
+          githubToken: ${{ secrets.VAULT_TOKEN }}
+          secrets: |
+            kv/ssh/keys nodes | SSH_KEY ;
+            kv/infra/testnet-nodes GEAR_NODE_1 | GEAR_NODE_1 ;
+            kv/infra/testnet-nodes GEAR_NODE_2 | GEAR_NODE_2 ;
+            kv/infra/testnet-nodes GEAR_NODE_3 | GEAR_NODE_3 ;
+            kv/infra/testnet-nodes GEAR_NODE_4 | GEAR_NODE_4 ;
+            kv/infra/testnet-nodes RPC_NODE | RPC_NODE ;
+            kv/infra/testnet-nodes ARCHIVE_NODE | ARCHIVE_NODE ;
+            kv/infra/testnet-nodes ARCHIVE_RPC_NODE | ARCHIVE_RPC_NODE ;
+            kv/infra/other LOKI_URL | LOKI_URL ;
+            kv/telegram_bots/alerts chat_id | TG_CHAT ;
+            kv/telegram_bots/alerts token | TG_TOKEN
 
-      - name: Install Info
-        run: |
-            ls -l .
-            ls -l ../..
-            pwd
+      - name: Checkout
+        uses: actions/checkout@v3.0.2
 
       - name: Send telegram notify before run playbook
-        uses: appleboy/telegram-action@master
+        uses: appleboy/telegram-action@v0.1.1
         with:
-          to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          to: ${{ env.TG_CHAT }}
+          token: ${{ env.TG_TOKEN }}
           message: |
             Attention! Instances will be temporarily unavailable!
             ${{ github.actor }} run build with commit: "${{ github.event.commits[0].message }}"
             Build number: ${{ github.run_number }}
 
       - name: Run playbook
-        uses: dawidd6/action-ansible-playbook@v2
+        uses: dawidd6/action-ansible-playbook@v2.5.0
         with:
-          # Required, playbook filepath
           directory: ./ansible/
           playbook: main.yaml
-          # Optional, SSH private key
-          key: ${{secrets.SSH_PRIVATE_KEY}}
-          # Optional, literal inventory file contents
+          key: ${{ env.SSH_KEY }}
           inventory: |
             [gearNodes:children]
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{ env.GEAR_NODE_1 }}      name=testnet-gear01           loki=yes loki_url=${{ env.LOKI_URL }}
             [nodes]
-            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{ env.GEAR_NODE_2 }}      name=testnet-gear02           loki=yes loki_url=${{ env.LOKI_URL }} validator=yes
+            ${{ env.GEAR_NODE_3 }}      name=testnet-gear03           loki=yes loki_url=${{ env.LOKI_URL }} validator=yes
+            ${{ env.GEAR_NODE_4 }}      name=testnet-gear04           loki=yes loki_url=${{ env.LOKI_URL }} validator=yes
+            ${{ env.ARCHIVE_NODE }}     name=testnet-archive-node     loki=yes loki_url=${{ env.LOKI_URL }} validator=yes       archive_node=yes
+            ${{ env.ARCHIVE_RPC_NODE }} name=testnet-archive-rpc-node loki=yes loki_url=${{ env.LOKI_URL }} rpc=yes unsafe=no   archive_node=yes
+            ${{ env.RPC_NODE }}         name=testnet-rpc-node         loki=yes loki_url=${{ env.LOKI_URL }} rpc=yes unsafe=yes
