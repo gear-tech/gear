@@ -351,7 +351,7 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = ConstU32<1024>;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
-    type MailboxThreshold = ConstU64<0>;
+    type MailboxThreshold = ConstU64<3000>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
