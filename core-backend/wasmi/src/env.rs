@@ -367,12 +367,12 @@ where
         builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
-        let mut runtime = Runtime::new(
+        let mut runtime = Runtime {
             ext,
-            &mem,
-            &mut memory_wrap,
-            FuncError::Terminated(TerminationReason::Success),
-        );
+            memory: &mem,
+            memory_wrap: &mut memory_wrap,
+            err: FuncError::Terminated(TerminationReason::Success),
+        };
 
         let defined_host_functions = builder.defined_host_functions.clone();
         let module = match wasmi::Module::from_buffer(binary) {
@@ -392,7 +392,7 @@ where
             }
         };
 
-        pre_execution_handler(runtime.memory_wrap()).map_err(|e| BackendError {
+        pre_execution_handler(runtime.memory_wrap).map_err(|e| BackendError {
             reason: WasmiEnvironmentError::PreExecutionHandler(e.to_string()),
         })?;
 

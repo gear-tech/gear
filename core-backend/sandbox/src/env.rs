@@ -161,12 +161,12 @@ where
         env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
-        let mut runtime = Runtime::new(
+        let mut runtime = Runtime {
             ext,
-            &mem,
-            &mut memory_wrap,
-            FuncError::Terminated(TerminationReason::Success),
-        );
+            memory: &mem,
+            memory_wrap: &mut memory_wrap,
+            err: FuncError::Terminated(TerminationReason::Success),
+        };
 
         let mut instance = match Instance::new(binary, &env_builder, &mut runtime) {
             Ok(inst) => inst,
@@ -176,7 +176,7 @@ where
                 })
             }
         };
-        pre_execution_handler(runtime.memory_wrap()).map_err(|e| BackendError {
+        pre_execution_handler(runtime.memory_wrap).map_err(|e| BackendError {
             reason: SandboxEnvironmentError::PreExecutionHandler(e.to_string()),
         })?;
 

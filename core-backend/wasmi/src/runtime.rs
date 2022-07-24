@@ -18,35 +18,6 @@ impl<'a, E> Runtime<'a, E>
 where
     E: Ext + 'a,
 {
-    pub fn new(
-        ext: &'a mut E,
-        memory: &'a MemoryRef,
-        memory_wrap: &'a mut MemoryWrap,
-        err: FuncError<E::Error>,
-    ) -> Self {
-        Runtime {
-            ext,
-            memory,
-            memory_wrap,
-            err,
-        }
-    }
-
-    /// Get a mutable reference to the inner `Ext`.
-    pub fn ext(&mut self) -> &mut E {
-        self.ext
-    }
-
-    /// Get a mutable reference to the inner `MemoryWrap`.
-    pub fn memory_wrap(&mut self) -> &mut MemoryWrap {
-        self.memory_wrap
-    }
-
-    /// Store the reason for a host function triggered trap.
-    pub fn set_err(&mut self, err: FuncError<E::Error>) {
-        self.err = err;
-    }
-
     /// Allocate new pages in module memory.
     pub fn alloc(
         &mut self,
@@ -60,7 +31,7 @@ where
     /// Returns `Err` if one of the following conditions occurs:
     ///
     /// - requested buffer is not within the bounds of the sandbox memory.
-    pub fn read_sandbox_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
+    pub fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
         let mut buf = vec![0u8; len as usize];
         self.memory
             .get_into(ptr, buf.as_mut_slice())
@@ -73,7 +44,7 @@ where
     /// Returns `Err` if one of the following conditions occurs:
     ///
     /// - requested buffer is not within the bounds of the sandbox memory.
-    pub fn read_sandbox_memory_into_buf(
+    pub fn read_memory_into_buf(
         &self,
         ptr: u32,
         buf: &mut [u8],
@@ -84,11 +55,11 @@ where
     }
 
     /// Reads and decodes a type with a size fixed at compile time from contract memory.
-    pub fn read_sandbox_memory_as<D: Decode + MaxEncodedLen>(
+    pub fn read_memory_as<D: Decode + MaxEncodedLen>(
         &self,
         ptr: u32,
     ) -> Result<D, MemoryError> {
-        let buf = self.read_sandbox_memory(ptr, D::max_encoded_len() as u32)?;
+        let buf = self.read_memory(ptr, D::max_encoded_len() as u32)?;
         let decoded = D::decode_all(&mut &buf[..]).map_err(|_| MemoryError::MemoryAccessError)?;
         Ok(decoded)
     }
@@ -96,7 +67,7 @@ where
     /// Write the given buffer and its length to the designated locations in sandbox memory.
     //
     /// `out_ptr` is the location in sandbox memory where `buf` should be written to.
-    pub fn write_sandbox_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), MemoryError> {
+    pub fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), MemoryError> {
         self.memory
             .set(out_ptr, buf)
             .map_err(|_| MemoryError::OutOfBounds)?;
