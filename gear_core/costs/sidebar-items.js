@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["RuntimeCosts","Enumerates syscalls that can be charged by gas meter."]],"struct":[["HostFnWeights","Describes the weight for each imported function that a program is allowed to call."],["RuntimeToken","Token to consume gas amount."]]};

@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["gear_wasm_builder"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/std/error/trait.Error.html\" title=\"trait std::error::Error\">Error</a> for <a class=\"struct\" href=\"gear_wasm_builder/optimize/struct.OptimizerError.html\" title=\"struct gear_wasm_builder::optimize::OptimizerError\">OptimizerError</a>","synthetic":false,"types":["gear_wasm_builder::optimize::OptimizerError"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

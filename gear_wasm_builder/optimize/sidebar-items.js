@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["do_optimization","Optimizes the Wasm supplied as `crate_metadata.dest_wasm` using the `wasm-opt` binary."],["optimize_wasm","Attempts to perform optional Wasm optimization using `binaryen`."]],"struct":[["OptimizationResult",""],["Optimizer",""],["OptimizerError",""]]};

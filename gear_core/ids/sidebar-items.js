@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["CodeId","Code identifier"],["MessageId","Message identifier"],["ProgramId","Program identifier"]]};

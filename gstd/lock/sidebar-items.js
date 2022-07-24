@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["mutex","Mutex async implementation. The data protected by the mutex can be accessed through this guard via its `deref` and `deref_mut` implementations."],["rwlock","RwLock async implementation."]]};

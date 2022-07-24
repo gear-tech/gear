@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AllocationsConfig","Memory/allocation config."],["BlockConfig","Stable parameters for the whole block across processing runs."],["BlockInfo","Contextual block information."],["ExecutionSettings","Execution settings for handling messages."],["MessageExecutionContext","Unstable parameters for message execution across processing runs."]]};

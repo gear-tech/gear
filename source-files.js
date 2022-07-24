@@ -1,0 +1,14 @@
+var sourcesIndex = {};
+sourcesIndex["galloc"] = {"name":"","files":["lib.rs","prelude.rs"]};
+sourcesIndex["gcore"] = {"name":"","files":["error.rs","exec.rs","general.rs","lib.rs","msg.rs","prog.rs","utils.rs"]};
+sourcesIndex["gear_backend_common"] = {"name":"","files":["error_processor.rs","funcs.rs","lib.rs","utils.rs"]};
+sourcesIndex["gear_backend_sandbox"] = {"name":"","files":["env.rs","funcs.rs","lib.rs","memory.rs"]};
+sourcesIndex["gear_common"] = {"name":"","dirs":[{"name":"gas_provider","files":["error.rs","internal.rs","mod.rs","negative_imbalance.rs","node.rs","positive_imbalance.rs"]},{"name":"scheduler","files":["mod.rs","scope.rs","task.rs"]},{"name":"storage","dirs":[{"name":"complex","files":["mailbox.rs","messenger.rs","mod.rs","queue.rs","waitlist.rs"]},{"name":"complicated","files":["counter.rs","dequeue.rs","limiter.rs","mod.rs","toggler.rs"]},{"name":"primitives","files":["callback.rs","counted.rs","double_map.rs","iterable.rs","key.rs","map.rs","mod.rs","value.rs"]}],"files":["mod.rs"]}],"files":["code_storage.rs","event.rs","lazy_pages.rs","lib.rs"]};
+sourcesIndex["gear_core"] = {"name":"","dirs":[{"name":"message","files":["common.rs","context.rs","handle.rs","incoming.rs","init.rs","mod.rs","reply.rs","stored.rs"]}],"files":["code.rs","costs.rs","env.rs","gas.rs","ids.rs","lib.rs","memory.rs","program.rs"]};
+sourcesIndex["gear_core_errors"] = {"name":"","files":["lib.rs"]};
+sourcesIndex["gear_core_processor"] = {"name":"","files":["common.rs","configs.rs","executor.rs","ext.rs","handler.rs","lib.rs","processor.rs"]};
+sourcesIndex["gear_lazy_pages"] = {"name":"","dirs":[{"name":"sys","files":["unix.rs"]}],"files":["lib.rs","sys.rs"]};
+sourcesIndex["gear_wasm_builder"] = {"name":"","files":["builder_error.rs","cargo_command.rs","crate_info.rs","lib.rs","optimize.rs","stack_end.rs","wasm_project.rs"]};
+sourcesIndex["gstd"] = {"name":"","dirs":[{"name":"async_runtime","files":["futures.rs","mod.rs","signals.rs","waker.rs"]},{"name":"common","files":["errors.rs","handlers.rs","mod.rs","primitives.rs"]},{"name":"lock","files":["access.rs","mod.rs","mutex.rs","rwlock.rs"]},{"name":"macros","files":["bail.rs","debug.rs","export.rs","metadata.rs","mod.rs"]},{"name":"msg","files":["async.rs","basic.rs","encoded.rs","mod.rs"]},{"name":"prog","files":["generator.rs","mod.rs"]}],"files":["exec.rs","lib.rs","prelude.rs"]};
+sourcesIndex["gtest"] = {"name":"","files":["error.rs","lib.rs","log.rs","mailbox.rs","manager.rs","program.rs","system.rs","wasm_executor.rs"]};
+createSourceSidebar();

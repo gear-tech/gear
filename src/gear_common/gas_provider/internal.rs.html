@@ -1,0 +1,1171 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `common/src/gas_provider/internal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>internal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../gear_common/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../../gear_common/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../gear_common/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+</pre><pre class="rust"><code><span class="comment">// This file is part of Gear.</span>
+
+<span class="comment">// Copyright (C) 2021-2022 Gear Technologies Inc.</span>
+<span class="comment">// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0</span>
+
+<span class="comment">// This program is free software: you can redistribute it and/or modify</span>
+<span class="comment">// it under the terms of the GNU General Public License as published by</span>
+<span class="comment">// the Free Software Foundation, either version 3 of the License, or</span>
+<span class="comment">// (at your option) any later version.</span>
+
+<span class="comment">// This program is distributed in the hope that it will be useful,</span>
+<span class="comment">// but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="comment">// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the</span>
+<span class="comment">// GNU General Public License for more details.</span>
+
+<span class="comment">// You should have received a copy of the GNU General Public License</span>
+<span class="comment">// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.</span>
+
+<span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+<span class="doccomment">/// Output of `TreeImpl::catch_value` call.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="kw">enum</span> <span class="ident">CatchValueOutput</span><span class="op">&lt;</span><span class="ident">Balance</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Catching value is impossible, therefore blocked.</span>
+    <span class="ident">Blocked</span>,
+    <span class="doccomment">/// Value was not caught, because was moved to the patron node.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For more info about patron nodes see `TreeImpl::find_ancestor_patron`</span>
+    <span class="ident">Missed</span>,
+    <span class="doccomment">/// Value was caught and will be removed from the node</span>
+    <span class="ident">Caught</span>(<span class="ident">Balance</span>),
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Balance</span>: <span class="ident">BalanceTrait</span><span class="op">&gt;</span> <span class="ident">CatchValueOutput</span><span class="op">&lt;</span><span class="ident">Balance</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">into_consume_output</span><span class="op">&lt;</span><span class="ident">TotalValue</span>, <span class="ident">ExternalId</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">origin</span>: <span class="ident">ExternalId</span>,
+    ) -&gt; <span class="ident">ConsumeOutput</span><span class="op">&lt;</span><span class="ident">NegativeImbalance</span><span class="op">&lt;</span><span class="ident">Balance</span>, <span class="ident">TotalValue</span><span class="op">&gt;</span>, <span class="ident">ExternalId</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">TotalValue</span>: <span class="ident">ValueStorage</span><span class="op">&lt;</span><span class="ident">Value</span> <span class="op">=</span> <span class="ident">Balance</span><span class="op">&gt;</span>,
+        <span class="ident">ExternalId</span>: <span class="ident">Clone</span>,
+    {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">CatchValueOutput::Caught</span>(<span class="ident">value</span>) =&gt; <span class="prelude-val">Some</span>((<span class="ident">NegativeImbalance::new</span>(<span class="ident">value</span>), <span class="ident">origin</span>)),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">is_blocked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident">CatchValueOutput::Blocked</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">is_caught</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident">CatchValueOutput::Caught</span>(<span class="kw">_</span>))
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TreeImpl</span><span class="op">&lt;</span><span class="ident">TotalValue</span>, <span class="ident">InternalError</span>, <span class="ident">Error</span>, <span class="ident">ExternalId</span>, <span class="ident">StorageMap</span><span class="op">&gt;</span>(
+    <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">TotalValue</span>, <span class="ident">InternalError</span>, <span class="ident">Error</span>, <span class="ident">ExternalId</span>, <span class="ident">StorageMap</span>)<span class="op">&gt;</span>,
+);
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TotalValue</span>, <span class="ident">Balance</span>, <span class="ident">InternalError</span>, <span class="ident">Error</span>, <span class="ident">MapKey</span>, <span class="ident">ExternalId</span>, <span class="ident">StorageMap</span><span class="op">&gt;</span>
+    <span class="ident">TreeImpl</span><span class="op">&lt;</span><span class="ident">TotalValue</span>, <span class="ident">InternalError</span>, <span class="ident">Error</span>, <span class="ident">ExternalId</span>, <span class="ident">StorageMap</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">Balance</span>: <span class="ident">BalanceTrait</span>,
+    <span class="ident">TotalValue</span>: <span class="ident">ValueStorage</span><span class="op">&lt;</span><span class="ident">Value</span> <span class="op">=</span> <span class="ident">Balance</span><span class="op">&gt;</span>,
+    <span class="ident">InternalError</span>: <span class="ident"><span class="kw">super</span>::Error</span>,
+    <span class="ident">Error</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">InternalError</span><span class="op">&gt;</span>,
+    <span class="ident">ExternalId</span>: <span class="ident">Clone</span>,
+    <span class="ident">MapKey</span>: <span class="ident">Copy</span>,
+    <span class="ident">StorageMap</span>:
+        <span class="ident"><span class="kw">super</span>::storage::MapStorage</span><span class="op">&lt;</span><span class="ident">Key</span> <span class="op">=</span> <span class="ident">MapKey</span>, <span class="ident">Value</span> <span class="op">=</span> <span class="ident">GasNode</span><span class="op">&lt;</span><span class="ident">ExternalId</span>, <span class="ident">MapKey</span>, <span class="ident">Balance</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">get_node</span>(<span class="ident">key</span>: <span class="ident">MapKey</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StorageMap::Value</span><span class="op">&gt;</span> {
+        <span class="ident">StorageMap::get</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>)
+    }
+
+    <span class="doccomment">/// Returns the first parent, that is able to hold a concrete value, but doesn&#39;t</span>
+    <span class="doccomment">/// necessarily have a non-zero value, along with it&#39;s id</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Node itself is considered as a self-parent too. The gas tree holds invariant, that</span>
+    <span class="doccomment">/// all the nodes with unspecified value always have a parent with a specified value.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The id of the returned node is of `Option` type. If it&#39;s `None`, it means, that</span>
+    <span class="doccomment">/// the ancestor and `self` are the same.</span>
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">node_with_value</span>(
+        <span class="ident">node</span>: <span class="ident">StorageMap::Value</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">StorageMap::Value</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MapKey</span><span class="op">&gt;</span>), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_node</span> <span class="op">=</span> <span class="ident">node</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_id</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GasNodeType::UnspecifiedLocal</span> { <span class="ident">parent</span> } <span class="op">=</span> <span class="ident">ret_node</span>.<span class="ident">inner</span> {
+            <span class="ident">ret_id</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">parent</span>);
+            <span class="ident">ret_node</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">parent</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::parent_is_lost</span>)<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="op">!</span>(<span class="ident">ret_node</span>.<span class="ident">inner</span>.<span class="ident">is_external</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">ret_node</span>.<span class="ident">inner</span>.<span class="ident">is_specified_local</span>()) {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::unexpected_node_type</span>().<span class="ident">into</span>());
+            }
+        }
+
+        <span class="prelude-val">Ok</span>((<span class="ident">ret_node</span>, <span class="ident">ret_id</span>))
+    }
+
+    <span class="doccomment">/// Returns id and data for root node (as [`GasNode`]) of the value tree, which contains the `node`.</span>
+    <span class="doccomment">/// If some node along the upstream path is missing, returns an error (tree is invalidated).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// As in [`TreeImpl::node_with_value`], root&#39;s id is of `Option` type. It is equal to `None` in case</span>
+    <span class="doccomment">/// `node` is a root node.</span>
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">root</span>(
+        <span class="ident">node</span>: <span class="ident">StorageMap::Value</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">StorageMap::Value</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MapKey</span><span class="op">&gt;</span>), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_id</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_node</span> <span class="op">=</span> <span class="ident">node</span>;
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">parent</span>) <span class="op">=</span> <span class="ident">ret_node</span>.<span class="ident">parent</span>() {
+            <span class="ident">ret_id</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">parent</span>);
+            <span class="ident">ret_node</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">parent</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::parent_is_lost</span>)<span class="question-mark">?</span>;
+        }
+
+        <span class="prelude-val">Ok</span>((<span class="ident">ret_node</span>, <span class="ident">ret_id</span>))
+    }
+
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">decrease_parents_ref</span>(<span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">StorageMap::Value</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">parent</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">id</span>) =&gt; <span class="ident">id</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+        };
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parent</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">id</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::parent_is_lost</span>)<span class="question-mark">?</span>;
+        <span class="kw">if</span> <span class="ident">parent</span>.<span class="ident">refs</span>() <span class="op">==</span> <span class="number">0</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::parent_has_no_children</span>().<span class="ident">into</span>());
+        }
+
+        <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">inner</span> {
+            <span class="ident">GasNodeType::SpecifiedLocal</span> { .. } =&gt; {
+                <span class="ident">parent</span>.<span class="ident">spec_refs</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">spec_refs</span>.<span class="ident">saturating_sub</span>(<span class="number">1</span>)
+            }
+            <span class="ident">GasNodeType::UnspecifiedLocal</span> { .. } =&gt; {
+                <span class="ident">parent</span>.<span class="ident">unspec_refs</span> <span class="op">=</span> <span class="ident">parent</span>.<span class="ident">unspec_refs</span>.<span class="ident">saturating_sub</span>(<span class="number">1</span>)
+            }
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::unexpected_node_type</span>().<span class="ident">into</span>()),
+        }
+
+        <span class="comment">// Update parent node</span>
+        <span class="ident">StorageMap::insert</span>(<span class="ident">id</span>, <span class="ident">parent</span>);
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Tries to __&quot;catch&quot;__ the value inside the node if possible.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the node is a patron or of unspecified type, value is blocked, i.e.</span>
+    <span class="doccomment">/// can&#39;t be removed or impossible to hold value to be removed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the node is not a patron, but it has an ancestor patron, value is moved</span>
+    <span class="doccomment">/// to it. So the patron&#39;s balance is increased (mutated). Otherwise the value</span>
+    <span class="doccomment">/// is caught and removed from the tree. In both cases the `self` node&#39;s balance</span>
+    <span class="doccomment">/// is zeroed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Note</span>
+    <span class="doccomment">/// Method doesn&#39;t mutate `self` in the storage, but only changes it&#39;s balance in memory.</span>
+    <span class="kw">fn</span> <span class="ident">catch_value</span>(<span class="ident">node</span>: <span class="kw-2">&amp;mut</span> <span class="ident">StorageMap::Value</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CatchValueOutput</span><span class="op">&lt;</span><span class="ident">Balance</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">is_patron</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">CatchValueOutput::Blocked</span>);
+        }
+
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">node</span>.<span class="ident">inner</span>.<span class="ident">is_unspecified_local</span>() {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="kw-2">mut</span> <span class="ident">patron</span>, <span class="ident">patron_id</span>)) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::find_ancestor_patron</span>(<span class="ident">node</span>)<span class="question-mark">?</span> {
+                <span class="kw">let</span> <span class="ident">self_value</span> <span class="op">=</span> <span class="ident">node</span>
+                    .<span class="ident">inner_value_mut</span>()
+                    .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>;
+                <span class="kw">if</span> <span class="ident">self_value</span>.<span class="ident">is_zero</span>() {
+                    <span class="comment">// Early return to prevent redundant storage look-ups</span>
+                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">CatchValueOutput::Missed</span>);
+                }
+                <span class="kw">let</span> <span class="ident">patron_value</span> <span class="op">=</span> <span class="ident">patron</span>
+                    .<span class="ident">inner_value_mut</span>()
+                    .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>;
+                <span class="kw-2">*</span><span class="ident">patron_value</span> <span class="op">=</span> <span class="ident">patron_value</span>.<span class="ident">saturating_add</span>(<span class="kw-2">*</span><span class="ident">self_value</span>);
+                <span class="kw-2">*</span><span class="ident">self_value</span> <span class="op">=</span> <span class="ident">Zero::zero</span>();
+                <span class="ident">StorageMap::insert</span>(<span class="ident">patron_id</span>, <span class="ident">patron</span>);
+
+                <span class="prelude-val">Ok</span>(<span class="ident">CatchValueOutput::Missed</span>)
+            } <span class="kw">else</span> {
+                <span class="kw">let</span> <span class="ident">self_value</span> <span class="op">=</span> <span class="ident">node</span>
+                    .<span class="ident">inner_value_mut</span>()
+                    .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">value_copy</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">self_value</span>;
+                <span class="kw-2">*</span><span class="ident">self_value</span> <span class="op">=</span> <span class="ident">Zero::zero</span>();
+
+                <span class="prelude-val">Ok</span>(<span class="ident">CatchValueOutput::Caught</span>(<span class="ident">value_copy</span>))
+            }
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">CatchValueOutput::Blocked</span>)
+        }
+    }
+
+    <span class="doccomment">/// Looks for `self` node&#39;s patron ancestor.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A patron node is the node, on which some other nodes in the tree rely. More precisely,</span>
+    <span class="doccomment">/// unspecified local nodes rely on nodes with value, so these specified nodes (`ValueType::External`, `ValueType::SpecifiedLocal`)</span>
+    <span class="doccomment">/// are patron ones. The other criteria for a node to be marked as the patron one is not</span>
+    <span class="doccomment">/// being consumed - value of such nodes mustn&#39;t be moved, because node itself rely on it.</span>
+    <span class="kw">fn</span> <span class="ident">find_ancestor_patron</span>(
+        <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">StorageMap::Value</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">StorageMap::Value</span>, <span class="ident">MapKey</span>)<span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">inner</span> {
+            <span class="ident">GasNodeType::External</span> { .. } <span class="op">|</span> <span class="ident">GasNodeType::ReservedLocal</span> { .. } =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+            <span class="ident">GasNodeType::SpecifiedLocal</span> { <span class="ident">parent</span>, .. } =&gt; {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_id</span> <span class="op">=</span> <span class="ident">parent</span>;
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret_node</span> <span class="op">=</span>
+                    <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">parent</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::parent_is_lost</span>)<span class="question-mark">?</span>;
+                <span class="kw">while</span> <span class="op">!</span><span class="ident">ret_node</span>.<span class="ident">is_patron</span>() {
+                    <span class="kw">match</span> <span class="ident">ret_node</span>.<span class="ident">inner</span> {
+                        <span class="ident">GasNodeType::External</span> { .. } =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+                        <span class="ident">GasNodeType::SpecifiedLocal</span> { <span class="ident">parent</span>, .. } =&gt; {
+                            <span class="ident">ret_id</span> <span class="op">=</span> <span class="ident">parent</span>;
+                            <span class="ident">ret_node</span> <span class="op">=</span>
+                                <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">parent</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::parent_is_lost</span>)<span class="question-mark">?</span>;
+                        }
+                        <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::unexpected_node_type</span>().<span class="ident">into</span>()),
+                    }
+                }
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>((<span class="ident">ret_node</span>, <span class="ident">ret_id</span>)))
+            }
+            <span class="comment">// Although unspecified local type has a patron parent, it&#39;s considered</span>
+            <span class="comment">// an error to call the method from that type of gas node.</span>
+            <span class="ident">GasNodeType::UnspecifiedLocal</span> { .. } =&gt; <span class="prelude-val">Err</span>(<span class="ident">InternalError::forbidden</span>().<span class="ident">into</span>()),
+        }
+    }
+
+    <span class="doccomment">/// Tries to remove consumed nodes on the same path from the `key` node to the</span>
+    <span class="doccomment">/// root (including it). While trying to remove nodes, also catches value stored</span>
+    <span class="doccomment">/// in them is performed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Value catch is performed for all the non-patron nodes on the path from `key` to root,</span>
+    <span class="doccomment">/// until some patron node is reached. By the invariant, catching can&#39;t be blocked,</span>
+    <span class="doccomment">/// because the node is not a patron.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For node removal there are 2 main requirements:</span>
+    <span class="doccomment">/// 1. it&#39;s not a patron node</span>
+    <span class="doccomment">/// 2. it doesn&#39;t have any children nodes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Although the value in nodes is moved or returned to the origin, calling `ValueNode::catch_value`</span>
+    <span class="doccomment">/// in this procedure can still result in catching non-zero value. That&#39;s possible for example, when</span>
+    <span class="doccomment">/// Gas-ful parent is consumed and has a gas-less child. When gas-less child is consumed in `ValueTree::consume`</span>
+    <span class="doccomment">/// call, the gas-ful parent&#39;s value is caught in this function.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Invariants</span>
+    <span class="doccomment">/// Internal invariant of the procedure:</span>
+    <span class="doccomment">/// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.</span>
+    <span class="doccomment">/// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.</span>
+    <span class="doccomment">/// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.</span>
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">try_remove_consumed_ancestors</span>(
+        <span class="ident">key</span>: <span class="ident">MapKey</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConsumeOutput</span><span class="op">&lt;</span><span class="ident">NegativeImbalance</span><span class="op">&lt;</span><span class="ident">Balance</span>, <span class="ident">TotalValue</span><span class="op">&gt;</span>, <span class="ident">ExternalId</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node_id</span> <span class="op">=</span> <span class="ident">key</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::node_not_found</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">consume_output</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">origin</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_origin</span>(<span class="ident">key</span>)<span class="question-mark">?</span>.<span class="ident">expect</span>(<span class="string">&quot;existing node always have origin&quot;</span>);
+
+        <span class="kw">while</span> <span class="op">!</span><span class="ident">node</span>.<span class="ident">is_patron</span>() {
+            <span class="kw">let</span> <span class="ident">catch_output</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::catch_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">node</span>)<span class="question-mark">?</span>;
+            <span class="comment">// The node is not a patron and can&#39;t be of unspecified type.</span>
+            <span class="kw">if</span> <span class="ident">catch_output</span>.<span class="ident">is_blocked</span>() {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::value_is_blocked</span>().<span class="ident">into</span>());
+            }
+
+            <span class="ident">consume_output</span> <span class="op">=</span>
+                <span class="ident">consume_output</span>.<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">catch_output</span>.<span class="ident">into_consume_output</span>(<span class="ident">origin</span>.<span class="ident">clone</span>()));
+
+            <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">spec_refs</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident"><span class="self">Self</span>::decrease_parents_ref</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>)<span class="question-mark">?</span>;
+                <span class="ident">StorageMap::remove</span>(<span class="ident">node_id</span>);
+
+                <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">inner</span> {
+                    <span class="ident">GasNodeType::External</span> { .. } =&gt; {
+                        <span class="kw">if</span> <span class="op">!</span><span class="ident">catch_output</span>.<span class="ident">is_caught</span>() {
+                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::value_is_not_caught</span>().<span class="ident">into</span>());
+                        }
+                        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">consume_output</span>);
+                    }
+                    <span class="ident">GasNodeType::SpecifiedLocal</span> { <span class="ident">parent</span>, .. } =&gt; {
+                        <span class="ident">node_id</span> <span class="op">=</span> <span class="ident">parent</span>;
+                        <span class="ident">node</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">parent</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::parent_is_lost</span>)<span class="question-mark">?</span>;
+                    }
+                    <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::unexpected_node_type</span>().<span class="ident">into</span>()),
+                }
+            } <span class="kw">else</span> {
+                <span class="ident">StorageMap::insert</span>(<span class="ident">node_id</span>, <span class="ident">node</span>);
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">consume_output</span>);
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="ident">consume_output</span>)
+    }
+
+    <span class="doccomment">/// Create ValueNode from node key with value</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// if `reserve`, create ValueType::ReservedLocal</span>
+    <span class="doccomment">/// else, create ValueType::SpecifiedLocal</span>
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">create_from_with_value</span>(
+        <span class="ident">key</span>: <span class="ident">MapKey</span>,
+        <span class="ident">new_node_key</span>: <span class="ident">MapKey</span>,
+        <span class="ident">amount</span>: <span class="ident">Balance</span>,
+        <span class="ident">reserve</span>: <span class="ident">bool</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">node</span>, <span class="ident">node_id</span>) <span class="op">=</span>
+            <span class="ident"><span class="self">Self</span>::node_with_value</span>(<span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::node_not_found</span>)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">node_id</span> <span class="op">=</span> <span class="ident">node_id</span>.<span class="ident">unwrap_or</span>(<span class="ident">key</span>);
+
+        <span class="comment">// Check if the parent node is reserved</span>
+        <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">inner</span>.<span class="ident">is_reserved_local</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::forbidden</span>().<span class="ident">into</span>());
+        }
+
+        <span class="comment">// This also checks if key == new_node_key</span>
+        <span class="kw">if</span> <span class="ident">StorageMap::contains_key</span>(<span class="kw-2">&amp;</span><span class="ident">new_node_key</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::node_already_exists</span>().<span class="ident">into</span>());
+        }
+
+        <span class="comment">// Detect inner from `reserve`.</span>
+        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">reserve</span> {
+            <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_external</span>(<span class="ident">key</span>)<span class="question-mark">?</span>.<span class="ident">expect</span>(<span class="string">&quot;existing node always have origin&quot;</span>);
+            <span class="ident">GasNodeType::ReservedLocal</span> { <span class="ident">id</span>, <span class="ident">value</span>: <span class="ident">amount</span> }
+        } <span class="kw">else</span> {
+            <span class="ident">node</span>.<span class="ident">spec_refs</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">spec_refs</span>.<span class="ident">saturating_add</span>(<span class="number">1</span>);
+
+            <span class="ident">GasNodeType::SpecifiedLocal</span> {
+                <span class="ident">value</span>: <span class="ident">amount</span>,
+                <span class="ident">parent</span>: <span class="ident">node_id</span>,
+            }
+        };
+
+        <span class="comment">// A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call</span>
+        <span class="kw">if</span> <span class="ident">node</span>
+            .<span class="ident">inner_value</span>()
+            .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>
+            <span class="op">&lt;</span> <span class="ident">amount</span>
+        {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::insufficient_balance</span>().<span class="ident">into</span>());
+        }
+
+        <span class="kw">let</span> <span class="ident">new_node</span> <span class="op">=</span> <span class="ident">GasNode</span> {
+            <span class="ident">inner</span>,
+            <span class="ident">spec_refs</span>: <span class="number">0</span>,
+            <span class="ident">unspec_refs</span>: <span class="number">0</span>,
+            <span class="ident">consumed</span>: <span class="bool-val">false</span>,
+        };
+
+        <span class="comment">// Save new node</span>
+        <span class="ident">StorageMap::insert</span>(<span class="ident">new_node_key</span>, <span class="ident">new_node</span>);
+
+        <span class="kw">let</span> <span class="ident">node_value</span> <span class="op">=</span> <span class="ident">node</span>
+            .<span class="ident">inner_value_mut</span>()
+            .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>;
+        <span class="kw-2">*</span><span class="ident">node_value</span> <span class="op">=</span> <span class="ident">node_value</span>.<span class="ident">saturating_sub</span>(<span class="ident">amount</span>);
+        <span class="ident">StorageMap::insert</span>(<span class="ident">node_id</span>, <span class="ident">node</span>);
+
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TotalValue</span>, <span class="ident">Balance</span>, <span class="ident">InternalError</span>, <span class="ident">Error</span>, <span class="ident">MapKey</span>, <span class="ident">ExternalId</span>, <span class="ident">StorageMap</span><span class="op">&gt;</span> <span class="ident">Tree</span>
+    <span class="kw">for</span> <span class="ident">TreeImpl</span><span class="op">&lt;</span><span class="ident">TotalValue</span>, <span class="ident">InternalError</span>, <span class="ident">Error</span>, <span class="ident">ExternalId</span>, <span class="ident">StorageMap</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">Balance</span>: <span class="ident">BalanceTrait</span>,
+    <span class="ident">TotalValue</span>: <span class="ident">ValueStorage</span><span class="op">&lt;</span><span class="ident">Value</span> <span class="op">=</span> <span class="ident">Balance</span><span class="op">&gt;</span>,
+    <span class="ident">InternalError</span>: <span class="ident"><span class="kw">super</span>::Error</span>,
+    <span class="ident">Error</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">InternalError</span><span class="op">&gt;</span>,
+    <span class="ident">ExternalId</span>: <span class="ident">Clone</span>,
+    <span class="ident">MapKey</span>: <span class="ident">Copy</span>,
+    <span class="ident">StorageMap</span>:
+        <span class="ident"><span class="kw">super</span>::storage::MapStorage</span><span class="op">&lt;</span><span class="ident">Key</span> <span class="op">=</span> <span class="ident">MapKey</span>, <span class="ident">Value</span> <span class="op">=</span> <span class="ident">GasNode</span><span class="op">&lt;</span><span class="ident">ExternalId</span>, <span class="ident">MapKey</span>, <span class="ident">Balance</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+{
+    <span class="kw">type</span> <span class="ident">ExternalOrigin</span> <span class="op">=</span> <span class="ident">ExternalId</span>;
+    <span class="kw">type</span> <span class="ident">Key</span> <span class="op">=</span> <span class="ident">MapKey</span>;
+    <span class="kw">type</span> <span class="ident">Balance</span> <span class="op">=</span> <span class="ident">Balance</span>;
+
+    <span class="kw">type</span> <span class="ident">PositiveImbalance</span> <span class="op">=</span> <span class="ident">PositiveImbalance</span><span class="op">&lt;</span><span class="ident">Balance</span>, <span class="ident">TotalValue</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="ident">NegativeImbalance</span> <span class="op">=</span> <span class="ident">NegativeImbalance</span><span class="op">&lt;</span><span class="ident">Balance</span>, <span class="ident">TotalValue</span><span class="op">&gt;</span>;
+
+    <span class="kw">type</span> <span class="ident">InternalError</span> <span class="op">=</span> <span class="ident">InternalError</span>;
+    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Error</span>;
+
+    <span class="kw">fn</span> <span class="ident">total_supply</span>() -&gt; <span class="ident"><span class="self">Self</span>::Balance</span> {
+        <span class="ident">TotalValue::get</span>().<span class="ident">unwrap_or_else</span>(<span class="ident">Zero::zero</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">create</span>(
+        <span class="ident">origin</span>: <span class="ident"><span class="self">Self</span>::ExternalOrigin</span>,
+        <span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>,
+        <span class="ident">amount</span>: <span class="ident"><span class="self">Self</span>::Balance</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::PositiveImbalance</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">StorageMap::contains_key</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::node_already_exists</span>().<span class="ident">into</span>());
+        }
+
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">GasNode::new</span>(<span class="ident">origin</span>, <span class="ident">amount</span>);
+
+        <span class="comment">// Save value node to storage</span>
+        <span class="ident">StorageMap::insert</span>(<span class="ident">key</span>, <span class="ident">node</span>);
+
+        <span class="prelude-val">Ok</span>(<span class="ident">PositiveImbalance::new</span>(<span class="ident">amount</span>))
+    }
+
+    <span class="kw">fn</span> <span class="ident">get_origin</span>(
+        <span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">OriginResult</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span>, <span class="ident"><span class="self">Self</span>::ExternalOrigin</span><span class="op">&gt;</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">node</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>) {
+            <span class="comment">// key known, must return the origin, unless corrupted</span>
+            <span class="kw">let</span> (<span class="ident">root</span>, <span class="ident">maybe_key</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::root</span>(<span class="ident">node</span>)<span class="question-mark">?</span>;
+            <span class="kw">match</span> <span class="ident">root</span>.<span class="ident">inner</span> {
+                <span class="ident">GasNodeType::External</span> { <span class="ident">id</span>, .. } <span class="op">|</span> <span class="ident">GasNodeType::ReservedLocal</span> { <span class="ident">id</span>, .. } =&gt; {
+                    <span class="prelude-val">Some</span>((<span class="ident">maybe_key</span>.<span class="ident">unwrap_or</span>(<span class="ident">key</span>), <span class="ident">id</span>))
+                }
+                <span class="kw">_</span> =&gt; <span class="macro">unreachable!</span>(<span class="string">&quot;Guaranteed by ValueNode::root method&quot;</span>),
+            }
+        } <span class="kw">else</span> {
+            <span class="comment">// key unknown - legitimate result</span>
+            <span class="prelude-val">None</span>
+        })
+    }
+
+    <span class="kw">fn</span> <span class="ident">get_limit</span>(<span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident"><span class="self">Self</span>::Balance</span>, <span class="ident"><span class="self">Self</span>::Key</span>)<span class="op">&gt;</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">node</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>) {
+            <span class="prelude-val">Ok</span>({
+                <span class="kw">let</span> (<span class="ident">node_with_value</span>, <span class="ident">maybe_key</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::node_with_value</span>(<span class="ident">node</span>)<span class="question-mark">?</span>;
+                <span class="comment">// The node here is either external or specified, hence has the inner value</span>
+                <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">node_with_value</span>
+                    .<span class="ident">inner_value</span>()
+                    .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>;
+                <span class="prelude-val">Some</span>((<span class="ident">v</span>, <span class="ident">maybe_key</span>.<span class="ident">unwrap_or</span>(<span class="ident">key</span>)))
+            })
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+        }
+    }
+
+    <span class="doccomment">/// Marks a node with `key` as consumed, tries to return it&#39;s value and</span>
+    <span class="doccomment">/// delete it. The function performs same procedure with all the nodes on</span>
+    <span class="doccomment">/// the path from it to the root, if possible.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// When consuming the node, it&#39;s value is mutated by calling `catch_value`, which</span>
+    <span class="doccomment">/// tries to either return or move value upstream if possible. For more info, read</span>
+    <span class="doccomment">/// the `catch_value` function&#39;s documentation.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Deletion of a node happens only if:</span>
+    <span class="doccomment">/// 1. `Self::consume` was called on the node</span>
+    <span class="doccomment">/// 2. The node has no children, i.e. spec/unspec refs.</span>
+    <span class="doccomment">/// So if it&#39;s impossible to delete a node, then it&#39;s impossible to delete its parent in the current call.</span>
+    <span class="doccomment">/// Also if it&#39;s possible to delete a node, then it doesn&#39;t necessarily mean that its parent will be deleted.</span>
+    <span class="doccomment">/// An example here could be the case, when during async execution original message went to wait list, so wasn&#39;t consumed</span>
+    <span class="doccomment">/// but the one generated during the execution of the original message went to message queue and was successfully executed.</span>
+    <span class="kw">fn</span> <span class="ident">consume</span>(
+        <span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConsumeOutput</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::NegativeImbalance</span>, <span class="ident"><span class="self">Self</span>::ExternalOrigin</span><span class="op">&gt;</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::node_not_found</span>)<span class="question-mark">?</span>;
+
+        <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">consumed</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::node_was_consumed</span>().<span class="ident">into</span>());
+        }
+
+        <span class="ident">node</span>.<span class="ident">consumed</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">let</span> <span class="ident">catch_output</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::catch_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">node</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">origin</span>) <span class="op">=</span> <span class="ident"><span class="self">Self</span>::get_origin</span>(<span class="ident">key</span>)<span class="question-mark">?</span>.<span class="ident">expect</span>(<span class="string">&quot;existing node always have origin&quot;</span>);
+
+        <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">node</span>.<span class="ident">refs</span>() <span class="op">==</span> <span class="number">0</span> {
+            <span class="ident"><span class="self">Self</span>::decrease_parents_ref</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>)<span class="question-mark">?</span>;
+            <span class="ident">StorageMap::remove</span>(<span class="ident">key</span>);
+
+            <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">inner</span> {
+                <span class="ident">GasNodeType::External</span> { .. } <span class="op">|</span> <span class="ident">GasNodeType::ReservedLocal</span> { .. } =&gt; {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">catch_output</span>.<span class="ident">is_caught</span>() {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::value_is_not_caught</span>().<span class="ident">into</span>());
+                    }
+                    <span class="ident">catch_output</span>.<span class="ident">into_consume_output</span>(<span class="ident">origin</span>)
+                }
+                <span class="ident">GasNodeType::UnspecifiedLocal</span> { <span class="ident">parent</span> } =&gt; {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">catch_output</span>.<span class="ident">is_blocked</span>() {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::value_is_not_blocked</span>().<span class="ident">into</span>());
+                    }
+                    <span class="ident"><span class="self">Self</span>::try_remove_consumed_ancestors</span>(<span class="ident">parent</span>)<span class="question-mark">?</span>
+                }
+                <span class="ident">GasNodeType::SpecifiedLocal</span> { <span class="ident">parent</span>, .. } =&gt; {
+                    <span class="kw">if</span> <span class="ident">catch_output</span>.<span class="ident">is_blocked</span>() {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::value_is_blocked</span>().<span class="ident">into</span>());
+                    }
+                    <span class="kw">let</span> <span class="ident">consume_output</span> <span class="op">=</span> <span class="ident">catch_output</span>.<span class="ident">into_consume_output</span>(<span class="ident">origin</span>);
+                    <span class="kw">let</span> <span class="ident">consume_ancestors_output</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::try_remove_consumed_ancestors</span>(<span class="ident">parent</span>)<span class="question-mark">?</span>;
+                    <span class="kw">match</span> (<span class="kw-2">&amp;</span><span class="ident">consume_output</span>, <span class="ident">consume_ancestors_output</span>) {
+                        <span class="comment">// value can&#39;t be caught in both procedures</span>
+                        (<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">Some</span>((<span class="ident">neg_imb</span>, <span class="kw">_</span>))) <span class="kw">if</span> <span class="ident">neg_imb</span>.<span class="ident">peek</span>().<span class="ident">is_zero</span>() =&gt; <span class="ident">consume_output</span>,
+                        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; <span class="ident">consume_output</span>,
+                        <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::unexpected_consume_output</span>().<span class="ident">into</span>()),
+                    }
+                }
+            }
+        } <span class="kw">else</span> {
+            <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">inner</span>.<span class="ident">is_reserved_local</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">node</span>.<span class="ident">inner</span>.<span class="ident">is_unspecified_local</span>() {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::unexpected_node_type</span>().<span class="ident">into</span>());
+            }
+
+            <span class="ident">StorageMap::insert</span>(<span class="ident">key</span>, <span class="ident">node</span>);
+            <span class="ident">catch_output</span>.<span class="ident">into_consume_output</span>(<span class="ident">origin</span>)
+        })
+    }
+
+    <span class="doccomment">/// Spends `amount` of gas from the ancestor of node with `key` id.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Calling the function is possible even if an ancestor is consumed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ### Note:</span>
+    <span class="doccomment">/// Node is considered as an ancestor of itself.</span>
+    <span class="kw">fn</span> <span class="ident">spend</span>(
+        <span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>,
+        <span class="ident">amount</span>: <span class="ident"><span class="self">Self</span>::Balance</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::NegativeImbalance</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="comment">// Upstream node with a concrete value exist for any node.</span>
+        <span class="comment">// If it doesn&#39;t, the tree is considered invalidated.</span>
+        <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">node</span>, <span class="ident">node_id</span>) <span class="op">=</span>
+            <span class="ident"><span class="self">Self</span>::node_with_value</span>(<span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::node_not_found</span>)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call</span>
+        <span class="kw">let</span> <span class="ident">node_value</span> <span class="op">=</span> <span class="ident">node</span>
+            .<span class="ident">inner_value_mut</span>()
+            .<span class="ident">ok_or_else</span>(<span class="ident">InternalError::unexpected_node_type</span>)<span class="question-mark">?</span>;
+        <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">node_value</span> <span class="op">&lt;</span> <span class="ident">amount</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::insufficient_balance</span>().<span class="ident">into</span>());
+        }
+
+        <span class="kw-2">*</span><span class="ident">node_value</span> <span class="op">=</span> <span class="ident">node_value</span>.<span class="ident">saturating_sub</span>(<span class="ident">amount</span>);
+        <span class="macro">log::debug!</span>(<span class="string">&quot;Spent {:?} of gas&quot;</span>, <span class="ident">amount</span>);
+
+        <span class="comment">// Save node that delivers limit</span>
+        <span class="ident">StorageMap::insert</span>(<span class="ident">node_id</span>.<span class="ident">unwrap_or</span>(<span class="ident">key</span>), <span class="ident">node</span>);
+
+        <span class="prelude-val">Ok</span>(<span class="ident">NegativeImbalance::new</span>(<span class="ident">amount</span>))
+    }
+
+    <span class="kw">fn</span> <span class="ident">split_with_value</span>(
+        <span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>,
+        <span class="ident">new_key</span>: <span class="ident"><span class="self">Self</span>::Key</span>,
+        <span class="ident">amount</span>: <span class="ident"><span class="self">Self</span>::Balance</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="ident"><span class="self">Self</span>::create_from_with_value</span>(<span class="ident">key</span>, <span class="ident">new_key</span>, <span class="ident">amount</span>, <span class="bool-val">false</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">split</span>(<span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>, <span class="ident">new_key</span>: <span class="ident"><span class="self">Self</span>::Key</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">node</span>, <span class="ident">node_id</span>) <span class="op">=</span>
+            <span class="ident"><span class="self">Self</span>::node_with_value</span>(<span class="ident"><span class="self">Self</span>::get_node</span>(<span class="ident">key</span>).<span class="ident">ok_or_else</span>(<span class="ident">InternalError::node_not_found</span>)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">node_id</span> <span class="op">=</span> <span class="ident">node_id</span>.<span class="ident">unwrap_or</span>(<span class="ident">key</span>);
+
+        <span class="comment">// Check if the value node is reserved</span>
+        <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">inner</span>.<span class="ident">is_reserved_local</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::forbidden</span>().<span class="ident">into</span>());
+        }
+
+        <span class="comment">// This also checks if key == new_node_key</span>
+        <span class="kw">if</span> <span class="ident">StorageMap::contains_key</span>(<span class="kw-2">&amp;</span><span class="ident">new_key</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InternalError::node_already_exists</span>().<span class="ident">into</span>());
+        }
+
+        <span class="ident">node</span>.<span class="ident">unspec_refs</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">unspec_refs</span>.<span class="ident">saturating_add</span>(<span class="number">1</span>);
+
+        <span class="kw">let</span> <span class="ident">new_node</span> <span class="op">=</span> <span class="ident">GasNode</span> {
+            <span class="ident">inner</span>: <span class="ident">GasNodeType::UnspecifiedLocal</span> { <span class="ident">parent</span>: <span class="ident">node_id</span> },
+            <span class="ident">spec_refs</span>: <span class="number">0</span>,
+            <span class="ident">unspec_refs</span>: <span class="number">0</span>,
+            <span class="ident">consumed</span>: <span class="bool-val">false</span>,
+        };
+
+        <span class="comment">// Save new node</span>
+        <span class="ident">StorageMap::insert</span>(<span class="ident">new_key</span>, <span class="ident">new_node</span>);
+        <span class="comment">// Update current node</span>
+        <span class="ident">StorageMap::insert</span>(<span class="ident">node_id</span>, <span class="ident">node</span>);
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn</span> <span class="ident">cut</span>(<span class="ident">key</span>: <span class="ident"><span class="self">Self</span>::Key</span>, <span class="ident">new_key</span>: <span class="ident"><span class="self">Self</span>::Key</span>, <span class="ident">amount</span>: <span class="ident"><span class="self">Self</span>::Balance</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
+        <span class="ident"><span class="self">Self</span>::create_from_with_value</span>(<span class="ident">key</span>, <span class="ident">new_key</span>, <span class="ident">amount</span>, <span class="bool-val">true</span>)
+    }
+}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="gear_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (93ffde6f0 2022-07-23)" ></div>
+</body></html>

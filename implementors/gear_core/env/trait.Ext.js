@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["gear_core_processor"] = [{"text":"impl <a class=\"trait\" href=\"gear_core/env/trait.Ext.html\" title=\"trait gear_core::env::Ext\">Ext</a> for <a class=\"struct\" href=\"gear_core_processor/struct.Ext.html\" title=\"struct gear_core_processor::Ext\">Ext</a>","synthetic":false,"types":["gear_core_processor::ext::Ext"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

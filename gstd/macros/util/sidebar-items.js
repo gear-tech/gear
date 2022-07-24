@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["to_hex_registry","Generate a registry from given meta types and encode it to hex."],["to_leak_ptr","Convert a given vector to a raw pointer and prevent its deallocating."],["to_wasm_ptr","Convert a given reference to a raw pointer."]],"struct":[["MetaType","A metatype abstraction."]]};

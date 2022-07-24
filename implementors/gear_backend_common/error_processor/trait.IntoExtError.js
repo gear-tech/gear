@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["gear_core_processor"] = [{"text":"impl <a class=\"trait\" href=\"gear_backend_common/error_processor/trait.IntoExtError.html\" title=\"trait gear_backend_common::error_processor::IntoExtError\">IntoExtError</a> for <a class=\"enum\" href=\"gear_core_processor/enum.ProcessorError.html\" title=\"enum gear_core_processor::ProcessorError\">ProcessorError</a>","synthetic":false,"types":["gear_core_processor::ext::ProcessorError"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

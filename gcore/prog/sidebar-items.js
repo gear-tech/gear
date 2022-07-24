@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["create_program","Same as [`create_program_with_gas`], but without explicit gas limit."],["create_program_with_gas","Creates a new program and returns its address, with gas limit."]]};

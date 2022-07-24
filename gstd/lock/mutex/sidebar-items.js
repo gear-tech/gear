@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Mutex",""],["MutexGuard","This structure is created by the lock and try_lock methods on Mutex."],["MutexLockFuture",""]]};

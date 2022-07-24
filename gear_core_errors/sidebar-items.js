@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["ExecutionError","Execution error."],["ExtError","An error occurred in API."],["MemoryError","Memory error."],["MessageError","Error using messages."]],"trait":[["CoreError","Core error."]]};

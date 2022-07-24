@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["EXISTENTIAL_DEPOSIT",""],["MAILBOX_THRESHOLD",""]],"enum":[["TestError","List of general errors."]],"fn":[["calculate_program_id",""]],"struct":[["CoreLog",""],["Gas",""],["Log",""],["Program",""],["RunResult",""],["System",""]],"trait":[["WasmProgram",""]],"type":[["Result","Type alias for the testing functions running result."]]};
