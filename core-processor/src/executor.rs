@@ -300,7 +300,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, info, stack_end_page) = match E::execute(
+    let (termination, memory, stack_end_page) = match E::execute(
         &mut ext,
         program.raw_code(),
         program.code().exports().clone(),
@@ -332,11 +332,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                     });
                 }
             }
-            (
-                termination,
-                ext.into_ext_info(&memory).unwrap(),
-                stack_end_page,
-            )
+            (termination, memory, stack_end_page)
         }
 
         Err(e) => {
@@ -352,41 +348,52 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     log::debug!("Termination reason: {:?}", termination);
+    
+    match ext.into_ext_info(&memory) {
+        Ok(info) => {
+            // Parsing outcome.
+            let kind = match termination {
+                TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+                TerminationReason::Leave | TerminationReason::Success => {
+                    DispatchResultKind::Success
+                }
+                TerminationReason::Trap(explanation) => {
+                    log::debug!(
+                        "💥 Trap during execution of {}\n📔 Explanation: {}",
+                        program_id,
+                        explanation,
+                    );
 
-    // Parsing outcome.
-    let kind = match termination {
-        TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
-        TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
-        TerminationReason::Trap(explanation) => {
-            log::debug!(
-                "💥 Trap during execution of {}\n📔 Explanation: {}",
+                    DispatchResultKind::Trap(explanation)
+                }
+                TerminationReason::Wait => DispatchResultKind::Wait,
+                TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
+            };
+
+            let page_update =
+                get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, stack_end_page);
+
+            // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
+            let program_candidates = info.program_candidates_data;
+
+            // Output
+            Ok(DispatchResult {
+                kind,
+                dispatch,
                 program_id,
-                explanation,
-            );
-
-            DispatchResultKind::Trap(explanation)
+                context_store: info.context_store,
+                generated_dispatches: info.generated_dispatches,
+                awakening: info.awakening,
+                program_candidates,
+                gas_amount: info.gas_amount,
+                page_update,
+                allocations: info.allocations,
+            })
         }
-        TerminationReason::Wait => DispatchResultKind::Wait,
-        TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
-    };
-
-    let page_update =
-        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, stack_end_page);
-
-    // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
-    let program_candidates = info.program_candidates_data;
-
-    // Output
-    Ok(DispatchResult {
-        kind,
-        dispatch,
-        program_id,
-        context_store: info.context_store,
-        generated_dispatches: info.generated_dispatches,
-        awakening: info.awakening,
-        program_candidates,
-        gas_amount: info.gas_amount,
-        page_update,
-        allocations: info.allocations,
-    })
+        Err((err, gas_amount)) => Err(ExecutionError {
+            program_id,
+            gas_amount,
+            reason: ExecutionErrorReason::Backend(err.to_string()),
+        }),
+    }
 }
