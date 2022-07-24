@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::{result, ExtManager},
-    Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf, Pallet, QueueOf,
-    SentOf, WaitlistOf,
+    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
+    Pallet, QueueOf, SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{
@@ -208,22 +207,19 @@ where
 
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
+                // # Safety.
+                //
+                // 1. There is no logic spliting value from the reserved nodes.
+                // 2. The `gas_limit` has been checked before.
+                // 3. The `value` of the value node has been checked before.
                 GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| {
-                        // # Safety.
-                        //
-                        // 1. there is no logic spliting value from the reserved nodes.
-                        // 2. the `gas_limit` has been checked before.
-                        // 3. the `value` of the value node has been checked before.
-                        result::gas_tree(e)
-                    });
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             } else {
-                GasHandlerOf::<T>::split(message_id, dispatch.id()).unwrap_or_else(|e| {
-                    // # Safety.
-                    //
-                    // There is no logic spliting value from the reserved nodes.
-                    result::gas_tree(e)
-                });
+                // # Safety.
+                //
+                // There is no logic spliting value from the reserved nodes.
+                GasHandlerOf::<T>::split(message_id, dispatch.id())
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 
             QueueOf::<T>::queue(dispatch)
@@ -260,14 +256,15 @@ where
                 // (issues #646 and #969).
                 MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
                     .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-                GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit).unwrap_or_else(|e| {
-                    // # Safety.
-                    //
-                    // 1. there is no logic spliting value from the reserved nodes.
-                    // 2. the `gas_limit` has been checked before.
-                    // 3. the `value` of the value node has been checked before.
-                    result::gas_tree(e)
-                });
+
+                // # Safety.
+                //
+                // 1. There is no logic spliting value from the reserved nodes.
+                // 2. The `gas_limit` has been checked before.
+                // 3. The `value` of the value node has been checked before.
+                GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
                 Pallet::<T>::deposit_event(Event::UserMessageSent {
                     message,
                     expiration: Some(T::BlockNumber::zero()),

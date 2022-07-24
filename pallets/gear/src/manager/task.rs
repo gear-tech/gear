@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    manager::{result, ExtManager},
-    Config, Event, GasHandlerOf, Pallet, QueueOf,
-};
+use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
 use common::{
@@ -80,12 +77,12 @@ where
                 .into_stored_dispatch(program_id, waitlisted.source(), message_id);
 
             // Splitting gas for newly created reply message.
-            GasHandlerOf::<T>::split(trap_reply.id(), message_id).unwrap_or_else(|e| {
-                // # Safety.
-                //
-                // There is no logic spliting value from the reserved nodes.
-                result::gas_tree(e)
-            });
+            //
+            // # Safety.
+            //
+            // There is no logic spliting value from the reserved nodes.
+            GasHandlerOf::<T>::split(trap_reply.id(), message_id)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Enqueueing dispatch into message queue.
             QueueOf::<T>::queue(trap_reply)
