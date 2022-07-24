@@ -143,7 +143,6 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         }
     }
 
-    // todo [sab] None?
     pub fn refs(&self) -> u32 {
         self.spec_refs().saturating_add(self.unspec_refs())
     }
