@@ -447,6 +447,10 @@ where
             });
 
         drop(instance);
-        Ok((termination, memory_wrap, stack_end_page))
+        Ok(BackendReport {
+            termination_reason: termination,
+            memory_wrap,
+            stack_end_page,
+        })
     }
 }

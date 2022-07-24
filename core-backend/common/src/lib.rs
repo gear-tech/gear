@@ -118,7 +118,11 @@ pub trait IntoExtInfo {
     fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
 
-pub type BackendReport<T> = (TerminationReason, T, Option<WasmPageNumber>);
+pub struct BackendReport<T> {
+    pub termination_reason: TerminationReason,
+    pub memory_wrap: T,
+    pub stack_end_page: Option<WasmPageNumber>,
+}
 
 #[derive(Debug, derive_more::Display)]
 #[display(fmt = "{}", reason)]
