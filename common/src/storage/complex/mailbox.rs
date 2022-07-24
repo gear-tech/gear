@@ -22,7 +22,8 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, GetCallback, Interval, IterableByKeyMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, GetCallback, Interval, IterableByKeyMap, IterableMap,
+    KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -214,5 +215,28 @@ where
 
     fn iter_key(key: Self::Key) -> Self::Iter {
         T::iter_key(key)
+    }
+}
+
+// Implementation of `IterableMap` trait for `MailboxImpl` in case,
+// when inner `DoubleMapStorage` implements `IterableMap`.
+impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableMap<T::Value>
+    for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
+where
+    T: DoubleMapStorage<Value = ValueWithInterval<Value, BlockNumber>> + IterableMap<T::Value>,
+    Error: MailboxError,
+    OutputError: From<Error>,
+    Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
+{
+    type DrainIter = T::DrainIter;
+    type Iter = T::Iter;
+
+    fn drain() -> Self::DrainIter {
+        T::drain()
+    }
+
+    fn iter() -> Self::Iter {
+        T::iter()
     }
 }
