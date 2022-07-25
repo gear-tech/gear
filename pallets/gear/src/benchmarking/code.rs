@@ -195,7 +195,7 @@ where
         for func in def.imported_functions {
             let sig = builder::signature()
                 .with_params(func.params)
-                .with_results(func.return_type.into_iter().collect::<Vec<ValueType>>())
+                .with_results(func.return_type.into_iter().collect::<Vec<_>>())
                 .build_sig();
             let sig = program.push_signature(sig);
             program = program
