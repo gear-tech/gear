@@ -113,6 +113,7 @@ pub trait IntoExtInfo {
     fn into_ext_info(
         self,
         memory: &impl Memory,
+        stack_page_count: WasmPageNumber,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
