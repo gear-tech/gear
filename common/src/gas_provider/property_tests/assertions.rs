@@ -42,7 +42,7 @@ pub(super) fn assert_removed_nodes_props(
 fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes) {
     if let Some(consumed) = remaining_nodes.get(&consumed) {
         // Node was not removed after consume, so should be of specific types
-        assert!(consumed.inner.is_external() || consumed.inner.is_specified_local());
+        assert!(consumed.is_external() || consumed.is_specified_local());
     }
 }
 
@@ -51,7 +51,7 @@ fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes)
 fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
     let removed_unspec_count = removed_nodes
         .values()
-        .filter(|node| node.inner.is_unspecified_local())
+        .filter(|node| node.is_unspecified_local())
         .count();
     assert!(removed_unspec_count <= 1);
 }
@@ -73,7 +73,7 @@ fn assert_removed_nodes_are_consumed(
 ) {
     for (id, node) in removed_nodes {
         if *id != consumed {
-            assert!(node.consumed);
+            assert!(node.is_consumed());
             assert!(node.refs() == 1);
         } else {
             assert!(node.refs() == 0);
@@ -118,7 +118,7 @@ pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: Remainin
         assert_eq!(
             remaining_nodes
                 .iter()
-                .filter(|(_, node)| !node.inner.is_reserved_local())
+                .filter(|(_, node)| !node.is_reserved_local())
                 .count(),
             0
         );
