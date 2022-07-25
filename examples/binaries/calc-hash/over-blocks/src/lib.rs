@@ -15,16 +15,33 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! Provide wasmtime-runtime support.
-
 #![no_std]
+#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
 
-extern crate alloc;
+use codec::{Decode, Encode};
+use shared::PackageId;
 
-pub mod env;
-mod funcs;
-pub mod funcs_tree;
-pub mod memory;
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
 
-pub use env::WasmtimeEnvironment;
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[cfg(not(feature = "std"))]
+mod wasm {
+    include! {"./code.rs"}
+}
+
+/// Program methods.
+#[derive(Debug, Encode, Decode)]
+pub enum Method {
+    Start {
+        expected: u128,
+        id: PackageId,
+        src: [u8; 32],
+    },
+    Refuel(PackageId),
+    Calculate(PackageId),
+}

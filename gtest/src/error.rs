@@ -20,7 +20,6 @@ use anyhow::Error as AnyhowError;
 use codec::Error as CodecError;
 use core_processor::ProcessorError;
 use gear_core::{ids::ProgramId, memory::WasmPageNumber};
-use wasmtime::MemoryAccessError;
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
@@ -45,7 +44,7 @@ pub enum TestError {
     /// Actor is not executable.
     #[from(ignore)]
     #[display(fmt = "Actor is not executable: `{}`", _0)]
-    ActorIsntExecutable(ProgramId),
+    ActorIsNotExecutable(ProgramId),
 
     /// Meta WASM binary hasn't been provided.
     #[display(fmt = "Meta WASM binary hasn't been provided")]
@@ -69,15 +68,15 @@ pub enum TestError {
     #[display(fmt = "{}", _0)]
     ExecutionError(ProcessorError),
 
-    /// Wrapper for [`MemoryAccessError`].
+    /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
     #[display(fmt = "{}", _0)]
-    MemoryError(MemoryAccessError),
+    MemoryError(wasmi::Error),
 
-    /// Wrapper for `wasmtime` error (used [`anyhow::Error`] for that).
+    /// Wrapper for `wasmi` error (used [`anyhow::Error`] for that).
     #[display(fmt = "{}", _0)]
-    WasmtimeError(AnyhowError),
+    WasmiError(AnyhowError),
 
-    /// Wrapper for `parity-scale-codec` error (see [`parity_scale_codec::Error`]).
+    /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
     #[display(fmt = "{}", _0)]
     ScaleCodecError(CodecError),
 }

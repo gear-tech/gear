@@ -124,7 +124,7 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Mark async function to be the program initialization method.
-/// Can be used together with [`async_main`].
+/// Can be used together with [`macro@async_main`].
 /// Functions `init`, `handle_reply` cannot be specified if this macro is used.
 /// If you need to specify `init`, `handle_reply` explicitly don't use this macro.
 ///
@@ -170,12 +170,12 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// outputs:
 ///
 /// ```ignore
-/// Same as [`send_bytes`](crate::msg::basic::send_bytes), but the program
-/// will interrupt until the reply is received.
-///
-/// # See also
-///
-/// - [`send_bytes_for_reply_as`](crate::msg::basic::send_bytes_for_reply_as)
+/// /// Same as [`send_bytes`](crate::msg::send_bytes), but the program
+/// /// will interrupt until the reply is received.
+/// ///
+/// /// # See also
+/// ///
+/// /// - [`send_bytes_for_reply_as`](crate::msg::send_bytes_for_reply_as)
 /// pub fn send_bytes_for_reply<T: AsRef<[u8]>>(
 ///     program: ActorId,
 ///     payload: T,
@@ -187,15 +187,15 @@ pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     Ok(MessageFuture { waiting_reply_to })
 /// }
 ///
-/// /// Same as [`send_bytes`](crate::msg::basic::send_bytes), but the program
+/// /// Same as [`send_bytes`](crate::msg::send_bytes), but the program
 /// /// will interrupt until the reply is received.
 /// ///
-/// /// The output should be decodable via [`SCALE CODEC`].
+/// /// The output should be decodable via SCALE codec.
 /// ///
 /// /// # See also
 /// ///
-/// /// - [`send_bytes_for_reply`](crate::msg::basic::send_bytes_for_reply)
-/// /// - https://docs.substrate.io/v3/advanced/scale-codec
+/// /// - [`send_bytes_for_reply`](crate::msg::send_bytes_for_reply)
+/// /// - <https://docs.substrate.io/v3/advanced/scale-codec>
 /// pub fn send_bytes_for_reply_as<T: AsRef<[u8]>, D: Decode>(
 ///     program: ActorId,
 ///     payload: T,

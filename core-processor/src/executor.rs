@@ -34,7 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{ContextSettings, IncomingDispatch, MessageContext},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
 };
 
 /// Make checks that everything with memory pages go well.
@@ -47,17 +47,27 @@ fn make_checks_and_charge_gas_for_pages<'a>(
     allocations: &BTreeSet<WasmPageNumber>,
     pages_with_data: impl Iterator<Item = &'a PageNumber>,
     static_pages: WasmPageNumber,
+    initial_execution: bool,
 ) -> Result<WasmPageNumber, ExecutionErrorReason> {
     // Checks that all pages with data are in allocations set.
     for page in pages_with_data {
-        if !allocations.contains(&page.to_wasm_page()) {
+        let wasm_page = page.to_wasm_page();
+        if wasm_page >= static_pages && !allocations.contains(&wasm_page) {
             return Err(ExecutionErrorReason::PageIsNotAllocated(*page));
         }
     }
 
-    let mem_size = if let Some(max_wasm_page) = allocations.iter().next_back() {
+    let mem_size = if !initial_execution {
+        let max_wasm_page = if let Some(page) = allocations.iter().next_back() {
+            *page
+        } else if static_pages != WasmPageNumber(0) {
+            static_pages - 1.into()
+        } else {
+            return Ok(0.into());
+        };
+
         // Charging gas for loaded pages
-        let amount = settings.load_page_cost() * allocations.len() as u64;
+        let amount = settings.load_page_cost() * (allocations.len() as u64 + static_pages.0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::LoadMemoryBlockGasExceeded);
@@ -80,7 +90,7 @@ fn make_checks_and_charge_gas_for_pages<'a>(
         }
 
         // +1 because pages numeration begins from 0
-        *max_wasm_page + 1.into()
+        max_wasm_page + 1.into()
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost() * static_pages.0 as u64;
@@ -112,7 +122,6 @@ fn make_checks_and_charge_gas_for_pages<'a>(
 fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
-    allocations: &BTreeSet<WasmPageNumber>,
     static_pages: WasmPageNumber,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
@@ -123,12 +132,10 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     }
 
     if A::is_lazy_pages_enabled() {
-        // All program wasm pages, which has no data in actor, is supposed to be lazy page candidate.
-        let lazy_pages = allocations
-            .iter()
-            .flat_map(|page| page.to_gear_pages_iter())
-            .filter(|page| !pages_data.contains_key(page));
-        A::lazy_pages_protect_and_init_info(mem, lazy_pages, program_id)
+        if !pages_data.is_empty() {
+            return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
+        }
+        A::lazy_pages_protect_and_init_info(mem, program_id)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
@@ -154,19 +161,9 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 fn get_pages_to_be_updated<A: ProcessorExt>(
     mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
     new_pages_data: BTreeMap<PageNumber, PageBuf>,
-    stack_end_page: Option<WasmPageNumber>,
 ) -> BTreeMap<PageNumber, PageBuf> {
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
-        // If there are stack memory pages, then
-        // we ignore stack pages update, because they are unused after execution,
-        // and for next program execution old data in stack it's just garbage.
-        if let Some(stack_end_page) = stack_end_page {
-            if page.0 < stack_end_page.to_gear_page().0 {
-                continue;
-            }
-        }
-
         if A::is_lazy_pages_enabled() {
             if let Some(initial_data) = old_pages_data.remove(&page) {
                 if new_data != initial_data {
@@ -242,6 +239,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program.get_allocations(),
         pages_initial_data.keys(),
         static_pages,
+        dispatch.context().is_none() && matches!(kind, DispatchKind::Init),
     ) {
         Ok(mem_size) => mem_size,
         Err(reason) => {
@@ -253,16 +251,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    // Getting wasm pages allocations.
-    let (allocations, is_initial) = if program.get_allocations().is_empty() {
-        ((0..static_pages.0).map(WasmPageNumber).collect(), true)
-    } else {
-        (program.get_allocations().clone(), false)
-    };
-
     // Creating allocations context.
-    let allocations_context =
-        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages());
+    let allocations_context = AllocationsContext::new(
+        program.get_allocations().clone(),
+        static_pages,
+        settings.max_pages(),
+    );
 
     // Creating message context.
     let message_context = MessageContext::new_with_settings(
@@ -313,7 +307,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     if let Err(reason) = prepare_memory::<A, E::Memory>(
         program_id,
         &mut pages_initial_data,
-        &allocations,
         static_pages,
         env.get_mem_mut(),
     ) {
@@ -323,10 +316,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             reason,
         });
     }
-
-    // Page which is right after stack last page
-    let stack_end_page = env.get_stack_mem_end();
-    log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Execute program in backend env.
     let BackendReport { termination, info } = match env.execute(&kind, |mem| {
@@ -366,8 +355,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
-    let page_update =
-        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, stack_end_page);
+    let page_update = get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
@@ -383,10 +371,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program_candidates,
         gas_amount: info.gas_amount,
         page_update,
-        allocations: if !is_initial && info.allocations.eq(&allocations) {
-            None
-        } else {
-            Some(info.allocations)
-        },
+        allocations: info.allocations,
     })
 }

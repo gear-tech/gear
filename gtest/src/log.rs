@@ -98,14 +98,23 @@ pub struct Log {
     exit_code: i32,
 }
 
-impl<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>> From<(ID, T)> for Log {
+impl<ID, T> From<(ID, T)> for Log
+where
+    ID: Into<ProgramIdWrapper>,
+    T: AsRef<[u8]>,
+{
     fn from(other: (ID, T)) -> Self {
         Self::builder().dest(other.0).payload_bytes(other.1)
     }
 }
 
-impl<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>> From<(ID, ID, T)> for Log {
-    fn from(other: (ID, ID, T)) -> Self {
+impl<ID1, ID2, T> From<(ID1, ID2, T)> for Log
+where
+    ID1: Into<ProgramIdWrapper>,
+    ID2: Into<ProgramIdWrapper>,
+    T: AsRef<[u8]>,
+{
+    fn from(other: (ID1, ID2, T)) -> Self {
         Self::builder()
             .source(other.0)
             .dest(other.1)
@@ -126,11 +135,11 @@ impl Log {
         log
     }
 
-    pub fn payload<E: Encode>(self, payload: E) -> Self {
+    pub fn payload(self, payload: impl Encode) -> Self {
         self.payload_bytes(payload.encode())
     }
 
-    pub fn payload_bytes<T: AsRef<[u8]>>(mut self, payload: T) -> Self {
+    pub fn payload_bytes(mut self, payload: impl AsRef<[u8]>) -> Self {
         if self.payload.is_some() {
             panic!("Payload was already set for this log");
         }
@@ -140,7 +149,7 @@ impl Log {
         self
     }
 
-    pub fn source<T: Into<ProgramIdWrapper>>(mut self, source: T) -> Self {
+    pub fn source(mut self, source: impl Into<ProgramIdWrapper>) -> Self {
         if self.source.is_some() {
             panic!("Source was already set for this log");
         }
@@ -150,7 +159,7 @@ impl Log {
         self
     }
 
-    pub fn dest<T: Into<ProgramIdWrapper>>(mut self, dest: T) -> Self {
+    pub fn dest(mut self, dest: impl Into<ProgramIdWrapper>) -> Self {
         if self.destination.is_some() {
             panic!("Destination was already set for this log");
         }
@@ -162,7 +171,7 @@ impl Log {
 
 impl PartialEq<StoredMessage> for Log {
     fn eq(&self, other: &StoredMessage) -> bool {
-        if matches!(other.reply(), Some(reply) if reply.1 != self.exit_code) {
+        if matches!(other.reply(), Some(reply) if reply.exit_code() != self.exit_code) {
             return false;
         }
         if matches!(self.source, Some(source) if source != other.source()) {
@@ -288,4 +297,21 @@ impl RunResult {
             .flat_map(DecodedCoreLog::try_from_log)
             .collect()
     }
+}
+
+#[test]
+fn soft_into() {
+    let log: Log = (1, "payload").into();
+    assert_eq!(Log::builder().dest(1).payload_bytes("payload"), log);
+
+    assert_eq!(
+        Log::builder().source(1).dest(2).payload_bytes("payload"),
+        Log::from((1, 2, "payload")),
+    );
+
+    let v = vec![1; 32];
+    assert_eq!(
+        Log::builder().source(1).dest(&v).payload_bytes("payload"),
+        Log::from((1, v, "payload"))
+    );
 }

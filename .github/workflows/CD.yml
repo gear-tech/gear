@@ -7,7 +7,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  Docker:
+  docker:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
@@ -19,8 +19,9 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
         id: docker_build
@@ -28,10 +29,11 @@ jobs:
         with:
           file: ../../docker/Dockerfile
           push: true
-          tags: schernovgear/gear:nightly
-  Deploy:
+          tags: ghcr.io/gear-tech/node:latest
+
+  deploy:
     runs-on: ubuntu-latest
-    needs: Docker
+    needs: docker
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -66,10 +68,11 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}}
+            ${{secrets.GEAR_NODE}} name=testnet-gear01 loki=yes loki_url=${{secrets.LOKI_URL}}
             [nodes]
-            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=no loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} rpc=yes loki=no loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.GEAR_NODE_5}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.ARCHIVE_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}} validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_2}} name=testnet-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_3}} name=testnet-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_4}} name=testnet-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.GEAR_NODE_5}} name=testnet-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.ARCHIVE_NODE}} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.ARCHIVE_RPC_NODE}} name=testnet-archive-rpc-node rpc=yes unsafe=no archive_node=yes loki=yes loki_url=${{secrets.LOKI_URL}}

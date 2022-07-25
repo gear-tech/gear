@@ -101,7 +101,7 @@ pub enum TrapExplanation {
 #[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
-    pub allocations: BTreeSet<WasmPageNumber>,
+    pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
@@ -113,6 +113,7 @@ pub trait IntoExtInfo {
     fn into_ext_info(
         self,
         memory: &impl Memory,
+        stack_page_count: WasmPageNumber,
     ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
