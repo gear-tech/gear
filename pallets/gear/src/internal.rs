@@ -107,7 +107,6 @@ where
         amount: <T::GasProvider as GasProvider>::Balance,
     ) {
         // Spending gas amount from `GasNode`.
-        // Here is a negative imbalance. Used `_` to force drop in place.
         GasHandlerOf::<T>::spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
