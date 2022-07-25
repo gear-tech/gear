@@ -10,8 +10,8 @@ gear-core = { path = "../../core" }
 gear-core-errors = { path = "../../core-errors", features = ["codec"] }
 gear-backend-common = { path = "../common" }
 
-parity-wasm = { version = "0.42.2", default-features = false }
-wasmi = { version = "0.11.0", default-features = false }
+parity-wasm = { version = "0.45.0", default-features = false }
+wasmi = { version = "0.12.0", default-features = false }
 log = { version = "0.4.17", default-features = false }
 derive_more = "0.99.17"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }

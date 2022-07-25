@@ -17,7 +17,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
-wasm-instrument = { version = "0.1", default-features = false }
+wasm-instrument = { version = "0.2", default-features = false }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
@@ -75,7 +75,7 @@ pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
 
 [features]
-default = ['std']
+default = ['std', 'runtime-benchmarks']
 std = [
 	"codec/std",
 	"log/std",

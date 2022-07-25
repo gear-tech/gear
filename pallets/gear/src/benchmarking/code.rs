@@ -195,7 +195,7 @@ where
         for func in def.imported_functions {
             let sig = builder::signature()
                 .with_params(func.params)
-                .with_results(func.return_type.into_iter().collect())
+                .with_results(func.return_type.into_iter().collect::<Vec<ValueType>>())
                 .build_sig();
             let sig = program.push_signature(sig);
             program = program
@@ -254,10 +254,10 @@ where
             code = inject_stack_metering::<T>(code);
         }
 
-        let code = code.to_bytes().unwrap();
+        let code = code.into_bytes().unwrap();
         let hash = CodeId::generate(&code);
         Self {
-            code,
+            code: code.to_vec(),
             hash,
             memory: def.memory,
             _data: PhantomData,
