@@ -136,7 +136,7 @@ impl<'a, T, E> Externals for GuestExternals<'a, T, E> {
                 ReturnValue::Value(v) => Some(v),
                 ReturnValue::Unit => None,
             }),
-            Err(_e) => Err(Trap::Host(Box::new(DummyHostError)).into()),
+            Err(_e) => Err(Trap::Host(Box::new(DummyHostError))),
         }
     }
 }
