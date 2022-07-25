@@ -34,7 +34,7 @@ use gear_core::{
 use std::{collections::BTreeMap, mem};
 use wasmi::{memory_units::Pages, MemoryInstance, MemoryRef, ModuleInstance, RuntimeValue};
 
-use crate::{Result, TestError, MAILBOX_THRESHOLD};
+use crate::{manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD};
 
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor;
@@ -43,13 +43,12 @@ impl WasmExecutor {
     /// Executes non-void function by provided name.
     /// Panics if function is void
     pub(crate) fn execute(
+        ext: &mut Ext,
         program: &Program,
         meta_binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        payload: Option<Payload>,
         function_name: &str,
     ) -> Result<Vec<u8>> {
-        let mut ext = WasmExecutor::build_ext(program, payload.unwrap_or_default());
         let mut builder: EnvironmentDefinitionBuilder<Runtime<Ext>, <Ext as ExtTrait>::Error> =
             EnvironmentDefinitionBuilder::new(
                 ext.forbidden_funcs()
@@ -102,7 +101,7 @@ impl WasmExecutor {
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
-            ext: &mut ext,
+            ext,
             err: FuncError::Terminated(TerminationReason::Success),
             memory: &mem,
             memory_wrap: &mut memory_wrap,
@@ -128,7 +127,7 @@ impl WasmExecutor {
                 if let wasmi::Error::Function(_) = err {
                     return TestError::FunctionNotFound(function_name.to_string());
                 }
-                if let Some(processor_error) = runtime.ext().error_explanation.clone() {
+                if let Some(processor_error) = runtime.ext.error_explanation.clone() {
                     processor_error.into()
                 } else {
                     TestError::WasmiError(err.into())
@@ -143,7 +142,12 @@ impl WasmExecutor {
         }
     }
 
-    fn build_ext(program: &Program, payload: Payload) -> Ext {
+    pub(crate) fn update_ext(ext: &mut Ext, manager: &ExtManager) {
+        ext.context.block_info.height = manager.block_info.height;
+        ext.context.block_info.timestamp = manager.block_info.timestamp;
+    }
+
+    pub(crate) fn build_ext(program: &Program, payload: Payload) -> Ext {
         Ext::new(ProcessorContext {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
@@ -370,5 +374,25 @@ mod meta_tests {
 
         let result = program.meta_state_empty::<Vec<Wallet>>();
         assert!(matches!(result, Err(TestError::MetaBinaryNotProvided)));
+    }
+
+    #[test]
+    fn meta_block_timestamp() {
+        let system = System::default();
+        let start_timestamp = system.block_timestamp();
+        let program = Program::from_file(
+            &system,
+            "../target/wasm32-unknown-unknown/release/demo_block_info.wasm",
+        );
+
+        let timestamp = u64::from_le_bytes(program.meta_state_empty().unwrap());
+        assert_eq!(start_timestamp, timestamp);
+
+        system.spend_blocks(42);
+        assert_eq!(system.block_height(), 42);
+
+        let timestamp = u64::from_le_bytes(program.meta_state_empty().unwrap());
+        assert_eq!(system.block_timestamp(), timestamp);
+        assert_eq!(start_timestamp + 42 * 1000, timestamp);
     }
 }

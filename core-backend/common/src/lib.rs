@@ -109,7 +109,11 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(
+        self,
+        memory: &impl Memory,
+        stack_page_count: WasmPageNumber,
+    ) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 

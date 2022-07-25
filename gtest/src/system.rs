@@ -80,7 +80,17 @@ impl System {
     pub fn spend_blocks(&self, amount: u32) {
         let mut manager = self.0.borrow_mut();
         manager.block_info.height += amount;
-        manager.block_info.timestamp += amount as u64;
+        manager.block_info.timestamp += 1000 * amount as u64;
+    }
+
+    /// Return the current block height.
+    pub fn block_height(&self) -> u32 {
+        self.0.borrow().block_info.height
+    }
+
+    /// Return the current block timestamp.
+    pub fn block_timestamp(&self) -> u64 {
+        self.0.borrow().block_info.timestamp
     }
 
     /// Returns a [`Program`] by `id`.

@@ -216,7 +216,11 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(
+        self,
+        memory: &impl Memory,
+        stack_page_count: WasmPageNumber,
+    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -231,6 +235,7 @@ impl IntoExtInfo for Ext {
         for page in (0..static_pages.0)
             .map(WasmPageNumber)
             .chain(wasm_pages.iter().copied())
+            .skip_while(|page| *page < stack_page_count)
             .flat_map(|p| p.to_gear_pages_iter())
         {
             let mut buf = PageBuf::new_zeroed();

@@ -44,21 +44,14 @@ where
     /// Returns `Err` if one of the following conditions occurs:
     ///
     /// - requested buffer is not within the bounds of the sandbox memory.
-    pub fn read_memory_into_buf(
-        &self,
-        ptr: u32,
-        buf: &mut [u8],
-    ) -> Result<(), MemoryError> {
+    pub fn read_memory_into_buf(&self, ptr: u32, buf: &mut [u8]) -> Result<(), MemoryError> {
         self.memory
             .get(ptr, buf)
             .map_err(|_| MemoryError::OutOfBounds)
     }
 
     /// Reads and decodes a type with a size fixed at compile time from contract memory.
-    pub fn read_memory_as<D: Decode + MaxEncodedLen>(
-        &self,
-        ptr: u32,
-    ) -> Result<D, MemoryError> {
+    pub fn read_memory_as<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> Result<D, MemoryError> {
         let buf = self.read_memory(ptr, D::max_encoded_len() as u32)?;
         let decoded = D::decode_all(&mut &buf[..]).map_err(|_| MemoryError::MemoryAccessError)?;
         Ok(decoded)

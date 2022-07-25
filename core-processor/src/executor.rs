@@ -161,19 +161,9 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 fn get_pages_to_be_updated<A: ProcessorExt>(
     mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
     new_pages_data: BTreeMap<PageNumber, PageBuf>,
-    stack_end_page: Option<WasmPageNumber>,
 ) -> BTreeMap<PageNumber, PageBuf> {
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
-        // If there are stack memory pages, then
-        // we ignore stack pages update, because they are unused after execution,
-        // and for next program execution old data in stack it's just garbage.
-        if let Some(stack_end_page) = stack_end_page {
-            if page.0 < stack_end_page.to_gear_page().0 {
-                continue;
-            }
-        }
-
         if A::is_lazy_pages_enabled() {
             if let Some(initial_data) = old_pages_data.remove(&page) {
                 if new_data != initial_data {
@@ -348,8 +338,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     log::debug!("Termination reason: {:?}", termination);
-    
-    match ext.into_ext_info(&memory) {
+
+    match ext.into_ext_info(&memory, stack_end_page.unwrap_or_default()) {
         Ok(info) => {
             // Parsing outcome.
             let kind = match termination {
@@ -370,8 +360,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
             };
 
-            let page_update =
-                get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, stack_end_page);
+            let page_update = get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data);
 
             // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
             let program_candidates = info.program_candidates_data;

@@ -208,7 +208,7 @@ impl ExtManager {
                 timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("Time went backwards")
-                    .as_secs(),
+                    .as_millis() as u64,
             },
             ..Default::default()
         }
@@ -617,11 +617,15 @@ impl ExtManager {
             .map(Vec::as_slice)
             .ok_or(TestError::MetaBinaryNotProvided)?;
 
+        let mut ext = WasmExecutor::build_ext(&data.program, payload.unwrap_or_default());
+
+        WasmExecutor::update_ext(&mut ext, &self);
+
         WasmExecutor::execute(
+            &mut ext,
             &data.program,
             meta_binary,
             &pages_initial_data,
-            payload,
             function_name,
         )
     }

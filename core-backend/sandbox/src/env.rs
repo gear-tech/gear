@@ -188,7 +188,7 @@ where
 
         let Runtime { ext, err: trap, .. } = runtime;
 
-        log::debug!("execution res = {:?}", res);
+        log::debug!("SandboxEnvironment::execute res = {res:?}");
 
         let trap_explanation = ext.trap_explanation();
 
