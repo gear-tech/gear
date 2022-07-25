@@ -13,3 +13,9 @@ unsafe extern "C" fn handle() {
     let bh = exec::block_height();
     msg::reply_bytes(format!("{}_{}", payload, bh), 0).unwrap();
 }
+
+#[no_mangle]
+unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+    let timestamp = exec::block_timestamp();
+    gstd::util::to_leak_ptr(timestamp.to_le_bytes())
+}
