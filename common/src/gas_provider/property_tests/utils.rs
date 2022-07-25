@@ -30,7 +30,7 @@ impl<T> RingGet<T> for Vec<T> {
     fn ring_get(&self, index: usize) -> Option<&T> {
         let is_not_empty = !self.is_empty();
         is_not_empty
-            .then(|| index % self.len())
+            .then_some(index % self.len())
             .and_then(|idx| self.get(idx))
     }
 }
