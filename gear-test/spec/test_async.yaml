@@ -1,5 +1,9 @@
 title: Async-await
 
+codes:
+  # Save child's code
+  - path: examples/async/child_project.opt.wasm
+
 programs:
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_async.opt.wasm
@@ -173,3 +177,90 @@ fixtures:
         messages:
           - destination: 6
             payload: *pong
+
+  - title: Async creation of program by program
+
+    messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: CREATE
+
+    expected:
+      - step: 1
+        messages:
+        - destination:
+            kind: h256
+            value: 0x56ff19a3cc926341e0c7dab8cdcbb23eac711940c8f04619043d0adbeb8264a1
+          init: true
+          payload:
+            kind: utf-8
+            value: unique
+      - step: 2
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: init unique
+      - step: 3
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: CREATE
+      - step: 4
+        messages:
+          - destination:
+              kind: h256
+              value: 0x56ff19a3cc926341e0c7dab8cdcbb23eac711940c8f04619043d0adbeb8264a1
+            payload:
+              kind: utf-8
+              value: unique
+      - step: 5
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: handle unique
+      - step: 6
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: CREATE
+      - step: 7
+        messages:
+        - destination:
+            kind: h256
+            value: 0xe70df01c6d38f490513daa11b1af17318123582f7d07c3a1438ca48612497a7f
+          payload:
+            kind: utf-8
+            value: not unique
+      - step: 8
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: <init not unique
+      - step: 9
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: CREATE
+      - step: 10
+        messages:
+        - destination:
+            kind: h256
+            value: 0xe70df01c6d38f490513daa11b1af17318123582f7d07c3a1438ca48612497a7f
+          payload:
+            kind: utf-8
+            value: not unique
+      - step: 11
+        messages:
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: handle not unique
+
+

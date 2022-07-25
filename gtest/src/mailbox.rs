@@ -167,7 +167,7 @@ mod tests {
         let destination_user_mailbox = system.get_mailbox(destination_user_id);
         let message_replier = destination_user_mailbox.take_message(log);
 
-        //Replying on sended message and extracting log
+        //Replying on sent message and extracting log
         let reply_log = message_replier.reply(reply_payload, 1).log;
         let last_reply_log = reply_log.last().expect("No message log in run result");
 

@@ -18,6 +18,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
             },
             gr_block_height: () => { },
             gr_block_timestamp: () => { },
+            gr_create_program: () => { },
+            gr_create_program_wgas: () => { },
             gr_exit: () => { },
             gr_exit_code: () => { },
             gr_program_id: () => { },

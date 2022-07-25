@@ -247,6 +247,7 @@ name = "demo-async"
 version = "0.1.0"
 dependencies = [
  "gstd",
+ "hex-literal",
  "parity-scale-codec",
  "scale-info",
 ]
