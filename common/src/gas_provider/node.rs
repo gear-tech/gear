@@ -41,7 +41,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
         refs: ChildrenRefs,
         consumed: bool,
     },
-    /// Pretty same as `SpecifiedLocal`, but doesn't have internal balance, so relies on it `parent`. Also such
+    /// Pretty same as `SpecifiedLocal`, but doesn't have internal balance, so relies on its `parent`. Also such
     /// nodes don't have children references.
     UnspecifiedLocal { parent: Id },
 }
