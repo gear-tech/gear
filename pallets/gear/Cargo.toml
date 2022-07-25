@@ -75,7 +75,7 @@ pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
 pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
 
 [features]
-default = ['std', 'runtime-benchmarks']
+default = ['std']
 std = [
 	"codec/std",
 	"log/std",
