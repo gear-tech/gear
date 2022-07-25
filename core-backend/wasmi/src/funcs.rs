@@ -833,7 +833,7 @@ where
                 .create_program(InitPacket::new(code_hash.into(), salt, payload, value))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|new_actor_id| {
+                .error_len_on_success(|(new_actor_id, _)| {
                     wto(memory, program_id_ptr, new_actor_id.as_ref())
                 })?;
             Ok(error_len)
@@ -877,7 +877,7 @@ where
                 ))
                 .process_error()
                 .map_err(FuncError::Core)?
-                .error_len_on_success(|new_actor_id| {
+                .error_len_on_success(|(new_actor_id, _)| {
                     wto(memory, program_id_ptr, new_actor_id.as_ref())
                 })?;
             Ok(error_len)
