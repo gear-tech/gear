@@ -1,0 +1,38 @@
+name: Test CD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read secrets
+        uses: hashicorp/vault-action@v2.4.1
+        with:
+          url: ${{ secrets.VAULT_URL }}
+          tlsSkipVerify: true
+          method: github
+          githubToken: ${{ secrets.VAULT_TOKEN }}
+          secrets: |
+            kv/ssh/keys nodes | SSH_KEY ;
+            kv/infra/testnet-nodes ARCHIVE_NODE | ARCHIVE_NODE ;
+            kv/infra/other LOKI_URL | LOKI_URL
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2.5.0
+        with:
+          playbook: main.yaml
+          directory: ./ansible/
+          key: ${{ env.SSH_KEY }}
+          inventory: |
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+
+            [nodes]
+            ${{ env.ARCHIVE_NODE }} name=testnet-archive-node validator=yes archive_node=yes loki=yes loki_url=${{ env.LOKI_URL }}

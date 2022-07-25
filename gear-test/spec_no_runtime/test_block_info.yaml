@@ -2,7 +2,7 @@ title: Block info
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_block_info.wasm
+    path: target/wasm32-unknown-unknown/release/demo_block_info.opt.wasm
     source:
       kind: account
       value: alice

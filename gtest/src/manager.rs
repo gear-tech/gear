@@ -27,7 +27,7 @@ use core_processor::{
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
     Ext,
 };
-use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -208,7 +208,7 @@ impl ExtManager {
                 timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("Time went backwards")
-                    .as_secs(),
+                    .as_millis() as u64,
             },
             ..Default::default()
         }
@@ -357,6 +357,7 @@ impl ExtManager {
         function_name: &str,
     ) -> Result<Vec<u8>> {
         let mut executor = self.get_executor(program_id, payload)?;
+        executor.update_ext(self);
         executor.execute(function_name)
     }
 
@@ -585,7 +586,7 @@ impl ExtManager {
             origin: self.origin,
             gas_allowance: u64::MAX,
         };
-        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+        let journal = core_processor::process::<Ext, WasmiEnvironment<Ext>>(
             &block_config,
             message_execution_context,
         );
