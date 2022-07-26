@@ -213,7 +213,7 @@ impl ExtManager {
                 timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("Time went backwards")
-                    .as_secs(),
+                    .as_millis() as u64,
             },
             ..Default::default()
         }
@@ -362,6 +362,7 @@ impl ExtManager {
         function_name: &str,
     ) -> Result<Vec<u8>> {
         let mut executor = self.get_executor(program_id, payload)?;
+        executor.update_ext(self);
         executor.execute(function_name)
     }
 

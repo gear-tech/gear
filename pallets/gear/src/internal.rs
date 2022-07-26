@@ -215,7 +215,7 @@ where
         let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
         // Checking that message gas limit can cover required lock.
-        (limit >= deadline.gas_lock).then(|| deadline)
+        (limit >= deadline.gas_lock).then_some(deadline)
     }
 
     // Calculates deadline for duration holding.

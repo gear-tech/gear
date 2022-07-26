@@ -26,12 +26,12 @@ frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/sub
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 gear-runtime-interface = { path = "../runtime-interface", default-features = false }
-parity-wasm = { version = "0.42.2", default-features = false, optional = true }
+parity-wasm = { version = "0.45.0", default-features = false, optional = true }
 derive_more = "0.99.17"
 
 [dev-dependencies]
 hex-literal = "0.3.3"
-wasm-instrument = { version = "0.1", default-features = false }
+wasm-instrument = { version = "0.2", default-features = false }
 proptest = "1.0.0"
 
 [features]
