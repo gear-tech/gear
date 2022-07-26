@@ -41,7 +41,7 @@ use gear_core_errors::MemoryError;
 use wasmi::{
     memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef,
     ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef,
-    RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap, TrapKind,
+    RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
 };
 
 #[derive(Debug, derive_more::Display)]
@@ -136,7 +136,7 @@ impl<'a, T, E> Externals for GuestExternals<'a, T, E> {
                 ReturnValue::Value(v) => Some(v),
                 ReturnValue::Unit => None,
             }),
-            Err(_e) => Err(TrapKind::Host(Box::new(DummyHostError)).into()),
+            Err(_e) => Err(Trap::Host(Box::new(DummyHostError))),
         }
     }
 }
