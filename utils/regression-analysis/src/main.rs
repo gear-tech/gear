@@ -280,14 +280,14 @@ fn compare(data_path: PathBuf, current_junit_path: PathBuf, disable_filter: bool
 
     if let Some(total_time) = compared.remove(TEST_SUITES_TEXT) {
         println!("Total execution time");
-        let table = Table::new(total_time).with(Style::github_markdown().header_intersection('|'));
+        let table = Table::new(total_time).with(Style::markdown());
         println!("{}", table);
         println!();
     }
 
     for (name, stats) in compared {
         println!("name = {}", name);
-        let table = Table::new(stats).with(Style::github_markdown().header_intersection('|'));
+        let table = Table::new(stats).with(Style::markdown());
         println!("{}", table);
         println!();
     }
