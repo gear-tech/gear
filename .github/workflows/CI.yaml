@@ -193,12 +193,12 @@ jobs:
 
       - name: "Test: Gear pallet tests with lazy pages"
         run: |
-          cargo test -p pallet-gear --features=lazy-pages --release
-          cargo test -p pallet-gear-debug --features=lazy-pages --release
-          cargo test -p pallet-gear-payment --features=lazy-pages --release
+          cargo test -p pallet-gear --features=lazy-pages --release --locked
+          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
+          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release
+        run: ./scripts/gear.sh test gear --release --locked
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
