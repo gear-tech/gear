@@ -207,7 +207,7 @@ where
 
         if self.check_program_id(&dispatch.destination()) {
             if let Some(gas_limit) = gas_limit {
-                // # Safety.
+                // # Safety
                 //
                 // 1. There is no logic spliting value from the reserved nodes.
                 // 2. The `gas_limit` has been checked before.
@@ -215,7 +215,7 @@ where
                 GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             } else {
-                // # Safety.
+                // # Safety
                 //
                 // There is no logic spliting value from the reserved nodes.
                 GasHandlerOf::<T>::split(message_id, dispatch.id())
@@ -243,7 +243,7 @@ where
                     .ok()
                     .flatten()
                     .map(|(v, _)| v)
-                    // # Safety.
+                    // # Safety
                     //
                     // The result of `get_limit` has been checked in `process_queue`
                     .unwrap_or_else(|| unreachable!("Checked before."))
@@ -257,7 +257,7 @@ where
                 MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
                     .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
 
-                // # Safety.
+                // # Safety
                 //
                 // 1. There is no logic spliting value from the reserved nodes.
                 // 2. The `gas_limit` has been checked before.

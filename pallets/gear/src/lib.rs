@@ -539,7 +539,7 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            // # Safety.
+            // # Safety
             //
             // This is unreachable since the `message_id` is new generated
             // with `Self::next_message_id`.
@@ -1468,7 +1468,7 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            // # Safety.
+            // # Safety
             //
             // This is unreachable since the `message_id is new generated
             // with `Self::next_message_id`.
@@ -1569,7 +1569,7 @@ pub mod pallet {
                 <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                // # Safety.
+                // # Safety
                 //
                 // This is unreachable since the `message_id` is new generated
                 // with `Self::next_message_id`.

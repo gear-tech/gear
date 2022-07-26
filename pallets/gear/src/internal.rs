@@ -182,7 +182,7 @@ where
         // Default reserve/stock to make sure that we process task in time.
         let reserve = CostsPerBlockOf::<T>::reserve_for();
 
-        // Safety duration (maximal subtracted by reserve).
+        // Safetyduration (maximal subtracted by reserve).
         let safety_duration = maximal_duration.saturating_sub(reserve);
 
         // Calling inner implementation.

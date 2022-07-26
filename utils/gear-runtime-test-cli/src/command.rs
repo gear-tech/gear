@@ -313,7 +313,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             )
             .expect("No more funds");
 
-            // # Safety.
+            // # Safety
             //
             // This is unreachable since the `message_id` is new generated
             // with `GearPallet::next_message_id`.
