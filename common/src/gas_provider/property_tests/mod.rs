@@ -18,24 +18,24 @@
 
 //! Properties and invariants that are checked:
 //! 1. Nodes can become consumed only after [`Tree::consume`] call.
-//! 2. Unspec refs counter for the current node is incremented only after [`Tree::split`] which creates a node with [`GasNodeType::UnspecifiedLocal`] type.
-//! 3. Spec refs counter for the current node is incremented only after [`GasNodeType::split_with_value`], which creates a node with [`GasNodeType::SpecifiedLocal`] type.
-//! 4. All nodes, except for [`GasNodeType::ReservedLocal`] and [`GasNodeType::External`] have a parent in GasTree storage.
-//! 5. All nodes with parent point to a parent with value. So If a `key` is an id of [`GasNodeType::SpecifiedLocal`] or [`GasNodeType::External`] node,
+//! 2. Unspec refs counter for the current node is incremented only after [`Tree::split`] which creates a node with [`GasNode::UnspecifiedLocal`] type.
+//! 3. Spec refs counter for the current node is incremented only after [`GasNode::split_with_value`], which creates a node with [`GasNode::SpecifiedLocal`] type.
+//! 4. All nodes, except for [`GasNode::ReservedLocal`] and [`GasNode::External`] have a parent in GasTree storage.
+//! 5. All nodes with parent point to a parent with value. So If a `key` is an id of [`GasNode::SpecifiedLocal`] or [`GasNode::External`] node,
 //! the node under this `key` will always be a parent of the newly generated node after [`Tree::split`]/[`Tree::split_with_value`] call.
-//! However, there is no such guarantee if key is an id of the [`GasNodeType::UnspecifiedLocal`] nodes.
+//! However, there is no such guarantee if key is an id of the [`GasNode::UnspecifiedLocal`] nodes.
 //! 6. All non-external nodes have ancestor with value (i.e., [`TreeImpl::node_with_value`] procedure always return `Ok`), however this value can be equal to 0.
 //! This ancestor is either a parent or the node itself.
 //! 7. All nodes can't have consumed parent with zero refs (there can't be any nodes like that in storage) between calls to [`Tree::consume`].
 //! Therefore, if node is deleted, it is consumed and has zero refs (and zero value).
-//! 8. [`GasNodeType::UnspecifiedLocal`] nodes are always leaves in the tree (they have no children), so they are always deleted after consume call.
-//! The same ruling is for [`GasNodeType::ReservedLocal`] nodes.
-//! So there can't be any [`GasNodeType::UnspecifiedLocal`] node in the tree with consumed field set to true.
+//! 8. [`GasNode::UnspecifiedLocal`] nodes are always leaves in the tree (they have no children), so they are always deleted after consume call.
+//! The same ruling is for [`GasNode::ReservedLocal`] nodes.
+//! So there can't be any [`GasNode::UnspecifiedLocal`] node in the tree with consumed field set to true.
 //! So if there is an **existing consumed** node, then it has non-zero refs counter and a value >= 0 (between calls to [`Tree::consume`])
-//! 9. In a tree a root with [`GasNodeType::External`] type is always deleted last.
-//! 10. If node wasn't removed after `consume` it's [`GasNodeType::SpecifiedLocal`] or [`GasNodeType::External`] node. This is pretty same as the previous invariant,
+//! 9. In a tree a root with [`GasNode::External`] type is always deleted last.
+//! 10. If node wasn't removed after `consume` it's [`GasNode::SpecifiedLocal`] or [`GasNode::External`] node. This is pretty same as the previous invariant,
 //! but focuses more on [`Tree::consume`] procedure, while the other focuses on the all tree invariant. (checked in `consume` call assertions).
-//! 11. [`GasNodeType::UnspecifiedLocal`] and [`GasNodeType::ReservedLocal`] nodes can't be removed, nor mutated during cascade removal. So after [`Tree::consume`] call not more than one node is of [`GasNodeType::UnspecifiedLocal`] type.
+//! 11. [`GasNode::UnspecifiedLocal`] and [`GasNode::ReservedLocal`] nodes can't be removed, nor mutated during cascade removal. So after [`Tree::consume`] call not more than one node is of [`GasNode::UnspecifiedLocal`] type.
 //! 12. Between calls to [`Tree::consume`] if node is consumed and has no unspec refs, it's internal gas value is zero.
 //! 13. Between calls to [`Tree::consume`] if node has value, it's either not consumed or it has unspecified children.
 //! 14. Value catch can be performed only on consumed nodes (not tested).
@@ -394,7 +394,7 @@ proptest! {
             }
 
             // Check property: all existing specified and unspecified nodes have a parent in a tree
-            if let GasNodeType::SpecifiedLocal { parent, .. } | GasNodeType::UnspecifiedLocal { parent } = node.inner {
+            if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent } = node {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
                 let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
@@ -402,25 +402,25 @@ proptest! {
             }
 
             // Check property: specified local nodes are created only with `split_with_value` call
-            if matches!(node.inner, GasNodeType::SpecifiedLocal { .. }) {
+            if node.is_specified_local() {
                 assert!(spec_ref_nodes.contains(&node_id));
-            } else if matches!(node.inner, GasNodeType::UnspecifiedLocal { .. }) {
+            } else if node.is_unspecified_local() {
                 // Check property: unspecified local nodes are created only with `split` call
                 assert!(unspec_ref_nodes.contains(&node_id));
             }
 
             // Check property: for all the consumed nodes currently existing in the tree...
-            if node.consumed {
+            if node.is_consumed() {
                 // ...existing consumed node can't have zero refs. Otherwise it must have been deleted from the storage
                 assert!(node.refs() != 0);
                 // ...can become consumed only after consume call (so can be deleted by intentional call, not automatically)
                 assert!(marked_consumed.contains(&node_id));
                 // ...there can't be any existing consumed unspecified local nodes, because they are immediately removed after the call
-                assert!(node.inner.is_external() || node.inner.is_specified_local());
+                assert!(node.is_external() || node.is_specified_local());
                 // ...existing consumed node with no unspec children has 0 inner value.
                 // That's because anytime node becomes consumed without unspec children, it's no longer a patron.
                 // So `consume` call on non-patron leads a value to be moved upstream or returned to the `origin`.
-                if node.unspec_refs == 0 {
+                if node.unspec_refs() == 0 {
                     let value = node.inner_value().expect("node with value, checked");
                     assert!(value == 0);
                 }
@@ -433,7 +433,7 @@ proptest! {
             // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
             // ReservedLocal node can be not consumed with non zero value, but is not a patron
             if let Some(value) = node.inner_value() {
-                if value != 0 && !node.inner.is_reserved_local() {
+                if value != 0 && !node.is_reserved_local() {
                     assert!(node.is_patron());
                 }
             }

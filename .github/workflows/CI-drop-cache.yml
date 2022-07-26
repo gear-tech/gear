@@ -1,0 +1,13 @@
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  if_merged:
+    runs-on: [self-hosted, cachepot, epyc]
+    steps:
+      - run: |
+          rm -rf /root/cache/${{ github.event.pull_request.number }}
+          rm -rf /root/cache/${{ github.event.pull_request.number }}
+          rm -rf /root/cache/${{ github.event.pull_request.number }}
