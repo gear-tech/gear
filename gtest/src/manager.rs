@@ -619,7 +619,7 @@ impl ExtManager {
 
         let mut ext = WasmExecutor::build_ext(&data.program, payload.unwrap_or_default());
 
-        WasmExecutor::update_ext(&mut ext, &self);
+        WasmExecutor::update_ext(&mut ext, self);
 
         WasmExecutor::execute(
             &mut ext,

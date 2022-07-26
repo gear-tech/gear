@@ -341,12 +341,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     let info = ext
         .into_ext_info(&memory, stack_end_page.unwrap_or_default())
-        .or_else(|(err, gas_amount)| {
-            Err(ExecutionError {
-                program_id,
-                gas_amount,
-                reason: ExecutionErrorReason::Backend(err.to_string()),
-            })
+        .map_err(|(err, gas_amount)| ExecutionError {
+            program_id,
+            gas_amount,
+            reason: ExecutionErrorReason::Backend(err.to_string()),
         })?;
 
     // Parsing outcome.

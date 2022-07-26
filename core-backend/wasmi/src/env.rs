@@ -36,8 +36,8 @@ use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
 use gear_core_errors::MemoryError;
 use wasmi::{
     memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef,
-    ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef,
-    RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
+    ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, RuntimeArgs,
+    RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
 };
 
 #[derive(Debug, derive_more::Display)]
