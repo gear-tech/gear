@@ -253,7 +253,7 @@ where
     /// That's due to the 12-th invariant stated in [`super::property_tests`] module docs. When node becomes consumed without unspec refs (i.e., stops being a patron)
     /// `consume` procedure call on such node either moves value upstream (if there is an ancestor patron) or returns value to the origin. So any repetitive `catch_value` call on
     /// such nodes results in `CatchValueOutput::Caught(0)` (if there are is ancestor patron). So if `consume` procedure on the node with `key` id resulted in value being caught,
-    /// it means that there are no ancestor patrons, so non of `catch_value` calls on the node's ancestors will return `CatchValueOutput::Missed`, but will return `CatchValueOutput::Caught(0)`.
+    /// it means that there are no ancestor patrons, so none of `catch_value` calls on the node's ancestors will return `CatchValueOutput::Missed`, but will return `CatchValueOutput::Caught(0)`.
     fn try_remove_consumed_ancestors(
         key: MapKey,
         descendant_catch_output: CatchValueOutput<Balance>,
