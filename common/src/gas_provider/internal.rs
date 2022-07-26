@@ -246,18 +246,41 @@ where
     /// # Invariants
     /// Internal invariant of the procedure:
     /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.
+    /// That's because if there is an existing ancestor patron on the path from the `key` node to the root, catching value on all the nodes before that patron on this same path
+    /// will give the same `CatchValueOutput::Missed` result (they all have same ancestor patron, which will receive their values).
     /// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.
     /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
-    pub(super) fn try_remove_consumed_ancestors(
+    /// That's due to the 12-th invariant stated in [`super::property_tests`] module docs. When node becomes consumed without unspec refs (i.e., stops being a patron)
+    /// `consume` procedure call on such node either moves value upstream (if there is an ancestor patron) or returns value to the origin. So any repetitive `catch_value` call on
+    /// such nodes results in `CatchValueOutput::Caught(0)` (if there are is ancestor patron). So if `consume` procedure on the node with `key` id resulted in value being caught,
+    /// it means that there are no ancestor patrons, so non of `cath_value` calls on the node's ancestors will return `CatchValueOutput::Missed`, but will return `CatchValueOutput::Caught(0)`.
+    fn try_remove_consumed_ancestors(
         key: MapKey,
+        descendant_catch_output: CatchValueOutput<Balance>,
     ) -> Result<ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error> {
         let mut node_id = key;
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         let mut consume_output = None;
         let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
 
+        // Descendant's `catch_value` output is used for the sake of optimization.
+        // We could easily run `catch_value` in the bellow `while` loop each time
+        // we process the ancestor. But that would lead to quadratic complexity of
+        // the `consume` & `try_remove_consumed_ancestors` procedures. In order to
+        // optimize that we use internal properties of the `consume` procedure described
+        // in the function's docs. The general idea of the optimization is that in some
+        // situations there is no need in `catch_value` call, because results will be the
+        // same for all the ancestors.
+        let mut catch_output = if descendant_catch_output.is_caught() {
+            CatchValueOutput::Caught(Zero::zero())
+        } else {
+            descendant_catch_output
+        };
         while !node.is_patron() {
-            let catch_output = Self::catch_value(&mut node)?;
+            if catch_output.is_blocked() {
+                catch_output = Self::catch_value(&mut node)?;
+            }
+
             // The node is not a patron and can't be of unspecified type.
             if catch_output.is_blocked() {
                 return Err(InternalError::value_is_blocked().into());
@@ -477,14 +500,15 @@ where
                     if !catch_output.is_blocked() {
                         return Err(InternalError::value_is_not_blocked().into());
                     }
-                    Self::try_remove_consumed_ancestors(parent)?
+                    Self::try_remove_consumed_ancestors(parent, catch_output)?
                 }
                 GasNode::SpecifiedLocal { parent, .. } => {
                     if catch_output.is_blocked() {
                         return Err(InternalError::value_is_blocked().into());
                     }
                     let consume_output = catch_output.into_consume_output(origin);
-                    let consume_ancestors_output = Self::try_remove_consumed_ancestors(parent)?;
+                    let consume_ancestors_output =
+                        Self::try_remove_consumed_ancestors(parent, catch_output)?;
                     match (&consume_output, consume_ancestors_output) {
                         // value can't be caught in both procedures
                         (Some(_), Some((neg_imb, _))) if neg_imb.peek().is_zero() => consume_output,
