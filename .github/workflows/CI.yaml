@@ -321,8 +321,17 @@ jobs:
         with:
           file: ./lcov.info
 
-      - name: "Cache: Pack"
+      - name: "Cache: Pack to master"
         if: ${{ github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/build_target.tar ./target
+          tar -cf /tmp/build_cache.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mkdir -p /root/cache/
+
+      - name: "Cache: Pack to temp"
+        if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
           tar -cf /tmp/build_target.tar ./target
