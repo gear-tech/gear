@@ -19,6 +19,7 @@ jobs:
     runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -35,6 +36,7 @@ jobs:
     runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -112,6 +114,7 @@ jobs:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -371,6 +374,7 @@ jobs:
       CARGO_INCREMENTAL: 0
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -426,6 +430,7 @@ jobs:
     needs: build
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
