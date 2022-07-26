@@ -41,7 +41,7 @@ pub(crate) struct WasmExecutor;
 
 impl WasmExecutor {
     /// Executes non-void function by provided name.
-    /// Panics if function is void
+    /// Panics if function is void.
     pub(crate) fn execute(
         ext: &mut Ext,
         program: &Program,
