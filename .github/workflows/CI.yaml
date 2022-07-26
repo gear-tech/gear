@@ -245,6 +245,11 @@ jobs:
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
 
+      - name: "Test: Runtime benchmarks work"
+        run: |
+          cargo build -p gear-node --release --features runtime-benchmarks
+          ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+
       - name: Find comment (performance)
         uses: peter-evans/find-comment@v2
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -388,7 +393,7 @@ jobs:
           .\rustup-init.exe -y
           rustup --version
 
-      - name: "Install: Disable rustup autoupdate"
+      - name: "Install: Disable rustup auto-update"
         run: rustup set auto-self-update disable
 
       - name: "Install: Nightly toolchain"

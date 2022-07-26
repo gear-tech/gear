@@ -43,6 +43,8 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-program = { path = "../gear-program", default-features = false }
 
+sp-consensus-aura = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+
 # Benchmark deps
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 serde = { version = "1", optional = true, features = ["derive"] }
@@ -107,6 +109,7 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
 	"sp-sandbox",
+	"sp-consensus-aura",
 	"rand",
 	"rand_pcg",
 ]
