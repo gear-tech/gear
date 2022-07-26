@@ -177,9 +177,8 @@ jobs:
         if: ${{ github.ref != 'refs/heads/master' }}
         continue-on-error: true
         run: |
-          tar -xf /root/cache/build_cache.tar -C /
-          tar -xf /root/cache/build_cargo_registry.tar -C /
-          tar -xf /root/cache/build_target.tar
+          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache.tar -C /; tar -xf /root/cache/build_cargo_registry.tar -C /; tar -xf /root/cache/build_target.tar; }
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
@@ -329,7 +328,7 @@ jobs:
           tar -cf /tmp/build_target.tar ./target
           tar -cf /tmp/build_cache.tar /tmp/cachepot
           tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
