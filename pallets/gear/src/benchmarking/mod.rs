@@ -307,7 +307,7 @@ benchmarks! {
         T::AccountId: Origin,
     }
 
-    claim_value_from_mailbox {
+    claim_value {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);

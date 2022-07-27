@@ -39,7 +39,7 @@ pub trait WeightInfo {
 	fn grow_cost() -> Weight;
 	fn initial_cost() -> Weight;
 	fn load_cost() -> Weight;
-	fn claim_value_from_mailbox() -> Weight;
+	fn claim_value() -> Weight;
 	fn upload_code(c: u32, ) -> Weight;
   fn create_program(s: u32, ) -> Weight;
 	fn upload_program(c: u32, s: u32, ) -> Weight;
@@ -149,7 +149,7 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	fn load_cost() -> Weight {
 		T::DbWeight::get().reads(1 as Weight)
 	}
-	fn claim_value_from_mailbox() -> Weight {
+	fn claim_value() -> Weight {
 		(116_148_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
@@ -683,7 +683,7 @@ impl WeightInfo for () {
 	fn load_cost() -> Weight {
 		RocksDbWeight::get().reads(1 as Weight)
 	}
-	fn claim_value_from_mailbox() -> Weight {
+	fn claim_value() -> Weight {
 		(116_148_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(5 as Weight))

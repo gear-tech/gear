@@ -308,7 +308,7 @@ fn mailbox_rent_claimed() {
             utils::assert_balance(sender, prog_balance - data.value, data.value);
             assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-            assert_ok!(Gear::claim_value_from_mailbox(
+            assert_ok!(Gear::claim_value(
                 Origin::signed(USER_2),
                 message_id
             ));
@@ -1853,7 +1853,7 @@ fn send_reply_value_claiming_works() {
 // prog send to user 1 msg to mailbox
 // user 1 claims it from mailbox
 #[test]
-fn claim_value_from_mailbox_works() {
+fn claim_value_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
@@ -1895,7 +1895,7 @@ fn claim_value_from_mailbox_works() {
 
         let block_producer_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+        assert_ok!(GearPallet::<Test>::claim_value(
             Origin::signed(USER_1),
             reply_to_id,
         ));
@@ -3945,7 +3945,7 @@ fn test_reply_to_terminated_program() {
         );
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
-        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+        assert_ok!(GearPallet::<Test>::claim_value(
             Origin::signed(USER_1),
             mail_id,
         ));
@@ -4394,7 +4394,7 @@ fn test_async_messages() {
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
             assert_eq!(last_mail.payload(), b"PONG");
-            assert_ok!(Gear::claim_value_from_mailbox(
+            assert_ok!(Gear::claim_value(
                 Origin::signed(USER_1),
                 last_mail.id()
             ));

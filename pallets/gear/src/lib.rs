@@ -1716,8 +1716,8 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
-        #[pallet::weight(<T as Config>::WeightInfo::claim_value_from_mailbox())]
-        pub fn claim_value_from_mailbox(
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
+        pub fn claim_value(
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
