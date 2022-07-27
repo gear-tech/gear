@@ -36,7 +36,7 @@ mod property_tests;
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use negative_imbalance::NegativeImbalance;
-pub use node::{GasNode, GasNodeType};
+pub use node::GasNode;
 pub use positive_imbalance::PositiveImbalance;
 
 /// Abstraction for a chain of value items each piece of which has an attributed owner and

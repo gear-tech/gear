@@ -41,7 +41,7 @@ use gear_core_errors::MemoryError;
 use wasmi::{
     memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef,
     ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef,
-    RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap, TrapKind,
+    RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
 };
 
 #[derive(Debug, derive_more::Display)]
@@ -136,7 +136,7 @@ impl<'a, T, E> Externals for GuestExternals<'a, T, E> {
                 ReturnValue::Value(v) => Some(v),
                 ReturnValue::Unit => None,
             }),
-            Err(_e) => Err(TrapKind::Host(Box::new(DummyHostError)).into()),
+            Err(_e) => Err(Trap::Host(Box::new(DummyHostError))),
         }
     }
 }
@@ -459,6 +459,10 @@ where
             Ok(())
         };
 
+        // Page which is right after stack last page
+        let stack_end_page = self.get_stack_mem_end();
+        log::trace!("Stack end page = {stack_end_page:?}");
+
         let Runtime {
             ext,
             memory,
@@ -467,13 +471,13 @@ where
 
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
-        let (info, trap_explanation) =
-            ext.into_inner()
-                .into_ext_info(&memory)
-                .map_err(|(reason, gas_amount)| BackendError {
-                    reason: WasmiEnvironmentError::Memory(reason),
-                    gas_amount,
-                })?;
+        let (info, trap_explanation) = ext
+            .into_inner()
+            .into_ext_info(&memory, stack_end_page.unwrap_or_default())
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason: WasmiEnvironmentError::Memory(reason),
+                gas_amount,
+            })?;
 
         let termination = if res.is_err() {
             let reason = trap_explanation
