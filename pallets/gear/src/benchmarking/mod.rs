@@ -132,7 +132,7 @@ where
         let salt = vec![0xff];
         let addr = ProgramId::generate(module.hash, &salt).into_origin();
 
-        Gear::<T>::submit_program_raw(
+        Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
             module.code,
             salt,
@@ -390,7 +390,7 @@ benchmarks! {
     //
     // We cannot let `c` grow to the maximum code size because the code is not allowed
     // to be larger than the maximum size **after instrumentation**.
-    submit_program {
+    upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
         let s in 0 .. code::max_pages::<T>() * 64 * 128;
         let salt = vec![42u8; s as usize];
@@ -458,7 +458,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
         process_queue::<T>();
     }
     verify {
@@ -472,7 +472,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
         process_queue::<T>();
     }
     verify {

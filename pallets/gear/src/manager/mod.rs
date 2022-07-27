@@ -181,7 +181,7 @@ where
     }
 
     pub fn set_program(&self, program_id: ProgramId, code_id: CodeId, message_id: MessageId) {
-        // Program can be added to the storage only with code, which is done in `submit_program` extrinsic.
+        // Program can be added to the storage only with code, which is done in `upload_program` extrinsic.
         // Code can exist without program, but the latter can't exist without code.
         assert!(
             T::CodeStorage::exists(code_id),

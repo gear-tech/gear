@@ -381,7 +381,7 @@ pub mod pallet {
         ///
         /// Occurs when trying to get a program code from storage, that doesn't exist.
         CodeNotExists,
-        /// The code supplied to `upload_code` or `submit_program` exceeds the limit specified in the
+        /// The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the
         /// current schedule.
         CodeTooLarge,
         /// Failed to create a program.
@@ -467,7 +467,7 @@ pub mod pallet {
     {
         /// Submit program for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
-        pub fn submit_program_raw(
+        pub fn upload_program_raw(
             origin: OriginFor<T>,
             code: Vec<u8>,
             salt: Vec<u8>,
@@ -696,9 +696,9 @@ pub mod pallet {
             match kind {
                 HandleKind::Init(code) => {
                     let salt = b"calculate_gas_salt".to_vec();
-                    Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
+                    Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|e| {
-                            format!("Internal error: submit_program failed with '{:?}'", e)
+                            format!("Internal error: upload_program failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
                 }
@@ -1462,9 +1462,9 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::weight(
-            <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
         )]
-        pub fn submit_program(
+        pub fn upload_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
             salt: Vec<u8>,
@@ -1505,7 +1505,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0)]
+        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
             code_id: CodeId,
