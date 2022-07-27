@@ -38,7 +38,7 @@ pub struct Reply {
 impl Reply {
     pub async fn exec(&self, api: Api) -> Result<()> {
         let events = api.events().await?;
-        let (sp, wis) = tokio::join!(
+        let r = tokio::try_join!(
             self.send_reply(&api),
             Api::wait_for(events, |event| {
                 if let GearEvent::MessagesDispatched { .. } = event {
@@ -49,7 +49,7 @@ impl Reply {
             })
         );
 
-        (sp?, wis?);
+        r?;
 
         Ok(())
     }

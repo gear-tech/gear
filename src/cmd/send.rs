@@ -43,7 +43,7 @@ pub struct Send {
 impl Send {
     pub async fn exec(&self, api: Api) -> Result<()> {
         let events = api.events().await?;
-        let (sp, wis) = tokio::join!(
+        let r = tokio::try_join!(
             self.send_message(&api),
             Api::wait_for(events, |event| {
                 if let GearEvent::MessagesDispatched { .. } = event {
@@ -54,7 +54,7 @@ impl Send {
             })
         );
 
-        (sp?, wis?);
+        r?;
 
         Ok(())
     }
