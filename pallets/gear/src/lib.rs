@@ -1505,6 +1505,22 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Creates program via `code_id` from storage.
+        ///
+        /// Parameters:
+        /// - `code_id`: wasm code id in the code storage.
+        /// - `salt`: randomness term (a seed) to allow programs with identical code
+        ///   to be created independently.
+        /// - `init_payload`: encoded parameters of the wasm module `init` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
+        ///
+        /// # NOTE
+        ///
+        /// For the details of this extrinsic, see `upload_code`.
         #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,

@@ -308,10 +308,7 @@ fn mailbox_rent_claimed() {
             utils::assert_balance(sender, prog_balance - data.value, data.value);
             assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-            assert_ok!(Gear::claim_value(
-                Origin::signed(USER_2),
-                message_id
-            ));
+            assert_ok!(Gear::claim_value(Origin::signed(USER_2), message_id));
 
             utils::assert_balance(
                 USER_1,
@@ -4394,10 +4391,7 @@ fn test_async_messages() {
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
             assert_eq!(last_mail.payload(), b"PONG");
-            assert_ok!(Gear::claim_value(
-                Origin::signed(USER_1),
-                last_mail.id()
-            ));
+            assert_ok!(Gear::claim_value(Origin::signed(USER_1), last_mail.id()));
         }
 
         assert!(!Gear::is_terminated(pid));
