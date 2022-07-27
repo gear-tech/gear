@@ -2472,6 +2472,9 @@ fn test_create_program_works() {
             code_id,
             vec![],
             Vec::new(),
+            // # TODO
+            //
+            // Calculate the gas spent after #1242.
             10_000_000_000u64,
             0u128
         ));
@@ -2494,6 +2497,9 @@ fn test_create_program_works() {
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
+            // # TODO
+            //
+            // Calculate the gas spent after #1242.
             10_000_000_000u64,
             0,
         ));

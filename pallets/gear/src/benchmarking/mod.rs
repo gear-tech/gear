@@ -353,6 +353,31 @@ benchmarks! {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
 
+    // The size of the salt influences the runtime because is is hashed in order to
+    // determine the program address.
+    //
+    // `s`: Size of the salt in kilobytes.
+    create_program {
+        let s in 0 .. code::max_pages::<T>() * 64 * 128;
+
+        let caller = whitelisted_caller();
+        let origin = RawOrigin::Signed(caller);
+
+        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::dummy();
+        Gear::<T>::submit_code(origin.clone().into(), code).expect("submit code failed");
+
+        let salt = vec![42u8; s as usize];
+        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let caller = whitelisted_caller();
+        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let origin = RawOrigin::Signed(caller);
+
+        init_block::<T>();
+    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value)
+    verify {
+        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+    }
+
     // This constructs a program that is maximal expensive to instrument.
     // It creates a maximum number of metering blocks per byte.
     // The size of the salt influences the runtime because is is hashed in order to
