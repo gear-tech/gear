@@ -17,18 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    internal::HoldBound,
     manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
-        GearProgram, MailboxThreshold, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER,
-        USER_1, USER_2, USER_3,
+        GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, Error, Event, GasAllowanceOf, GasHandlerOf, GasInfo,
-    GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
+    GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
-    event::*, program_exists, storage::*, CodeStorage, GasPrice as _, GasTree, Origin as _,
+    event::*, program_exists, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree,
+    Origin as _,
 };
 use core_processor::common::ExecutionErrorReason;
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
@@ -37,9 +38,12 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 use frame_support::{
-    assert_noop, assert_ok, dispatch::Dispatchable, sp_runtime::traits::Zero, traits::Currency,
+    assert_noop, assert_ok,
+    dispatch::Dispatchable,
+    sp_runtime::traits::{TypedGet, Zero},
+    traits::Currency,
 };
-use frame_system::Pallet as SystemPallet;
+use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
     code::Code,
@@ -47,6 +51,7 @@ use gear_core::{
 };
 use gear_core_errors::*;
 use pallet_balances::{self, Pallet as BalancesPallet};
+use sp_runtime::SaturatedConversion;
 use utils::*;
 
 #[test]
@@ -106,6 +111,311 @@ fn unstoppable_block_execution_works() {
             user_balance - real_gas_to_burn
         );
     })
+}
+
+#[test]
+fn mailbox_rent_out_of_rent() {
+    use demo_value_sender::{TestData, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let sender = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(sender));
+
+        // Message removes due to out of rent condition.
+        //
+        // For both cases value moves back to program.
+        let cases = [
+            // Gasful message.
+            TestData::gasful(20_000, 1_000),
+            // Gasless message.
+            TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
+        ];
+
+        let mb_cost = CostsPerBlockOf::<Test>::mailbox();
+        let reserve_for = CostsPerBlockOf::<Test>::reserve_for();
+
+        for data in cases {
+            let user_1_balance = Balances::free_balance(USER_1);
+            assert_eq!(Balances::reserved_balance(USER_1), 0);
+
+            let user_2_balance = Balances::free_balance(USER_2);
+            assert_eq!(Balances::reserved_balance(USER_2), 0);
+
+            let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
+            assert_eq!(
+                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                0
+            );
+
+            let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
+                USER_1,
+                sender,
+                data.request(USER_2).encode(),
+                Some(data.extra_gas),
+                0,
+            );
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+                GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance, 0u128);
+            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+            run_to_next_block(None);
+
+            let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
+                .maximum_for(data.gas_limit_to_send);
+
+            let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
+
+            assert_eq!(
+                hold_bound.expected_duration(),
+                expected_duration.saturated_into::<BlockNumberFor<Test>>()
+            );
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
+                GasPrice::gas_price(data.gas_limit_to_send),
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance - data.value, data.value);
+            assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+            run_to_block(hold_bound.expected(), None);
+
+            let gas_totally_burned =
+                gas_info.burned + data.gas_limit_to_send - reserve_for * mb_cost;
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_totally_burned),
+                0u128,
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance, 0u128);
+            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+        }
+    });
+}
+
+#[test]
+fn mailbox_rent_claimed() {
+    use demo_value_sender::{TestData, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let sender = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(sender));
+
+        // Message removes due to claim.
+        //
+        // For both cases value moves to destination user.
+        let cases = [
+            // Gasful message and 10 blocks of hold in mailbox.
+            (TestData::gasful(20_000, 1_000), 10),
+            // Gasless message and 5 blocks of hold in mailbox.
+            (
+                TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
+                5,
+            ),
+        ];
+
+        let mb_cost = CostsPerBlockOf::<Test>::mailbox();
+
+        for (data, duration) in cases {
+            let user_1_balance = Balances::free_balance(USER_1);
+            assert_eq!(Balances::reserved_balance(USER_1), 0);
+
+            let user_2_balance = Balances::free_balance(USER_2);
+            assert_eq!(Balances::reserved_balance(USER_2), 0);
+
+            let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
+            assert_eq!(
+                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                0
+            );
+
+            let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
+                USER_1,
+                sender,
+                data.request(USER_2).encode(),
+                Some(data.extra_gas),
+                0,
+            );
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+                GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance, 0u128);
+            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+            run_to_next_block(None);
+
+            let message_id = utils::get_last_message_id();
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
+                GasPrice::gas_price(data.gas_limit_to_send),
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance - data.value, data.value);
+            assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+            run_to_block(
+                System::block_number() + duration.saturated_into::<BlockNumberFor<Test>>(),
+                None,
+            );
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
+                GasPrice::gas_price(data.gas_limit_to_send),
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance - data.value, data.value);
+            assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+            assert_ok!(Gear::claim_value_from_mailbox(
+                Origin::signed(USER_2),
+                message_id
+            ));
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.burned + duration * mb_cost),
+                0u128,
+            );
+            utils::assert_balance(USER_2, user_2_balance + data.value, 0u128);
+            utils::assert_balance(sender, prog_balance - data.value, 0u128);
+            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+        }
+    });
+}
+
+#[test]
+fn mailbox_sending_instant_transfer() {
+    use demo_value_sender::{SendingRequest, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::submit_program(
+            Origin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let sender = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(sender));
+
+        // Message doesn't add to mailbox.
+        //
+        // For both cases value moves to destination user instantly.
+        let cases = [
+            // Zero gas for gasful sending.
+            (Some(0), 1_000),
+            // Gasless message.
+            (None, 3_000),
+        ];
+
+        for (gas_limit, value) in cases {
+            let user_1_balance = Balances::free_balance(USER_1);
+            assert_eq!(Balances::reserved_balance(USER_1), 0);
+
+            let user_2_balance = Balances::free_balance(USER_2);
+            assert_eq!(Balances::reserved_balance(USER_2), 0);
+
+            let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
+            assert_eq!(
+                Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+                0
+            );
+
+            let payload = if let Some(gas_limit) = gas_limit {
+                SendingRequest::gasful(USER_2, gas_limit, value)
+            } else {
+                SendingRequest::gasless(USER_2, value)
+            };
+
+            // Used like that, because calculate gas info always provides
+            // message into mailbox while sending without gas.
+            let gas_info = Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(sender),
+                payload.clone().encode(),
+                0,
+                true,
+            )
+            .expect("calculate_gas_info failed");
+
+            assert_ok!(Gear::send_message(
+                Origin::signed(USER_1),
+                sender,
+                payload.encode(),
+                gas_info.burned + gas_limit.unwrap_or_default(),
+                0
+            ));
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance
+                    - GasPrice::gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
+                GasPrice::gas_price(gas_info.burned + gas_limit.unwrap_or_default()),
+            );
+            utils::assert_balance(USER_2, user_2_balance, 0u128);
+            utils::assert_balance(sender, prog_balance, 0u128);
+            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+            run_to_next_block(None);
+
+            utils::assert_balance(
+                USER_1,
+                user_1_balance - GasPrice::gas_price(gas_info.burned),
+                0u128,
+            );
+            utils::assert_balance(USER_2, user_2_balance + value, 0u128);
+            utils::assert_balance(sender, prog_balance - value, 0u128);
+            assert!(MailboxOf::<Test>::is_empty(&USER_2));
+        }
+    });
 }
 
 #[test]
@@ -255,7 +565,7 @@ fn mailbox_threshold_works() {
         ));
 
         let proxy = utils::get_last_program_id();
-        let rent = MailboxThreshold::get();
+        let rent = <Test as Config>::MailboxThreshold::get();
         let check_result = |sufficient: bool| -> MessageId {
             run_to_next_block(None);
 
@@ -1426,7 +1736,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
                 DEFAULT_GAS_LIMIT,
                 0
             ),
-            pallet_gear_messenger::Error::<Test>::MailboxElementNotFound
+            Error::<Test>::MessageNotFound
         );
 
         let prog_id = {
@@ -1565,6 +1875,9 @@ fn claim_value_from_mailbox_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
+        let bn_of_insertion = SystemPallet::<Test>::block_number();
+        let holding_duration = 4;
+
         let GasInfo {
             burned: gas_burned, ..
         } = Gear::calculate_gas_info(
@@ -1578,7 +1891,9 @@ fn claim_value_from_mailbox_works() {
 
         let gas_burned = GasPrice::gas_price(gas_burned);
 
-        run_to_block(3, None);
+        run_to_block(bn_of_insertion + holding_duration, None);
+
+        let block_producer_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
             Origin::signed(USER_1),
@@ -1594,11 +1909,16 @@ fn claim_value_from_mailbox_works() {
             expected_claimer_balance
         );
 
+        let burned_for_hold = (holding_duration * CostsPerBlockOf::<Test>::mailbox()) as u128;
         // Gas left returns to sender from consuming of value tree while claiming.
-        let expected_sender_balance = sender_balance - value_sent - gas_burned;
+        let expected_sender_balance = sender_balance - value_sent - gas_burned - burned_for_hold;
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_2),
             expected_sender_balance
+        );
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
+            block_producer_balance + burned_for_hold
         );
 
         SystemPallet::<Test>::assert_last_event(
@@ -2043,7 +2363,8 @@ fn wake_messages_after_program_inited() {
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let program_id = submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("todo");
+        let program_id =
+            submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("Failed to init");
         let code_hash =
             generate_code_hash(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
         let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
@@ -2962,7 +3283,11 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(4, None);
 
-        assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), before_balance);
+        let after_hold_balance = before_balance - CostsPerBlockOf::<Test>::mailbox() as u128;
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            after_hold_balance
+        );
     })
 }
 
@@ -4063,7 +4388,10 @@ fn test_async_messages() {
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
             assert_eq!(last_mail.payload(), b"PONG");
-            MailboxOf::<Test>::remove(USER_1, last_mail.id()).expect("remove last mail failed");
+            assert_ok!(Gear::claim_value_from_mailbox(
+                Origin::signed(USER_1),
+                last_mail.id()
+            ));
         }
 
         assert!(!Gear::is_terminated(pid));
@@ -4072,6 +4400,11 @@ fn test_async_messages() {
 
 mod utils {
     #![allow(unused)]
+
+    use crate::{
+        mock::{Balances, Gear},
+        BalanceOf, GasInfo, HandleKind,
+    };
 
     use super::{
         assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MailboxOf, MockEvent,
@@ -4086,8 +4419,9 @@ mod utils {
     use core_processor::common::ExecutionErrorReason;
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
-        traits::tokens::currency::Currency,
+        traits::tokens::{currency::Currency, Balance},
     };
+    use frame_system::pallet_prelude::OriginFor;
     use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
@@ -4113,6 +4447,47 @@ mod utils {
             .format_module_path(false)
             .format_level(true)
             .try_init();
+    }
+
+    pub(super) fn assert_balance(
+        origin: impl common::Origin,
+        free: impl Into<BalanceOf<Test>>,
+        reserved: impl Into<BalanceOf<Test>>,
+    ) {
+        let account_id = AccountId::from_origin(origin.into_origin());
+        assert_eq!(Balances::free_balance(account_id), free.into());
+        assert_eq!(Balances::reserved_balance(account_id), reserved.into());
+    }
+
+    pub(super) fn calculate_handle_and_send_with_extra(
+        origin: AccountId,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: Option<u64>,
+        value: BalanceOf<Test>,
+    ) -> (MessageId, GasInfo) {
+        let gas_info = Gear::calculate_gas_info(
+            origin.into_origin(),
+            HandleKind::Handle(destination),
+            payload.clone(),
+            value,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        let limit = gas_info.min_limit + gas_limit.unwrap_or_default();
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(origin),
+            destination,
+            payload,
+            limit,
+            value
+        ));
+
+        let message_id = get_last_message_id();
+
+        (message_id, gas_info)
     }
 
     pub(super) fn get_ed() -> u128 {
@@ -4535,8 +4910,8 @@ mod utils {
         }
     }
 
-    pub(super) fn print_gear_events<T: crate::Config>() {
-        let v = SystemPallet::<T>::events()
+    pub(super) fn print_gear_events() {
+        let v = SystemPallet::<Test>::events()
             .into_iter()
             .map(|r| r.event)
             .collect::<Vec<_>>();
