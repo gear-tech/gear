@@ -1682,9 +1682,8 @@ pub mod pallet {
 
             // # Safety
             //
-            // This is unreachable since the `message_id` is new generated
-            // from `original_message` by our system, and `original_message`
-            // has just been removed from the mailbox.
+            //  The error is unreachable since the `message_id` is new generated
+            //  from the checked `original_message`."
             GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
