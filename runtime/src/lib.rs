@@ -115,16 +115,18 @@ pub mod opaque {
     }
 }
 
+// The version of the runtime specification.
+//
+// Full node will not attempt to use its native runtime in substitute for the
+// on-chain WASM runtime unless all of `spec_name`, `spec_version`, and
+// `authoring_version` are the same between WASM and native.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("gear-node"),
     impl_name: create_runtime_str!("gear-node"),
-    authoring_version: 1,
-    // The version of the runtime specification. A full node will not attempt to use its native
-    //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
-    //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1420,
-    impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
+    authoring_version: 1,
+    spec_version: 1430,
+    impl_version: 1,
     transaction_version: 1,
     state_version: 1,
 };
