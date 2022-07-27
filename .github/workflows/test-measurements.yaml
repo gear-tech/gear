@@ -121,87 +121,45 @@ jobs:
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-instruction-weights.json instruction
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-memory-weights.json memory
 
-      - name: "Store result: Gear workspace tests"
-        uses: benchmark-action/github-action-benchmark@v1
+      - name: "Deploy: Gear workspace tests"
+        uses: ./.github/workflows/deploy-benchmark.yml
         with:
           name: Gear workspace tests
-          tool: 'customSmallerIsBetter'
-          output-file-path: ./target/action-pallet-output.json
-          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
-          fail-on-alert: true
-          # Push and deploy GitHub pages branch automatically
-          auto-push: true
-          gh-repository: github.com/gear-tech/performance-charts
-          gh-pages-branch: master
-          benchmark-data-dir-path: ./
-          
-      - name: "Store result: Clean after run"
-        run: rm -r ./benchmark-data-repository
-       
-      - name: "Store result: Node runtime tests"
-        uses: benchmark-action/github-action-benchmark@v1
+          file: ./target/action-pallet-output.json
+        secrets:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+
+      - name: "Deploy: Node runtime tests"
+        uses: ./.github/workflows/deploy-benchmark.yml
         with:
           name: Node runtime tests
-          tool: 'customSmallerIsBetter'
-          output-file-path: ./target/action-runtime-output.json
-          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
-          fail-on-alert: true
-          # Push and deploy GitHub pages branch automatically
-          auto-push: true
-          gh-repository: github.com/gear-tech/performance-charts
-          gh-pages-branch: master
-          benchmark-data-dir-path: ./
+          file: ./target/action-runtime-output.json
+        secrets:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
 
-      - name: "Store result: Clean after run"
-        run: rm -r ./benchmark-data-repository
-
-      - name: "Store result: pallet-gear host function weights"
-        uses: benchmark-action/github-action-benchmark@v1
+      - name: "Deploy: pallet-gear host function weights"
+        uses: ./.github/workflows/deploy-benchmark.yml
         with:
           name: pallet-gear host function weights
-          tool: 'customSmallerIsBetter'
-          output-file-path: ./target/action-hostfn-weights.json
-          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
-          fail-on-alert: true
-          # Push and deploy GitHub pages branch automatically
-          auto-push: true
-          gh-repository: github.com/gear-tech/performance-charts
-          gh-pages-branch: master
-          benchmark-data-dir-path: ./
-          
-      - name: "Store result: Clean after run"
-        run: rm -r ./benchmark-data-repository
+          file: ./target/action-hostfn-weights.json
+        secrets:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
 
-      - name: "Store result: pallet-gear instruction weights"
-        uses: benchmark-action/github-action-benchmark@v1
+      - name: "Deploy: pallet-gear instruction weights"
+        uses: ./.github/workflows/deploy-benchmark.yml
         with:
           name: pallet-gear instruction weights
-          tool: 'customSmallerIsBetter'
-          output-file-path: ./target/action-instruction-weights.json
-          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
-          fail-on-alert: true
-          # Push and deploy GitHub pages branch automatically
-          auto-push: true
-          gh-repository: github.com/gear-tech/performance-charts
-          gh-pages-branch: master
-          benchmark-data-dir-path: ./
-          
-      - name: "Store result: pallet-gear memory weights"
-        run: rm -r ./benchmark-data-repository
+          file: ./target/action-instruction-weights.json
+        secrets:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
 
-      - name: "Store result: Node runtime tests"
-        uses: benchmark-action/github-action-benchmark@v1
+      - name: "Deploy: pallet-gear memory weights"
+        uses: ./.github/workflows/deploy-benchmark.yml
         with:
-          name: pallet-gear memory weights
-          tool: 'customSmallerIsBetter'
-          output-file-path: ./target/action-memory-weights.json
-          github-token: ${{ secrets.PERFORMANCE_CHARTS }}
-          fail-on-alert: true
-          # Push and deploy GitHub pages branch automatically
-          auto-push: true
-          gh-repository: github.com/gear-tech/performance-charts
-          gh-pages-branch: master
-          benchmark-data-dir-path: ./
+          name: pallet-gear instruction weights
+          file: ./target/action-memory-weights.json
+        secrets:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
 
       - name: "Cache: collected data"
         run: |
