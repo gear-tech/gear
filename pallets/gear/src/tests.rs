@@ -2124,6 +2124,66 @@ fn exit_init() {
 }
 
 #[test]
+fn test_create_program_works() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            code.clone(),
+        ));
+
+        // Parse wasm code.
+        let schedule = <Test as Config>::Schedule::get();
+        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+            schedule.rules(module)
+        })
+        .expect("Code failed to load");
+
+        let code_id = CodeId::generate(code.raw_code());
+        assert_ok!(GearPallet::<Test>::create_program(
+            Origin::signed(USER_1),
+            code_id,
+            vec![],
+            Vec::new(),
+            10_000_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+
+        run_to_next_block(None);
+
+        // there should be one message for the program author
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1),
+            message_id,
+            b"PONG".to_vec(),
+            10_000_000_000u64,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(program_id));
+    })
+}
+
+#[test]
 fn test_create_program_no_code_hash() {
     let non_constructable_wat = r#"
     (module)
