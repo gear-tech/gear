@@ -11,6 +11,7 @@ runs:
   steps:
     - name: "Clean after run"
       run: rm -rf ./benchmark-data-repository
+      shell: bash
     - name: "Store result"
       uses: benchmark-action/github-action-benchmark@v1
       with:
