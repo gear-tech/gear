@@ -37,8 +37,8 @@ pub(super) fn assert_removed_nodes_props(
     assert_removed_nodes_form_path(consumed, remaining_nodes, removed_nodes);
 }
 
-// Check that if node was consumed, but not removed, it's of `SpecifiedLocal` or `External` types.
-// So not `UnspecifiedLocal` or `ReservedLocal`
+// Check that if node was consumed, but not removed, it's one of `External` or
+// `SpecifiedLocal` type. So not `UnspecifiedLocal` or `ReservedLocal`
 fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes) {
     if let Some(consumed) = remaining_nodes.get(&consumed) {
         // Node was not removed after consume, so should be of specific types
@@ -46,8 +46,9 @@ fn assert_not_removed_node_type(consumed: Key, remaining_nodes: &RemainingNodes)
     }
 }
 
-// Check cascade consumption can't remove unspec nodes, they are removed only from `consume` call,
-// so not more than one unspec node is removed after `consume` call.
+// Check cascade consumption can't remove unspec nodes, they are removed only
+// from `consume` call, so not more than one unspec node is removed after
+// `consume` call.
 fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
     let removed_unspec_count = removed_nodes
         .values()
@@ -57,15 +58,23 @@ fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
 }
 
 // Check that for all the removed nodes:
-// 1. **They don't have children**.
-// Actually we check that they have 1 child ref, each of which points to the node in `removed_nodes`.
-// It's the same to say, that removed nodes have no refs, because `removed_nodes` data is gathered
-// from the tree before calling [`ValueTree::consume`] procedure, when `removed_nodes` have at most
-// 1 child ref. Obviously, it's impossible to get node's data after it was deleted to be sure it had
-// 0 refs after deletion. The only node which can be checked to have 0 refs is the `consumed` one.
-// 2. **They are marked consumed**.
-// That is true for all the removed nodes except for the `consumed` one, because when it's removed
-// it's redundant to update it's status in the persistence layer to `consumed`.
+// 1. **They don't have children**
+//
+// Actually we check that they have one child ref, each of which points to the
+// node in `removed_nodes`. It's the same to say, that removed nodes have no
+// refs, because `removed_nodes` data is gathered from the tree before
+// calling [`ValueTree::consume`] procedure, when `removed_nodes` have
+// at most one child ref.
+//
+// Obviously, it's impossible to get node's data after it was deleted to be sure
+// it had no refs after deletion. The only node which can be checked to have no
+// refs is the `consumed` one.
+//
+// 2. **They are marked consumed.**
+//
+// That is true for all the removed nodes except for the `consumed` one, because
+// when it's removed it's redundant to update it's status in the persistence
+// layer to `consumed`.
 fn assert_removed_nodes_are_consumed(
     consumed: Key,
     marked_consumed_nodes: &BTreeSet<Key>,
@@ -79,7 +88,7 @@ fn assert_removed_nodes_are_consumed(
             assert!(node.refs() == 0);
         }
 
-        // Check that they were explicitly consumed, not automatically
+        // Check that they were explicitly consumed, not automatically.
         assert!(marked_consumed_nodes.contains(id))
     }
 }
@@ -110,11 +119,13 @@ fn assert_removed_nodes_form_path(
 }
 
 // Check that `root_node` was removed the last.
-// That is done the following way. Each time `consume` procedure is called we check `root_node` for existence.
-// If it was removed after a new `consume` call, then all the tree must be empty. So no nodes can be removed
-// after root was removed in the `consume` call.
+//
+// That is done the following way: each time `consume` procedure is called we
+// check `root_node` for existence. If it was removed after a new `consume`
+// call, then all the tree must be empty. So no nodes can be removed after
+// root was removed in the `consume` call.
 pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: RemainingNodes) {
-    if Gas::get_node(root_node).is_none() {
+    Gas::get_node(root_node).is_none().then(|| {
         assert_eq!(
             remaining_nodes
                 .iter()
@@ -122,12 +133,13 @@ pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: Remainin
                 .count(),
             0
         );
-    }
+    });
 }
 
-// Check that returned dispatch error is not of invariant error variants
+// Check that returned dispatch error is not of invariant error variants.
 pub(super) fn assert_not_invariant_error(err: super::Error) {
     use super::Error::*;
+
     match err {
         ParentIsLost
         | ParentHasNoChildren
@@ -135,7 +147,7 @@ pub(super) fn assert_not_invariant_error(err: super::Error) {
         | UnexpectedNodeType
         | ValueIsNotCaught
         | ValueIsBlocked
-        | ValueIsNotBlocked => panic!("invariant error occurred {:?}", err),
+        | ValueIsNotBlocked => panic!("Invariant error occurred {:?}", err),
         _ => log::error!("Non invariant error occurred: {:?}", err),
     }
 }

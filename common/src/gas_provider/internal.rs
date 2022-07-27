@@ -75,14 +75,15 @@ where
         StorageMap::get(&key)
     }
 
-    /// Returns the first parent, that is able to hold a concrete value, but doesn't
-    /// necessarily have a non-zero value, along with it's id
+    /// Returns the first parent, that is able to hold a concrete value, but
+    /// doesn't necessarily have a non-zero value, along with it's id.
     ///
-    /// Node itself is considered as a self-parent too. The gas tree holds invariant, that
-    /// all the nodes with unspecified value always have a parent with a specified value.
+    /// Node itself is considered as a self-parent too. The gas tree holds
+    /// invariant, that all the nodes with unspecified value always have a
+    /// parent with a specified value.
     ///
-    /// The id of the returned node is of `Option` type. If it's `None`, it means, that
-    /// the ancestor and `self` are the same.
+    /// The id of the returned node is of `Option` type. If it's `None`, it
+    /// means, that the ancestor and `self` are the same.
     pub(super) fn node_with_value(
         node: StorageMap::Value,
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
@@ -99,11 +100,12 @@ where
         Ok((ret_node, ret_id))
     }
 
-    /// Returns id and data for root node (as [`GasNode`]) of the value tree, which contains the `node`.
-    /// If some node along the upstream path is missing, returns an error (tree is invalidated).
+    /// Returns id and data for root node (as [`GasNode`]) of the value tree,
+    /// which contains the `node`. If some node along the upstream path is
+    /// missing, returns an error (tree is invalidated).
     ///
-    /// As in [`TreeImpl::node_with_value`], root's id is of `Option` type. It is equal to `None` in case
-    /// `node` is a root node.
+    /// As in [`TreeImpl::node_with_value`], root's id is of `Option` type. It
+    /// is equal to `None` in case `node` is a root node.
     pub(super) fn root(
         node: StorageMap::Value,
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
@@ -149,13 +151,14 @@ where
     /// If the node is a patron or of unspecified type, value is blocked, i.e.
     /// can't be removed or impossible to hold value to be removed.
     ///
-    /// If the node is not a patron, but it has an ancestor patron, value is moved
-    /// to it. So the patron's balance is increased (mutated). Otherwise the value
-    /// is caught and removed from the tree. In both cases the `self` node's balance
-    /// is zeroed.
+    /// If the node is not a patron, but it has an ancestor patron, value is
+    /// moved to it. So the patron's balance is increased (mutated).
+    /// Otherwise the value is caught and removed from the tree. In both
+    /// cases the `self` node's balance is zeroed.
     ///
     /// # Note
-    /// Method doesn't mutate `self` in the storage, but only changes it's balance in memory.
+    /// Method doesn't mutate `self` in the storage, but only changes it's
+    /// balance in memory.
     fn catch_value(node: &mut StorageMap::Value) -> Result<CatchValueOutput<Balance>, Error> {
         if node.is_patron() {
             return Ok(CatchValueOutput::Blocked);
@@ -194,10 +197,12 @@ where
 
     /// Looks for `self` node's patron ancestor.
     ///
-    /// A patron node is the node, on which some other nodes in the tree rely. More precisely,
-    /// unspecified local nodes rely on nodes with value, so these specified nodes (`ValueType::External`, `ValueType::SpecifiedLocal`)
-    /// are patron ones. The other criteria for a node to be marked as the patron one is not
-    /// being consumed - value of such nodes mustn't be moved, because node itself rely on it.
+    /// A patron node is the node, on which some other nodes in the tree rely.
+    /// More precisely, unspecified local nodes rely on nodes with value, so
+    /// specified nodes as `GasNode::External` and `GasNode::SpecifiedLocal`
+    /// are patron ones. The other criteria for a node to be marked as the
+    /// patron one is not being consumed - value of such nodes mustn't be
+    /// moved, because node itself rely on it.
     fn find_ancestor_patron(
         node: &StorageMap::Value,
     ) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
@@ -226,28 +231,38 @@ where
         }
     }
 
-    /// Tries to remove consumed nodes on the same path from the `key` node to the
-    /// root (including it). While trying to remove nodes, also catches value stored
-    /// in them is performed.
+    /// Tries to remove consumed nodes on the same path from the `key` node to
+    /// the root (including it). While trying to remove nodes, also catches
+    /// value stored in them is performed.
     ///
-    /// Value catch is performed for all the non-patron nodes on the path from `key` to root,
-    /// until some patron node is reached. By the invariant, catching can't be blocked,
-    /// because the node is not a patron.
+    /// Value catch is performed for all the non-patron nodes on the path from
+    /// `key` to root, until some patron node is reached. By the invariant,
+    /// catching can't be blocked, because the node is not a patron.
     ///
     /// For node removal there are 2 main requirements:
-    /// 1. it's not a patron node
-    /// 2. it doesn't have any children nodes.
+    /// 1. It's not a patron node
+    /// 2. It doesn't have any children nodes.
     ///
-    /// Although the value in nodes is moved or returned to the origin, calling `ValueNode::catch_value`
-    /// in this procedure can still result in catching non-zero value. That's possible for example, when
-    /// Gas-ful parent is consumed and has a gas-less child. When gas-less child is consumed in `ValueTree::consume`
-    /// call, the gas-ful parent's value is caught in this function.
+    /// Although the value in nodes is moved or returned to the origin, calling
+    /// `GasNode::catch_value` in this procedure can still result in catching
+    /// non-zero value. That's possible for example, when gasful parent is
+    /// consumed and has a gas-less child. When gas-less child is consumed
+    /// in `ValueTree::consume` call, the gasful parent's value is caught
+    /// in this function.
     ///
     /// # Invariants
     /// Internal invariant of the procedure:
-    /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.
-    /// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.
-    /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
+    ///
+    /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in
+    /// `consume`, all the calls of catch_value on ancestor nodes will be
+    /// `CatchValueOutput::Missed` as well.
+    ///
+    /// 2. In that case cascade ancestors consumption will last until either
+    /// the patron node or the first ancestor with specified children found.
+    ///
+    /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)`
+    /// in `consume`, all the calls of `catch_value` on ancestor nodes will
+    /// be `CatchValueOutput::Caught(0)`.
     pub(super) fn try_remove_consumed_ancestors(key: MapKey) -> ConsumeResultOf<Self> {
         let mut node_id = key;
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
@@ -331,7 +346,8 @@ where
             }
         };
 
-        // A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call
+        // A `node` is guaranteed to have inner_value here, because
+        // it was queried after `Self::node_with_value` call.
         if node
             .value()
             .ok_or_else(InternalError::unexpected_node_type)?
@@ -427,22 +443,28 @@ where
     /// it's value and delete it. The function performs same procedure with all
     /// the nodes on the path from it to the root, if possible.
     ///
-    /// Marking a node as `consumed` is possible only for `GasNode::External` and `GasNode::SpecifiedLocal`
-    /// nodes. That is because these nodes can be not deleted after the function call, because of, for instance,
-    /// having children refs. `GasNode::UnspecifiedLocal` and `GasNode::ReservedLocal` nodes are removed when the
-    /// function is called, so there is no need for marking them as consumed.
+    /// Marking a node as `consumed` is possible only for `GasNode::External`
+    /// and `GasNode::SpecifiedLocal` nodes. That is because these nodes can
+    /// be not deleted after the function call, because of, for instance,
+    /// having children refs. Such nodes as `GasNode::UnspecifiedLocal`
+    /// and `GasNode::ReservedLocal` are removed when the function is
+    /// called, so there is no need for marking them as consumed.
     ///
-    /// When consuming the node, it's value is mutated by calling `catch_value`, which
-    /// tries to either return or move value upstream if possible. For more info, read
-    /// the `catch_value` function's documentation.
+    /// When consuming the node, it's value is mutated by calling `catch_value`,
+    /// which tries to either return or move value upstream if possible.
+    /// Read the `catch_value` function's documentation for details.
     ///
-    /// Deletion of a node happens only if:
-    /// 1. `Self::consume` was called on the node
+    /// To delete node, here should be two requirements:
+    /// 1. `Self::consume` was called on the node.
     /// 2. The node has no children, i.e. spec/unspec refs.
-    /// So if it's impossible to delete a node, then it's impossible to delete its parent in the current call.
-    /// Also if it's possible to delete a node, then it doesn't necessarily mean that its parent will be deleted.
-    /// An example here could be the case, when during async execution original message went to wait list, so wasn't consumed
-    /// but the one generated during the execution of the original message went to message queue and was successfully executed.
+    ///
+    /// So if it's impossible to delete a node, then it's impossible to delete
+    /// its parent in the current call. Also if it's possible to delete a node,
+    /// then it doesn't necessarily mean that its parent will be deleted. An
+    /// example here could be the case, when during async execution original
+    /// message went to wait list, so wasn't consumed but the one generated
+    /// during the execution of the original message went to message queue
+    /// and was successfully executed.
     fn consume(key: Self::Key) -> ConsumeResultOf<Self> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
@@ -512,7 +534,8 @@ where
         let (mut node, node_id) =
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
 
-        // A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call
+        // A `node` is guaranteed to have inner_value here, because it was
+        // queried after `Self::node_with_value` call.
         let node_value = node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
