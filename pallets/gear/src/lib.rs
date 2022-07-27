@@ -381,7 +381,7 @@ pub mod pallet {
         ///
         /// Occurs when trying to get a program code from storage, that doesn't exist.
         CodeNotExists,
-        /// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
+        /// The code supplied to `upload_code` or `submit_program` exceeds the limit specified in the
         /// current schedule.
         CodeTooLarge,
         /// Failed to create a program.
@@ -523,7 +523,7 @@ pub mod pallet {
 
             let code_id = code_and_id.code_id();
 
-            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
                 // TODO: replace this temporary (`None`) value
@@ -564,7 +564,7 @@ pub mod pallet {
 
         /// Submit code for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
-        pub fn submit_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+        pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
             let schedule = T::Schedule::get();
@@ -1405,9 +1405,9 @@ pub mod pallet {
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::weight(
-            <T as Config>::WeightInfo::submit_code(code.len() as u32)
+            <T as Config>::WeightInfo::upload_code(code.len() as u32)
         )]
-        pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+        pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
             let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
@@ -1433,7 +1433,7 @@ pub mod pallet {
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
         ///
-        /// There is the same guarantee here as in `submit_code`. That is, future program's
+        /// There is the same guarantee here as in `upload_code`. That is, future program's
         /// `code` and metadata are stored before message was added to the queue and processed.
         ///
         /// The origin must be Signed and the sender must have sufficient funds to pay
@@ -1486,7 +1486,7 @@ pub mod pallet {
                 value,
             )?;
 
-            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) =
                 Self::set_code_with_metadata(code_and_id, who.clone().into_origin())

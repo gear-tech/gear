@@ -2020,7 +2020,7 @@ fn test_code_submission_pass() {
         let code_hash = generate_code_hash(&code).into();
         let code_id = CodeId::from_origin(code_hash);
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone()
         ));
@@ -2057,18 +2057,18 @@ fn test_same_code_submission_fails() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone()
         ),);
         // Trying to set the same code twice.
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_1), code.clone()),
+            GearPallet::<Test>::upload_code(Origin::signed(USER_1), code.clone()),
             Error::<Test>::CodeAlreadyExists,
         );
         // Trying the same from another origin
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code),
+            GearPallet::<Test>::upload_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -2105,7 +2105,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 
         // Trying to set the same code twice.
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code),
+            GearPallet::<Test>::upload_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -2120,7 +2120,7 @@ fn test_code_is_not_reset_within_program_submission() {
         let code_id = CodeId::from_origin(code_hash);
 
         // First submit code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone()
         ));
@@ -2454,7 +2454,7 @@ fn test_create_program_works() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone(),
         ));
@@ -2575,7 +2575,7 @@ fn test_create_program_no_code_hash() {
         assert_init_success(0);
 
         assert_noop!(
-            GearPallet::<Test>::submit_code(
+            GearPallet::<Test>::upload_code(
                 Origin::signed(USER_1),
                 invalid_prog_code_kind.to_bytes(),
             ),
@@ -2617,7 +2617,7 @@ fn test_create_program_simple() {
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             child_code,
         ));
@@ -2706,7 +2706,7 @@ fn test_create_program_duplicate() {
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             child_code.clone(),
         ));
@@ -2803,7 +2803,7 @@ fn test_create_program_duplicate_in_one_execution() {
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_2),
             child_code,
         ));
@@ -2888,11 +2888,11 @@ fn test_create_program_miscellaneous() {
         let child1_code_hash = generate_code_hash(&child1_code);
         let child2_code_hash = generate_code_hash(&child2_code);
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_2),
             child1_code,
         ));
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_2),
             child2_code,
         ));
@@ -3684,7 +3684,7 @@ fn test_create_program_with_value_lt_ed() {
         let msg_receiver_2 = 6u64;
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
@@ -3808,7 +3808,7 @@ fn test_create_program_with_exceeding_value() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
@@ -3884,7 +3884,7 @@ fn test_create_program_without_gas_works() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));

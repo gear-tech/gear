@@ -157,7 +157,7 @@ fn init_fixture(
                 )
             })?;
 
-            if let Err(e) = GearPallet::<Runtime>::submit_code(
+            if let Err(e) = GearPallet::<Runtime>::upload_code(
                 Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
                 code_bytes,
             ) {

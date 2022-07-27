@@ -40,7 +40,7 @@ pub trait WeightInfo {
 	fn initial_cost() -> Weight;
 	fn load_cost() -> Weight;
 	fn claim_value_from_mailbox() -> Weight;
-	fn submit_code(c: u32, ) -> Weight;
+	fn upload_code(c: u32, ) -> Weight;
 	fn submit_program(c: u32, s: u32, ) -> Weight;
 	fn send_message(p: u32, ) -> Weight;
 	fn send_reply(p: u32, ) -> Weight;
@@ -153,7 +153,7 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
-	fn submit_code(c: u32, ) -> Weight {
+	fn upload_code(c: u32, ) -> Weight {
 		(97_256_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((51_000 as Weight).saturating_mul(c as Weight))
@@ -680,7 +680,7 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
 	}
-	fn submit_code(c: u32, ) -> Weight {
+	fn upload_code(c: u32, ) -> Weight {
 		(97_256_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((51_000 as Weight).saturating_mul(c as Weight))

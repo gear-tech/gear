@@ -339,7 +339,7 @@ benchmarks! {
     // It creates a maximum number of metering blocks per byte.
     //
     // `c`: Size of the code in kilobytes.
-    submit_code {
+    upload_code {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
@@ -364,7 +364,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::dummy();
-        Gear::<T>::submit_code(origin.clone().into(), code).expect("submit code failed");
+        Gear::<T>::upload_code(origin.into(), code).expect("submit code failed");
 
         let salt = vec![42u8; s as usize];
         let value = <T as pallet::Config>::Currency::minimum_balance();
@@ -1525,7 +1525,7 @@ benchmarks! {
         let value_bytes = 0_u128.encode();
         let value_bytes_len = value_bytes.len();
         let pid_bytes = ProgramId::from(101).encode();
-        let _ = Gear::<T>::submit_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
+        let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
@@ -1588,7 +1588,7 @@ benchmarks! {
         let value_bytes = 0_u128.encode();
         let value_bytes_len = value_bytes.len();
         let pid_bytes = ProgramId::from(101).encode();
-        let _ = Gear::<T>::submit_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
+        let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
