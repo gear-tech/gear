@@ -71,8 +71,8 @@ pub trait Scheduler {
 
     /// Resets all related to messenger storages.
     ///
-    /// It's temporary production solution to avoid DB migrations,
-    /// would be available for tests purposes only in future.
+    /// It's a temporary production solution to avoid DB migrations
+    /// and would be available for test purposes only in the future.
     fn reset() {
         Self::MissedBlocks::kill();
         Self::TaskPool::clear();

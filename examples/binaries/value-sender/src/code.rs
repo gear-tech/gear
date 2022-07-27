@@ -13,6 +13,6 @@ unsafe extern "C" fn handle() {
         msg::send_bytes_with_gas(account_id, [], gas_limit, value)
             .expect("Failed to send gasful message");
     } else {
-        msg::send_bytes(account_id, [], value).expect("Failed to send gasful message");
+        msg::send_bytes(account_id, [], value).expect("Failed to send gasless message");
     }
 }
