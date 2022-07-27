@@ -1315,6 +1315,78 @@ pub mod pallet {
 
             Ok(())
         }
+
+        pub(crate) fn init_packet(
+            who: T::AccountId,
+            code_id: CodeId,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> Result<InitPacket, DispatchError> {
+            let packet = InitPacket::new_with_gas(
+                code_id,
+                salt,
+                init_payload,
+                gas_limit,
+                value.unique_saturated_into(),
+            );
+
+            let program_id = packet.destination();
+            // Make sure there is no program with such id in program storage
+            ensure!(
+                !GearProgramPallet::<T>::program_exists(program_id),
+                Error::<T>::ProgramAlreadyExists
+            );
+
+            let reserve_fee = T::GasPrice::gas_price(gas_limit);
+
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            // and to transfer declared value.
+            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            Ok(packet)
+        }
+
+        pub(crate) fn do_create_program(
+            who: T::AccountId,
+            packet: InitPacket,
+        ) -> Result<(), DispatchError> {
+            let origin = who.clone().into_origin();
+
+            let message_id = Self::next_message_id(origin);
+
+            ExtManager::<T>::default().set_program(
+                packet.destination(),
+                packet.code_id(),
+                message_id,
+            );
+
+            let _ = GasHandlerOf::<T>::create(
+                who.clone(),
+                message_id,
+                packet.gas_limit().expect("Can't fail"),
+            );
+
+            let message = InitMessage::from_packet(message_id, packet);
+            let dispatch = message
+                .into_dispatch(ProgramId::from_origin(origin))
+                .into_stored();
+
+            let event = Event::MessageEnqueued {
+                id: dispatch.id(),
+                source: who,
+                destination: dispatch.destination(),
+                entry: Entry::Init,
+            };
+
+            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+            Self::deposit_event(event);
+
+            Ok(())
+        }
     }
 
     #[pallet::call]
@@ -1411,36 +1483,20 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let code_and_id = Self::check_code(code)?;
-
-            let packet = InitPacket::new_with_gas(
+            let packet = Self::init_packet(
+                who.clone(),
                 code_and_id.code_id(),
                 salt,
                 init_payload,
                 gas_limit,
-                value.unique_saturated_into(),
-            );
-
-            let program_id = packet.destination();
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id),
-                Error::<T>::ProgramAlreadyExists
-            );
-
-            let reserve_fee = T::GasPrice::gas_price(gas_limit);
-
-            // First we reserve enough funds on the account to pay for `gas_limit`
-            // and to transfer declared value.
-            <T as Config>::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let origin = who.clone().into_origin();
-
-            let code_id = code_and_id.code_id();
+                value,
+            )?;
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
+            if let Ok(code_hash) =
+                Self::set_code_with_metadata(code_and_id, who.clone().into_origin())
+            {
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
                 // calculated one (issues #646 and #969).
@@ -1450,31 +1506,7 @@ pub mod pallet {
                 });
             }
 
-            let message_id = Self::next_message_id(origin);
-
-            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
-
-            let _ = GasHandlerOf::<T>::create(
-                who.clone(),
-                message_id,
-                packet.gas_limit().expect("Can't fail"),
-            );
-
-            let message = InitMessage::from_packet(message_id, packet);
-            let dispatch = message
-                .into_dispatch(ProgramId::from_origin(origin))
-                .into_stored();
-
-            let event = Event::MessageEnqueued {
-                id: dispatch.id(),
-                source: who,
-                destination: dispatch.destination(),
-                entry: Entry::Init,
-            };
-
-            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
-
-            Self::deposit_event(event);
+            Self::do_create_program(who, packet)?;
 
             Ok(().into())
         }
