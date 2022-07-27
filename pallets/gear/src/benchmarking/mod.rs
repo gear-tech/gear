@@ -228,7 +228,7 @@ where
         timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
-    let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+    let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
 
     let block_config = BlockConfig {

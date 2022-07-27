@@ -131,7 +131,7 @@ impl<T: Config> HoldBound<T> {
         self.expected
     }
 
-    /// Returns expected duration after task will be processed, since now.
+    /// Returns expected duration before task will be processed, since now.
     pub fn expected_duration(&self) -> BlockNumberFor<T> {
         self.expected
             .saturating_sub(SystemPallet::<T>::block_number())
@@ -146,7 +146,7 @@ impl<T: Config> HoldBound<T> {
             .saturating_add(CostsPerBlockOf::<T>::reserve_for())
     }
 
-    /// Returns deadline duration after task will be processed, since now.
+    /// Returns deadline duration before task will be processed, since now.
     pub fn deadline_duration(&self) -> BlockNumberFor<T> {
         self.deadline()
             .saturating_sub(SystemPallet::<T>::block_number())
@@ -408,7 +408,6 @@ where
         (mailboxed, hold_interval): (StoredMessage, Interval<BlockNumberFor<T>>),
         reason: UserMessageReadReason,
     ) -> StoredMessage {
-        // Local import for code beautification.
         use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
 
         // Charging for holding.
@@ -520,7 +519,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Reserving value from source for future transfer or unreserve.
-            <T as Config>::Currency::reserve(&from, value)
+            CurrencyOf::<T>::reserve(&from, value)
                 .unwrap_or_else(|e| unreachable!("Unable to reserve requested value {:?}", e));
 
             // Inserting message in mailbox.

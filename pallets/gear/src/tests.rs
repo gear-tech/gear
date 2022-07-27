@@ -134,11 +134,13 @@ fn mailbox_rent_out_of_rent() {
 
         assert!(Gear::is_initialized(sender));
 
-        // FOR BOTH CASES VALUE MOVES BACK TO PROGRAM.
+        // Message removes due to out of rent condition.
+        //
+        // For both cases value moves back to program.
         let cases = [
-            // CASE WHEN GASFUL MESSAGE REMOVED DUE TO OUT OF RENT.
+            // Gasful message.
             TestData::gasful(20_000, 1_000),
-            // CASE WHEN GASLESS MESSAGE REMOVED DUE TO OUT OF RENT.
+            // Gasless message.
             TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
         ];
 
@@ -234,11 +236,13 @@ fn mailbox_rent_claimed() {
 
         assert!(Gear::is_initialized(sender));
 
-        // FOR BOTH CASES VALUE MOVES TO DESTINATION USER.
+        // Message removes due to claim.
+        //
+        // For both cases value moves to destination user.
         let cases = [
-            // CASE WHEN GASFUL MESSAGE REMOVED DUE TO CLAIM.
+            // Gasful message and 10 blocks of hold in mailbox.
             (TestData::gasful(20_000, 1_000), 10),
-            // CASE WHEN GASLESS MESSAGE REMOVED DUE TO CLAIM.
+            // Gasless message and 5 blocks of hold in mailbox.
             (
                 TestData::gasless(3_000, <Test as Config>::MailboxThreshold::get()),
                 5,
@@ -342,11 +346,13 @@ fn mailbox_sending_instant_transfer() {
 
         assert!(Gear::is_initialized(sender));
 
-        // FOR BOTH CASES VALUE MOVES TO DESTINATION USER INSTANTLY.
+        // Message doesn't add to mailbox.
+        //
+        // For both cases value moves to destination user instantly.
         let cases = [
-            // CASE WHEN GASFUL MESSAGE WAS NOT ADDED TO MAILBOX.
+            // Zero gas for gasful sending.
             (Some(0), 1_000),
-            // CASE WHEN GASLESS MESSAGE WAS NOT ADDED TO MAILBOX.
+            // Gasless message.
             (None, 3_000),
         ];
 

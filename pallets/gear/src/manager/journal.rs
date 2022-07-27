@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, Pallet,
-    QueueOf, SentOf, WaitlistOf,
+    manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
+    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
@@ -166,9 +166,9 @@ where
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
-        let balance = <T as Config>::Currency::total_balance(program_account);
+        let balance = CurrencyOf::<T>::total_balance(program_account);
         if !balance.is_zero() {
-            <T as Config>::Currency::transfer(
+            CurrencyOf::<T>::transfer(
                 program_account,
                 &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
                 balance,
@@ -195,7 +195,7 @@ where
             );
 
             if dispatch.value() != 0 {
-                <T as Config>::Currency::reserve(
+                CurrencyOf::<T>::reserve(
                     &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                     dispatch.value().unique_saturated_into(),
                 ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
