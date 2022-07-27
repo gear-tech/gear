@@ -12,6 +12,7 @@ pub mod events;
 pub mod generated;
 mod rpc;
 mod storage;
+pub mod types;
 mod utils;
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";

@@ -1,10 +1,11 @@
-use crate::builder::{paths, utils};
+use crate::builder::{node::Node, paths, utils};
 use std::{
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
     process::{Command, Stdio},
     thread,
+    time::Duration,
 };
 
 const GENERATED_API_HEADER: &str = r#"
@@ -106,7 +107,15 @@ impl Pre {
     pub fn generate_gear_api(&self, spec_version: u32) -> io::Result<()> {
         let (mut subxt_cli, mut rustfmt) = (Command::new("subxt"), Command::new("rustfmt"));
 
-        let pre_generated = subxt_cli.args(["codegen"]).output()?;
+        let mut ps = Node::new(self.gear.join(paths::GEAR_BIN)).dev(9944)?;
+
+        thread::sleep(Duration::from_secs(5));
+
+        let pre_generated = subxt_cli
+            .args(["codegen"])
+            .output()
+            .expect("subxt not found, please run cargo install subxt-cli");
+
         if !pre_generated.stderr.is_empty() {
             panic!("{}", String::from_utf8_lossy(&pre_generated.stderr));
         }
@@ -141,6 +150,7 @@ impl Pre {
         let target = self.api.join(paths::GENERATED_RS);
         fs::write(target, generated)?;
 
+        ps.kill()?;
         Ok(())
     }
 }

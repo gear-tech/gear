@@ -1,8 +1,11 @@
 //! gear api rpc methods
-use crate::{api::Api, Result};
+use crate::{
+    api::{types, Api},
+    Result,
+};
 use std::sync::Arc;
 use subxt::{
-    rpc::{rpc_params, ClientT, NumberOrHex},
+    rpc::{rpc_params, ClientT},
     sp_core::{Bytes, H256},
     RpcClient,
 };
@@ -27,11 +30,11 @@ impl Api {
         payload: Bytes,
         value: u64,
         at: Option<H256>,
-    ) -> Result<NumberOrHex> {
+    ) -> Result<types::GasInfo> {
         self.rpc()
             .request(
-                "gear_getInitGasSpent",
-                rpc_params![self.source(), code, payload, value, at],
+                "gear_calculateInitGas",
+                rpc_params![self.source(), code, payload, value, true, at],
             )
             .await
             .map_err(Into::into)
@@ -47,11 +50,11 @@ impl Api {
         payload: Bytes,
         value: u128,
         at: Option<H256>,
-    ) -> Result<NumberOrHex> {
+    ) -> Result<types::GasInfo> {
         self.rpc()
             .request(
-                "gear_getHandleGasSpent",
-                rpc_params![self.source(), dest, payload, value, at],
+                "gear_calculateHandleGas",
+                rpc_params![self.source(), dest, payload, value, true, at],
             )
             .await
             .map_err(Into::into)

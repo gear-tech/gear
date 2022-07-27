@@ -28,9 +28,10 @@ futures-util = "0.3.21"
 hex = "0.4.3"
 lazy_static = "1.4.0"
 log = "0.4.16"
-parity-scale-codec = "3.1.2"
+parity-scale-codec = "3.1.5"
+serde = "^1"
 structopt = "0.3.26"
-subxt = "0.21.0"
+subxt = "0.22.0"
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = [ "full" ] }
 

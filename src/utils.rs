@@ -1,7 +1,13 @@
 //! gear program utils
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 /// gear home
 pub fn home() -> PathBuf {
-    dirs::home_dir().unwrap_or_else(|| ".".into()).join(".gear")
+    let home = dirs::home_dir().unwrap_or_else(|| ".".into()).join(".gear");
+
+    if !home.exists() {
+        fs::create_dir_all(&home).expect("Failed to create ~/.gear");
+    }
+
+    home
 }

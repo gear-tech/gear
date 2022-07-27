@@ -1,6 +1,4 @@
 //! command gear-node
-#![cfg(test)]
-
 use std::{
     io::Result,
     path::{Path, PathBuf},

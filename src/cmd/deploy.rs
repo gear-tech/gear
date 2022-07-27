@@ -48,26 +48,27 @@ impl Deploy {
         let api = Api::new(self.endpoint.as_deref(), self.passwd.as_deref()).await?;
 
         let events = api.events().await?;
-        let (sp, wis) = tokio::join!(self.submit_program(&api), self.wait_init_status(events));
-        sp?;
-        wis?;
+        tokio::try_join!(self.submit_program(&api), self.wait_init_status(events))?;
 
         Ok(())
     }
 
     async fn submit_program(&self, api: &Api) -> Result<()> {
+        let gas = if self.gas_limit == 0 {
+            api.get_init_gas_spent(
+                fs::read(&self.code)?.into(),
+                hex::decode(&self.init_payload.trim_start_matches("0x"))?.into(),
+                0,
+                None,
+            )
+            .await?
+            .min_limit
+        } else {
+            self.gas_limit
+        };
+
         // estimate gas
-        let gas_limit = api
-            .estimate_gas(self.gas_limit, || async {
-                api.get_init_gas_spent(
-                    fs::read(&self.code)?.into(),
-                    hex::decode(&self.init_payload.trim_start_matches("0x"))?.into(),
-                    0,
-                    None,
-                )
-                .await
-            })
-            .await?;
+        let gas_limit = api.cmp_gas_limit(gas).await?;
 
         // submit program
         api.submit_program(SubmitProgram {
