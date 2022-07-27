@@ -377,6 +377,10 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
+        /// Code not exists.
+        ///
+        /// Occurs when trying to get a program code from storage, that doesn't exist.
+        CodeNotExists,
         /// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
         /// current schedule.
         CodeTooLarge,
@@ -1508,6 +1512,33 @@ pub mod pallet {
 
             Self::do_create_program(who, packet)?;
 
+            Ok(().into())
+        }
+
+        #[pallet::weight(0)]
+        pub fn create_program(
+            origin: OriginFor<T>,
+            code_id: CodeId,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            // Check if code exists.
+            if !T::CodeStorage::exists(code_id) {
+                return Err(Error::<T>::CodeNotExists.into());
+            }
+
+            // Check `gas_limit` and `value`
+            Self::check_gas_limit_and_value(gas_limit, value)?;
+
+            // Construct packet.
+            let packet =
+                Self::init_packet(who.clone(), code_id, salt, init_payload, gas_limit, value)?;
+
+            Self::do_create_program(who, packet)?;
             Ok(().into())
         }
 
