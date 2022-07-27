@@ -122,35 +122,35 @@ jobs:
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-memory-weights.json memory
 
       - name: "Deploy: Gear workspace tests"
-        uses: ./.github/actions/deploy-benchmark.yml
+        uses: ./.github/actions/deploy-benchmark
         with:
           name: Gear workspace tests
           file: ./target/action-pallet-output.json
           ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
 
       - name: "Deploy: Node runtime tests"
-        uses: ./.github/actions/deploy-benchmark.yml
+        uses: ./.github/actions/deploy-benchmark
         with:
           name: Node runtime tests
           file: ./target/action-runtime-output.json
           ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
 
       - name: "Deploy: pallet-gear host function weights"
-        uses: ./.github/actions/deploy-benchmark.yml
+        uses: ./.github/actions/deploy-benchmark
         with:
           name: pallet-gear host function weights
           file: ./target/action-hostfn-weights.json
           ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
 
       - name: "Deploy: pallet-gear instruction weights"
-        uses: ./.github/actions/deploy-benchmark.yml
+        uses: ./.github/actions/deploy-benchmark
         with:
           name: pallet-gear instruction weights
           file: ./target/action-instruction-weights.json
           ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
 
       - name: "Deploy: pallet-gear memory weights"
-        uses: ./.github/actions/deploy-benchmark.yml
+        uses: ./.github/actions/deploy-benchmark
         with:
           name: pallet-gear instruction weights
           file: ./target/action-memory-weights.json
