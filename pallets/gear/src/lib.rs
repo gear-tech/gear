@@ -1269,6 +1269,30 @@ pub mod pallet {
 
             Ok(code_and_id.into_parts().0)
         }
+
+        pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
+            let schedule = T::Schedule::get();
+
+            ensure!(
+                code.len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
+            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+                schedule.rules(module)
+            })
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
+
+            ensure!(
+                code.code().len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
+            Ok(CodeAndId::new(code))
+        }
     }
 
     #[pallet::call]
@@ -1298,27 +1322,7 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            ensure!(
-                code.len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-                schedule.rules(module)
-            })
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
-
-            ensure!(
-                code.code().len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1397,27 +1401,7 @@ pub mod pallet {
                 Error::<T>::ValueLessThanMinimal
             );
 
-            let schedule = T::Schedule::get();
-
-            ensure!(
-                code.len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-                schedule.rules(module)
-            })
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
-
-            ensure!(
-                code.code().len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code_and_id = CodeAndId::new(code);
+            let code_and_id = Self::check_code(code)?;
 
             let packet = InitPacket::new_with_gas(
                 code_and_id.code_id(),
