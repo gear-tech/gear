@@ -52,7 +52,7 @@ where
         let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
             .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
-        // TODO: Consider sending here trap reply.
+        // TODO: Consider sending here trap reply (issue #647).
         // Uncomment code below, once allowed split on cut node.
         // {
         //     // Generate trap reply.

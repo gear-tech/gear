@@ -165,9 +165,10 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
-    // TODO: Consider usage of `Balance` instead of gas conversions.
-    // TODO: Consider usage of some tolerance here. Missed due to identity fee.
-    // TODO: If tolerance applied, consider unreserve excess funds, while
+    // TODO (issue #1239):
+    // - Consider usage of `Balance` instead of gas conversions.
+    // - Consider usage of some tolerance here. Missed due to identity fee.
+    // - If tolerance applied, consider unreserve excess funds, while
     // converting gas into value.
     /// Moves reserved funds from account to freed funds of another account.
     pub(crate) fn transfer_reserved(from: &T::AccountId, to: &T::AccountId, value: BalanceOf<T>) {
