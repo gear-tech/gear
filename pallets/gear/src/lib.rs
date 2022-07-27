@@ -1293,6 +1293,28 @@ pub mod pallet {
 
             Ok(CodeAndId::new(code))
         }
+
+        pub(crate) fn check_gas_limit_and_value(
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> Result<(), DispatchError> {
+            // Check that provided `gas_limit` value does not exceed the block gas limit
+            ensure!(
+                gas_limit <= BlockGasLimitOf::<T>::get(),
+                Error::<T>::GasLimitTooHigh
+            );
+
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
+            );
+
+            Ok(())
+        }
     }
 
     #[pallet::call]
@@ -1386,20 +1408,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // Check that provided `gas_limit` value does not exceed the block gas limit
-            ensure!(
-                gas_limit <= BlockGasLimitOf::<T>::get(),
-                Error::<T>::GasLimitTooHigh
-            );
-
-            let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
-
-            // Check that provided `value` equals 0 or greater than existential deposit
-            ensure!(
-                0 == numeric_value || numeric_value >= minimum,
-                Error::<T>::ValueLessThanMinimal
-            );
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let code_and_id = Self::check_code(code)?;
 
@@ -1498,20 +1507,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             let origin = who.clone().into_origin();
 
-            let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
-
-            // Check that provided `gas_limit` value does not exceed the block gas limit
-            ensure!(
-                gas_limit <= BlockGasLimitOf::<T>::get(),
-                Error::<T>::GasLimitTooHigh
-            );
-
-            // Check that provided `value` equals 0 or greater than existential deposit
-            ensure!(
-                0 == numeric_value || numeric_value >= minimum,
-                Error::<T>::ValueLessThanMinimal
-            );
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let message = HandleMessage::from_packet(
                 Self::next_message_id(origin),
@@ -1597,20 +1593,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
-
-            // Ensure the `gas_limit` allows the extrinsic to fit into a block
-            ensure!(
-                gas_limit <= BlockGasLimitOf::<T>::get(),
-                Error::<T>::GasLimitTooHigh
-            );
-
-            // Check that provided `value` equals 0 or greater than existential deposit
-            ensure!(
-                0 == numeric_value || numeric_value >= minimum,
-                Error::<T>::ValueLessThanMinimal
-            );
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
             // Claim outstanding value from the original message first
             let (original_message, _bn) = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
