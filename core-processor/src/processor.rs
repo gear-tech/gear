@@ -26,10 +26,10 @@ use crate::{
     ext::ProcessorExt,
 };
 use alloc::{
+    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     string::ToString,
     vec::Vec,
-    boxed::Box,
 };
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
@@ -112,7 +112,10 @@ pub fn prepare(
                 exit_code,
             ))
         }
-        Ok(ExecutableActorData { program, pages_with_data }) => (program, pages_with_data),
+        Ok(ExecutableActorData {
+            program,
+            pages_with_data,
+        }) => (program, pages_with_data),
     };
 
     let program_id = program.id();

@@ -133,7 +133,7 @@ fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
 struct Exec<T: Config> {
     ext_manager: ExtManager<T>,
     block_config: BlockConfig,
-    context: PreparedMessageExecutionContext,
+    context: Box<PreparedMessageExecutionContext>,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 }
 
