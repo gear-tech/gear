@@ -1,26 +1,17 @@
 //! command submit
 use crate::{
     api::{
-        events::Events,
-        generated::api::{
-            gear::{calls::SubmitProgram, Event as GearEvent},
-            system::Event as SystemEvent,
-            Event,
-        },
+        generated::api::gear::{calls::SubmitProgram, Event as GearEvent},
         Api,
     },
     Result,
 };
-use futures_util::StreamExt;
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
 /// Deploy program to gear node
 #[derive(StructOpt, Debug)]
 pub struct Deploy {
-    /// gear node rpc endpoint
-    #[structopt(short, long)]
-    endpoint: Option<String>,
     /// gear program code <*.wasm>
     code: PathBuf,
     /// gear program salt ( hex encoding )
@@ -37,18 +28,23 @@ pub struct Deploy {
     /// gear program balance
     #[structopt(default_value = "0")]
     value: u128,
-    /// password of the signer account
-    #[structopt(short, long)]
-    passwd: Option<String>,
 }
 
 impl Deploy {
     /// Exec command submit
-    pub async fn exec(&self) -> Result<()> {
-        let api = Api::new(self.endpoint.as_deref(), self.passwd.as_deref()).await?;
-
+    pub async fn exec(&self, api: Api) -> Result<()> {
         let events = api.events().await?;
-        tokio::try_join!(self.submit_program(&api), self.wait_init_status(events))?;
+
+        tokio::try_join!(
+            self.submit_program(&api),
+            Api::wait_for(events, |event| {
+                if let GearEvent::MessageEnqueued { .. } = event {
+                    true
+                } else {
+                    false
+                }
+            })
+        )?;
 
         Ok(())
     }
@@ -79,35 +75,6 @@ impl Deploy {
             value: self.value,
         })
         .await?;
-
-        Ok(())
-    }
-
-    async fn wait_init_status(&self, mut events: Events<'_>) -> Result<()> {
-        while let Some(events) = events.next().await {
-            for maybe_event in events?.iter() {
-                let event = maybe_event?.event;
-
-                // Exit when extrinsic failed.
-                //
-                // # Safety
-                //
-                // The error message will be panicked in another thread.
-                if let Event::System(SystemEvent::ExtrinsicFailed { .. }) = event {
-                    return Ok(());
-                }
-
-                // Exit when success or failure.
-                if let Event::Gear(e) = event {
-                    println!("\t{e:?}");
-
-                    match e {
-                        GearEvent::MessageEnqueued { .. } => return Ok(()),
-                        _ => {}
-                    }
-                }
-            }
-        }
 
         Ok(())
     }

@@ -20,7 +20,8 @@ const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
 /// gear api
 pub struct Api {
     runtime: RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>,
-    signer: PairSigner<GearConfig, Pair>,
+    /// Current signer.
+    pub signer: PairSigner<GearConfig, Pair>,
 }
 
 impl Api {

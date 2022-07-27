@@ -1,7 +1,7 @@
 //! command transfer
 use crate::{
     api::{generated::api::balances::calls::Transfer as TransferCall, Api},
-    keystore, Result,
+    Result,
 };
 use structopt::StructOpt;
 use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
@@ -16,12 +16,6 @@ use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 /// [0]: https://github.com/gear-tech/gear/blob/c01d0390cdf1031cb4eba940d0199d787ea480e0/node/src/chain_spec.rs#L218
 #[derive(Debug, StructOpt)]
 pub struct Transfer {
-    /// Gear node rpc endpoint.
-    #[structopt(short, long)]
-    endpoint: Option<String>,
-    /// Password of the signer account.
-    #[structopt(short, long)]
-    passwd: Option<String>,
     /// Transfer to (ss58address).
     destination: String,
     /// Balance will be transfered.
@@ -30,13 +24,10 @@ pub struct Transfer {
 
 impl Transfer {
     /// Execute command transfer.
-    pub async fn exec(&self) -> Result<()> {
-        let passwd = self.passwd.as_deref();
-        let pair = keystore::cache(passwd)?;
+    pub async fn exec(&self, api: Api) -> Result<()> {
+        let address = api.signer.account_id();
 
-        let api = Api::new(self.endpoint.as_ref().map(|s| s.as_ref()), passwd).await?;
-
-        println!("From: {}", pair.account_id().to_ss58check());
+        println!("From: {}", address.to_ss58check());
         println!("To: {}", self.destination);
         println!("Value: {}", self.value);
         api.transfer(TransferCall {

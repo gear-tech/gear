@@ -1,46 +1,75 @@
 //! commands
-use crate::Result;
+use crate::{api::Api, Result};
 use structopt::StructOpt;
 
+mod claim;
 mod deploy;
 mod info;
 mod login;
 mod new;
+mod reply;
+mod send;
+mod submit;
 mod transfer;
 mod update;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
+    Claim(claim::Claim),
     Deploy(deploy::Deploy),
+    Info(info::Info),
     Login(login::Login),
     New(new::New),
-    Update(update::Update),
+    Reply(reply::Reply),
+    Send(send::Send),
+    Submit(submit::Submit),
     Transfer(transfer::Transfer),
-    Info(info::Info),
+    Update(update::Update),
 }
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gear-program")]
 pub struct Opt {
-    /// Enable debug logs
-    #[structopt(short, long)]
-    pub debug: bool,
+    /// Commands.
     #[structopt(subcommand)]
     pub command: Command,
+    /// Enable debug logs.
+    #[structopt(short, long)]
+    pub debug: bool,
+    /// Gear node rpc endpoint.
+    #[structopt(short, long)]
+    pub endpoint: Option<String>,
+    /// Password of the signer account.
+    #[structopt(short, long)]
+    pub passwd: Option<String>,
 }
 
 impl Opt {
     /// run program
     pub async fn run() -> Result<()> {
-        let opt = Opt::from_args();
+        Opt::from_args().exec().await?;
 
-        match opt.command {
+        Ok(())
+    }
+
+    /// Generate api from options.
+    pub async fn api(&self) -> Result<Api> {
+        Api::new(self.endpoint.as_deref(), self.passwd.as_deref()).await
+    }
+
+    /// Execute command.
+    pub async fn exec(&self) -> Result<()> {
+        match &self.command {
+            Command::Claim(claim) => claim.exec(self.api().await?).await?,
+            Command::Deploy(deploy) => deploy.exec(self.api().await?).await?,
+            Command::Info(info) => info.exec(self.api().await?).await?,
             Command::Login(login) => login.exec()?,
             Command::New(new) => new.exec().await?,
-            Command::Deploy(deploy) => deploy.exec().await?,
+            Command::Reply(reply) => reply.exec(self.api().await?).await?,
+            Command::Send(send) => send.exec(self.api().await?).await?,
+            Command::Submit(submit) => submit.exec(self.api().await?).await?,
+            Command::Transfer(transfer) => transfer.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
-            Command::Transfer(transfer) => transfer.exec().await?,
-            Command::Info(info) => info.exec().await?,
         }
 
         Ok(())

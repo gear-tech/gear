@@ -2,11 +2,14 @@
 use crate::{
     api::{
         config::GearConfig,
-        generated::api::{system::Event as SystemEvent, DispatchError, Event},
+        generated::api::{
+            gear::Event as GearEvent, system::Event as SystemEvent, DispatchError, Event,
+        },
         Api,
     },
     Result,
 };
+use futures_util::StreamExt;
 use subxt::{
     codec::Decode,
     events::EventSubscription,
@@ -41,7 +44,7 @@ impl Api {
         for (raw, event) in events.iter_raw().zip(events.iter()) {
             let ev = raw?;
             if &ev.pallet == "System" && &ev.variant == "ExtrinsicFailed" {
-                self.capture_weight_info(event?.event);
+                Self::capture_weight_info(event?.event);
                 let dispatch_error = DispatchError::decode(&mut &*ev.data)?;
                 if let Some(error_data) = dispatch_error.module_error_data() {
                     // Error index is utilized as the first byte from the error array.
@@ -60,7 +63,7 @@ impl Api {
                     return Err(subxt::Error::Runtime(RuntimeError(dispatch_error)).into());
                 }
             } else if &ev.pallet == "System" && &ev.variant == "ExtrinsicSuccess" {
-                self.capture_weight_info(event?.event);
+                Self::capture_weight_info(event?.event);
                 break;
             }
         }
@@ -69,11 +72,40 @@ impl Api {
     }
 
     /// Parse transaction fee from InBlockEvents
-    pub fn capture_weight_info(&self, event: Event) {
+    pub fn capture_weight_info(event: Event) {
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
         | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
         {
             println!("\tWeight cost: {:?}", dispatch_info.weight);
         }
+    }
+
+    /// Wait for GearEvent.
+    pub async fn wait_for(mut events: Events<'_>, wait: fn(GearEvent) -> bool) -> Result<()> {
+        while let Some(events) = events.next().await {
+            for maybe_event in events?.iter() {
+                let event = maybe_event?.event;
+
+                // Exit when extrinsic failed.
+                //
+                // # Safety
+                //
+                // The error message will be panicked in another thread.
+                if let Event::System(SystemEvent::ExtrinsicFailed { .. }) = event {
+                    return Ok(());
+                }
+
+                // Exit when success or failure.
+                if let Event::Gear(e) = event {
+                    println!("\t{e:?}");
+
+                    if wait(e) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
