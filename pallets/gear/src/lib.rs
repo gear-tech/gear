@@ -388,8 +388,6 @@ pub mod pallet {
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
         CodeNotFound,
-        /// Message has alread been replied.
-        MessageAlreadyReplied,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
         /// User contains mailboxed message from other user.
@@ -1682,8 +1680,13 @@ pub mod pallet {
             <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            // # Safety
+            //
+            // This is unreachable since the `message_id` is new generated
+            // from `original_message` by our system, and `original_message`
+            // has just been removed from the mailbox.
             GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit)
-                .map_err(|_| Error::<T>::MessageAlreadyReplied)?;
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             Self::deposit_event(Event::UserMessageRead {
                 id: reply_to_id,

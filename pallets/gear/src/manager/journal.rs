@@ -210,14 +210,18 @@ where
                 // # Safety
                 //
                 // 1. There is no logic spliting value from the reserved nodes.
-                // 2. The `gas_limit` has been checked before.
+                // 2. The `gas_limit` has been checked inside message queue processing.
                 // 3. The `value` of the value node has been checked before.
+                // 4. The `dispatch.id()` is generated from `message_id` by system, and
+                //    the `message_id` has been checked inside message queue processing.
                 GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             } else {
                 // # Safety
                 //
-                // There is no logic spliting value from the reserved nodes.
+                // 1. There is no logic spliting value from the reserved nodes.
+                // 2. The `dispatch.id()` is generated from `message_id` by system, and
+                //    the `message_id` has been checked inside message queue processing.
                 GasHandlerOf::<T>::split(message_id, dispatch.id())
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
@@ -239,13 +243,13 @@ where
             let mailbox_threshold = T::MailboxThreshold::get();
 
             let gas_limit = gas_limit.unwrap_or_else(|| {
+                // # Safety
+                //
+                // The `get_limit` has been checked inside message queue processing.
                 GasHandlerOf::<T>::get_limit(message_id)
                     .ok()
                     .flatten()
                     .map(|(v, _)| v)
-                    // # Safety
-                    //
-                    // The result of `get_limit` has been checked in `process_queue`
                     .unwrap_or_else(|| unreachable!("Checked before."))
                     .min(mailbox_threshold)
             });
@@ -260,8 +264,10 @@ where
                 // # Safety
                 //
                 // 1. There is no logic spliting value from the reserved nodes.
-                // 2. The `gas_limit` has been checked before.
+                // 2. The `gas_limit` has been checked inside message queue processing..
                 // 3. The `value` of the value node has been checked before.
+                // 4. The `message.id()` is generated from `message_id` by system, and
+                //    the `message_id` has been checked inside message queue processing.
                 GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
