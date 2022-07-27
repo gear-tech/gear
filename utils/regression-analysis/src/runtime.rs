@@ -86,7 +86,6 @@ impl pallet_gear_program::Config for BenchmarkConfig {
 }
 
 impl pallet_gear_messenger::Config for BenchmarkConfig {
-    type Currency = <gear_runtime::Runtime as pallet_gear_messenger::Config>::Currency;
     type BlockLimiter = <gear_runtime::Runtime as pallet_gear_messenger::Config>::BlockLimiter;
 }
 
@@ -99,6 +98,7 @@ impl pallet_gear_scheduler::Config for BenchmarkConfig {
     type ReserveThreshold =
         <gear_runtime::Runtime as pallet_gear_scheduler::Config>::ReserveThreshold;
     type WaitlistCost = <gear_runtime::Runtime as pallet_gear_scheduler::Config>::WaitlistCost;
+    type MailboxCost = <gear_runtime::Runtime as pallet_gear_scheduler::Config>::MailboxCost;
 }
 
 impl pallet_gear::Config for BenchmarkConfig {
