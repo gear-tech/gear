@@ -29,6 +29,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::ToString,
     vec::Vec,
+    boxed::Box,
 };
 use codec::Encode;
 use gear_backend_common::{Environment, IntoExtInfo};
@@ -68,12 +69,11 @@ impl PreparedMessageExecutionContext {
 }
 
 /// Defines result variants of the function `prepare`.
-#[allow(clippy::large_enum_variant)]
 pub enum PrepareResult {
     /// Successfully precharged for memory pages.
     Ok {
         /// A context for `process` function.
-        context: PreparedMessageExecutionContext,
+        context: Box<PreparedMessageExecutionContext>,
         /// A set with numbers of memory pages which contain some data.
         pages_with_data: BTreeSet<PageNumber>,
     },
@@ -104,7 +104,7 @@ pub fn prepare(
         executable_data,
     } = actor;
 
-    let data = match check_is_executable(executable_data, &dispatch) {
+    let (program, pages_with_data) = match check_is_executable(executable_data, &dispatch) {
         Err(exit_code) => {
             return PrepareResult::Error(process_non_executable(
                 dispatch,
@@ -112,10 +112,9 @@ pub fn prepare(
                 exit_code,
             ))
         }
-        Ok(data) => data,
+        Ok(ExecutableActorData { program, pages_with_data }) => (program, pages_with_data),
     };
 
-    let program = &data.program;
     let program_id = program.id();
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     if !program.code().exports().contains(&dispatch.kind()) {
@@ -135,9 +134,12 @@ pub fn prepare(
         dispatch.context().is_none() && matches!(dispatch.kind(), DispatchKind::Init),
         subsequent_execution,
     ) {
-        Ok(size) => size,
+        Ok(size) => {
+            log::debug!("Charged for memory pages. Size: {size:?}");
+            size
+        }
         Err(reason) => {
-            log::debug!("failed to charge for memory pages: {:?}", reason);
+            log::debug!("Failed to charge for memory pages: {reason:?}");
             return PrepareResult::Error(match reason {
                 ExecutionErrorReason::InitialMemoryBlockGasExceeded
                 | ExecutionErrorReason::GrowMemoryBlockGasExceeded
@@ -150,23 +152,23 @@ pub fn prepare(
     };
 
     PrepareResult::Ok {
-        context: PreparedMessageExecutionContext {
+        context: Box::new(PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
             dispatch,
             origin,
             balance,
-            program: data.program,
+            program,
             memory_size,
-        },
-        pages_with_data: data.pages_with_data,
+        }),
+        pages_with_data,
     }
 }
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     block_config: &BlockConfig,
-    execution_context: PreparedMessageExecutionContext,
+    execution_context: Box<PreparedMessageExecutionContext>,
     memory_pages: BTreeMap<PageNumber, PageBuf>,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;

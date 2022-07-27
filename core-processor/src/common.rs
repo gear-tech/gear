@@ -376,9 +376,9 @@ pub struct Actor {
 /// Executable actor data.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutableActorData {
-    /// Program.
+    /// Program aggregated data.
     pub program: Program,
-    /// Numbers of memory pages with some data.
+    /// Numbers of allocated memory pages that have non-default data.
     pub pages_with_data: BTreeSet<PageNumber>,
 }
 
