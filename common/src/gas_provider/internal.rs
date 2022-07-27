@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::storage::MapStorage;
 
 /// Output of `TreeImpl::catch_value` call.
 #[derive(Debug, Clone, Copy)]
@@ -35,7 +36,7 @@ impl<Balance: BalanceTrait> CatchValueOutput<Balance> {
     fn into_consume_output<TotalValue, ExternalId>(
         self,
         origin: ExternalId,
-    ) -> ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>
+    ) -> Option<(NegativeImbalance<Balance, TotalValue>, ExternalId)>
     where
         TotalValue: ValueStorage<Value = Balance>,
         ExternalId: Clone,
@@ -68,8 +69,7 @@ where
     Error: From<InternalError>,
     ExternalId: Clone,
     MapKey: Copy,
-    StorageMap:
-        super::storage::MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
+    StorageMap: MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
 {
     pub(super) fn get_node(key: MapKey) -> Option<StorageMap::Value> {
         StorageMap::get(&key)
@@ -164,14 +164,14 @@ where
         if !node.is_unspecified_local() {
             if let Some((mut patron, patron_id)) = Self::find_ancestor_patron(node)? {
                 let self_value = node
-                    .inner_value_mut()
+                    .value_mut()
                     .ok_or_else(InternalError::unexpected_node_type)?;
                 if self_value.is_zero() {
                     // Early return to prevent redundant storage look-ups
                     return Ok(CatchValueOutput::Missed);
                 }
                 let patron_value = patron
-                    .inner_value_mut()
+                    .value_mut()
                     .ok_or_else(InternalError::unexpected_node_type)?;
                 *patron_value = patron_value.saturating_add(*self_value);
                 *self_value = Zero::zero();
@@ -180,7 +180,7 @@ where
                 Ok(CatchValueOutput::Missed)
             } else {
                 let self_value = node
-                    .inner_value_mut()
+                    .value_mut()
                     .ok_or_else(InternalError::unexpected_node_type)?;
                 let value_copy = *self_value;
                 *self_value = Zero::zero();
@@ -248,23 +248,22 @@ where
     /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.
     /// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.
     /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
-    pub(super) fn try_remove_consumed_ancestors(
-        key: MapKey,
-    ) -> Result<ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error> {
+    pub(super) fn try_remove_consumed_ancestors(key: MapKey) -> ConsumeResultOf<Self> {
         let mut node_id = key;
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         let mut consume_output = None;
-        let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
+        let external = Self::get_external(key)?;
 
         while !node.is_patron() {
             let catch_output = Self::catch_value(&mut node)?;
+
             // The node is not a patron and can't be of unspecified type.
             if catch_output.is_blocked() {
                 return Err(InternalError::value_is_blocked().into());
             }
 
             consume_output =
-                consume_output.or_else(|| catch_output.into_consume_output(origin.clone()));
+                consume_output.or_else(|| catch_output.into_consume_output(external.clone()));
 
             if node.spec_refs() == 0 {
                 Self::decrease_parents_ref(&node)?;
@@ -318,7 +317,8 @@ where
 
         // Detect inner from `reserve`.
         let new_node = if reserve {
-            let id = Self::get_external(key)?.expect("existing node always have origin");
+            let id = Self::get_external(key)?;
+
             GasNode::ReservedLocal { id, value: amount }
         } else {
             node.increase_spec_refs();
@@ -333,7 +333,7 @@ where
 
         // A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call
         if node
-            .inner_value()
+            .value()
             .ok_or_else(InternalError::unexpected_node_type)?
             < amount
         {
@@ -344,9 +344,11 @@ where
         StorageMap::insert(new_node_key, new_node);
 
         let node_value = node
-            .inner_value_mut()
+            .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
+
         *node_value = node_value.saturating_sub(amount);
+
         StorageMap::insert(node_id, node);
 
         Ok(())
@@ -362,8 +364,7 @@ where
     Error: From<InternalError>,
     ExternalId: Clone,
     MapKey: Copy,
-    StorageMap:
-        super::storage::MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
+    StorageMap: MapStorage<Key = MapKey, Value = GasNode<ExternalId, MapKey, Balance>>,
 {
     type ExternalOrigin = ExternalId;
     type Key = MapKey;
@@ -396,37 +397,30 @@ where
         Ok(PositiveImbalance::new(amount))
     }
 
-    fn get_origin(
-        key: Self::Key,
-    ) -> Result<OriginResult<Self::Key, Self::ExternalOrigin>, Self::Error> {
-        Ok(if let Some(node) = Self::get_node(key) {
-            // key known, must return the origin, unless corrupted
-            let (root, maybe_key) = Self::root(node)?;
-            match root {
-                GasNode::External { id, .. } | GasNode::ReservedLocal { id, .. } => {
-                    Some((maybe_key.unwrap_or(key), id))
-                }
-                _ => unreachable!("Guaranteed by ValueNode::root method"),
-            }
+    fn get_origin_node(key: Self::Key) -> Result<(Self::ExternalOrigin, Self::Key), Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        // key known, must return the origin, unless corrupted
+        let (root, maybe_key) = Self::root(node)?;
+
+        if let GasNode::External { id, .. } | GasNode::ReservedLocal { id, .. } = root {
+            Ok((id, maybe_key.unwrap_or(key)))
         } else {
-            // key unknown - legitimate result
-            None
-        })
+            unreachable!("Guaranteed by ValueNode::root method")
+        }
     }
 
-    fn get_limit(key: Self::Key) -> Result<Option<(Self::Balance, Self::Key)>, Self::Error> {
-        if let Some(node) = Self::get_node(key) {
-            Ok({
-                let (node_with_value, maybe_key) = Self::node_with_value(node)?;
-                // The node here is either external or specified, hence has the inner value
-                let v = node_with_value
-                    .inner_value()
-                    .ok_or_else(InternalError::unexpected_node_type)?;
-                Some((v, maybe_key.unwrap_or(key)))
-            })
-        } else {
-            Ok(None)
-        }
+    fn get_limit_node(key: Self::Key) -> Result<(Self::Balance, Self::Key), Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        let (node_with_value, maybe_key) = Self::node_with_value(node)?;
+
+        // The node here is either external or specified, hence has the inner value
+        let v = node_with_value
+            .value()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        Ok((v, maybe_key.unwrap_or(key)))
     }
 
     /// Marks a node with `key` as consumed, if possible, and tries to return
@@ -449,9 +443,7 @@ where
     /// Also if it's possible to delete a node, then it doesn't necessarily mean that its parent will be deleted.
     /// An example here could be the case, when during async execution original message went to wait list, so wasn't consumed
     /// but the one generated during the execution of the original message went to message queue and was successfully executed.
-    fn consume(
-        key: Self::Key,
-    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error> {
+    fn consume(key: Self::Key) -> ConsumeResultOf<Self> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         if node.is_consumed() {
@@ -460,9 +452,9 @@ where
 
         node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
-        let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
+        let external = Self::get_external(key)?;
 
-        Ok(if node.refs() == 0 {
+        let res = if node.refs() == 0 {
             Self::decrease_parents_ref(&node)?;
             StorageMap::remove(key);
 
@@ -471,7 +463,7 @@ where
                     if !catch_output.is_caught() {
                         return Err(InternalError::value_is_not_caught().into());
                     }
-                    catch_output.into_consume_output(origin)
+                    catch_output.into_consume_output(external)
                 }
                 GasNode::UnspecifiedLocal { parent } => {
                     if !catch_output.is_blocked() {
@@ -483,7 +475,7 @@ where
                     if catch_output.is_blocked() {
                         return Err(InternalError::value_is_blocked().into());
                     }
-                    let consume_output = catch_output.into_consume_output(origin);
+                    let consume_output = catch_output.into_consume_output(external);
                     let consume_ancestors_output = Self::try_remove_consumed_ancestors(parent)?;
                     match (&consume_output, consume_ancestors_output) {
                         // value can't be caught in both procedures
@@ -499,8 +491,10 @@ where
             }
 
             StorageMap::insert(key, node);
-            catch_output.into_consume_output(origin)
-        })
+            catch_output.into_consume_output(external)
+        };
+
+        Ok(res)
     }
 
     /// Spends `amount` of gas from the ancestor of node with `key` id.
@@ -520,7 +514,7 @@ where
 
         // A `node` is guaranteed to have inner_value here, because it was get after `Self::node_with_value` call
         let node_value = node
-            .inner_value_mut()
+            .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
         if *node_value < amount {
             return Err(InternalError::insufficient_balance().into());
