@@ -20,7 +20,7 @@ use crate::{manager::ExtManager, Config, Event, GasHandlerOf, Pallet, QueueOf};
 use alloc::string::ToString;
 use codec::Encode;
 use common::{
-    event::{MessageWokenSystemReason, SystemReason},
+    event::{MessageWokenSystemReason, SystemReason, UserMessageReadSystemReason},
     scheduler::*,
     storage::*,
     GasTree, Origin,
@@ -43,26 +43,46 @@ where
         todo!("#646");
     }
 
-    fn remove_from_mailbox(&mut self, _user_id: T::AccountId, _message_id: MessageId) {
-        todo!("#646");
+    // TODO: Generate system signal (instead of reply?) (issue #647).
+    fn remove_from_mailbox(&mut self, user_id: T::AccountId, message_id: MessageId) {
+        // Read reason.
+        let reason = UserMessageReadSystemReason::OutOfRent.into_reason();
+
+        // Reading message from mailbox.
+        let mailboxed = Pallet::<T>::read_message(user_id, message_id, reason)
+            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
+
+        // TODO: Consider sending here trap reply (issue #647).
+        // Uncomment code below, once allowed split on cut node.
+        // {
+        //     // Generate trap reply.
+        //     let trap = ExecutionErrorReason::OutOfRent.encode();
+
+        //     // Creating reply message.
+        //     let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
+        //         .into_stored_dispatch(mailboxed.destination(), mailboxed.source(), message_id);
+
+        //     // Splitting gas for newly created reply message.
+        //     GasHandlerOf::<T>::split(message_id, trap_reply.id())
+        //         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
+        //     // Enqueueing dispatch into message queue.
+        //     QueueOf::<T>::queue(trap_reply)
+        //         .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+        // }
+
+        // Consuming gas handler for mailboxed message.
+        Pallet::<T>::consume_message(mailboxed.id());
     }
 
-    // TODO: generate system signal for program (#647).
+    // TODO: Generate system signal (instead of reply?) (issue #647).
     fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) {
-        // Taking message from waitlist and charging for holding there.
-        //
-        // It's guaranteed to be addressed to program
-        // or waitlist/scheduler storage invalidated!
-        //
-        // Note:
-        // `assert_eq!(waitlisted.id(), message_id)`
-        // `assert_eq!(waitlisted.destination(), program_id)`
-        let waitlisted = Pallet::<T>::wake_dispatch(
-            program_id,
-            message_id,
-            MessageWokenSystemReason::OutOfRent.into_reason(),
-        )
-        .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
+        // Wake reason.
+        let reason = MessageWokenSystemReason::OutOfRent.into_reason();
+
+        // Waking dispatch.
+        let waitlisted = Pallet::<T>::wake_dispatch(program_id, message_id, reason)
+            .unwrap_or_else(|| unreachable!("Scheduling logic invalidated!"));
 
         // Trap explanation.
         let trap = ExecutionErrorReason::OutOfRent;
@@ -77,14 +97,18 @@ where
                 .into_stored_dispatch(program_id, waitlisted.source(), message_id);
 
             // Splitting gas for newly created reply message.
-            // TODO: handle error case for `split` (#1130).
-            let _ = GasHandlerOf::<T>::split(trap_reply.id(), message_id);
+            GasHandlerOf::<T>::split(trap_reply.id(), message_id)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Enqueueing dispatch into message queue.
             QueueOf::<T>::queue(trap_reply)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
             // Sending trap reply to user, by depositing event.
+            //
+            // There is no reason to use `Pallet::<T>::send_user_message( .. )`,
+            // because there is no need in reply in future, so no reason
+            // and funds to pay mailbox rent for it.
 
             // Note: for users, trap replies always contain
             // string explanation of the error.

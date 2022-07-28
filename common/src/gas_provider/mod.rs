@@ -154,6 +154,9 @@ pub trait Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// Removes all values.
+    fn clear();
 }
 
 pub type GasBalanceKey<Balance, Key> = Option<(Balance, Key)>;
@@ -197,4 +200,12 @@ pub trait Provider {
         InternalError = Self::InternalError,
         Error = Self::Error,
     >;
+
+    /// Resets all related to gas provider storages.
+    ///
+    /// It's a temporary production solution to avoid DB migrations
+    /// and would be available for test purposes only in the future.
+    fn reset() {
+        Self::GasTree::clear();
+    }
 }

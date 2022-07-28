@@ -92,10 +92,10 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
     );
     ext.execute_with(|| {
         // Initial value in all gas trees is 0
-        if GasHandlerOf::<Runtime>::total_supply() != 0 || total_gas_in_wait_list() != 0 {
+        if GasHandlerOf::<Runtime>::total_supply() != 0 || total_gas_in_wl_mb() != 0 {
             return Ok(GasUsageStats::new(
                 GasHandlerOf::<Runtime>::total_supply(),
-                total_gas_in_wait_list(),
+                total_gas_in_wl_mb(),
                 0,
                 0,
                 0,
@@ -141,15 +141,10 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
             run_to_block_with_ocw(50, &pool, None);
         }
 
-        log::debug!(
-            "Gas held by waitlisted messages: {:?}",
-            total_gas_in_wait_list()
-        );
-
         // Gas balance adds up: all gas is held by waiting messages only
         Ok(GasUsageStats::new(
             GasHandlerOf::<Runtime>::total_supply(),
-            total_gas_in_wait_list(),
+            total_gas_in_wl_mb(),
             0,
             0,
             0,
@@ -212,10 +207,10 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
                 <Runtime as pallet_gear::Config>::Currency::total_issuance();
 
             // Initial value in all gas trees is 0
-            if GasHandlerOf::<Runtime>::total_supply() != 0 || total_gas_in_wait_list() != 0 {
+            if GasHandlerOf::<Runtime>::total_supply() != 0 || total_gas_in_wl_mb() != 0 {
                 return Ok(GasUsageStats::new(
                     GasHandlerOf::<Runtime>::total_supply(),
-                    total_gas_in_wait_list(),
+                    total_gas_in_wl_mb(),
                     initial_total_balance,
                     initial_total_balance,
                     total_reserved_balance(),
@@ -395,15 +390,10 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
 
             run_to_block_with_ocw((current_block + 11) as u32, &pool, None);
 
-            log::debug!(
-                "Gas held by waitlisted messages: {:?}",
-                total_gas_in_wait_list()
-            );
-
             // Gas balance adds up: all gas is held by waiting messages only
             Ok(GasUsageStats::new(
                 GasHandlerOf::<Runtime>::total_supply(),
-                total_gas_in_wait_list(),
+                total_gas_in_wl_mb(),
                 <Runtime as pallet_gear::Config>::Currency::total_issuance(),
                 initial_total_balance,
                 total_reserved_balance(),
@@ -423,7 +413,9 @@ mod tests {
     #[test]
     fn gas_total_supply_is_stable() {
         init_logger();
+
         let alice = get_account_id_from_seed::<sr25519::Public>("Alice");
+
         new_test_ext(
             vec![(alice.clone(), 1_000_000_000_000_000_u128)],
             vec![authority_keys_from_seed("Val")],
@@ -432,7 +424,7 @@ mod tests {
         .execute_with(|| {
             // Initial value in all gas trees is 0
             assert_eq!(GasHandlerOf::<Runtime>::total_supply(), 0);
-            assert_eq!(total_gas_in_wait_list(), 0);
+            assert_eq!(total_gas_in_wl_mb(), 0);
 
             let composer_id = generate_program_id(NCOMPOSE_WASM_BINARY, b"salt");
             let mul_id = generate_program_id(MUL_CONST_WASM_BINARY, b"salt");
@@ -458,7 +450,7 @@ mod tests {
             run_to_block(2, None);
 
             assert_ok!(Gear::send_message(
-                Origin::signed(alice.clone()),
+                Origin::signed(alice),
                 composer_id,
                 10_u64.to_le_bytes().to_vec(),
                 100_000_000_000,
@@ -467,15 +459,10 @@ mod tests {
 
             run_to_block(4, None);
 
-            log::debug!(
-                "Gas held by waitlisted messages: {:?}",
-                total_gas_in_wait_list()
-            );
-
             // Gas balance adds up: all gas is held by waiting messages only
             assert_eq!(
                 GasHandlerOf::<Runtime>::total_supply(),
-                total_gas_in_wait_list()
+                total_gas_in_wl_mb()
             );
         });
     }
@@ -492,7 +479,7 @@ mod tests {
         .execute_with(|| {
             // Initial value in all gas trees is 0
             assert_eq!(GasHandlerOf::<Runtime>::total_supply(), 0);
-            assert_eq!(total_gas_in_wait_list(), 0);
+            assert_eq!(total_gas_in_wl_mb(), 0);
 
             let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
             let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
@@ -541,15 +528,10 @@ mod tests {
 
             run_to_block(4, None);
 
-            log::debug!(
-                "Gas held by waitlisted messages: {:?}",
-                total_gas_in_wait_list()
-            );
-
             // Gas balance adds up: all gas is held by waiting messages only
             assert_eq!(
                 GasHandlerOf::<Runtime>::total_supply(),
-                total_gas_in_wait_list()
+                total_gas_in_wl_mb()
             );
         });
     }

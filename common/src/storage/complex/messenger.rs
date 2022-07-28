@@ -117,6 +117,7 @@ pub trait Messenger {
             Error = Self::Error,
             OutputError = Self::OutputError,
         > + CountedByKey<Key = Self::MailboxFirstKey, Length = usize>
+        + IterableMap<(Self::MailboxedMessage, Interval<Self::BlockNumber>)>
         + IterableByKeyMap<
             (Self::MailboxedMessage, Interval<Self::BlockNumber>),
             Key = Self::MailboxFirstKey,
@@ -162,8 +163,8 @@ pub trait Messenger {
 
     /// Resets all related to messenger storages.
     ///
-    /// It's temporary production solution to avoid DB migrations,
-    /// would be available for tests purposes only in future.
+    /// It's a temporary production solution to avoid DB migrations
+    /// and would be available for test purposes only in the future.
     fn reset() {
         Self::Sent::reset();
         Self::Dequeued::reset();

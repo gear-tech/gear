@@ -1480,6 +1480,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-value-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
@@ -4903,6 +4912,7 @@ dependencies = [
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-with-gas",
+ "demo-value-sender",
  "demo-waiting-proxy",
  "env_logger",
  "frame-benchmarking",
@@ -4931,6 +4941,7 @@ dependencies = [
  "rand_pcg 0.3.1",
  "scale-info",
  "serde",
+ "sp-consensus-aura",
  "sp-core",
  "sp-externalities",
  "sp-io",
