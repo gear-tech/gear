@@ -535,11 +535,16 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = GasHandlerOf::<T>::create(
+            // # Safety
+            //
+            // This is unreachable since the `message_id` is new generated
+            // with `Self::next_message_id`.
+            GasHandlerOf::<T>::create(
                 who.clone(),
                 message_id,
                 packet.gas_limit().expect("Can't fail"),
-            );
+            )
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1453,11 +1458,16 @@ pub mod pallet {
 
             ExtManager::<T>::default().set_program(program_id, code_id, message_id);
 
-            let _ = GasHandlerOf::<T>::create(
+            // # Safety
+            //
+            // This is unreachable since the `message_id is new generated
+            // with `Self::next_message_id`.
+            GasHandlerOf::<T>::create(
                 who.clone(),
                 message_id,
                 packet.gas_limit().expect("Can't fail"),
-            );
+            )
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let message = InitMessage::from_packet(message_id, packet);
             let dispatch = message
@@ -1549,7 +1559,12 @@ pub mod pallet {
                 CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-                let _ = GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit);
+                // # Safety
+                //
+                // This is unreachable since the `message_id` is new generated
+                // with `Self::next_message_id`.
+                GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
 
@@ -1650,6 +1665,11 @@ pub mod pallet {
             );
 
             // Creating `GasNode` for the reply.
+            //
+            // # Safety
+            //
+            //  The error is unreachable since the `message_id` is new generated
+            //  from the checked `original_message`."
             GasHandlerOf::<T>::create(origin.clone(), message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
