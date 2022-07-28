@@ -44,7 +44,7 @@ opt-level = "s"
 
 [profile.release.package.galloc]
 opt-level = "s"
- 
+
 [profile.release.package.gtest]
 opt-level = "s"
 
