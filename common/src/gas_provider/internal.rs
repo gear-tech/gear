@@ -88,10 +88,10 @@ where
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
-        if let GasNodeType::UnspecifiedLocal { parent } = ret_node.inner {
+        if let GasNode::UnspecifiedLocal { parent } = ret_node {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
-            if !(ret_node.inner.is_external() || ret_node.inner.is_specified_local()) {
+            if !(ret_node.is_external() || ret_node.is_specified_local()) {
                 return Err(InternalError::unexpected_node_type().into());
             }
         }
@@ -128,12 +128,12 @@ where
             return Err(InternalError::parent_has_no_children().into());
         }
 
-        match node.inner {
-            GasNodeType::SpecifiedLocal { .. } => {
-                parent.spec_refs = parent.spec_refs.saturating_sub(1)
+        match node {
+            GasNode::SpecifiedLocal { .. } => {
+                parent.decrease_spec_refs();
             }
-            GasNodeType::UnspecifiedLocal { .. } => {
-                parent.unspec_refs = parent.unspec_refs.saturating_sub(1)
+            GasNode::UnspecifiedLocal { .. } => {
+                parent.decrease_unspec_refs();
             }
             _ => return Err(InternalError::unexpected_node_type().into()),
         }
@@ -161,7 +161,7 @@ where
             return Ok(CatchValueOutput::Blocked);
         }
 
-        if !node.inner.is_unspecified_local() {
+        if !node.is_unspecified_local() {
             if let Some((mut patron, patron_id)) = Self::find_ancestor_patron(node)? {
                 let self_value = node
                     .inner_value_mut()
@@ -201,16 +201,16 @@ where
     fn find_ancestor_patron(
         node: &StorageMap::Value,
     ) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
-        match node.inner {
-            GasNodeType::External { .. } | GasNodeType::ReservedLocal { .. } => Ok(None),
-            GasNodeType::SpecifiedLocal { parent, .. } => {
-                let mut ret_id = parent;
+        match node {
+            GasNode::External { .. } | GasNode::ReservedLocal { .. } => Ok(None),
+            GasNode::SpecifiedLocal { parent, .. } => {
+                let mut ret_id = *parent;
                 let mut ret_node =
-                    Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
+                    Self::get_node(*parent).ok_or_else(InternalError::parent_is_lost)?;
                 while !ret_node.is_patron() {
-                    match ret_node.inner {
-                        GasNodeType::External { .. } => return Ok(None),
-                        GasNodeType::SpecifiedLocal { parent, .. } => {
+                    match ret_node {
+                        GasNode::External { .. } => return Ok(None),
+                        GasNode::SpecifiedLocal { parent, .. } => {
                             ret_id = parent;
                             ret_node =
                                 Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
@@ -222,7 +222,7 @@ where
             }
             // Although unspecified local type has a patron parent, it's considered
             // an error to call the method from that type of gas node.
-            GasNodeType::UnspecifiedLocal { .. } => Err(InternalError::forbidden().into()),
+            GasNode::UnspecifiedLocal { .. } => Err(InternalError::forbidden().into()),
         }
     }
 
@@ -246,18 +246,41 @@ where
     /// # Invariants
     /// Internal invariant of the procedure:
     /// 1. If `catch_value` call ended up with `CatchValueOutput::Missed` in `consume`, all the calls of catch_value on ancestor nodes will be `CatchValueOutput::Missed` as well.
+    /// That's because if there is an existing ancestor patron on the path from the `key` node to the root, catching value on all the nodes before that patron on this same path
+    /// will give the same `CatchValueOutput::Missed` result (they all have same ancestor patron, which will receive their values).
     /// 2. Also in that case cascade ancestors consumption will last until either the patron node or the first ancestor with specified child is found.
     /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
-    pub(super) fn try_remove_consumed_ancestors(
+    /// That's due to the 12-th invariant stated in [`super::property_tests`] module docs. When node becomes consumed without unspec refs (i.e., stops being a patron)
+    /// `consume` procedure call on such node either moves value upstream (if there is an ancestor patron) or returns value to the origin. So any repetitive `catch_value` call on
+    /// such nodes results in `CatchValueOutput::Caught(0)` (if there is an ancestor patron). So if `consume` procedure on the node with `key` id resulted in value being caught,
+    /// it means that there are no ancestor patrons, so none of `catch_value` calls on the node's ancestors will return `CatchValueOutput::Missed`, but will return `CatchValueOutput::Caught(0)`.
+    fn try_remove_consumed_ancestors(
         key: MapKey,
+        descendant_catch_output: CatchValueOutput<Balance>,
     ) -> Result<ConsumeOutput<NegativeImbalance<Balance, TotalValue>, ExternalId>, Error> {
         let mut node_id = key;
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
         let mut consume_output = None;
         let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
 
+        // Descendant's `catch_value` output is used for the sake of optimization.
+        // We could easily run `catch_value` in the below `while` loop each time
+        // we process the ancestor. But that would lead to quadratic complexity of
+        // the `consume` & `try_remove_consumed_ancestors` procedures. In order to
+        // optimize that we use internal properties of the `consume` procedure described
+        // in the function's docs. The general idea of the optimization is that in some
+        // situations there is no need in `catch_value` call, because results will be the
+        // same for all the ancestors.
+        let mut catch_output = if descendant_catch_output.is_caught() {
+            CatchValueOutput::Caught(Zero::zero())
+        } else {
+            descendant_catch_output
+        };
         while !node.is_patron() {
-            let catch_output = Self::catch_value(&mut node)?;
+            if catch_output.is_blocked() {
+                catch_output = Self::catch_value(&mut node)?;
+            }
+
             // The node is not a patron and can't be of unspecified type.
             if catch_output.is_blocked() {
                 return Err(InternalError::value_is_blocked().into());
@@ -266,18 +289,18 @@ where
             consume_output =
                 consume_output.or_else(|| catch_output.into_consume_output(origin.clone()));
 
-            if node.spec_refs == 0 {
+            if node.spec_refs() == 0 {
                 Self::decrease_parents_ref(&node)?;
                 StorageMap::remove(node_id);
 
-                match node.inner {
-                    GasNodeType::External { .. } => {
+                match node {
+                    GasNode::External { .. } => {
                         if !catch_output.is_caught() {
                             return Err(InternalError::value_is_not_caught().into());
                         }
                         return Ok(consume_output);
                     }
-                    GasNodeType::SpecifiedLocal { parent, .. } => {
+                    GasNode::SpecifiedLocal { parent, .. } => {
                         node_id = parent;
                         node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
                     }
@@ -307,7 +330,7 @@ where
         let node_id = node_id.unwrap_or(key);
 
         // Check if the parent node is reserved
-        if node.inner.is_reserved_local() {
+        if node.is_reserved_local() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -317,15 +340,17 @@ where
         }
 
         // Detect inner from `reserve`.
-        let inner = if reserve {
+        let new_node = if reserve {
             let id = Self::get_external(key)?.expect("existing node always have origin");
-            GasNodeType::ReservedLocal { id, value: amount }
+            GasNode::ReservedLocal { id, value: amount }
         } else {
-            node.spec_refs = node.spec_refs.saturating_add(1);
+            node.increase_spec_refs();
 
-            GasNodeType::SpecifiedLocal {
+            GasNode::SpecifiedLocal {
                 value: amount,
                 parent: node_id,
+                refs: Default::default(),
+                consumed: false,
             }
         };
 
@@ -337,13 +362,6 @@ where
         {
             return Err(InternalError::insufficient_balance().into());
         }
-
-        let new_node = GasNode {
-            inner,
-            spec_refs: 0,
-            unspec_refs: 0,
-            consumed: false,
-        };
 
         // Save new node
         StorageMap::insert(new_node_key, new_node);
@@ -407,8 +425,8 @@ where
         Ok(if let Some(node) = Self::get_node(key) {
             // key known, must return the origin, unless corrupted
             let (root, maybe_key) = Self::root(node)?;
-            match root.inner {
-                GasNodeType::External { id, .. } | GasNodeType::ReservedLocal { id, .. } => {
+            match root {
+                GasNode::External { id, .. } | GasNode::ReservedLocal { id, .. } => {
                     Some((maybe_key.unwrap_or(key), id))
                 }
                 _ => unreachable!("Guaranteed by ValueNode::root method"),
@@ -434,9 +452,14 @@ where
         }
     }
 
-    /// Marks a node with `key` as consumed, tries to return it's value and
-    /// delete it. The function performs same procedure with all the nodes on
-    /// the path from it to the root, if possible.
+    /// Marks a node with `key` as consumed, if possible, and tries to return
+    /// it's value and delete it. The function performs same procedure with all
+    /// the nodes on the path from it to the root, if possible.
+    ///
+    /// Marking a node as `consumed` is possible only for `GasNode::External` and `GasNode::SpecifiedLocal`
+    /// nodes. That is because these nodes can be not deleted after the function call, because of, for instance,
+    /// having children refs. `GasNode::UnspecifiedLocal` and `GasNode::ReservedLocal` nodes are removed when the
+    /// function is called, so there is no need for marking them as consumed.
     ///
     /// When consuming the node, it's value is mutated by calling `catch_value`, which
     /// tries to either return or move value upstream if possible. For more info, read
@@ -454,11 +477,11 @@ where
     ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        if node.consumed {
+        if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());
         }
 
-        node.consumed = true;
+        node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
         let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
 
@@ -466,25 +489,26 @@ where
             Self::decrease_parents_ref(&node)?;
             StorageMap::remove(key);
 
-            match node.inner {
-                GasNodeType::External { .. } | GasNodeType::ReservedLocal { .. } => {
+            match node {
+                GasNode::External { .. } | GasNode::ReservedLocal { .. } => {
                     if !catch_output.is_caught() {
                         return Err(InternalError::value_is_not_caught().into());
                     }
                     catch_output.into_consume_output(origin)
                 }
-                GasNodeType::UnspecifiedLocal { parent } => {
+                GasNode::UnspecifiedLocal { parent } => {
                     if !catch_output.is_blocked() {
                         return Err(InternalError::value_is_not_blocked().into());
                     }
-                    Self::try_remove_consumed_ancestors(parent)?
+                    Self::try_remove_consumed_ancestors(parent, catch_output)?
                 }
-                GasNodeType::SpecifiedLocal { parent, .. } => {
+                GasNode::SpecifiedLocal { parent, .. } => {
                     if catch_output.is_blocked() {
                         return Err(InternalError::value_is_blocked().into());
                     }
                     let consume_output = catch_output.into_consume_output(origin);
-                    let consume_ancestors_output = Self::try_remove_consumed_ancestors(parent)?;
+                    let consume_ancestors_output =
+                        Self::try_remove_consumed_ancestors(parent, catch_output)?;
                     match (&consume_output, consume_ancestors_output) {
                         // value can't be caught in both procedures
                         (Some(_), Some((neg_imb, _))) if neg_imb.peek().is_zero() => consume_output,
@@ -494,7 +518,7 @@ where
                 }
             }
         } else {
-            if node.inner.is_reserved_local() || node.inner.is_unspecified_local() {
+            if node.is_reserved_local() || node.is_unspecified_local() {
                 return Err(InternalError::unexpected_node_type().into());
             }
 
@@ -549,7 +573,7 @@ where
         let node_id = node_id.unwrap_or(key);
 
         // Check if the value node is reserved
-        if node.inner.is_reserved_local() {
+        if node.is_reserved_local() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -558,14 +582,9 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
-        node.unspec_refs = node.unspec_refs.saturating_add(1);
+        node.increase_unspec_refs();
 
-        let new_node = GasNode {
-            inner: GasNodeType::UnspecifiedLocal { parent: node_id },
-            spec_refs: 0,
-            unspec_refs: 0,
-            consumed: false,
-        };
+        let new_node = GasNode::UnspecifiedLocal { parent: node_id };
 
         // Save new node
         StorageMap::insert(new_key, new_node);
@@ -577,5 +596,10 @@ where
 
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, new_key, amount, true)
+    }
+
+    fn clear() {
+        TotalValue::kill();
+        StorageMap::clear();
     }
 }

@@ -19,6 +19,7 @@ jobs:
     runs-on: [self-hosted, cachepot, epyc]
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -33,8 +34,11 @@ jobs:
   check:
     needs: spec_version
     runs-on: [self-hosted, cachepot, epyc]
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -52,6 +56,10 @@ jobs:
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         uses: actions-rs/toolchain@v1
@@ -63,8 +71,8 @@ jobs:
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
-          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Build deps"
         run: |
@@ -74,7 +82,7 @@ jobs:
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
       - name: "Cache: Unpack"
-        if: ${{ github.ref != 'refs/heads/master' }}
+        if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
           tar -xf /root/cache/check_cache.tar -C /
@@ -97,7 +105,7 @@ jobs:
         run: ./scripts/gear.sh clippy examples
 
       - name: "Cache: Pack"
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
           tar -cf /tmp/check_target.tar ./target
@@ -110,8 +118,10 @@ jobs:
     runs-on: [self-hosted, cachepot, epyc]
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
+      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -129,6 +139,10 @@ jobs:
           target: wasm32-unknown-unknown
           components: llvm-tools-preview
 
+      - name: "Install: Show specific nightly version"
+        if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
+        run: echo $NIGHTLY_TOOLCHAIN_VERSION | sed 's/-/ - /g'
+
       - name: "Install: Specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         uses: actions-rs/toolchain@v1
@@ -140,8 +154,8 @@ jobs:
       - name: "Install: Pin to specific nightly toolchain"
         if: ${{ env.NIGHTLY_TOOLCHAIN_VERSION != '' }}
         run: |
-          rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
-          ln -s /root/.rustup/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+          rm -rf $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
+          ln -s $RUSTUP_HOME/toolchains/nightly-$NIGHTLY_TOOLCHAIN_VERSION-x86_64-unknown-linux-gnu $RUSTUP_HOME/toolchains/nightly-x86_64-unknown-linux-gnu
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -174,12 +188,11 @@ jobs:
           mv rust-covfix-linux-x86_64/rust-covfix ./
 
       - name: "Cache: Unpack"
-        if: ${{ github.ref != 'refs/heads/master' }}
+        if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          tar -xf /root/cache/build_cache.tar -C /
-          tar -xf /root/cache/build_cargo_registry.tar -C /
-          tar -xf /root/cache/build_target.tar
+          [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache.tar -C /; tar -xf /root/cache/build_cargo_registry.tar -C /; tar -xf /root/cache/build_target.tar; }
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
@@ -194,12 +207,12 @@ jobs:
 
       - name: "Test: Gear pallet tests with lazy pages"
         run: |
-          cargo test -p pallet-gear --features=lazy-pages --release
-          cargo test -p pallet-gear-debug --features=lazy-pages --release
-          cargo test -p pallet-gear-payment --features=lazy-pages --release
+          cargo test -p pallet-gear --features=lazy-pages --release --locked
+          cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
+          cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --release
+        run: ./scripts/gear.sh test gear --release --locked
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
@@ -242,6 +255,11 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Runtime benchmarks work"
+        run: |
+          cargo build -p gear-node --release --features runtime-benchmarks
+          ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: Find comment (performance)
         uses: peter-evans/find-comment@v2
@@ -322,14 +340,23 @@ jobs:
         with:
           file: ./lcov.info
 
-      - name: "Cache: Pack"
-        if: ${{ github.ref == 'refs/heads/master' }}
+      - name: "Cache: Pack to master"
+        if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
           tar -cf /tmp/build_target.tar ./target
           tar -cf /tmp/build_cache.tar /tmp/cachepot
           tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mv /tmp/*.tar /root/cache/
+          mkdir -p /root/cache/
+
+      - name: "Cache: Pack to temp"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        run: |
+          tar -cf /tmp/build_target.tar ./target
+          tar -cf /tmp/build_cache.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
@@ -363,6 +390,7 @@ jobs:
       CARGO_INCREMENTAL: 0
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -376,7 +404,7 @@ jobs:
           .\rustup-init.exe -y
           rustup --version
 
-      - name: "Install: Disable rustup autoupdate"
+      - name: "Install: Disable rustup auto-update"
         run: rustup set auto-self-update disable
 
       - name: "Install: Nightly toolchain"
@@ -418,6 +446,7 @@ jobs:
     needs: build
     steps:
       - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}

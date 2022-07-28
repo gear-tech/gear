@@ -17,14 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, Config, Event, GasAllowanceOf, GasHandlerOf, GearProgramPallet, MailboxOf,
-    Pallet, QueueOf, SentOf, WaitlistOf,
+    manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
+    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
 };
 use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
-use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutionErrorReason, JournalHandler,
-};
-use frame_support::traits::{Currency, ExistenceRequirement, Get, ReservableCurrency};
+use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
+use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
@@ -154,13 +152,10 @@ where
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
-        // TODO: update gas limit in `ValueTree` here (issue #1022).
-        // TODO: use here normal charging and waking logic.
+        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+
         WaitlistOf::<T>::drain_key(id_exited).for_each(|entry| {
-            let message = Pallet::<T>::wake_requirements(
-                entry,
-                MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
-            );
+            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
 
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
@@ -171,9 +166,9 @@ where
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
-        let balance = <T as Config>::Currency::total_balance(program_account);
+        let balance = CurrencyOf::<T>::total_balance(program_account);
         if !balance.is_zero() {
-            <T as Config>::Currency::transfer(
+            CurrencyOf::<T>::transfer(
                 program_account,
                 &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
                 balance,
@@ -188,24 +183,24 @@ where
     }
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
-        let gas_limit = dispatch.gas_limit();
-        let dispatch = dispatch.into_stored();
-
-        if dispatch.value() != 0 {
-            <T as Config>::Currency::reserve(
-                &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
-                dispatch.value().unique_saturated_into(),
-            ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
-        }
-
-        log::debug!(
-            "Sending message {:?} from {:?} with gas limit {:?}",
-            dispatch.message(),
-            message_id,
-            gas_limit,
-        );
-
         if self.check_program_id(&dispatch.destination()) {
+            let gas_limit = dispatch.gas_limit();
+            let dispatch = dispatch.into_stored();
+
+            log::debug!(
+                "Sending message {:?} from {:?} with gas limit {:?}",
+                dispatch.message(),
+                message_id,
+                gas_limit,
+            );
+
+            if dispatch.value() != 0 {
+                CurrencyOf::<T>::reserve(
+                    &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
+                    dispatch.value().unique_saturated_into(),
+                ).unwrap_or_else(|_| unreachable!("Value reservation can't fail due to value sending rules. For more info, see module docs."));
+            }
+
             if let Some(gas_limit) = gas_limit {
                 // # Safety
                 //
@@ -229,58 +224,13 @@ where
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
         } else {
-            let message = match dispatch.exit_code() {
-                Some(0) | None => dispatch.into_parts().1,
-                _ => {
-                    let message = dispatch.into_parts().1;
-                    message
-                        .clone()
-                        .with_string_payload::<ExecutionErrorReason>()
-                        .unwrap_or(message)
-                }
-            };
-
-            let mailbox_threshold = T::MailboxThreshold::get();
-
-            let gas_limit = gas_limit.unwrap_or_else(|| {
-                // # Safety
-                //
-                // The `get_limit` has been checked inside message queue processing.
-                GasHandlerOf::<T>::get_limit(message_id)
-                    .ok()
-                    .flatten()
-                    .map(|(v, _)| v)
-                    .unwrap_or_else(|| unreachable!("Checked before."))
-                    .min(mailbox_threshold)
-            });
-
-            if gas_limit >= mailbox_threshold {
-                // TODO: replace this temporary (zero) value for expiration
-                // block number with properly calculated one
-                // (issues #646 and #969).
-                MailboxOf::<T>::insert(message.clone(), T::BlockNumber::zero())
-                    .unwrap_or_else(|e| unreachable!("Mailbox corrupted! {:?}", e));
-
-                // # Safety
-                //
-                // 1. There is no logic spliting value from the reserved nodes.
-                // 2. The `gas_limit` has been checked inside message queue processing..
-                // 3. The `value` of the value node has been checked before.
-                // 4. The `message.id()` is generated from `message_id` by system, and
-                //    the `message_id` has been checked inside message queue processing.
-                GasHandlerOf::<T>::cut(message_id, message.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: Some(T::BlockNumber::zero()),
-                })
-            } else {
-                Pallet::<T>::deposit_event(Event::UserMessageSent {
-                    message,
-                    expiration: None,
-                });
-            }
+            log::debug!(
+                "Sending user message {:?} from {:?} with gas limit {:?}",
+                dispatch.message(),
+                message_id,
+                dispatch.gas_limit(),
+            );
+            Pallet::<T>::send_user_message(message_id, dispatch.into_parts().1);
         }
     }
 

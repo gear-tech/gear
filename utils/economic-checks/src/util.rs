@@ -56,6 +56,7 @@ type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
 type GasBalanceOf<T> = <GasHandlerOf<T> as GasTree>::Balance;
 
 pub(crate) type WaitlistOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Waitlist;
+pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Mailbox;
 
 // Generate a crypto pair from seed.
 pub(crate) fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
@@ -295,6 +296,29 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
     gas_limit_by_node_id
         .into_iter()
         .fold(0_u64, |acc, (_, val)| acc + val)
+}
+
+pub(crate) fn total_gas_in_mailbox() -> u64 {
+    // Iterate through the mailbox and record the respective gas nodes value limits
+    // attributing the latter to the nearest `node_with_value` ID to avoid duplication
+    let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
+        MailboxOf::<Runtime>::iter()
+            .map(|(dispatch, _)| {
+                let node_id = dispatch.id();
+                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit(node_id)
+                    .expect("There is always a value node for a valid dispatch ID")
+                    .expect("There is always a node with concrete value for a node");
+                (ancestor_id, value)
+            })
+            .collect();
+
+    gas_limit_by_node_id
+        .into_iter()
+        .fold(0_u64, |acc, (_, val)| acc + val)
+}
+
+pub(crate) fn total_gas_in_wl_mb() -> u64 {
+    total_gas_in_wait_list() + total_gas_in_mailbox()
 }
 
 pub(crate) fn total_reserved_balance() -> u128 {

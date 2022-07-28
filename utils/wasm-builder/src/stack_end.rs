@@ -20,7 +20,7 @@ use pwasm_utils::parity_wasm::elements::{ExportEntry, Instruction, Internal, Mod
 
 /// Insert '__gear_stack_end' export in `module` if there is global '__stack_pointer'.
 /// By default rust compilation into wasm creates global '__stack_pointer', which
-/// initialized by end of stack address. Unfortunalelly this global is not export.
+/// initialized by end of stack address. Unfortunately this global is not export.
 /// By default '__stack_pointer' has number 0 in globals, so if there is '__stack_pointer' in
 /// a name section, then we suppose that 0 global contains stack end addr, and insert an export
 /// for this global. This export can be used in runtime to identify end of stack memory
@@ -32,7 +32,7 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
         .ok_or("Cannot find name section")?;
     let payload = unsafe { std::str::from_utf8_unchecked(name_section.payload()) };
 
-    // Unfortunatelly parity wasm cannot work with global names subsection in custom names section.
+    // Unfortunately `parity-wasm` cannot work with global names subsection in custom names section.
     // So, we just check, whether names section contains '__stack_pointer' as name.
     // TODO: make parsing of global names and identify that global 0 has name '__stack_pointer'
     if !payload.contains("__stack_pointer") {
