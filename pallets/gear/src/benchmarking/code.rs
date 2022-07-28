@@ -144,7 +144,7 @@ where
         let func_offset = u32::try_from(def.imported_functions.len()).unwrap();
 
         // Every program must export "init" and "handle" functions
-        let program = builder::module()
+        let mut program = builder::module()
             // init function (first internal function)
             .function()
             .signature()
@@ -156,22 +156,12 @@ where
             .signature()
             .build()
             .with_body(def.handle_body.unwrap_or_else(body::empty))
-            .build();
-
-        let (program, reply_body) = match def.reply_body {
-            None => (program, false),
-            Some(body) => (
-                program
-                    .function()
-                    .signature()
-                    .build()
-                    .with_body(body)
-                    .build(),
-                true,
-            ),
-        };
-
-        let program = program
+            .build()
+            .function()
+            .signature()
+            .build()
+            .with_body(def.reply_body.unwrap_or_else(body::empty))
+            .build()
             .export()
             .field("init")
             .internal()
@@ -181,17 +171,12 @@ where
             .field("handle")
             .internal()
             .func(func_offset + 1)
+            .build()
+            .export()
+            .field("handle_reply")
+            .internal()
+            .func(func_offset + 2)
             .build();
-
-        let mut program = match reply_body {
-            false => program,
-            true => program
-                .export()
-                .field("handle_reply")
-                .internal()
-                .func(func_offset + 2)
-                .build(),
-        };
 
         // If specified we add an additional internal function
         if let Some(body) = def.aux_body {
