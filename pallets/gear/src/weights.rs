@@ -162,11 +162,11 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
     fn create_program(s: u32, ) -> Weight {
-		    (423_368_000 as Weight)
+		    (75_038_000 as Weight)
 			  // Standard Error: 0
 			      .saturating_add((3_000 as Weight).saturating_mul(s as Weight))
 			      .saturating_add(T::DbWeight::get().reads(10 as Weight))
-			      .saturating_add(T::DbWeight::get().writes(11 as Weight))
+			      .saturating_add(T::DbWeight::get().writes(8 as Weight))
 	  }
 	fn upload_program(c: u32, s: u32, ) -> Weight {
 		(423_368_000 as Weight)
@@ -696,11 +696,11 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
     fn create_program(s: u32, ) -> Weight {
-		    (423_368_000 as Weight)
+		    (75_038_000 as Weight)
 			  // Standard Error: 0
 			      .saturating_add((3_000 as Weight).saturating_mul(s as Weight))
 			      .saturating_add(RocksDbWeight::get().reads(10 as Weight))
-			      .saturating_add(RocksDbWeight::get().writes(11 as Weight))
+			      .saturating_add(RocksDbWeight::get().writes(8 as Weight))
 	  }
 	fn upload_program(c: u32, s: u32, ) -> Weight {
 		(423_368_000 as Weight)
