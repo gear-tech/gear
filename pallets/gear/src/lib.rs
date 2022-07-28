@@ -768,12 +768,8 @@ pub mod pallet {
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
-                let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
-                    .ok()
-                    .flatten()
-                    .ok_or_else(|| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?;
+                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
+                    .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
                 let message_execution_context = MessageExecutionContext {
                     actor,
@@ -794,16 +790,11 @@ pub mod pallet {
                     )
                 };
 
-                let get_main_limit = || {
-                    GasHandlerOf::<T>::get_limit(main_message_id).map_err(|_| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })
-                };
+                let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
                 let get_origin_msg_of = |msg_id| {
                     GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
-                        .map(|v| v.unwrap_or(msg_id))
                 };
 
                 let from_main_chain =
@@ -813,29 +804,26 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some((remaining_gas, _)) = get_main_limit()? {
+                    if let Some(remaining_gas) = get_main_limit() {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
-                            if from_main_chain(dispatch.id())? {
+                            let destination =
+                                T::AccountId::from_origin(dispatch.destination().into_origin());
+                            if MailboxOf::<T>::contains(&destination, &dispatch.id())
+                                && from_main_chain(dispatch.id())?
+                            {
                                 let gas_limit = dispatch
                                     .gas_limit()
-                                    .or_else(|| {
-                                        GasHandlerOf::<T>::get_limit(dispatch.id())
-                                            .ok()
-                                            .flatten()
-                                            .map(|(g, _)| g)
-                                    })
+                                    .or_else(|| GasHandlerOf::<T>::get_limit(dispatch.id()).ok())
                                     .ok_or_else(|| {
                                         b"Internal error: unable to get gas limit after execution"
                                             .to_vec()
                                     })?;
 
-                                if gas_limit >= T::MailboxThreshold::get() {
-                                    reserved = reserved.saturating_add(gas_limit);
-                                }
+                                reserved = reserved.saturating_add(gas_limit);
                             }
                         }
 
@@ -1036,20 +1024,12 @@ pub mod pallet {
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let opt_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+                    let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // Gas limit may not be found only for inexistent node.
-                    let (gas_limit, _) =
-                        opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let opt_external = GasHandlerOf::<T>::get_external(dispatch.id())
+                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // External id may not be found only for inexistent node.
-                    let external = opt_external
-                        .unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     log::debug!(
                         "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",

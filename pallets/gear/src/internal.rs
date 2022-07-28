@@ -86,13 +86,10 @@ impl<T: Config> HoldBoundCost<T> {
     /// by querying it's gas limit.
     pub fn maximum_for_message(self, message_id: MessageId) -> HoldBound<T> {
         // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let opt_limit = GasHandlerOf::<T>::get_limit(message_id)
+        let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Gas limit may not be found only for inexistent node.
-        let (limit, _) = opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
-
-        self.maximum_for(limit)
+        self.maximum_for(gas_limit)
     }
 
     // Zero-duration hold bound.
@@ -232,11 +229,8 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let opt_external = GasHandlerOf::<T>::get_external(message_id)
+        let external = GasHandlerOf::<T>::get_external(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // External id may not be found only for inexistent node.
-        let external = opt_external.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
         // Querying actual block author to reward.
         let block_author = Authorship::<T>::author()
@@ -318,12 +312,8 @@ where
         }
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
-        let opt_origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
+        let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // Gas origin message id may not be found only for inexistent node.
-        let origin_msg =
-            opt_origin_msg.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
         // TODO: Lock funds for holding here (issue #1173).
 
@@ -469,16 +459,12 @@ where
             .gas_limit()
             .or_else(|| {
                 // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                let opt_limit = GasHandlerOf::<T>::get_limit(origin_msg)
+                let gas_limit = GasHandlerOf::<T>::get_limit(origin_msg)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                // Gas limit may not be found only for inexistent node.
-                let (limit, _) =
-                    opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                 // If available gas is greater then threshold,
                 // than threshold can be used.
-                (limit >= threshold).then_some(threshold)
+                (gas_limit >= threshold).then_some(threshold)
             })
             .unwrap_or_default();
 
