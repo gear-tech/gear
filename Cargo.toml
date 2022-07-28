@@ -1,15 +1,3 @@
-[profile.release]
-panic = "unwind"
-
-[profile.release.package.gcore]
-opt-level = "s"
-
-[profile.release.package.gstd]
-opt-level = "s"
-
-[profile.release.package.gear-test]
-opt-level = "s"
-
 [workspace]
 resolver = "2"
 
@@ -41,3 +29,31 @@ members = [
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
 ]
+
+[profile.release]
+panic = "unwind"
+
+[profile.release.package.gcore]
+opt-level = "s"
+
+[profile.release.package.gstd]
+opt-level = "s"
+
+[profile.release.package.gear-test]
+opt-level = "s"
+
+[profile.release.package.galloc]
+opt-level = "s"
+
+[profile.release.package.gtest]
+opt-level = "s"
+
+[profile.production]
+inherits = "release"
+
+# Sacrifice compile speed for execution speed by using optimization flags:
+
+# https://doc.rust-lang.org/rustc/linker-plugin-lto.html
+lto = "fat"
+# https://doc.rust-lang.org/rustc/codegen-options/index.html#codegen-units
+codegen-units = 1
