@@ -23,7 +23,6 @@
 extern crate alloc;
 
 pub mod error_processor;
-pub mod funcs;
 
 mod utils;
 
@@ -33,7 +32,6 @@ use alloc::{
     vec::Vec,
 };
 use codec::{Decode, Encode, MaxEncodedLen};
-use funcs::FuncError;
 use core::{fmt, ops::Deref};
 use error_processor::IntoExtError;
 use gear_core::{
@@ -128,34 +126,23 @@ pub trait IntoExtInfo {
 pub trait RuntimeCtx<E>
 where
     E: Ext + IntoExtInfo + 'static,
-    E::Error: AsTerminationReason
-        + IntoExtError,
+    E::Error: AsTerminationReason + IntoExtError,
 {
-    fn alloc(&mut self, pages: u32)
-        -> Result<gear_core::memory::WasmPageNumber, E::Error>;
+    /// Allocate new pages in instance memory.
+    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error>;
 
-    fn ext(&mut self) -> &mut E;
-
-    /// Read designated chunk from the sandbox memory.
-    ///
-    /// Returns `Err` if one of the following conditions occurs:
-    ///
-    /// - requested buffer is not within the bounds of the sandbox memory.
+    /// Read designated chunk from the memory.
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError>;
 
-    /// Read designated chunk from the sandbox memory into the supplied buffer.
-    ///
-    /// Returns `Err` if one of the following conditions occurs:
-    ///
-    /// - requested buffer is not within the bounds of the sandbox memory.
+    /// Read designated chunk from the memory into the supplied buffer.
     fn read_memory_into_buf(&self, ptr: u32, buf: &mut [u8]) -> Result<(), MemoryError>;
 
-    /// Reads and decodes a type with a size fixed at compile time from contract memory.
+    /// Reads and decodes a type with a size fixed at compile time from program memory.
     fn read_memory_as<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> Result<D, MemoryError>;
 
-    /// Write the given buffer and its length to the designated locations in sandbox memory.
+    /// Write the given buffer and its length to the designated locations in memory.
     //
-    /// `out_ptr` is the location in sandbox memory where `buf` should be written to.
+    /// `out_ptr` is the location in memory where `buf` should be written to.
     fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), MemoryError>;
 }
 

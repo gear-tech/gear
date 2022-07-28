@@ -32,7 +32,7 @@ use core::{
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
-    AsTerminationReason, IntoExtInfo, TerminationReason, TrapExplanation,
+    AsTerminationReason, IntoExtInfo, RuntimeCtx, TerminationReason, TrapExplanation,
 };
 use gear_core::{
     env::Ext,
