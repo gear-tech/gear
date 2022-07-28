@@ -252,7 +252,7 @@ where
     /// 3. If `catch_value` call ended up with `CatchValueOutput::Caught(x)` in `consume`, all the calls of `catch_value` on ancestor nodes will be `CatchValueOutput::Caught(0)`.
     /// That's due to the 12-th invariant stated in [`super::property_tests`] module docs. When node becomes consumed without unspec refs (i.e., stops being a patron)
     /// `consume` procedure call on such node either moves value upstream (if there is an ancestor patron) or returns value to the origin. So any repetitive `catch_value` call on
-    /// such nodes results in `CatchValueOutput::Caught(0)` (if there are is ancestor patron). So if `consume` procedure on the node with `key` id resulted in value being caught,
+    /// such nodes results in `CatchValueOutput::Caught(0)` (if there is an ancestor patron). So if `consume` procedure on the node with `key` id resulted in value being caught,
     /// it means that there are no ancestor patrons, so none of `catch_value` calls on the node's ancestors will return `CatchValueOutput::Missed`, but will return `CatchValueOutput::Caught(0)`.
     fn try_remove_consumed_ancestors(
         key: MapKey,
@@ -264,7 +264,7 @@ where
         let (_, origin) = Self::get_origin(key)?.expect("existing node always have origin");
 
         // Descendant's `catch_value` output is used for the sake of optimization.
-        // We could easily run `catch_value` in the bellow `while` loop each time
+        // We could easily run `catch_value` in the below `while` loop each time
         // we process the ancestor. But that would lead to quadratic complexity of
         // the `consume` & `try_remove_consumed_ancestors` procedures. In order to
         // optimize that we use internal properties of the `consume` procedure described
