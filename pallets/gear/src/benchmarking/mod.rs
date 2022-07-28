@@ -28,6 +28,7 @@ use self::{
     code::{
         body::{self, DynInstr::*},
         DataSegment, ImportedFunction, ImportedMemory, Location, ModuleDefinition, WasmModule,
+        OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
@@ -1838,7 +1839,7 @@ benchmarks! {
                 Instruction::End,
             ])),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(2), // call aux
+                Instruction::Call(OFFSET_AUX),
             ])),
             inject_stack_metering: false,
             .. Default::default()
@@ -1867,7 +1868,7 @@ benchmarks! {
             inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
-                function_index: 2, // aux
+                function_index: OFFSET_AUX,
             }),
             .. Default::default()
         }));
@@ -1900,7 +1901,7 @@ benchmarks! {
             inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
-                function_index: 2, // aux
+                function_index: OFFSET_AUX,
             }),
             .. Default::default()
         }));
