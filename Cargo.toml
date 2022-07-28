@@ -33,6 +33,21 @@ members = [
 [profile.release]
 panic = "unwind"
 
+[profile.release.package.gcore]
+opt-level = "s"
+
+[profile.release.package.gstd]
+opt-level = "s"
+
+[profile.release.package.gear-test]
+opt-level = "s"
+
+[profile.release.package.galloc]
+opt-level = "s"
+ 
+[profile.release.package.gtest]
+opt-level = "s"
+
 [profile.production]
 inherits = "release"
 
@@ -42,12 +57,3 @@ inherits = "release"
 lto = "fat"
 # https://doc.rust-lang.org/rustc/codegen-options/index.html#codegen-units
 codegen-units = 1
-
-[profile.release.package.gcore]
-opt-level = "s"
-
-[profile.release.package.gstd]
-opt-level = "s"
-
-[profile.release.package.gear-test]
-opt-level = "s"
