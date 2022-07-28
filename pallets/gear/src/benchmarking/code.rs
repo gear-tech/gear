@@ -71,6 +71,9 @@ pub struct ModuleDefinition {
     /// Function body of the exported `handle` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 1`.
     pub handle_body: Option<FuncBody>,
+    /// Function body of the exported `handle_reply` function. Body is missing if `None`.
+    /// Its index is `imported_functions.len() + 2`.
+    pub reply_body: Option<FuncBody>,
     /// Function body of a non-exported function with index `imported_functions.len() + 2`.
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
@@ -141,25 +144,34 @@ where
         let func_offset = u32::try_from(def.imported_functions.len()).unwrap();
 
         // Every program must export "init" and "handle" functions
-        let mut program = builder::module()
+        let program = builder::module()
             // init function (first internal function)
             .function()
             .signature()
             .build()
-            .with_body(
-                def.init_body
-                    .unwrap_or_else(|| FuncBody::new(Vec::new(), Instructions::empty())),
-            )
+            .with_body(def.init_body.unwrap_or_else(body::empty))
             .build()
             // handle function (second internal function)
             .function()
             .signature()
             .build()
-            .with_body(
-                def.handle_body
-                    .unwrap_or_else(|| FuncBody::new(Vec::new(), Instructions::empty())),
-            )
-            .build()
+            .with_body(def.handle_body.unwrap_or_else(body::empty))
+            .build();
+
+        let (program, reply_body) = match def.reply_body {
+            None => (program, false),
+            Some(body) => (
+                program
+                    .function()
+                    .signature()
+                    .build()
+                    .with_body(body)
+                    .build(),
+                true,
+            ),
+        };
+
+        let program = program
             .export()
             .field("init")
             .internal()
@@ -170,6 +182,16 @@ where
             .internal()
             .func(func_offset + 1)
             .build();
+
+        let mut program = match reply_body {
+            false => program,
+            true => program
+                .export()
+                .field("handle_reply")
+                .internal()
+                .func(func_offset + 2)
+                .build(),
+        };
 
         // If specified we add an additional internal function
         if let Some(body) = def.aux_body {
@@ -425,6 +447,10 @@ pub mod body {
 
     pub fn plain(instructions: Vec<Instruction>) -> FuncBody {
         FuncBody::new(Vec::new(), Instructions::new(instructions))
+    }
+
+    pub fn empty() -> FuncBody {
+        FuncBody::new(vec![], Instructions::empty())
     }
 
     pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {

@@ -1262,11 +1262,12 @@ benchmarks! {
                 params: vec![ValueType::I32],
                 return_type: None,
             }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // dest_ptr
+            reply_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                // dest_ptr
+                Instruction::I32Const(0),
                 Instruction::Call(0),
                 ])),
-                .. Default::default()
+            .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
@@ -1324,7 +1325,7 @@ benchmarks! {
                 params: vec![],
                 return_type: Some(ValueType::I32),
             }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+            reply_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(0),
                 Instruction::Drop,
             ])),
