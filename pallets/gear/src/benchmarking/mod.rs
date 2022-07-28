@@ -70,8 +70,8 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
-/// Initializes block and runs queue processing.
-fn process_queue<T: Config>()
+// Initializes new block.
+fn init_block<T: Config>()
 where
     T::AccountId: Origin,
 {
@@ -86,6 +86,14 @@ where
     SystemPallet::<T>::set_block_number(bn);
     SystemPallet::<T>::on_initialize(bn);
     AuthorshipPallet::<T>::on_initialize(bn);
+}
+
+// Initializes block and runs queue processing.
+fn process_queue<T: Config>()
+where
+    T::AccountId: Origin,
+{
+    init_block::<T>();
 
     Gear::<T>::process_queue(Default::default());
 }
@@ -257,7 +265,7 @@ where
         timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
     };
 
-    let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+    let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
 
     let block_config = BlockConfig {
@@ -333,6 +341,8 @@ benchmarks! {
             value.unique_saturated_into(),
             None,
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
+
+        init_block::<T>();
     }: _(RawOrigin::Signed(caller.clone()), original_message_id)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
@@ -350,6 +360,8 @@ benchmarks! {
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::sized(c, Location::Handle);
         let origin = RawOrigin::Signed(caller);
+
+        init_block::<T>();
     }: _(origin, code)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
@@ -376,6 +388,8 @@ benchmarks! {
         <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
         let origin = RawOrigin::Signed(caller);
+
+        init_block::<T>();
     }: _(origin, code, salt, vec![], 100_000_000_u64, value)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
@@ -389,6 +403,8 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program(program_id.into_origin(), code, 1.into());
         let payload = vec![0_u8; p as usize];
+
+        init_block::<T>();
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
@@ -416,6 +432,8 @@ benchmarks! {
             None,
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
         let payload = vec![0_u8; p as usize];
+
+        init_block::<T>();
     }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));

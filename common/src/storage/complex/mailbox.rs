@@ -22,8 +22,8 @@
 //! addressed to users.
 
 use crate::storage::{
-    Callback, CountedByKey, DoubleMapStorage, FallibleCallback, GetCallback, Interval,
-    IterableByKeyMap, KeyFor,
+    Callback, CountedByKey, DoubleMapStorage, GetCallback, Interval, IterableByKeyMap, IterableMap,
+    KeyFor,
 };
 use core::marker::PhantomData;
 
@@ -81,10 +81,7 @@ pub trait MailboxCallbacks<OutputError> {
     /// Callback on success `insert`.
     type OnInsert: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
     /// Callback on success `remove`.
-    type OnRemove: FallibleCallback<
-        ValueWithInterval<Self::Value, Self::BlockNumber>,
-        Error = OutputError,
-    >;
+    type OnRemove: Callback<ValueWithInterval<Self::Value, Self::BlockNumber>>;
 }
 
 /// Represents mailbox error type.
@@ -164,7 +161,7 @@ where
         message_id: Self::Key2,
     ) -> Result<ValueWithInterval<Self::Value, Self::BlockNumber>, Self::OutputError> {
         if let Some(message_with_bn) = T::take(user_id, message_id) {
-            Callbacks::OnRemove::call(&message_with_bn)?;
+            Callbacks::OnRemove::call(&message_with_bn);
             Ok(message_with_bn)
         } else {
             Err(Self::Error::element_not_found().into())
@@ -218,5 +215,28 @@ where
 
     fn iter_key(key: Self::Key) -> Self::Iter {
         T::iter_key(key)
+    }
+}
+
+// Implementation of `IterableMap` trait for `MailboxImpl` in case,
+// when inner `DoubleMapStorage` implements `IterableMap`.
+impl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen> IterableMap<T::Value>
+    for MailboxImpl<T, Value, BlockNumber, Error, OutputError, Callbacks, KeyGen>
+where
+    T: DoubleMapStorage<Value = ValueWithInterval<Value, BlockNumber>> + IterableMap<T::Value>,
+    Error: MailboxError,
+    OutputError: From<Error>,
+    Callbacks: MailboxCallbacks<OutputError, Value = Value, BlockNumber = BlockNumber>,
+    KeyGen: KeyFor<Key = (T::Key1, T::Key2), Value = Value>,
+{
+    type DrainIter = T::DrainIter;
+    type Iter = T::Iter;
+
+    fn drain() -> Self::DrainIter {
+        T::drain()
+    }
+
+    fn iter() -> Self::Iter {
+        T::iter()
     }
 }

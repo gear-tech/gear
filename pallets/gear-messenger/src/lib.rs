@@ -155,11 +155,7 @@ pub mod pallet {
 
     use common::{storage::*, BlockLimiter, Origin};
     use frame_support::{
-        dispatch::DispatchError,
-        pallet_prelude::*,
-        sp_runtime::traits::UniqueSaturatedInto,
-        storage::PrefixIterator,
-        traits::{BalanceStatus, ReservableCurrency, StorageVersion},
+        dispatch::DispatchError, pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion,
     };
     use frame_system::{pallet_prelude::*, Pallet as SystemPallet};
     use gear_core::{
@@ -174,8 +170,6 @@ pub mod pallet {
     // Gear Messenger Pallet's `Config`.
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// Balances management trait for gas/value migrations.
-        type Currency: ReservableCurrency<Self::AccountId>;
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = u64>;
     }
@@ -487,38 +481,6 @@ pub mod pallet {
     // Note, that they are public like storage wrappers
     // only to be able to use as public trait's generics.
 
-    /// Callback function for success `remove` action.
-    pub struct OnRemove<T: crate::Config>(PhantomData<T>)
-    where
-        T::AccountId: Origin;
-
-    // Callback trait implementation.
-    //
-    // Remove from mailbox means auto-claim in Gear Messenger Context,
-    // so if value present, it will be added to user's balance.
-    impl<T: crate::Config> FallibleCallback<(StoredMessage, Interval<T::BlockNumber>)> for OnRemove<T>
-    where
-        T::AccountId: Origin,
-    {
-        type Error = DispatchError;
-
-        fn call(
-            (message, _bn): &(StoredMessage, Interval<T::BlockNumber>),
-        ) -> Result<(), Self::Error> {
-            if message.value() > 0 {
-                // Assuming the programs has enough balance
-                <T as Config>::Currency::repatriate_reserved(
-                    &<T::AccountId as Origin>::from_origin(message.source().into_origin()),
-                    &<T::AccountId as Origin>::from_origin(message.destination().into_origin()),
-                    message.value().unique_saturated_into(),
-                    BalanceStatus::Free,
-                )?;
-            }
-
-            Ok(())
-        }
-    }
-
     // ----
 
     /// Store of mailbox action's callbacks.
@@ -538,7 +500,7 @@ pub mod pallet {
 
         type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
-        type OnRemove = OnRemove<T>;
+        type OnRemove = ();
     }
 
     // ----

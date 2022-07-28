@@ -60,7 +60,7 @@ use gear_core::{
 };
 use pallet_gear_program::Pallet as GearProgramPallet;
 use primitive_types::H256;
-use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
+use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -83,6 +83,7 @@ pub(crate) type TaskPoolOf<T> = <<T as Config>::Scheduler as Scheduler>::TaskPoo
 pub(crate) type MissedBlocksOf<T> = <<T as Config>::Scheduler as Scheduler>::MissedBlocks;
 pub(crate) type CostsPerBlockOf<T> = <<T as Config>::Scheduler as Scheduler>::CostsPerBlock;
 pub(crate) type SchedulingCostOf<T> = <<T as Config>::Scheduler as Scheduler>::Cost;
+pub(crate) type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 pub type GasHandlerOf<T> = <<T as Config>::GasProvider as GasProvider>::GasTree;
@@ -138,10 +139,7 @@ pub mod pallet {
         Origin, Program, ProgramState,
     };
     use core_processor::{
-        common::{
-            Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalHandler,
-            JournalNote,
-        },
+        common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
         Ext, PrepareResult,
     };
@@ -355,6 +353,8 @@ pub mod pallet {
     // Gear pallet error.
     #[pallet::error]
     pub enum Error<T> {
+        /// Message wasn't found in mailbox.
+        MessageNotFound,
         /// Not enough balance to reserve.
         ///
         /// Usually occurs when gas_limit specified is such that origin account can't afford the message.
@@ -392,8 +392,6 @@ pub mod pallet {
         CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
-        /// User contains mailboxed message from other user.
-        UserRepliesToUser,
     }
 
     #[pallet::hooks]
@@ -516,7 +514,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.clone().into_origin();
@@ -687,13 +685,10 @@ pub mod pallet {
         ) -> Result<GasInfo, Vec<u8>> {
             let account = <T::AccountId as Origin>::from_origin(source);
 
-            let balance = <T as Config>::Currency::free_balance(&account);
+            let balance = CurrencyOf::<T>::free_balance(&account);
             let max_balance: BalanceOf<T> =
                 T::GasPrice::gas_price(initial_gas) + value.unique_saturated_into();
-            <T as Config>::Currency::deposit_creating(
-                &account,
-                max_balance.saturating_sub(balance),
-            );
+            CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
             let who = frame_support::dispatch::RawOrigin::Signed(account);
             let value: BalanceOf<T> = value.unique_saturated_into();
@@ -738,8 +733,7 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit =
-                <T as Config>::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
 
             let schedule = T::Schedule::get();
 
@@ -1071,8 +1065,7 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit =
-                <T as Config>::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
 
             let schedule = T::Schedule::get();
 
@@ -1214,12 +1207,11 @@ pub mod pallet {
                         None
                     };
 
-                    let balance = <T as Config>::Currency::free_balance(
-                        &<T::AccountId as Origin>::from_origin(
+                    let balance =
+                        CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
                             dispatch.destination().into_origin(),
-                        ),
-                    )
-                    .unique_saturated_into();
+                        ))
+                        .unique_saturated_into();
 
                     let program_id = dispatch.destination();
                     let message_execution_context = MessageExecutionContext {
@@ -1469,7 +1461,7 @@ pub mod pallet {
             );
 
             let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+            let minimum: u128 = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
 
             // Check that provided `value` equals 0 or greater than existential deposit
             ensure!(
@@ -1518,7 +1510,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.clone().into_origin();
@@ -1595,7 +1587,7 @@ pub mod pallet {
             let origin = who.clone().into_origin();
 
             let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+            let minimum: u128 = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
@@ -1628,13 +1620,13 @@ pub mod pallet {
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
                 // in the queue.
-                <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
+                CurrencyOf::<T>::reserve(&who, value.unique_saturated_into())
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
-                <T as Config>::Currency::reserve(&who, gas_limit_reserve)
+                CurrencyOf::<T>::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let _ = GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit);
@@ -1652,7 +1644,7 @@ pub mod pallet {
             } else {
                 let message = message.into_stored(ProgramId::from_origin(origin));
 
-                <T as Config>::Currency::transfer(
+                CurrencyOf::<T>::transfer(
                     &who,
                     &<T as frame_system::Config>::AccountId::from_origin(
                         message.destination().into_origin(),
@@ -1671,18 +1663,19 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Sends a reply message.
+        /// Send reply on message in `Mailbox`.
         ///
-        /// The origin must be Signed and the sender must have sufficient funds to pay
-        /// for `gas` and `value` (in case the latter is being transferred).
+        /// Removes message by given `MessageId` from callers `Mailbox`:
+        /// rent funds become free, associated with the message value
+        /// transfers from message sender to extrinsic caller.
         ///
-        /// Parameters:
-        /// - `reply_to_id`: the original message id.
-        /// - `payload`: data expected by the original sender.
-        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
-        /// - `value`: balance to be transferred to the program once it's been created.
+        /// Generates reply on removed message with given parameters
+        /// and pushes it in `MessageQueue`.
         ///
-        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        /// NOTE: source of the message in mailbox guaranteed to be a program.
+        ///
+        /// NOTE: only user who is destination of the message, can claim value
+        /// or reply on the message from mailbox.
         #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -1691,100 +1684,99 @@ pub mod pallet {
             gas_limit: u64,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
+            // Validating origin.
+            let origin = ensure_signed(origin)?;
 
-            let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
-
-            // Ensure the `gas_limit` allows the extrinsic to fit into a block
+            // Checking that applied gas limit doesn't exceed block limit.
             ensure!(
                 gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Check that provided `value` equals 0 or greater than existential deposit
+            // Checking that applied value fits existence requirements:
+            // it should be zero or not less than existential deposit.
             ensure!(
-                0 == numeric_value || numeric_value >= minimum,
+                value.is_zero() || value >= CurrencyOf::<T>::minimum_balance(),
                 Error::<T>::ValueLessThanMinimal
             );
 
-            // Claim outstanding value from the original message first
-            let (original_message, _bn) = MailboxOf::<T>::remove(who.clone(), reply_to_id)?;
-            // TODO: burn here for holding #646.
-            let mut ext_manager: ExtManager<T> = Default::default();
-            ext_manager.message_consumed(reply_to_id);
-            let destination = original_message.source();
+            // Reason for reading from mailbox.
+            let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
 
-            // There should be no possibility to modify mailbox if two users interact.
-            ensure!(
-                GearProgramPallet::<T>::program_exists(destination),
-                Error::<T>::UserRepliesToUser
-            );
+            // Reading message, if found, or failing extrinsic.
+            let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
+                .ok_or(Error::<T>::MessageNotFound)?;
 
+            // Checking that program, origin replies to, is not terminated.
             ensure!(
-                !Self::is_terminated(original_message.source()),
+                !Self::is_terminated(mailboxed.source()),
                 Error::<T>::ProgramIsTerminated
             );
 
-            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
-            // That's because destination can fail to be initialized, while this dispatch message is next
-            // in the queue.
-            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let origin = who.clone();
-
-            let message_id = MessageId::generate_reply(original_message.id(), 0);
-            let packet =
-                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
-            let message = ReplyMessage::from_packet(message_id, packet);
-
+            // Converting applied gas limit into value to reserve.
             let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
-            // First we reserve enough funds on the account to pay for `gas_limit`
-            <T as Config>::Currency::reserve(&who, gas_limit_reserve)
+            // Reserving funds for gas limit and value sending.
+            //
+            // Note, that message is not guaranteed to be successfully executed,
+            // that's why value is not immediately transferred.
+            CurrencyOf::<T>::reserve(&origin, gas_limit_reserve + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let _ = GasHandlerOf::<T>::create(origin.clone(), message_id, gas_limit);
+            // Creating reply message.
+            let message = ReplyMessage::from_packet(
+                MessageId::generate_reply(mailboxed.id(), 0),
+                ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into()),
+            );
 
-            Self::deposit_event(Event::UserMessageRead {
-                id: reply_to_id,
-                reason: UserMessageReadRuntimeReason::MessageReplied.into_reason(),
-            });
+            // Creating `GasNode` for the reply.
+            GasHandlerOf::<T>::create(origin.clone(), message.id(), gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
+            // Converting reply message into appropriate type for queueing.
+            let dispatch = message.into_stored_dispatch(
+                ProgramId::from_origin(origin.clone().into_origin()),
+                mailboxed.source(),
+                mailboxed.id(),
+            );
+
+            // Pre-generating appropriate event to avoid dispatch cloning.
             let event = Event::MessageEnqueued {
-                id: message.id(),
-                source: who,
-                destination,
-                entry: Entry::Reply(reply_to_id),
+                id: dispatch.id(),
+                source: origin,
+                destination: dispatch.destination(),
+                entry: Entry::Reply(mailboxed.id()),
             };
 
-            QueueOf::<T>::queue(message.into_stored_dispatch(
-                ProgramId::from_origin(origin.into_origin()),
-                destination,
-                original_message.id(),
-            ))
-            .map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            // Queueing dispatch.
+            QueueOf::<T>::queue(dispatch)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
+            // Depositing pre-generated event.
             Self::deposit_event(event);
 
             Ok(().into())
         }
 
+        /// Claim value from message in `Mailbox`.
+        ///
+        /// Removes message by given `MessageId` from callers `Mailbox`:
+        /// rent funds become free, associated with the message value
+        /// transfers from message sender to extrinsic caller.
+        ///
+        /// NOTE: only user who is destination of the message, can claim value
+        /// or reply on the message from mailbox.
         #[pallet::weight(<T as Config>::WeightInfo::claim_value_from_mailbox())]
         pub fn claim_value_from_mailbox(
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {
-            let (_, _bn) = MailboxOf::<T>::remove(ensure_signed(origin)?, message_id)?;
-            // TODO: burn here for holding #646.
-            let mut ext_manager: ExtManager<T> = Default::default();
-            ext_manager.message_consumed(message_id);
+            // Reason for reading from mailbox.
+            let reason = UserMessageReadRuntimeReason::MessageClaimed.into_reason();
 
-            Self::deposit_event(Event::UserMessageRead {
-                id: message_id,
-                reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
-            });
+            // Reading message, if found, or failing extrinsic.
+            Self::read_message(ensure_signed(origin)?, message_id, reason)
+                .ok_or(Error::<T>::MessageNotFound)?;
 
             Ok(().into())
         }
@@ -1793,6 +1785,8 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
+            <T as Config>::Scheduler::reset();
+            <T as Config>::GasProvider::reset();
             <T as Config>::Messenger::reset();
             GearProgramPallet::<T>::reset_storage();
             common::reset_storage();
@@ -1814,7 +1808,7 @@ pub mod pallet {
             dest: &T::AccountId,
             amount: Self::Balance,
         ) -> Result<(), DispatchError> {
-            let leftover = <T as Config>::Currency::repatriate_reserved(
+            let leftover = CurrencyOf::<T>::repatriate_reserved(
                 &<T::AccountId as Origin>::from_origin(source),
                 dest,
                 amount,

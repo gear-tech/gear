@@ -115,16 +115,18 @@ pub mod opaque {
     }
 }
 
+// The version of the runtime specification.
+//
+// Full node will not attempt to use its native runtime in substitute for the
+// on-chain WASM runtime unless all of `spec_name`, `spec_version`, and
+// `authoring_version` are the same between WASM and native.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("gear-node"),
     impl_name: create_runtime_str!("gear-node"),
+    apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    // The version of the runtime specification. A full node will not attempt to use its native
-    //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
-    //   `spec_version`, and `authoring_version` are the same between Wasm and native.
     spec_version: 1430,
     impl_version: 1,
-    apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
     state_version: 1,
 };
@@ -354,7 +356,7 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = ConstU32<1024>;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
-    type MailboxThreshold = ConstU64<0>;
+    type MailboxThreshold = ConstU64<3000>;
     type Messenger = GearMessenger;
     type GasProvider = GearGas;
     type BlockLimiter = GearGas;
@@ -373,6 +375,7 @@ impl pallet_gear_scheduler::Config for Runtime {
     type BlockLimiter = GearGas;
     type ReserveThreshold = ConstU32<1>;
     type WaitlistCost = ConstU64<100>;
+    type MailboxCost = ConstU64<100>;
 }
 
 impl pallet_gear_gas::Config for Runtime {
@@ -380,7 +383,6 @@ impl pallet_gear_gas::Config for Runtime {
 }
 
 impl pallet_gear_messenger::Config for Runtime {
-    type Currency = Balances;
     type BlockLimiter = GearGas;
 }
 
