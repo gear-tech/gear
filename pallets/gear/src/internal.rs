@@ -227,8 +227,7 @@ where
         }
 
         // Spending gas amount from `GasNode`.
-        // Here is a negative imbalance. Used `_` to force drop in place.
-        let _ = GasHandlerOf::<T>::spend(message_id, amount)
+        GasHandlerOf::<T>::spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
