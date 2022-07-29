@@ -843,13 +843,13 @@ pub mod pallet {
                                 .unwrap_or(0);
 
                             if lazy_pages_enabled {
-                                core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                                core_processor::process::<LazyPagesExt, SandboxEnvironment>(
                                     &block_config,
                                     context,
                                     memory_pages,
                                 )
                             } else {
-                                core_processor::process::<Ext, SandboxEnvironment<_>>(
+                                core_processor::process::<Ext, SandboxEnvironment>(
                                     &block_config,
                                     context,
                                     memory_pages,
@@ -1255,13 +1255,13 @@ pub mod pallet {
                                 ext_manager.insert_program_id_loaded_pages(program_id);
 
                                 if lazy_pages_enabled {
-                                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
                                         &block_config,
                                         context,
                                         memory_pages,
                                     )
                                 } else {
-                                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                                    core_processor::process::<Ext, SandboxEnvironment>(
                                         &block_config,
                                         context,
                                         memory_pages,

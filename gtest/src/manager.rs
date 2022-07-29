@@ -361,9 +361,7 @@ impl ExtManager {
         payload: Option<Payload>,
         function_name: &str,
     ) -> Result<Vec<u8>> {
-        let mut executor = self.get_executor(program_id, payload)?;
-        executor.update_ext(self);
-        executor.execute(function_name)
+        self.execute(program_id, payload, function_name)
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
@@ -597,20 +595,22 @@ impl ExtManager {
 
         let journal = match core_processor::prepare(&block_config, message_execution_context) {
             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
-            PrepareResult::Ok { context, .. } => core_processor::process::<
-                Ext,
-                WasmiEnvironment<Ext>,
-            >(&block_config, context, memory_pages),
+            PrepareResult::Ok { context, .. } => core_processor::process::<Ext, WasmiEnvironment>(
+                &block_config,
+                context,
+                memory_pages,
+            ),
         };
 
         core_processor::handle_journal(journal, self);
     }
 
-    fn get_executor(
+    fn execute(
         &mut self,
         program_id: &ProgramId,
         payload: Option<Payload>,
-    ) -> Result<WasmExecutor> {
+        function_name: &str,
+    ) -> Result<Vec<u8>> {
         let (actor, _balance) = self
             .actors
             .get_mut(program_id)
@@ -629,7 +629,17 @@ impl ExtManager {
             .map(Vec::as_slice)
             .ok_or(TestError::MetaBinaryNotProvided)?;
 
-        WasmExecutor::new(&data.program, meta_binary, &pages_initial_data, payload)
+        let mut ext = WasmExecutor::build_ext(&data.program, payload.unwrap_or_default());
+
+        WasmExecutor::update_ext(&mut ext, self);
+
+        WasmExecutor::execute(
+            &mut ext,
+            &data.program,
+            meta_binary,
+            &pages_initial_data,
+            function_name,
+        )
     }
 }
 

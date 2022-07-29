@@ -520,7 +520,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -584,7 +584,7 @@ benchmarks! {
 
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -614,7 +614,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -632,7 +632,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -650,7 +650,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -668,7 +668,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -687,7 +687,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -705,7 +705,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -723,7 +723,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -753,7 +753,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -794,7 +794,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -839,7 +839,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -869,7 +869,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -899,7 +899,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -930,7 +930,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -972,7 +972,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1014,7 +1014,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1067,7 +1067,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1120,7 +1120,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1163,7 +1163,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1204,7 +1204,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1246,7 +1246,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1286,7 +1286,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1320,7 +1320,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1351,7 +1351,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1384,7 +1384,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1424,7 +1424,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1455,7 +1455,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1486,7 +1486,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1532,7 +1532,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1596,7 +1596,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
@@ -1660,7 +1660,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
 
