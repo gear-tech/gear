@@ -52,7 +52,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # These dependencies are used for the node template's RPCs
-jsonrpsee = { version = "0.14.0", features = ["server"] }
+jsonrpsee = { version = "0.15.1", features = ["server"] }
 sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
