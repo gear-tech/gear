@@ -19,11 +19,12 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
+#[allow(unused)]
 use frame_support::assert_ok;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber, WasmPageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY as PSG},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::{DebugInfo, Pallet as PalletGear};
@@ -284,6 +285,18 @@ fn get_last_message_id() -> MessageId {
     }
 }
 
+#[allow(unused)]
+fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
+    let first_in_psg = PageNumber::new_from_addr((page.offset() as usize / PSG) * PSG);
+    (0..(PSG / PageNumber::size()) as u32)
+        .map(|idx| first_in_psg + idx.into())
+        .filter(|p| *p != page)
+        .for_each(|p| {
+            pages_data.insert(p, PageBuf::new_zeroed().to_vec());
+        });
+}
+
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_not_allocated_pages() {
     // Currently we has no mechanism to restrict not allocated pages access during wasm execution
@@ -436,6 +449,13 @@ fn check_not_allocated_pages() {
         persistent_pages.insert(gear_page0, page0_data.to_vec());
         persistent_pages.insert(gear_page7, page7_data.to_vec());
 
+        // For all pages, which is write accessed, and has no data in storage yet,
+        // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
+        [gear_page0, gear_page7]
+            .iter()
+            .copied()
+            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
+
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
@@ -483,11 +503,11 @@ fn check_not_allocated_pages() {
     })
 }
 
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn check_changed_pages_in_storage() {
-    // This test checks that only pages with changed data will be stored in storage.
-    // Also it checks that data in storage is correct.
-    // This test must works correct both with lazy pages and without it.
+    // This test checks that only pages, which has been write accessed,
+    // will be stored in storage. Also it checks that data in storage is correct.
     let wat = r#"
         (module
             (import "env" "memory" (memory 8))
@@ -508,7 +528,7 @@ fn check_changed_pages_in_storage() {
 
                 ;; access page 1 (static)
                 i32.const 0x10009  ;; is symbol "9" address
-                i32.const 0x30     ;; is "0"
+                i32.const 0x30     ;; write symbol "0" there
                 i32.store
 
                 ;; access page 7 (static) but do not change it
@@ -569,7 +589,8 @@ fn check_changed_pages_in_storage() {
                     ;; check page 1 data
                     i32.const 0x10002
                     i64.load
-                    i64.const 0x3038373635343332  ;; is "23456780", "0" because we change it in init
+                    i64.const 0x3038373635343332  ;; is symbols "23456780",
+                                                  ;; "0" in the end because we change it in init
                     i64.eq
                     br_if 0
                     unreachable
@@ -603,9 +624,11 @@ fn check_changed_pages_in_storage() {
                     br_if 0
                     unreachable
                 )
+
                 ;; change page 3 and 4
                 ;; because we store 0x00_00_00_42 then bits will be changed
-                ;; in 3th page only, so the 3th page only must be in storage.
+                ;; in 3th page only. But because we store by write access, then
+                ;; both data will be for some gear pages from 3th and 4th page.
                 i32.const 0x3fffd
                 i32.const 0x42
                 i32.store
@@ -621,6 +644,14 @@ fn check_changed_pages_in_storage() {
         let code = parse_wat(wat);
         let program_id = generate_program_id(&code);
         let origin = Origin::signed(1);
+
+        // Code info. Must be in consensus with wasm code.
+        let static_pages = WasmPageNumber(8);
+        let page1_accessed_addr = 0x10000;
+        let page3_accessed_addr = 0x3fffd;
+        let page4_accessed_addr = 0x40000;
+        let page8_accessed_addr = 0x87654;
+        let page9_accessed_addr = 0x98765;
 
         assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
@@ -638,27 +669,31 @@ fn check_changed_pages_in_storage() {
 
         Pallet::<Test>::do_snapshot();
 
-        let static_pages = WasmPageNumber(8);
+        let mut persistent_pages = BTreeMap::new();
+        let empty_data = PageBuf::new_zeroed();
 
-        let page1_addr = 0x10000;
-        let gear_page1 = PageNumber::new_from_addr(page1_addr);
-        let mut page1_data = PageBuf::new_zeroed();
+        let gear_page1 = PageNumber::new_from_addr(page1_accessed_addr);
+        let mut page1_data = empty_data.to_vec();
         page1_data[..10].copy_from_slice(b"0123456780".as_slice());
 
-        let page8_addr = 0x87654;
-        let gear_page8 = PageNumber::new_from_addr(page8_addr);
-        let mut page8_data = PageBuf::new_zeroed();
-        page8_data[page8_addr % PageNumber::size()] = 0x42;
+        let gear_page8 = PageNumber::new_from_addr(page8_accessed_addr);
+        let mut page8_data = empty_data.to_vec();
+        page8_data[page8_accessed_addr % PageNumber::size()] = 0x42;
 
-        let page9_addr = 0x98765;
-        let gear_page9 = PageNumber::new_from_addr(page9_addr);
-        let mut page9_data = PageBuf::new_zeroed();
-        page9_data[page9_addr % PageNumber::size()] = 0x42;
+        let gear_page9 = PageNumber::new_from_addr(page9_accessed_addr);
+        let mut page9_data = empty_data.to_vec();
+        page9_data[page9_accessed_addr % PageNumber::size()] = 0x42;
 
-        let mut persistent_pages = BTreeMap::new();
-        persistent_pages.insert(gear_page1, page1_data.to_vec());
-        persistent_pages.insert(gear_page8, page8_data.to_vec());
-        persistent_pages.insert(gear_page9, page9_data.to_vec());
+        persistent_pages.insert(gear_page1, page1_data);
+        persistent_pages.insert(gear_page8, page8_data);
+        persistent_pages.insert(gear_page9, page9_data);
+
+        // For all pages, which is write accessed, and has no data in storage yet,
+        // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
+        [gear_page1, gear_page8, gear_page9]
+            .iter()
+            .copied()
+            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -687,12 +722,19 @@ fn check_changed_pages_in_storage() {
 
         Pallet::<Test>::do_snapshot();
 
-        let page3_addr = 0x3fffd;
-        let gear_page3 = PageNumber::new_from_addr(page3_addr);
-        let mut page3_data = PageBuf::new_zeroed();
-        page3_data[page3_addr % PageNumber::size()] = 0x42;
+        let gear_page3 = PageNumber::new_from_addr(page3_accessed_addr);
+        let mut page3_data = empty_data.to_vec();
+        page3_data[page3_accessed_addr % PageNumber::size()] = 0x42;
 
-        persistent_pages.insert(gear_page3, page3_data.to_vec());
+        let gear_page4 = PageNumber::new_from_addr(page4_accessed_addr);
+
+        persistent_pages.insert(gear_page3, page3_data);
+        persistent_pages.insert(gear_page4, empty_data.to_vec());
+
+        [gear_page3, gear_page4]
+            .iter()
+            .copied()
+            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {

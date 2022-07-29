@@ -123,6 +123,7 @@ pub(crate) unsafe fn sys_mprotect_interval(
 #[cfg(feature = "std")]
 fn mprotect_mem_interval_except_pages(
     mem_addr: HostPointer,
+    start_offset: u32,
     mem_size: usize,
     except_pages: impl Iterator<Item = PageNumber>,
     protect: bool,
@@ -133,7 +134,10 @@ fn mprotect_mem_interval_except_pages(
         unsafe { sys_mprotect_interval(addr, size, !protect, !protect, false) }
     };
 
-    let mut interval_offset = 0usize;
+    // TODO: remove panics and make an errors (issue #1147)
+    assert!(start_offset as usize <= mem_size);
+
+    let mut interval_offset = start_offset as usize;
     for page in except_pages {
         let page_offset = page.offset();
         if page_offset > interval_offset {
@@ -203,8 +207,9 @@ pub trait GearRI {
             // TODO: remove panics and make an errors (issue #1147)
             lazy_pages::get_wasm_mem_addr()
                 .expect("Wasm mem addr must be set before using this method"),
+            lazy_pages::get_stack_end_wasm_addr(),
             lazy_pages::get_wasm_mem_size()
-                .expect("Wasm mem size must be set before using this method"),
+                .expect("Wasm mem size must be set before using this method") as usize,
             lazy_pages::get_released_pages().iter().copied(),
             protect,
         )
@@ -221,8 +226,14 @@ pub trait GearRI {
         lazy_pages::append_lazy_pages_info(pages, prefix);
     }
 
+    #[deprecated]
     fn init_lazy_pages() -> bool {
-        unsafe { lazy_pages::init() }
+        lazy_pages::init(lazy_pages::LazyPagesVersion::Version1)
+    }
+
+    #[version(2)]
+    fn init_lazy_pages() -> bool {
+        lazy_pages::init(lazy_pages::LazyPagesVersion::Version2)
     }
 
     fn is_lazy_pages_enabled() -> bool {
@@ -253,11 +264,9 @@ pub trait GearRI {
     }
 
     fn set_wasm_mem_size(size: u32) -> Result<(), RIError> {
-        let size = size as usize;
-
         // TODO: remove this panic before release and make an error (issue #1147)
         assert_eq!(
-            size % region::page::size(),
+            size as usize % region::page::size(),
             0,
             "Wasm memory buffer size is not aligned by host native page size"
         );
@@ -265,6 +274,39 @@ pub trait GearRI {
         lazy_pages::set_wasm_mem_size(size);
         Ok(())
     }
+
+    fn initilize_for_program(
+        wasm_mem_addr: Option<HostPointer>,
+        wasm_mem_size: u32,
+        stack_end_wasm_addr: Option<u32>,
+        program_prefix: Vec<u8>,
+    ) -> Result<(), RIError> {
+        // TODO: remove this panic before release and make an error (issue #1147)
+        lazy_pages::initilize_for_program(
+            wasm_mem_addr,
+            wasm_mem_size,
+            stack_end_wasm_addr,
+            program_prefix,
+        )
+        .expect("Cannot initilize lazy pages for current program");
+
+        if let Some(addr) = wasm_mem_addr {
+            unsafe { sys_mprotect_interval(addr, wasm_mem_size as usize, false, false, false) }
+        } else {
+            Ok(())
+        }
+    }
+
+    // fn set_lazy_pages_addresses(stack_end_wasm_addr: WasmAddr) -> Result<(), RIError> {
+    //     // TODO: remove this panic before release and make an error (issue #1147)
+    //     assert_eq!(
+    //         stack_end_wasm_addr as usize % WasmPageNumber::size(),
+    //         0,
+    //         "Stack end addr must be multiple of wasm page size"
+    //     );
+    //     lazy_pages::set_stack_end_wasm_addr(stack_end_wasm_addr);
+    //     Ok(())
+    // }
 
     fn set_program_prefix(prefix: Vec<u8>) {
         lazy_pages::set_program_prefix(prefix);

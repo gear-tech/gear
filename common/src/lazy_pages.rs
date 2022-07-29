@@ -19,13 +19,16 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
-use core::fmt;
+use core::{convert::TryFrom, fmt};
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use gear_runtime_interface::{gear_ri, RIError};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
+
+extern crate alloc;
+use alloc::string::ToString;
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
@@ -86,46 +89,26 @@ pub fn is_lazy_pages_enabled() -> bool {
 
 /// Protect and save storage keys for pages which has no data
 pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Result<(), Error> {
-    gear_ri::reset_lazy_pages_info();
+    let program_prefix = crate::pages_prefix(prog_id.into_origin());
+    let wasm_mem_addr = mem.get_buffer_host_addr();
+    let wasm_mem_size =
+        u32::try_from(mem.size().offset()).map_err(|_| Error::WasmMemorySizeOverflow)?;
 
-    let prog_prefix = crate::pages_prefix(prog_id.into_origin());
-    gear_ri::set_program_prefix(prog_prefix);
+    // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
+    // something goes wrong with pages protection.
+    // TODO: currently set stack pages as None, should be resolved (issue #1253).
+    gear_ri::initilize_for_program(wasm_mem_addr, wasm_mem_size, None, program_prefix)
+        .map_err(|err| err.to_string())
+        .expect("Cannot initilize lazy pages for current program");
 
-    if let Some(addr) = mem.get_buffer_host_addr() {
-        // Cannot panic, unless OS allocates wasm mem buffer
-        // in not aligned by native page addr.
-        gear_ri::set_wasm_mem_begin_addr(addr).expect("Cannot set wasm mem addr");
-    } else {
-        return Ok(());
-    }
-
-    let size = mem
-        .size()
-        .0
-        .checked_add(1)
-        .ok_or(Error::WasmMemorySizeOverflow)?
-        .checked_mul(WasmPageNumber::size() as u32)
-        .ok_or(Error::WasmMemorySizeOverflow)?;
-    gear_ri::set_wasm_mem_size(size)?;
-
-    mprotect_lazy_pages(mem, true)
+    Ok(())
 }
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
     mem: &impl Memory,
-    pages_data: &mut BTreeMap<PageNumber, PageBuf>,
+    _pages_data: &mut BTreeMap<PageNumber, PageBuf>,
 ) -> Result<(), Error> {
-    // Loads data for released lazy pages. Data which was before execution.
-    let released_pages = gear_ri::get_released_pages();
-    for page in released_pages {
-        let data = gear_ri::get_released_page_old_data(page)
-            .ok_or_else(|| Error::ReleasedPageHasNoData(page.into()))?;
-        if pages_data.insert(page.into(), data).is_some() {
-            return Err(Error::ReleasedPageHasInitialData(page.into()));
-        }
-    }
-
     // Removes protections from lazy pages
     mprotect_lazy_pages(mem, false)
 }

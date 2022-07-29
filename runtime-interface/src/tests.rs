@@ -109,6 +109,7 @@ fn test_mprotect_pages() {
 
     mprotect_mem_interval_except_pages(
         page_begin,
+        0,
         mem_size,
         pages_unprotected.iter().copied(),
         true,
@@ -133,6 +134,7 @@ fn test_mprotect_pages() {
 
     mprotect_mem_interval_except_pages(
         page_begin,
+        0,
         mem_size,
         pages_unprotected.iter().copied(),
         false,

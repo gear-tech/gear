@@ -43,8 +43,15 @@ const WASM_PAGE_SIZE: usize = 0x10000;
 /// native page size, so can vary.
 const GEAR_PAGE_SIZE: usize = 0x1000;
 
+/// TODO
+pub const PAGE_STORAGE_GRANULARITY: usize = 0x4000;
+
 /// Number of gear pages in one wasm page
 const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+
+static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+static_assertions::const_assert_eq!(WASM_PAGE_SIZE % PAGE_STORAGE_GRANULARITY, 0);
+static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY % GEAR_PAGE_SIZE, 0);
 
 /// Buffer for gear page data.
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]

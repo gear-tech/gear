@@ -183,6 +183,9 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
                 } else {
                     log::trace!("Page {} is accessed but has not been changed", page.0);
                 }
+            } else {
+                log::trace!("{:?} has been write accessed, update it in storage", page);
+                page_update.insert(page, new_data);
             }
         } else {
             let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
