@@ -262,7 +262,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     let mut expected_log = vec![];
 
     let empty = Vec::new();
-    for message in fixture.messages.as_ref().unwrap_or_else(|| &empty) {
+    for message in fixture.messages.as_ref().unwrap_or(&empty) {
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
             Some(PayloadVariant::Custom(v)) => {
@@ -374,7 +374,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     }
 
     let empty = Vec::new();
-    for exp in fixture.expected.as_ref().unwrap_or_else(|| &empty) {
+    for exp in fixture.expected.as_ref().unwrap_or(&empty) {
         let snapshot: DebugData = if let Some(step) = exp.step {
             if snapshots.len() < (step + test.programs.len()) {
                 Default::default()

@@ -205,7 +205,7 @@ where
     let fixture = &test.fixtures[fixture_no];
 
     let empty = Vec::new();
-    for message in fixture.messages.as_ref().unwrap_or_else(|| &empty) {
+    for message in fixture.messages.as_ref().unwrap_or(&empty) {
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
             Some(PayloadVariant::Custom(v)) => {
