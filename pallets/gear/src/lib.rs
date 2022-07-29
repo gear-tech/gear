@@ -1486,6 +1486,10 @@ pub mod pallet {
             Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let code_and_id = Self::check_code(code)?;
+            if T::CodeStorage::exists(code_and_id.code_id()) {
+                return Err(Error::<T>::CodeAlreadyExists.into());
+            }
+
             let packet = Self::init_packet(
                 who.clone(),
                 code_and_id.code_id(),
