@@ -38,9 +38,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
-    message::{
-        DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch,
-    },
+    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
     program::Program,
 };
 
