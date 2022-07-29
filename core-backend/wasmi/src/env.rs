@@ -21,6 +21,7 @@
 use crate::{
     funcs::{FuncError, FuncsHandler as Funcs},
     memory::MemoryWrap,
+    runtime::Runtime,
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -31,17 +32,12 @@ use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
     IntoExtInfo, TerminationReason, TrapExplanation,
 };
-use gear_core::{
-    env::{Ext, ExtCarrier},
-    gas::GasAmount,
-    memory::WasmPageNumber,
-    message::DispatchKind,
-};
+use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
 use gear_core_errors::MemoryError;
 use wasmi::{
     memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef,
-    ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, ModuleRef,
-    RuntimeArgs, RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
+    ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, RuntimeArgs,
+    RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
 };
 
 #[derive(Debug, derive_more::Display)]
@@ -59,22 +55,11 @@ pub enum WasmiEnvironmentError {
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "{}", _0)]
-    PostExecutionHandler(String),
+    PreExecutionHandler(String),
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct WasmiEnvironment<E: Ext + IntoExtInfo> {
-    runtime: Runtime<E>,
-    instance: ModuleRef,
-    defined_host_functions: DefinedHostFunctions<Runtime<E>, E::Error>,
-    entries: BTreeSet<DispatchKind>,
-}
-
-pub struct Runtime<E: Ext> {
-    pub ext: ExtCarrier<E>,
-    pub memory: MemoryWrap,
-    pub err: FuncError<E::Error>,
-}
+pub struct WasmiEnvironment;
 
 struct HostFuncIndex(usize);
 
@@ -305,7 +290,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
     }
 }
 
-impl<E> Environment<E> for WasmiEnvironment<E>
+impl<E> Environment<E> for WasmiEnvironment
 where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
@@ -313,12 +298,18 @@ where
     type Memory = MemoryWrap;
     type Error = WasmiEnvironmentError;
 
-    fn new(
-        ext: E,
+    fn execute<F, T>(
+        ext: &mut E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<Self::Error>> {
+        entry_point: &DispatchKind,
+        pre_execution_handler: F,
+    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
+    where
+        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
+        T: fmt::Display,
+    {
         let mut builder = EnvironmentDefinitionBuilder::new(
             ext.forbidden_funcs()
                 .clone()
@@ -361,14 +352,11 @@ where
         builder.add_host_func("env", "gr_wait", Funcs::wait);
         builder.add_host_func("env", "gr_wake", Funcs::wake);
 
-        let ext_carrier = ExtCarrier::new(ext);
-
         let mem: MemoryRef = match MemoryInstance::alloc(Pages(mem_size.0 as usize), None) {
             Ok(mem) => mem,
             Err(e) => {
                 return Err(BackendError {
                     reason: WasmiEnvironmentError::CreateEnvMemory(e),
-                    gas_amount: ext_carrier.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -378,9 +366,11 @@ where
         builder.add_host_func("env", "free", Funcs::free);
         builder.add_host_func("env", "gas", Funcs::gas);
 
-        let runtime = Runtime {
-            ext: ext_carrier,
-            memory: MemoryWrap::new(mem),
+        let mut memory_wrap = MemoryWrap::new(mem.clone());
+        let mut runtime = Runtime {
+            ext,
+            memory: &mem,
+            memory_wrap: &mut memory_wrap,
             err: FuncError::Terminated(TerminationReason::Success),
         };
 
@@ -390,7 +380,6 @@ where
             Err(e) => {
                 return Err(BackendError {
                     reason: WasmiEnvironmentError::ModuleInstantiation(e),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
@@ -399,85 +388,31 @@ where
             Err(e) => {
                 return Err(BackendError {
                     reason: WasmiEnvironmentError::ModuleInstantiation(e),
-                    gas_amount: runtime.ext.into_inner().into_gas_amount(),
                 })
             }
         };
 
-        Ok(WasmiEnvironment {
-            runtime,
-            instance,
-            defined_host_functions,
-            entries,
-        })
-    }
+        pre_execution_handler(runtime.memory_wrap).map_err(|e| BackendError {
+            reason: WasmiEnvironmentError::PreExecutionHandler(e.to_string()),
+        })?;
 
-    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let global = self
-            .instance
-            .export_by_name("__gear_stack_end")?
-            .as_global()?
-            .get();
-        global.try_into::<i32>().and_then(|addr| {
-            if addr < 0 {
-                None
-            } else {
-                Some(WasmPageNumber(
-                    (addr as usize / WasmPageNumber::size()) as u32,
-                ))
-            }
-        })
-    }
-
-    fn get_mem(&self) -> &Self::Memory {
-        &self.runtime.memory
-    }
-
-    fn get_mem_mut(&mut self) -> &mut Self::Memory {
-        &mut self.runtime.memory
-    }
-
-    fn execute<F, T>(
-        mut self,
-        entry_point: &DispatchKind,
-        post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError<Self::Error>>
-    where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
-        T: fmt::Display,
-    {
-        let res = if self.entries.contains(entry_point) {
+        let res = if entries.contains(entry_point) {
             let mut externals = GuestExternals {
-                state: &mut self.runtime,
-                defined_host_functions: &self.defined_host_functions,
+                state: &mut runtime,
+                defined_host_functions: &defined_host_functions,
             };
-            self.instance
+            instance
                 .invoke_export(entry_point.into_entry(), &[], &mut externals)
                 .map(|_| ())
         } else {
             Ok(())
         };
 
-        // Page which is right after stack last page
-        let stack_end_page = self.get_stack_mem_end();
-        log::trace!("Stack end page = {stack_end_page:?}");
-
-        let Runtime {
-            ext,
-            memory,
-            err: trap,
-        } = self.runtime;
+        let Runtime { ext, err: trap, .. } = runtime;
 
         log::debug!("WasmiEnvironment::execute result = {res:?}");
 
-        let (info, trap_explanation) = ext
-            .into_inner()
-            .into_ext_info(&memory, stack_end_page.unwrap_or_default())
-            .map_err(|(reason, gas_amount)| BackendError {
-                reason: WasmiEnvironmentError::Memory(reason),
-                gas_amount,
-            })?;
+        let trap_explanation = ext.trap_explanation();
 
         let termination = if res.is_err() {
             let reason = trap_explanation
@@ -494,16 +429,28 @@ where
             TerminationReason::Success
         };
 
-        match post_execution_handler(&memory) {
-            Ok(_) => Ok(BackendReport { termination, info }),
-            Err(e) => Err(BackendError {
-                reason: WasmiEnvironmentError::PostExecutionHandler(e.to_string()),
-                gas_amount: info.gas_amount,
-            }),
-        }
-    }
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+        let stack_end_page = instance
+            .export_by_name("__gear_stack_end")
+            .and_then(|export| {
+                export.as_global().and_then(|global| {
+                    global.get().try_into::<i32>().and_then(|addr| {
+                        if addr < 0 {
+                            None
+                        } else {
+                            Some(WasmPageNumber(
+                                (addr as usize / WasmPageNumber::size()) as u32,
+                            ))
+                        }
+                    })
+                })
+            });
 
-    fn into_gas_amount(self) -> GasAmount {
-        self.runtime.ext.into_inner().into_gas_amount()
+        drop(instance);
+        Ok(BackendReport {
+            termination_reason: termination,
+            memory_wrap,
+            stack_end_page,
+        })
     }
 }
