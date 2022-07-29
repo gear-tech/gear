@@ -287,56 +287,65 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     };
 
     // Creating externalities.
-    let ext = A::new(context);
+    let mut ext = A::new(context);
 
-    let mut env = E::new(
-        ext,
+    // Execute program in backend env.
+    let (termination, memory, stack_end_page) = match E::execute(
+        &mut ext,
         program.raw_code(),
         program.code().exports().clone(),
         mem_size,
-    )
-    .map_err(|err| {
-        log::debug!("Setup instance error: {}", err);
-        ExecutionError {
-            program_id,
-            gas_amount: err.gas_amount.clone(),
-            reason: ExecutionErrorReason::Backend(err.to_string()),
-        }
-    })?;
-
-    if let Err(reason) = prepare_memory::<A, E::Memory>(
-        program_id,
-        &mut pages_initial_data,
-        static_pages,
-        env.get_mem_mut(),
+        &kind,
+        |memory| {
+            prepare_memory::<A, E::Memory>(
+                program_id,
+                &mut pages_initial_data,
+                static_pages,
+                memory,
+            )
+        },
     ) {
-        return Err(ExecutionError {
-            program_id,
-            gas_amount: env.into_gas_amount(),
-            reason,
-        });
-    }
-
-    // Execute program in backend env.
-    let BackendReport { termination, info } = match env.execute(&kind, |mem| {
-        // released pages initial data will be added to `pages_initial_data` after execution.
-        if A::is_lazy_pages_enabled() {
-            A::lazy_pages_post_execution_actions(mem, &mut pages_initial_data)
-        } else {
-            Ok(())
+        Ok(BackendReport {
+            termination_reason: termination,
+            memory_wrap: memory,
+            stack_end_page,
+        }) => {
+            // released pages initial data will be added to `pages_initial_data` after execution.
+            if A::is_lazy_pages_enabled() {
+                if let Err(e) =
+                    A::lazy_pages_post_execution_actions(&memory, &mut pages_initial_data)
+                {
+                    return Err(ExecutionError {
+                        program_id,
+                        gas_amount: ext.into_gas_amount(),
+                        reason: ExecutionErrorReason::Backend(e.to_string()),
+                    });
+                }
+            }
+            (termination, memory, stack_end_page)
         }
-    }) {
-        Ok(report) => report,
+
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: e.gas_amount.clone(),
+                gas_amount: ext.into_gas_amount(),
                 reason: ExecutionErrorReason::Backend(e.to_string()),
             })
         }
     };
 
+    // Page which is right after stack last page
+    log::trace!("Stack end page = {:?}", stack_end_page);
+
     log::debug!("Termination reason: {:?}", termination);
+
+    let info = ext
+        .into_ext_info(&memory, stack_end_page.unwrap_or_default())
+        .map_err(|(err, gas_amount)| ExecutionError {
+            program_id,
+            gas_amount,
+            reason: ExecutionErrorReason::Backend(err.to_string()),
+        })?;
 
     // Parsing outcome.
     let kind = match termination {

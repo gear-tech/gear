@@ -23,7 +23,6 @@
 extern crate alloc;
 
 pub mod error_processor;
-pub mod funcs;
 
 mod utils;
 
@@ -32,8 +31,9 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use core::{fmt, ops::Deref};
+use error_processor::IntoExtError;
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -114,22 +114,47 @@ pub trait IntoExtInfo {
         self,
         memory: &impl Memory,
         stack_page_count: WasmPageNumber,
-    ) -> Result<(ExtInfo, Option<TrapExplanation>), (MemoryError, GasAmount)>;
+    ) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
     fn last_error(&self) -> Option<&ExtError>;
+
+    fn trap_explanation(&self) -> Option<TrapExplanation>;
 }
 
-pub struct BackendReport {
-    pub termination: TerminationReason,
-    pub info: ExtInfo,
+pub trait RuntimeCtx<E>
+where
+    E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason + IntoExtError,
+{
+    /// Allocate new pages in instance memory.
+    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error>;
+
+    /// Read designated chunk from the memory.
+    fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError>;
+
+    /// Read designated chunk from the memory into the supplied buffer.
+    fn read_memory_into_buf(&self, ptr: u32, buf: &mut [u8]) -> Result<(), MemoryError>;
+
+    /// Reads and decodes a type with a size fixed at compile time from program memory.
+    fn read_memory_as<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> Result<D, MemoryError>;
+
+    /// Write the given buffer and its length to the designated locations in memory.
+    //
+    /// `out_ptr` is the location in memory where `buf` should be written to.
+    fn write_output(&mut self, out_ptr: u32, buf: &[u8]) -> Result<(), MemoryError>;
+}
+
+pub struct BackendReport<T> {
+    pub termination_reason: TerminationReason,
+    pub memory_wrap: T,
+    pub stack_end_page: Option<WasmPageNumber>,
 }
 
 #[derive(Debug, derive_more::Display)]
 #[display(fmt = "{}", reason)]
 pub struct BackendError<T> {
-    pub gas_amount: GasAmount,
     pub reason: T,
 }
 
@@ -140,39 +165,22 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// An error issues in environment.
     type Error: fmt::Display;
 
-    /// Creates new external environment to execute wasm binary:
     /// 1) Instantiates wasm binary.
-    /// 2) Creates wasm memory with filled data (exception if lazy pages enabled).
-    /// 3) Instantiate external funcs for wasm module.
-    fn new(
-        ext: E,
+    /// 2) Creates wasm memory
+    /// 3) Runs `pre_execution_handler` to fill the memory before running instance.
+    /// 4) Instantiate external funcs for wasm module.
+    /// 5) Run instance setup starting at `entry_point` - wasm export function name.
+    fn execute<F, T>(
+        ext: &mut E,
         binary: &[u8],
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPageNumber,
-    ) -> Result<Self, BackendError<Self::Error>>;
-
-    /// Returns addr to the stack end if it can be identified
-    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
-
-    /// Get ref to mem wrapper
-    fn get_mem(&self) -> &Self::Memory;
-
-    /// Get mut ref to mem wrapper
-    fn get_mem_mut(&mut self) -> &mut Self::Memory;
-
-    /// Run instance setup starting at `entry_point` - wasm export function name.
-    /// Also runs `post_execution_handler` after running instance at provided entry point.
-    fn execute<F, T>(
-        self,
         entry_point: &DispatchKind,
-        post_execution_handler: F,
-    ) -> Result<BackendReport, BackendError<Self::Error>>
+        pre_execution_handler: F,
+    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
     where
-        F: FnOnce(&Self::Memory) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display;
-
-    /// Consumes environment and returns gas state.
-    fn into_gas_amount(self) -> GasAmount;
 }
 
 pub trait AsTerminationReason {

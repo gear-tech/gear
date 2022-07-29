@@ -16,28 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{vec, vec::Vec};
-use gear_core::memory::Memory;
-use gear_core_errors::MemoryError;
-
-pub fn get_bytes32(mem: &impl Memory, ptr: usize) -> Result<[u8; 32], MemoryError> {
-    let mut ret = [0u8; 32];
-    mem.read(ptr, &mut ret)?;
-    Ok(ret)
-}
-
-pub fn get_u128(mem: &impl Memory, ptr: usize) -> Result<u128, MemoryError> {
-    let mut u128_le = [0u8; 16];
-    mem.read(ptr, &mut u128_le)?;
-    Ok(u128::from_le_bytes(u128_le))
-}
-
-pub fn get_vec(mem: &impl Memory, ptr: usize, len: usize) -> Result<Vec<u8>, MemoryError> {
-    let mut vec = vec![0u8; len];
-    mem.read(ptr, &mut vec)?;
-    Ok(vec)
-}
-
-pub fn set_u128(mem: &mut impl Memory, ptr: usize, val: u128) -> Result<(), MemoryError> {
-    mem.write(ptr, &val.to_le_bytes())
+fn main() {
+    gear_wasm_builder::build();
 }

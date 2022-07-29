@@ -43,6 +43,8 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-program = { path = "../gear-program", default-features = false }
 
+sp-consensus-aura = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+
 # Benchmark deps
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 serde = { version = "1", optional = true, features = ["derive"] }
@@ -69,6 +71,7 @@ demo-calc-hash-over-blocks = { path = "../../examples/binaries/calc-hash/over-bl
 demo-calc-hash-in-one-block = { path = "../../examples/binaries/calc-hash/in-one-block" }
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
+demo-value-sender = { path = "../../examples/binaries/value-sender" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas", default-features = false }
 pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
@@ -107,6 +110,7 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
 	"sp-sandbox",
+	"sp-consensus-aura",
 	"rand",
 	"rand_pcg",
 ]
