@@ -1732,7 +1732,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wasm-mutate",
- "wasmparser 0.87.0",
+ "wasmparser 0.88.0",
  "wasmprinter",
  "wat",
 ]
@@ -9684,15 +9684,6 @@ name = "wasmparser"
 version = "0.85.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "570460c58b21e9150d2df0eaaedbb7816c34bcec009ae0dcc976e40ba81463e7"
-dependencies = [
- "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.87.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c04e207cd2e8ecb6f9bd28a2cf3119b4c6bfeee6fe3a25cc1daf8041d00a875"
 dependencies = [
  "indexmap",
 ]

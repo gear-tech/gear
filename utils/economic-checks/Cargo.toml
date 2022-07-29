@@ -17,7 +17,7 @@ env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
 wasm-mutate = "0.2.6"
-wasmparser = "0.87.0"
+wasmparser = "0.88.0"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
