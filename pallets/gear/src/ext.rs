@@ -27,7 +27,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId},
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, HandlePacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
@@ -149,9 +149,10 @@ impl ProcessorExt for LazyPagesExt {
         lazy_pages::is_lazy_pages_enabled()
     }
 
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         mem: &impl Memory,
         prog_id: ProgramId,
+        stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Into::into)
     }

@@ -196,7 +196,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             field_name.as_bytes().to_owned(),
         );
 
-        let externval = if self.forbidden_funcs.contains(field_name) {
+        let extern_val = if self.forbidden_funcs.contains(field_name) {
             self.map
                 .get(&(b"env".to_vec(), b"forbidden".to_vec()))
                 .ok_or_else(|| {
@@ -220,7 +220,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             })?
         };
 
-        let host_func_idx = match *externval {
+        let host_func_idx = match *extern_val {
             ExternVal::HostFunc(ref idx) => idx,
             _ => {
                 log::debug!(
@@ -255,7 +255,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             module_name.as_bytes().to_owned(),
             field_name.as_bytes().to_owned(),
         );
-        let externval = self.map.get(&key).ok_or_else(|| {
+        let extern_val = self.map.get(&key).ok_or_else(|| {
             log::debug!(
                 target: "gwasm",
                 "Memory export {}:{} not found",
@@ -264,7 +264,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             );
             wasmi::Error::Instantiation(String::new())
         })?;
-        let memory = match *externval {
+        let memory = match *extern_val {
             ExternVal::Memory(ref m) => m,
             _ => {
                 log::debug!(
@@ -307,7 +307,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
     where
-        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display,
     {
         let mut builder = EnvironmentDefinitionBuilder::new(
@@ -392,7 +392,24 @@ where
             }
         };
 
-        pre_execution_handler(runtime.memory_wrap).map_err(|e| BackendError {
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+        let stack_end_page = instance
+            .export_by_name("__gear_stack_end")
+            .and_then(|export| {
+                export.as_global().and_then(|global| {
+                    global.get().try_into::<i32>().and_then(|addr| {
+                        if addr < 0 {
+                            None
+                        } else {
+                            Some(WasmPageNumber(
+                                (addr as usize / WasmPageNumber::size()) as u32,
+                            ))
+                        }
+                    })
+                })
+            });
+
+        pre_execution_handler(runtime.memory_wrap, stack_end_page).map_err(|e| BackendError {
             reason: WasmiEnvironmentError::PreExecutionHandler(e.to_string()),
         })?;
 
@@ -428,23 +445,6 @@ where
         } else {
             TerminationReason::Success
         };
-
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let stack_end_page = instance
-            .export_by_name("__gear_stack_end")
-            .and_then(|export| {
-                export.as_global().and_then(|global| {
-                    global.get().try_into::<i32>().and_then(|addr| {
-                        if addr < 0 {
-                            None
-                        } else {
-                            Some(WasmPageNumber(
-                                (addr as usize / WasmPageNumber::size()) as u32,
-                            ))
-                        }
-                    })
-                })
-            });
 
         drop(instance);
         Ok(BackendReport {

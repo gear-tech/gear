@@ -104,7 +104,7 @@ where
         pre_execution_handler: F,
     ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
     where
-        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display,
     {
         let mut builder = EnvBuilder::<E> {
@@ -176,7 +176,23 @@ where
                 })
             }
         };
-        pre_execution_handler(runtime.memory_wrap).map_err(|e| BackendError {
+
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+        let stack_end_page = instance
+            .get_global_val("__gear_stack_end")
+            .and_then(|global| {
+                global.as_i32().and_then(|addr| {
+                    if addr < 0 {
+                        None
+                    } else {
+                        Some(WasmPageNumber(
+                            (addr as usize / WasmPageNumber::size()) as u32,
+                        ))
+                    }
+                })
+            });
+
+        pre_execution_handler(runtime.memory_wrap, stack_end_page).map_err(|e| BackendError {
             reason: SandboxEnvironmentError::PreExecutionHandler(e.to_string()),
         })?;
 
@@ -207,20 +223,6 @@ where
             TerminationReason::Success
         };
 
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let stack_end_page = instance
-            .get_global_val("__gear_stack_end")
-            .and_then(|global| {
-                global.as_i32().and_then(|addr| {
-                    if addr < 0 {
-                        None
-                    } else {
-                        Some(WasmPageNumber(
-                            (addr as usize / WasmPageNumber::size()) as u32,
-                        ))
-                    }
-                })
-            });
         drop(instance);
         Ok(BackendReport {
             termination_reason: termination,

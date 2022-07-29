@@ -131,6 +131,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
     static_pages: WasmPageNumber,
+    stack_end: Option<WasmPageNumber>,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
     // Set initial data for pages
@@ -143,7 +144,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_protect_and_init_info(mem, program_id)
+        A::lazy_pages_init_for_program(mem, program_id, stack_end)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
@@ -173,8 +174,8 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
         if A::is_lazy_pages_enabled() {
-            // TODO: remove assert and make proper handling (issue #1273)
-            assert!(old_pages_data.is_empty());
+            // In lazy pages mode we update some page data in storage,
+            // when it has been write accessed, so no need to compare old and new page data.
             log::trace!("{:?} has been write accessed, update it in storage", page);
             page_update.insert(page, new_data);
         } else {
@@ -288,11 +289,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         program.code().exports().clone(),
         memory_size,
         &kind,
-        |memory| {
+        |memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
                 static_pages,
+                stack_end,
                 memory,
             )
         },
@@ -304,9 +306,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::is_lazy_pages_enabled() {
-                if let Err(e) =
-                    A::lazy_pages_post_execution_actions(&memory, &mut pages_initial_data)
-                {
+                if let Err(e) = A::lazy_pages_post_execution_actions(&memory) {
                     return Err(ExecutionError {
                         program_id,
                         gas_amount: ext.into_gas_amount(),
@@ -338,6 +338,15 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             gas_amount,
             reason: ExecutionErrorReason::Backend(err.to_string()),
         })?;
+
+    if A::is_lazy_pages_enabled() && !pages_initial_data.is_empty() {
+        // Something wrong in runtime logic - when lazy pages, `pages_initial_data` must be always empty.
+        return Err(ExecutionError {
+            program_id,
+            gas_amount: info.gas_amount,
+            reason: ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode,
+        });
+    }
 
     // Parsing outcome.
     let kind = match termination {

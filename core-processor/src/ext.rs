@@ -33,7 +33,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{AllocationsContext, Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
@@ -88,16 +88,14 @@ pub trait ProcessorExt {
     fn check_lazy_pages_consistent_state() -> bool;
 
     /// Protect and save storage keys for pages which has no data
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         mem: &impl Memory,
         prog_id: ProgramId,
+        stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
-    fn lazy_pages_post_execution_actions(
-        mem: &impl Memory,
-        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-    ) -> Result<(), Self::Error>;
+    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -198,17 +196,15 @@ impl ProcessorExt for Ext {
         true
     }
 
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         _mem: &impl Memory,
         _prog_id: ProgramId,
+        _stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         unreachable!()
     }
 
-    fn lazy_pages_post_execution_actions(
-        _mem: &impl Memory,
-        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-    ) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(_mem: &impl Memory) -> Result<(), Self::Error> {
         unreachable!()
     }
 }

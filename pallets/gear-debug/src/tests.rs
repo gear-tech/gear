@@ -407,7 +407,7 @@ fn check_not_allocated_pages() {
                     unreachable
                 )
 
-                ;; store 1 to the begin of memomry to identify that test goes right
+                ;; store 1 to the begin of memory to identify that test goes right
                 i32.const 0
                 i32.const 1
                 i32.store
