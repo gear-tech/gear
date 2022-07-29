@@ -511,138 +511,138 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
     E: Environment<Ext>,
 {
-    match proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
-        Ok(()) => {
-            let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = proc::run::<JH, E>(last_exp_steps, &mut journal_handler);
+    if let Err(err) = proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
+        total_failed.fetch_add(1, Ordering::SeqCst);
+        return format!("Initialization error ({})", err).bright_red();
+    }
 
-            let mut errors = Vec::new();
-            for exp in &test.fixtures[fixture_no].expected {
-                let mut final_state = results.last().unwrap().0.clone();
-                if let Some(step) = exp.step {
-                    final_state = results[step].0.clone();
-                }
-                if !exp.allow_error.unwrap_or(false) && final_state.current_failed {
+    let expected = match &test.fixtures[fixture_no].expected {
+        Some(exp) => exp,
+        None => return "Ok".bright_green(),
+    };
+
+    let last_exp_steps = expected.last().unwrap().step;
+    let results = proc::run::<JH, E>(last_exp_steps, &mut journal_handler);
+
+    let mut errors = Vec::new();
+    for exp in expected {
+        let mut final_state = results.last().unwrap().0.clone();
+        if let Some(step) = exp.step {
+            final_state = results[step].0.clone();
+        }
+        if !exp.allow_error.unwrap_or(false) && final_state.current_failed {
+            errors.push(format!("step: {:?}", exp.step));
+            errors.extend(["Failed, but wasn't allowed to".to_string()]);
+        }
+
+        if !skip_messages {
+            if let Some(messages) = &exp.messages {
+                let msgs: Vec<_> = final_state
+                    .dispatch_queue
+                    .into_iter()
+                    .map(|(d, gas_limit)| (d.into_parts().1, gas_limit))
+                    .collect();
+
+                if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages, false) {
                     errors.push(format!("step: {:?}", exp.step));
-                    errors.extend(["Failed, but wasn't allowed to".to_string()]);
-                }
-
-                if !skip_messages {
-                    if let Some(messages) = &exp.messages {
-                        let msgs: Vec<_> = final_state
-                            .dispatch_queue
+                    errors.extend(
+                        msg_errors
                             .into_iter()
-                            .map(|(d, gas_limit)| (d.into_parts().1, gas_limit))
-                            .collect();
-
-                        if let Err(msg_errors) =
-                            check_messages(progs_n_paths, &msgs, messages, false)
-                        {
-                            errors.push(format!("step: {:?}", exp.step));
-                            errors.extend(
-                                msg_errors
-                                    .into_iter()
-                                    .map(|err| format!("Messages check [{}]", err)),
-                            );
-                        }
-                    }
+                            .map(|err| format!("Messages check [{}]", err)),
+                    );
                 }
-                if let Some(log) = &exp.log {
-                    for message in &final_state.log {
-                        if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                            log::debug!("log(text: {})", utf8);
-                        } else {
-                            log::debug!("log(<binary>)");
-                        }
-                    }
+            }
+        }
+        if let Some(log) = &exp.log {
+            for message in &final_state.log {
+                if let Ok(utf8) = std::str::from_utf8(message.payload()) {
+                    log::debug!("log(text: {})", utf8);
+                } else {
+                    log::debug!("log(<binary>)");
+                }
+            }
 
-                    let logs = final_state
-                        .log
+            let logs = final_state
+                .log
+                .into_iter()
+                .map(|v| (v, 0u64))
+                .collect::<Vec<(StoredMessage, GasLimit)>>();
+
+            if let Err(log_errors) = check_messages(progs_n_paths, &logs, log, true) {
+                errors.push(format!("step: {:?}", exp.step));
+                errors.extend(
+                    log_errors
                         .into_iter()
-                        .map(|v| (v, 0u64))
-                        .collect::<Vec<(StoredMessage, GasLimit)>>();
-
-                    if let Err(log_errors) = check_messages(progs_n_paths, &logs, log, true) {
-                        errors.push(format!("step: {:?}", exp.step));
-                        errors.extend(
-                            log_errors
-                                .into_iter()
-                                .map(|err| format!("Log check [{}]", err)),
-                        );
-                    }
-                }
-                if let Some(programs) = &exp.programs {
-                    let expected_prog_ids = programs
-                        .ids
-                        .iter()
-                        .map(|program| {
-                            (
-                                program.address.to_program_id(),
-                                program.terminated.unwrap_or_default(),
-                            )
-                        })
-                        .collect();
-
-                    let actual_prog_ids = final_state
-                        .actors
-                        .iter()
-                        .map(|(id, actor)| (*id, actor.executable_data.is_none()))
-                        .collect();
-
-                    if let Err(prog_id_errors) = check_programs_state(
-                        &expected_prog_ids,
-                        &actual_prog_ids,
-                        programs.only.unwrap_or_default(),
-                    ) {
-                        errors.push(format!("step: {:?}", exp.step));
-                        errors.extend(
-                            prog_id_errors
-                                .into_iter()
-                                .map(|err| format!("Program ids check: [{}]", err)),
-                        );
-                    }
-                }
-                if !skip_allocations {
-                    if let Some(alloc) = &exp.allocations {
-                        let progs: Vec<Program> = final_state
-                            .actors
-                            .clone()
-                            .into_iter()
-                            .filter_map(|(_, actor)| actor.executable_data)
-                            .map(|data| data.program)
-                            .collect();
-                        if let Err(alloc_errors) = check_allocations(&progs, alloc) {
-                            errors.push(format!("step: {:?}", exp.step));
-                            errors.extend(alloc_errors);
-                        }
-                    }
-                }
-                if !skip_memory {
-                    if let Some(mem) = &exp.memory {
-                        let data = final_state
-                            .actors
-                            .into_iter()
-                            .filter_map(|(_, actor)| actor.executable_data)
-                            .collect();
-                        if let Err(mem_errors) = check_memory(&data, mem) {
-                            errors.push(format!("step: {:?}", exp.step));
-                            errors.extend(mem_errors);
-                        }
-                    }
-                }
-            }
-            if !errors.is_empty() {
-                errors.insert(0, "\n".to_string());
-                total_failed.fetch_add(1, Ordering::SeqCst);
-                errors.join("\n").bright_red()
-            } else {
-                "Ok".bright_green()
+                        .map(|err| format!("Log check [{}]", err)),
+                );
             }
         }
-        Err(e) => {
-            total_failed.fetch_add(1, Ordering::SeqCst);
-            format!("Initialization error ({})", e).bright_red()
+        if let Some(programs) = &exp.programs {
+            let expected_prog_ids = programs
+                .ids
+                .iter()
+                .map(|program| {
+                    (
+                        program.address.to_program_id(),
+                        program.terminated.unwrap_or_default(),
+                    )
+                })
+                .collect();
+
+            let actual_prog_ids = final_state
+                .actors
+                .iter()
+                .map(|(id, actor)| (*id, actor.executable_data.is_none()))
+                .collect();
+
+            if let Err(prog_id_errors) = check_programs_state(
+                &expected_prog_ids,
+                &actual_prog_ids,
+                programs.only.unwrap_or_default(),
+            ) {
+                errors.push(format!("step: {:?}", exp.step));
+                errors.extend(
+                    prog_id_errors
+                        .into_iter()
+                        .map(|err| format!("Program ids check: [{}]", err)),
+                );
+            }
         }
+        if !skip_allocations {
+            if let Some(alloc) = &exp.allocations {
+                let progs: Vec<Program> = final_state
+                    .actors
+                    .clone()
+                    .into_iter()
+                    .filter_map(|(_, actor)| actor.executable_data)
+                    .map(|data| data.program)
+                    .collect();
+                if let Err(alloc_errors) = check_allocations(&progs, alloc) {
+                    errors.push(format!("step: {:?}", exp.step));
+                    errors.extend(alloc_errors);
+                }
+            }
+        }
+        if !skip_memory {
+            if let Some(mem) = &exp.memory {
+                let data = final_state
+                    .actors
+                    .into_iter()
+                    .filter_map(|(_, actor)| actor.executable_data)
+                    .collect();
+                if let Err(mem_errors) = check_memory(&data, mem) {
+                    errors.push(format!("step: {:?}", exp.step));
+                    errors.extend(mem_errors);
+                }
+            }
+        }
+    }
+    if !errors.is_empty() {
+        errors.insert(0, "\n".to_string());
+        total_failed.fetch_add(1, Ordering::SeqCst);
+        errors.join("\n").bright_red()
+    } else {
+        "Ok".bright_green()
     }
 }
 

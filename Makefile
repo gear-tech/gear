@@ -245,3 +245,6 @@ doc:
 .PHONY: fuzz
 fuzz:
 	@ ./scripts/gear.sh test fuzz
+
+build-wat-examples:
+	@ ./scripts/gear.sh build wat-examples
