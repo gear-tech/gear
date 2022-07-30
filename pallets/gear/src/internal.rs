@@ -432,7 +432,7 @@ where
         //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = user_queries.then_some(&user_id).unwrap_or(&from);
+        let to = if user_queries { &user_id } else { &from };
 
         // Transferring reserved funds, associated with the message.
         Self::transfer_reserved(&from, to, value);
