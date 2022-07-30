@@ -2081,7 +2081,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_id = generate_code_hash(&code).into();
+        let code_id = CodeId::generate(&code);
 
         // First submit program, which will set code and metadata
         assert_ok!(GearPallet::<Test>::upload_program(
@@ -2414,7 +2414,7 @@ fn exit_init() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_id = generate_code_hash(WASM_BINARY).into();
+        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
@@ -3177,7 +3177,7 @@ fn paused_program_keeps_id() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_id = generate_code_hash(WASM_BINARY).into();
+        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
@@ -3629,7 +3629,7 @@ fn test_two_contracts_composition_works() {
 
         assert_ok!(Gear::create_program(
             Origin::signed(USER_1),
-            generate_code_hash(MUL_CONST_WASM_BINARY).into(),
+            CodeId::generate(MUL_CONST_WASM_BINARY),
             b"contract_b".to_vec(),
             75_u64.encode(),
             10_000_000_000,
@@ -3754,7 +3754,7 @@ fn test_create_program_with_value_lt_ed() {
         // Trying to send init message from program with value less than ED.
         assert_ok!(GearPallet::<Test>::create_program(
             Origin::signed(USER_1),
-            generate_code_hash(WASM_BINARY).into(),
+            CodeId::generate(WASM_BINARY),
             b"test2".to_vec(),
             // First two messages won't fail, because provided values are in a valid range
             // The last message value (which is the value of init message) will end execution with trap
@@ -4197,7 +4197,7 @@ fn execution_over_blocks() {
 
         run_to_next_block(None);
         assert!(<Test as Config>::CodeStorage::remove_code(
-            generate_code_hash(WASM_BINARY).into()
+            CodeId::generate(WASM_BINARY)
         ));
 
         SystemPallet::<Test>::reset_events();
@@ -4664,7 +4664,7 @@ mod utils {
         user: AccountId,
         code_kind: ProgramCodeKind,
     ) -> DispatchCustomResult<ProgramId> {
-        let code_id = generate_code_hash(&code_kind.to_bytes()).into();
+        let code_id = CodeId::generate(&code_kind.to_bytes());
         let salt = DEFAULT_SALT.to_vec();
 
         GearPallet::<Test>::create_program(

@@ -409,6 +409,7 @@ mod tests {
     use super::*;
     use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
     use frame_support::assert_ok;
+    use gear_core::ids::CodeId;
 
     #[test]
     fn gas_total_supply_is_stable() {
@@ -494,9 +495,9 @@ mod tests {
                 0,
             ));
 
-            assert_ok!(Gear::upload_program(
+            assert_ok!(Gear::create_program(
                 Origin::signed(alice.clone()),
-                MUL_CONST_WASM_BINARY.to_vec(),
+                CodeId::generate(MUL_CONST_WASM_BINARY),
                 b"contract_b".to_vec(),
                 75_u64.encode(),
                 2_500_000_000,
