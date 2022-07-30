@@ -18,10 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
-// # FIXME
-//
-// Remove this after #1257.
-#![allow(clippy::assertions_on_result_states)]
 
 extern crate alloc;
 

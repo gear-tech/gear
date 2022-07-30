@@ -24,10 +24,6 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-// # FIXME
-//
-// Remove this after #1257
-#![allow(clippy::assertions_on_result_states)]
 
 extern crate alloc;
 
