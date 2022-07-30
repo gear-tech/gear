@@ -340,6 +340,10 @@ jobs:
         with:
           file: ./lcov.info
 
+      - name: "Build: Production binaries"
+        if: github.event_name == 'push'
+        run: cargo build -p gear-node --profile production
+
       - name: "Cache: Pack to master"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
@@ -359,25 +363,24 @@ jobs:
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
 
       - name: Prepare production artifacts
-        # if: github.event_name == 'push' # FIXME: Uncomment after test
+        if: github.event_name == 'push'
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
           tar czvf ../../../artifact/examples.tar.gz *.wasm
           cd ../../..
-          cp target/release/gear-test artifact/
-          cp target/release/wasm-proc artifact/
-          cargo build -p gear-node --profile production
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.compact.wasm artifact/
           cp target/production/wbuild/gear-runtime/gear_runtime.wasm artifact/
           cp target/production/gear-node artifact/
+          cp target/release/gear-test artifact/
+          cp target/release/wasm-proc artifact/
           strip artifact/gear-node || true
           strip artifact/gear-test || true
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        # if: github.event_name == 'push' # FIXME: Uncomment after test
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v2
         with:
           path: artifact
