@@ -460,10 +460,15 @@ fn upload_program_fails_on_duplicate_id() {
         assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         // Finalize block to let queue processing run
         run_to_block(2, None);
-        // By now this program id is already in the storage
+        // By now this code id is already in the storage
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::Default),
             Error::<Test>::CodeAlreadyExists
+        );
+        // And this program id is already in the storage
+        assert_noop!(
+            create_program_default(USER_1, ProgramCodeKind::Default),
+            Error::<Test>::ProgramAlreadyExists
         );
     })
 }
