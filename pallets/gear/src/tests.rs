@@ -2457,19 +2457,13 @@ fn test_create_program_works() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
+        let code_id = CodeId::generate(WASM_BINARY);
+
         assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
         ));
 
-        // Parse wasm code.
-        let schedule = <Test as Config>::Schedule::get();
-        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-            schedule.rules(module)
-        })
-        .expect("Code failed to load");
-
-        let code_id = CodeId::generate(code.raw_code());
         assert_ok!(GearPallet::<Test>::create_program(
             Origin::signed(USER_1),
             code_id,
@@ -2711,7 +2705,7 @@ fn test_create_program_duplicate() {
         // Submit the code
         assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
-            child_code.clone(),
+            child_code,
         ));
 
         // Creating factory
@@ -2976,7 +2970,7 @@ fn exit_handle() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_hash = generate_code_hash(&code).into();
+        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code.clone(),
@@ -3007,8 +3001,6 @@ fn exit_handle() {
         assert!(MailboxOf::<Test>::is_empty(&USER_3));
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_terminated(program_id));
-
-        let code_id = CodeId::from_origin(code_hash);
 
         // Code is not removed and can't be submitted again.
         assert!(<Test as Config>::CodeStorage::exists(code_id));
