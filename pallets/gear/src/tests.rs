@@ -460,14 +460,9 @@ fn upload_program_fails_on_duplicate_id() {
         assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         // Finalize block to let queue processing run
         run_to_block(2, None);
-        // By now this code id is already in the storage
+        // By now this program id is already in the storage
         assert_noop!(
             upload_program_default(USER_1, ProgramCodeKind::Default),
-            Error::<Test>::CodeAlreadyExists
-        );
-        // And this program id is already in the storage
-        assert_noop!(
-            create_program_default(USER_1, ProgramCodeKind::Default),
             Error::<Test>::ProgramAlreadyExists
         );
     })
@@ -2081,7 +2076,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_id = CodeId::generate(&code);
+        let code_id = generate_code_hash(&code).into();
 
         // First submit program, which will set code and metadata
         assert_ok!(GearPallet::<Test>::upload_program(
@@ -2124,16 +2119,16 @@ fn test_code_is_not_reset_within_program_submission() {
         // First submit code
         assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
-            code,
+            code.clone()
         ));
         let expected_code_saved_events = 1;
         let expected_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         assert!(expected_meta.is_some());
 
         // Submit program from another origin. Should not change meta or code.
-        assert_ok!(GearPallet::<Test>::create_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
-            code_id,
+            code,
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
@@ -2414,10 +2409,9 @@ fn exit_init() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code,
+            code.clone(),
             vec![],
             [0].to_vec(),
             50_000_000_000u64,
@@ -2434,9 +2428,9 @@ fn exit_init() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::create_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
-                code_id,
+                code,
                 vec![],
                 Vec::new(),
                 2_000_000_000,
@@ -2457,13 +2451,19 @@ fn test_create_program_works() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_id = CodeId::generate(WASM_BINARY);
-
         assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
-            code,
+            code.clone(),
         ));
 
+        // Parse wasm code.
+        let schedule = <Test as Config>::Schedule::get();
+        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+            schedule.rules(module)
+        })
+        .expect("Code failed to load");
+
+        let code_id = CodeId::generate(code.raw_code());
         assert_ok!(GearPallet::<Test>::create_program(
             Origin::signed(USER_1),
             code_id,
@@ -2705,7 +2705,7 @@ fn test_create_program_duplicate() {
         // Submit the code
         assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
-            child_code,
+            child_code.clone(),
         ));
 
         // Creating factory
@@ -2720,7 +2720,7 @@ fn test_create_program_duplicate() {
         run_to_block(2, None);
 
         // User creates a program
-        assert_ok!(create_program_default(USER_1, ProgramCodeKind::Default));
+        assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(3, None);
 
         // Program tries to create the same
@@ -2777,9 +2777,9 @@ fn test_create_program_duplicate() {
         assert_init_success(1);
 
         assert_noop!(
-            GearPallet::<Test>::create_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
-                child_code_hash.into(),
+                child_code,
                 b"salt1".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
                 10_000_000_000,
@@ -2970,7 +2970,7 @@ fn exit_handle() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_id = CodeId::generate(WASM_BINARY);
+        let code_hash = generate_code_hash(&code).into();
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code.clone(),
@@ -3002,26 +3002,15 @@ fn exit_handle() {
         assert!(!Gear::is_initialized(program_id));
         assert!(Gear::is_terminated(program_id));
 
-        // Code is not removed and can't be submitted again.
-        assert!(<Test as Config>::CodeStorage::exists(code_id));
+        assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
+            code_hash
+        )));
+
+        // Program is not removed and can't be submitted again
         assert_noop!(
             GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
                 code,
-                vec![],
-                Vec::new(),
-                2_000_000_000,
-                0u128
-            ),
-            Error::<Test>::CodeAlreadyExists,
-        );
-
-        // Program is not removed and can't be submitted again.
-        assert!(program_exists(program_id.into_origin()));
-        assert_noop!(
-            GearPallet::<Test>::create_program(
-                Origin::signed(USER_1),
-                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000,
@@ -3177,10 +3166,9 @@ fn paused_program_keeps_id() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code,
+            code.clone(),
             vec![],
             Vec::new(),
             50_000_000_000u64,
@@ -3194,9 +3182,9 @@ fn paused_program_keeps_id() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         assert_noop!(
-            GearPallet::<Test>::create_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_3),
-                code_id,
+                code,
                 vec![],
                 Vec::new(),
                 2_000_000_000u64,
@@ -3627,9 +3615,9 @@ fn test_two_contracts_composition_works() {
             0,
         ));
 
-        assert_ok!(Gear::create_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
-            CodeId::generate(MUL_CONST_WASM_BINARY),
+            MUL_CONST_WASM_BINARY.to_vec(),
             b"contract_b".to_vec(),
             75_u64.encode(),
             10_000_000_000,
@@ -3752,9 +3740,9 @@ fn test_create_program_with_value_lt_ed() {
         SystemPallet::<Test>::reset_events();
 
         // Trying to send init message from program with value less than ED.
-        assert_ok!(GearPallet::<Test>::create_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            CodeId::generate(WASM_BINARY),
+            WASM_BINARY.to_vec(),
             b"test2".to_vec(),
             // First two messages won't fail, because provided values are in a valid range
             // The last message value (which is the value of init message) will end execution with trap
@@ -4196,10 +4184,6 @@ fn execution_over_blocks() {
         .expect("Failed to get gas spent");
 
         run_to_next_block(None);
-        assert!(<Test as Config>::CodeStorage::remove_code(
-            CodeId::generate(WASM_BINARY)
-        ));
-
         SystemPallet::<Test>::reset_events();
 
         (
@@ -4651,25 +4635,6 @@ mod utils {
         GearPallet::<Test>::upload_program(
             Origin::signed(user),
             code,
-            salt,
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        )
-        .map(|_| get_last_program_id())
-    }
-
-    // Creates program with default options (salt, gas limit, value, payload)
-    pub(super) fn create_program_default(
-        user: AccountId,
-        code_kind: ProgramCodeKind,
-    ) -> DispatchCustomResult<ProgramId> {
-        let code_id = CodeId::generate(&code_kind.to_bytes());
-        let salt = DEFAULT_SALT.to_vec();
-
-        GearPallet::<Test>::create_program(
-            Origin::signed(user),
-            code_id,
             salt,
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,

@@ -20,9 +20,7 @@ EOF
 }
 
 gear_clippy() {
-  SKIP_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" -- --no-deps \
-                    -A clippy::assertions_on_result_states `# FIXME: consider removing this line after #1257.` \
-                    -D warnings
+  SKIP_WASM_BUILD=1 cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 # $1 - ROOT DIR
@@ -30,7 +28,6 @@ examples_clippy() {
   cd "$1"/examples
   SKIP_WASM_BUILD=1 cargo +nightly hack clippy --workspace --release -- --no-deps \
 	  -A clippy::stable_sort_primitive \
-    -A clippy::assertions_on_result_states `# FIXME: consider removing this line after #1257.` \
     -D warnings
   cd "$1"
 }
