@@ -27,7 +27,7 @@ The resulting ```staging.json``` file will contain a very long segment of binary
 ```
 {
   "name": "Staging Testnet",
-  "id": "staging_testnet",
+  "id": "staging_testnet_v2",
   "chainType": "Live",
   "bootNodes": [],
   "telemetryEndpoints": null,
@@ -56,7 +56,7 @@ For the ```staging``` testnet we list the initial validators set as the bootnode
 ```bash
 {
   "name": "Staging Testnet",
-  "id": "staging_testnet",
+  "id": "staging_testnet_v2",
   "chainType": "Live",
   "bootNodes": [
     "/ip4/52.9.232.93/tcp/30333/p2p/12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW",

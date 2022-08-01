@@ -1,6 +1,6 @@
 {
-  "name": "Staging Testnet",
-  "id": "staging_testnet",
+  "name": "Staging Testnet V2",
+  "id": "staging_testnet_v2",
   "chainType": "Live",
   "bootNodes": [
     "/dns4/testnet-validator-node1.gear-tech.io/tcp/30333/p2p/12D3KooWBWFtZqigVTC8W2GRMwLeuTK2o4hDC4XHVPyNV6hW1T1D",
