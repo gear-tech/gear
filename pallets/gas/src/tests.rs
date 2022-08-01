@@ -155,7 +155,7 @@ fn can_cut_nodes() {
 
         // create nodes
         {
-            assert!(Gas::create(ALICE, root, total_supply).is_ok());
+            Gas::create(ALICE, root, total_supply).unwrap();
             assert_ok!(Gas::cut(root, cut_a, cut_a_value));
             assert_ok!(Gas::split_with_value(root, specified, specified_value));
             assert_ok!(Gas::cut(specified, cut_b, cut_b_value));
@@ -190,7 +190,7 @@ fn value_tree_with_all_kinds_of_nodes() {
 
         // create nodes
         {
-            assert!(Gas::create(ALICE, root, total_supply).is_ok());
+            Gas::create(ALICE, root, total_supply).unwrap();
             assert_ok!(Gas::cut(root, cut, cut_value));
             assert_ok!(Gas::split_with_value(root, specified, specified_value));
             assert_ok!(Gas::split(root, unspecified));
@@ -242,7 +242,7 @@ fn splits_fail() {
         let node_3 = random_node_id();
 
         // Prepare the initial configuration
-        assert!(Gas::create(origin, root, 1000).is_ok());
+        Gas::create(origin, root, 1000).unwrap();
         assert_ok!(Gas::split_with_value(root, node_1, 800));
         assert_ok!(Gas::split_with_value(node_1, node_2, 500));
         assert_ok!(Gas::split(node_1, node_3));
@@ -454,7 +454,7 @@ fn long_chain() {
         let m4 = random_node_id();
         let origin = ALICE;
 
-        assert!(Gas::create(origin, root, 2000).is_ok());
+        Gas::create(origin, root, 2000).unwrap();
 
         assert_ok!(Gas::split_with_value(root, m1, 1500));
         assert_ok!(Gas::split_with_value(m1, m2, 1000));
@@ -507,7 +507,7 @@ fn limit_vs_origin() {
         let split_1_2 = random_node_id();
         let split_1_1_1 = random_node_id();
 
-        assert!(Gas::create(origin, root_node, 1100).is_ok());
+        Gas::create(origin, root_node, 1100).unwrap();
 
         assert_ok!(Gas::cut(root_node, cut, 300));
         assert_ok!(Gas::split(root_node, split_1));
@@ -585,7 +585,7 @@ fn subtree_gas_limit_remains_intact() {
         let node_5 = random_node_id();
 
         // Prepare the initial configuration
-        assert!(Gas::create(origin, root, 1000).is_ok());
+        Gas::create(origin, root, 1000).unwrap();
         assert_ok!(Gas::split_with_value(root, node_1, 800));
         assert_ok!(Gas::split_with_value(node_1, node_2, 500));
         assert_ok!(Gas::split(node_1, node_3));
@@ -637,7 +637,7 @@ fn gas_free_after_consumed() {
         let origin = BOB;
         let root_msg_id = random_node_id();
 
-        assert!(Gas::create(origin, root_msg_id, 1000).is_ok());
+        Gas::create(origin, root_msg_id, 1000).unwrap();
         assert_ok!(Gas::spend(root_msg_id, 300));
 
         let (v, _) = Gas::consume(root_msg_id).unwrap().unwrap();

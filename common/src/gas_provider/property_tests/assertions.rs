@@ -125,7 +125,7 @@ fn assert_removed_nodes_form_path(
 // call, then all the tree must be empty. So no nodes can be removed after
 // root was removed in the `consume` call.
 pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: RemainingNodes) {
-    Gas::get_node(root_node).is_none().then(|| {
+    if Gas::get_node(root_node).is_none() {
         assert_eq!(
             remaining_nodes
                 .iter()
@@ -133,7 +133,7 @@ pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: Remainin
                 .count(),
             0
         );
-    });
+    };
 }
 
 // Check that returned dispatch error is not of invariant error variants.
