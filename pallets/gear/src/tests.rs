@@ -576,19 +576,14 @@ fn mailbox_threshold_works() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_eq!(
-                    GasHandlerOf::<Test>::get_limit(message_id)
-                        .map(|result| result.map(|(g, _)| g)),
-                    Ok(Some(rent))
-                );
+                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), rent);
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
                 assert!(!MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_eq!(
-                    GasHandlerOf::<Test>::get_limit(message_id)
-                        .map(|result| result.map(|(g, _)| g)),
-                    Ok(None)
+                assert_noop!(
+                    GasHandlerOf::<Test>::get_limit(message_id),
+                    pallet_gear_gas::Error::<Test>::NodeNotFound
                 );
             }
 
@@ -2996,8 +2991,7 @@ fn no_redundant_gas_value_after_exiting() {
         ));
 
         let msg_id = get_last_message_id();
-        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit.map(|(g, _)| g), Some(gas_spent));
+        assert_ok!(GasHandlerOf::<Test>::get_limit(msg_id), gas_spent);
 
         // before execution
         let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
@@ -3007,8 +3001,10 @@ fn no_redundant_gas_value_after_exiting() {
         run_to_block(3, None);
 
         // gas_limit has been recovered
-        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, None);
+        assert_noop!(
+            GasHandlerOf::<Test>::get_limit(msg_id),
+            pallet_gear_gas::Error::<Test>::NodeNotFound
+        );
 
         // the (reserved_after_send - gas_spent) has been unreserved
         let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
