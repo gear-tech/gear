@@ -4980,7 +4980,7 @@ mod utils {
             };
 
             wabt::Wat2Wasm::new()
-                .validate(true)
+                .validate(false)
                 .convert(source)
                 .expect("failed to parse module")
                 .as_ref()
