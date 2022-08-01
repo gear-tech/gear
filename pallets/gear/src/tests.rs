@@ -2409,6 +2409,7 @@ fn exit_init() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
+        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code.clone(),
@@ -2428,9 +2429,9 @@ fn exit_init() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            GearPallet::<Test>::create_program(
                 Origin::signed(USER_1),
-                code,
+                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000,
@@ -2970,6 +2971,7 @@ fn exit_handle() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
+        let code_id = CodeId::generate(WASM_BINARY);
         let code_hash = generate_code_hash(&code).into();
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
@@ -3008,9 +3010,9 @@ fn exit_handle() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            GearPallet::<Test>::create_program(
                 Origin::signed(USER_1),
-                code,
+                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000,
@@ -3166,6 +3168,7 @@ fn paused_program_keeps_id() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
+        let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code.clone(),
@@ -3182,9 +3185,9 @@ fn paused_program_keeps_id() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            GearPallet::<Test>::create_program(
                 Origin::signed(USER_3),
-                code,
+                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000u64,
@@ -3604,6 +3607,7 @@ fn test_two_contracts_composition_works() {
 
         let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
         let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
+        let contract_code_id = CodeId::generate(MUL_CONST_WASM_BINARY);
         let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
 
         assert_ok!(Gear::upload_program(
@@ -3615,9 +3619,9 @@ fn test_two_contracts_composition_works() {
             0,
         ));
 
-        assert_ok!(Gear::upload_program(
+        assert_ok!(Gear::create_program(
             Origin::signed(USER_1),
-            MUL_CONST_WASM_BINARY.to_vec(),
+            contract_code_id,
             b"contract_b".to_vec(),
             75_u64.encode(),
             10_000_000_000,
