@@ -2412,7 +2412,7 @@ fn exit_init() {
         let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
             vec![],
             [0].to_vec(),
             50_000_000_000u64,
@@ -2975,7 +2975,7 @@ fn exit_handle() {
         let code_hash = generate_code_hash(&code).into();
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
             vec![],
             Vec::new(),
             10_000_000_000u64,
@@ -3171,7 +3171,7 @@ fn paused_program_keeps_id() {
         let code_id = CodeId::generate(WASM_BINARY);
         assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
             vec![],
             Vec::new(),
             50_000_000_000u64,
