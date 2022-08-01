@@ -424,7 +424,7 @@ proptest! {
             }
 
             // Check property: all existing specified and unspecified nodes have a parent in a tree
-            if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent } = node {
+            if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent, .. } = node {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
                 let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");

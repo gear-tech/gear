@@ -89,7 +89,7 @@ where
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
-        if let GasNode::UnspecifiedLocal { parent } = ret_node {
+        if let GasNode::UnspecifiedLocal { parent, .. } = ret_node {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
             if !(ret_node.is_external() || ret_node.is_specified_local()) {
@@ -377,6 +377,7 @@ where
 
             GasNode::SpecifiedLocal {
                 value: amount,
+                lock: Zero::zero(),
                 parent: node_id,
                 refs: Default::default(),
                 consumed: false,
@@ -524,7 +525,7 @@ where
                     }
                     catch_output.into_consume_output(external)
                 }
-                GasNode::UnspecifiedLocal { parent } => {
+                GasNode::UnspecifiedLocal { parent, .. } => {
                     if !catch_output.is_blocked() {
                         return Err(InternalError::value_is_not_blocked().into());
                     }
@@ -615,7 +616,10 @@ where
 
         node.increase_unspec_refs();
 
-        let new_node = GasNode::UnspecifiedLocal { parent: node_id };
+        let new_node = GasNode::UnspecifiedLocal {
+            parent: node_id,
+            lock: Zero::zero(),
+        };
 
         // Save new node
         StorageMap::insert(new_key, new_node);
