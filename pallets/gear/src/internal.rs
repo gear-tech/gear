@@ -224,8 +224,7 @@ where
         }
 
         // Spending gas amount from `GasNode`.
-        // Here is a negative imbalance. Used `_` to force drop in place.
-        let _ = GasHandlerOf::<T>::spend(message_id, amount)
+        GasHandlerOf::<T>::spend(message_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
@@ -423,7 +422,7 @@ where
         //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = user_queries.then_some(&user_id).unwrap_or(&from);
+        let to = if user_queries { &user_id } else { &from };
 
         // Transferring reserved funds, associated with the message.
         Self::transfer_reserved(&from, to, value);

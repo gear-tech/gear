@@ -1,5 +1,26 @@
 use alloc::string::String;
 
+#[macro_export]
+macro_rules! assert_ok {
+    ( $x:expr $(,)? ) => {
+        let is = $x;
+        match is {
+            Ok(_) => (),
+            _ => assert!(false, "Expected Ok(_). Got {:#?}", is),
+        }
+    };
+    ( $x:expr, $y:expr $(,)? ) => {
+        assert_eq!($x, Ok($y));
+    };
+}
+
+#[macro_export]
+macro_rules! assert_err {
+    ( $x:expr , $y:expr $(,)? ) => {
+        assert_eq!($x, Err($y.into()));
+    };
+}
+
 pub(crate) fn smart_truncate(s: &mut String, max_bytes: usize) {
     let mut last_byte = max_bytes;
 
