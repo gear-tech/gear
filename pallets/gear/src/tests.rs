@@ -23,9 +23,9 @@ use crate::{
         new_test_ext, run_to_block, run_to_next_block, Balances, Event as MockEvent, Gear,
         GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, QueueOf, ReplyMessage, WaitlistOf,
-    H256,
+    pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, Error, Event, GasAllowanceOf,
+    GasHandlerOf, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, QueueOf,
+    ReplyMessage, WaitlistOf, H256,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -42,7 +42,7 @@ use frame_support::{
     assert_noop, assert_ok,
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
-    traits::Currency,
+    traits::{Currency, ReservableCurrency},
 };
 use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::TrapExplanation;
@@ -4369,9 +4369,6 @@ fn check_signal_executed() {
 
         run_to_block(2, None);
 
-        use crate::CurrencyOf;
-        use frame_support::traits::ReservableCurrency;
-
         let trap = b"TEST".to_vec();
         let message_id = get_last_message_id();
         let source = ProgramId::from_origin(H256::random());
@@ -4450,9 +4447,6 @@ fn allowed_entry_funcs_works() {
 
             run_to_block(next_block, None);
             next_block += 1;
-
-            use crate::CurrencyOf;
-            use frame_support::traits::ReservableCurrency;
 
             let trap = b"TEST".to_vec();
             let message_id = get_last_message_id();
