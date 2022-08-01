@@ -474,6 +474,7 @@ impl ExtManager {
             DispatchKind::Init => mock.init(payload),
             DispatchKind::Handle => mock.handle(payload),
             DispatchKind::Reply => mock.handle_reply(payload),
+            DispatchKind::Signal => mock.handle_signal(payload),
         };
 
         match response {

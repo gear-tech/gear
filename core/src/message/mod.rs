@@ -62,6 +62,8 @@ pub enum DispatchKind {
     Handle,
     /// Handle reply.
     Reply,
+    /// System signal.
+    Signal,
 }
 
 impl DispatchKind {
@@ -71,6 +73,7 @@ impl DispatchKind {
             Self::Init => "init",
             Self::Handle => "handle",
             Self::Reply => "handle_reply",
+            Self::Signal => "handle_signal",
         }
     }
 
@@ -87,6 +90,11 @@ impl DispatchKind {
     /// Check if kind is reply.
     pub fn is_reply(&self) -> bool {
         matches!(self, Self::Reply)
+    }
+
+    /// Check if kind is signal.
+    pub fn is_signal(&self) -> bool {
+        matches!(self, Self::Signal)
     }
 }
 

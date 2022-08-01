@@ -114,7 +114,7 @@ fn out_of_rent_reply_exists(
             msg.destination() == src
                 && msg.source() == pid
                 && msg.reply() == Some(ReplyDetails::new(mid, 1))
-                && msg.payload() == ExecutionErrorReason::OutOfRent.encode()
+                && msg.payload() == ExecutionErrorReason::OutOfRent.encode() // TODO: revert commit
         } else {
             false
         }

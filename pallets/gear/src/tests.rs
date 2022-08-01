@@ -24,7 +24,8 @@ use crate::{
         GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
+    GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, QueueOf, ReplyMessage, WaitlistOf,
+    H256,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -4338,6 +4339,63 @@ fn test_async_messages() {
     })
 }
 
+#[test]
+fn check_signal_executed() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (export "handle_signal" (func $handle_signal))
+        (func $init)
+        (func $handle_signal
+            unreachable
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        use crate::CurrencyOf;
+        use frame_support::traits::ReservableCurrency;
+
+        let trap = b"TEST".to_vec();
+        let message_id = get_last_message_id();
+        let source = ProgramId::from_origin(H256::random());
+        let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
+            .into_signal_dispatch(source, pid, message_id)
+            .into_stored();
+
+        assert_ok!(CurrencyOf::<Test>::reserve(&USER_1, 50_000_000_000));
+        assert_ok!(GasHandlerOf::<Test>::create(
+            USER_1,
+            trap_reply.id(),
+            50_000_000_000
+        ));
+        assert_ok!(QueueOf::<Test>::queue(trap_reply.clone()));
+
+        run_to_block(3, None);
+
+        assert_eq!(
+            dispatch_status(trap_reply.id()),
+            Some(DispatchStatus::Failed)
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -4842,7 +4900,7 @@ mod utils {
             };
 
             wabt::Wat2Wasm::new()
-                .validate(false)
+                .validate(true)
                 .convert(source)
                 .expect("failed to parse module")
                 .as_ref()

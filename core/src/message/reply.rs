@@ -118,6 +118,19 @@ impl ReplyMessage {
             .into()
     }
 
+    /// Convert ReplyMessage into signal Dispatch.
+    pub fn into_signal_dispatch(
+        self,
+        source: ProgramId,
+        destination: ProgramId,
+        origin_msg_id: MessageId,
+    ) -> Dispatch {
+        Dispatch::new(
+            DispatchKind::Signal,
+            self.into_message(source, destination, origin_msg_id),
+        )
+    }
+
     /// Message id.
     pub fn id(&self) -> MessageId {
         self.id

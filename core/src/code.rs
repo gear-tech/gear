@@ -45,6 +45,8 @@ fn get_exports(
                 exports.insert(DispatchKind::Handle);
             } else if entry.field() == DispatchKind::Reply.into_entry() {
                 exports.insert(DispatchKind::Reply);
+            } else if entry.field() == DispatchKind::Signal.into_entry() {
+                exports.insert(DispatchKind::Signal);
             } else if reject_unnececery {
                 return Err(CodeError::NonGearExportFnFound);
             }

@@ -48,7 +48,13 @@ impl Optimizer {
 
         pwasm_utils::optimize(
             &mut binary_module,
-            vec!["handle", "handle_reply", "init", "__gear_stack_end"],
+            vec![
+                "handle",
+                "handle_reply",
+                "handle_signal",
+                "init",
+                "__gear_stack_end",
+            ],
         )
         .map_err(OptimizerError)
         .with_context(|| {
