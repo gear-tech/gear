@@ -28,6 +28,10 @@ all: gear examples
 .PHONY: all-release
 all-release: gear-release examples
 
+.PHONY: build-wat-examples
+build-wat-examples:
+	@ ./scripts/gear.sh build wat-examples
+
 .PHONY: gear
 gear:
 	@ ./scripts/gear.sh build gear
@@ -246,5 +250,3 @@ doc:
 fuzz:
 	@ ./scripts/gear.sh test fuzz
 
-build-wat-examples:
-	@ ./scripts/gear.sh build wat-examples
