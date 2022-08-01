@@ -792,12 +792,12 @@ pub mod pallet {
                 };
 
                 let journal = if lazy_pages_enabled {
-                    core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
                         &block_config,
                         message_execution_context,
                     )
                 } else {
-                    core_processor::process::<Ext, SandboxEnvironment<_>>(
+                    core_processor::process::<Ext, SandboxEnvironment>(
                         &block_config,
                         message_execution_context,
                     )
@@ -1186,12 +1186,12 @@ pub mod pallet {
                     };
 
                     let journal = if lazy_pages_enabled {
-                        core_processor::process::<LazyPagesExt, SandboxEnvironment<_>>(
+                        core_processor::process::<LazyPagesExt, SandboxEnvironment>(
                             &block_config,
                             message_execution_context,
                         )
                     } else {
-                        core_processor::process::<Ext, SandboxEnvironment<_>>(
+                        core_processor::process::<Ext, SandboxEnvironment>(
                             &block_config,
                             message_execution_context,
                         )

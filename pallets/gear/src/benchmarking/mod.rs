@@ -28,6 +28,7 @@ use self::{
     code::{
         body::{self, DynInstr::*},
         DataSegment, ImportedFunction, ImportedMemory, Location, ModuleDefinition, WasmModule,
+        OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
@@ -529,7 +530,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -592,7 +593,7 @@ benchmarks! {
 
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -621,7 +622,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -638,7 +639,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -655,7 +656,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -672,7 +673,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -690,7 +691,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -707,7 +708,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -724,7 +725,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -753,7 +754,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -793,7 +794,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -837,7 +838,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -866,7 +867,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -895,7 +896,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -925,7 +926,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -966,7 +967,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1007,7 +1008,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1059,7 +1060,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1111,7 +1112,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1153,7 +1154,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1193,7 +1194,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1234,7 +1235,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1273,7 +1274,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1287,11 +1288,12 @@ benchmarks! {
                 params: vec![ValueType::I32],
                 return_type: None,
             }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
-                Instruction::I32Const(0), // dest_ptr
+            reply_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                // dest_ptr
+                Instruction::I32Const(0),
                 Instruction::Call(0),
                 ])),
-                .. Default::default()
+            .. Default::default()
         });
         let instance = Program::<T>::new(code, vec![])?;
         let msg_id = MessageId::from(10);
@@ -1305,7 +1307,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1335,7 +1337,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1349,7 +1351,7 @@ benchmarks! {
                 params: vec![],
                 return_type: Some(ValueType::I32),
             }],
-            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+            reply_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(0),
                 Instruction::Drop,
             ])),
@@ -1367,7 +1369,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1406,7 +1408,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1436,7 +1438,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1466,7 +1468,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1511,7 +1513,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1574,7 +1576,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1637,7 +1639,7 @@ benchmarks! {
     }: {
         core_processor::process::<
             ext::LazyPagesExt,
-            SandboxEnvironment<ext::LazyPagesExt>,
+            SandboxEnvironment,
         >(&block_config, message_execution_context);
     }
 
@@ -1862,7 +1864,7 @@ benchmarks! {
                 Instruction::End,
             ])),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
-                Instruction::Call(2), // call aux
+                Instruction::Call(OFFSET_AUX),
             ])),
             inject_stack_metering: false,
             .. Default::default()
@@ -1891,7 +1893,7 @@ benchmarks! {
             inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
-                function_index: 2, // aux
+                function_index: OFFSET_AUX,
             }),
             .. Default::default()
         }));
@@ -1924,7 +1926,7 @@ benchmarks! {
             inject_stack_metering: false,
             table: Some(TableSegment {
                 num_elements,
-                function_index: 2, // aux
+                function_index: OFFSET_AUX,
             }),
             .. Default::default()
         }));

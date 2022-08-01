@@ -690,7 +690,7 @@ fn catch_value_all_blocked() {
         let spec_2 = random_node_id();
         let spec_3 = random_node_id();
 
-        assert!(Gas::create(ALICE, root, 10000).is_ok());
+        Gas::create(ALICE, root, 10000).unwrap();
         assert_eq!(Gas::total_supply(), 10000);
         assert_ok!(Gas::split(root, random_node_id()));
         assert_ok!(Gas::split(root, random_node_id()));
@@ -726,7 +726,7 @@ fn catch_value_all_catch() {
         let spec_2 = random_node_id();
         let spec_3 = random_node_id();
 
-        assert!(Gas::create(ALICE, root, 10000).is_ok());
+        Gas::create(ALICE, root, 10000).unwrap();
         assert_eq!(Gas::total_supply(), 10000);
         assert_ok!(Gas::split_with_value(root, spec_1, 100));
         assert_ok!(Gas::split_with_value(root, spec_2, 100));

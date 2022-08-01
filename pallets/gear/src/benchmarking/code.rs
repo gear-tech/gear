@@ -71,7 +71,10 @@ pub struct ModuleDefinition {
     /// Function body of the exported `handle` function. Body is empty if `None`.
     /// Its index is `imported_functions.len() + 1`.
     pub handle_body: Option<FuncBody>,
-    /// Function body of a non-exported function with index `imported_functions.len() + 2`.
+    /// Function body of the exported `handle_reply` function. Body is empty if `None`.
+    /// Its index is `imported_functions.len() + 2`.
+    pub reply_body: Option<FuncBody>,
+    /// Function body of a non-exported function with index `imported_functions.len() + 3`.
     pub aux_body: Option<FuncBody>,
     /// The amount of I64 arguments the aux function should have.
     pub aux_arg_num: u32,
@@ -131,6 +134,11 @@ pub struct WasmModule<T> {
     _data: PhantomData<T>,
 }
 
+pub const OFFSET_INIT: u32 = 0;
+pub const OFFSET_HANDLE: u32 = OFFSET_INIT + 1;
+pub const OFFSET_REPLY: u32 = OFFSET_HANDLE + 1;
+pub const OFFSET_AUX: u32 = OFFSET_REPLY + 1;
+
 impl<T: Config> From<ModuleDefinition> for WasmModule<T>
 where
     T: Config,
@@ -146,29 +154,33 @@ where
             .function()
             .signature()
             .build()
-            .with_body(
-                def.init_body
-                    .unwrap_or_else(|| FuncBody::new(Vec::new(), Instructions::empty())),
-            )
+            .with_body(def.init_body.unwrap_or_else(body::empty))
             .build()
             // handle function (second internal function)
             .function()
             .signature()
             .build()
-            .with_body(
-                def.handle_body
-                    .unwrap_or_else(|| FuncBody::new(Vec::new(), Instructions::empty())),
-            )
+            .with_body(def.handle_body.unwrap_or_else(body::empty))
+            .build()
+            .function()
+            .signature()
+            .build()
+            .with_body(def.reply_body.unwrap_or_else(body::empty))
             .build()
             .export()
             .field("init")
             .internal()
-            .func(func_offset)
+            .func(func_offset + OFFSET_INIT)
             .build()
             .export()
             .field("handle")
             .internal()
-            .func(func_offset + 1)
+            .func(func_offset + OFFSET_HANDLE)
+            .build()
+            .export()
+            .field("handle_reply")
+            .internal()
+            .func(func_offset + OFFSET_REPLY)
             .build();
 
         // If specified we add an additional internal function
@@ -425,6 +437,10 @@ pub mod body {
 
     pub fn plain(instructions: Vec<Instruction>) -> FuncBody {
         FuncBody::new(Vec::new(), Instructions::new(instructions))
+    }
+
+    pub fn empty() -> FuncBody {
+        FuncBody::new(vec![], Instructions::empty())
     }
 
     pub fn repeated(repetitions: u32, instructions: &[Instruction]) -> FuncBody {
