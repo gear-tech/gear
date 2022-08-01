@@ -30,6 +30,8 @@ mod wasm_project;
 
 pub use stack_end::insert_stack_end_export;
 
+pub const TARGET: &str = env!("TARGET");
+
 /// WASM building tool.
 pub struct WasmBuilder {
     wasm_project: WasmProject,
