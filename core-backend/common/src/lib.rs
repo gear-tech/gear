@@ -186,3 +186,52 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 pub trait AsTerminationReason {
     fn as_termination_reason(&self) -> Option<&TerminationReason>;
 }
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct EnvBuilder<'a, T> {
+    imports: BTreeMap<&'a str, T>,
+}
+
+impl<'a, T> EnvBuilder<'a, T>
+where
+    T: Clone,
+{
+    pub fn add_func(&mut self, name: &'a str, f: T) {
+        self.imports.insert(name, f);
+    }
+
+    fn apply(self, imports: &BTreeSet<&str>, replace_fn: T, whitelist: bool) -> Self {
+        let imports = self
+            .imports
+            .into_iter()
+            .map(|(name, func)| {
+                if imports.contains(name) == whitelist {
+                    (name, func)
+                } else {
+                    (name, replace_fn.clone())
+                }
+            })
+            .collect();
+        Self { imports }
+    }
+
+    pub fn apply_whitelist(self, imports: &BTreeSet<&str>, replace_fn: T) -> Self {
+        self.apply(imports, replace_fn, true)
+    }
+
+    pub fn apply_blacklist(self, imports: &BTreeSet<&str>, replace_fn: T) -> Self {
+        self.apply(imports, replace_fn, false)
+    }
+
+    pub fn build(self) -> BTreeMap<&'a str, T> {
+        self.imports
+    }
+}
+
+impl<T> Default for EnvBuilder<'_, T> {
+    fn default() -> Self {
+        Self {
+            imports: BTreeMap::new(),
+        }
+    }
+}

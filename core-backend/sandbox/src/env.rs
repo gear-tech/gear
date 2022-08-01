@@ -29,8 +29,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, EnvBuilder,
+    Environment, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
 use gear_core_errors::MemoryError;
@@ -60,33 +60,6 @@ pub enum SandboxEnvironmentError {
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment;
 
-// A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
-// It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<'a, E: Ext> {
-    env_def_builder: EnvironmentDefinitionBuilder<Runtime<'a, E>>,
-    forbidden_funcs: &'a BTreeSet<&'static str>,
-}
-
-impl<'a, E: Ext + IntoExtInfo + 'static> EnvBuilder<'a, E> {
-    fn add_func(&mut self, name: &str, f: HostFuncType<Runtime<'a, E>>)
-    where
-        E::Error: AsTerminationReason + IntoExtError,
-    {
-        if self.forbidden_funcs.contains(name) {
-            self.env_def_builder
-                .add_host_func("env", name, Funcs::forbidden);
-        } else {
-            self.env_def_builder.add_host_func("env", name, f);
-        }
-    }
-}
-
-impl<'a, E: Ext> From<EnvBuilder<'a, E>> for EnvironmentDefinitionBuilder<Runtime<'a, E>> {
-    fn from(builder: EnvBuilder<'a, E>) -> Self {
-        builder.env_def_builder
-    }
-}
-
 impl<E> Environment<E> for SandboxEnvironment
 where
     E: Ext + IntoExtInfo + 'static,
@@ -107,10 +80,7 @@ where
         F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let mut builder = EnvBuilder::<E> {
-            env_def_builder: EnvironmentDefinitionBuilder::new(),
-            forbidden_funcs: &ext.forbidden_funcs().clone(),
-        };
+        let mut builder = EnvBuilder::<HostFuncType<_>>::default();
 
         builder.add_func("gr_block_height", Funcs::block_height);
         builder.add_func("gr_block_timestamp", Funcs::block_timestamp);
@@ -144,7 +114,13 @@ where
         builder.add_func("gr_value_available", Funcs::value_available);
         builder.add_func("gr_wait", Funcs::wait);
         builder.add_func("gr_wake", Funcs::wake);
-        let mut env_builder: EnvironmentDefinitionBuilder<_> = builder.into();
+        builder = builder.apply_blacklist(ext.forbidden_funcs(), Funcs::forbidden);
+        builder = builder.apply_whitelist(&entry_point.allowed_funcs(), Funcs::forbidden);
+
+        let mut env_builder = EnvironmentDefinitionBuilder::new();
+        for (name, func) in builder.build() {
+            env_builder.add_host_func("env", name, func);
+        }
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,

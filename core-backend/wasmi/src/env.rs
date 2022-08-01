@@ -29,8 +29,8 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TrapExplanation,
+    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, EnvBuilder,
+    Environment, IntoExtInfo, TerminationReason, TrapExplanation,
 };
 use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
 use gear_core_errors::MemoryError;
@@ -152,18 +152,9 @@ enum ExternVal {
 pub struct EnvironmentDefinitionBuilder<T, E> {
     map: BTreeMap<(Vec<u8>, Vec<u8>), ExternVal>,
     pub defined_host_functions: DefinedHostFunctions<T, E>,
-    pub forbidden_funcs: BTreeSet<String>,
 }
 
 impl<T, E> EnvironmentDefinitionBuilder<T, E> {
-    pub fn new(forbidden_funcs: BTreeSet<String>) -> EnvironmentDefinitionBuilder<T, E> {
-        EnvironmentDefinitionBuilder {
-            map: BTreeMap::new(),
-            defined_host_functions: DefinedHostFunctions::new(),
-            forbidden_funcs,
-        }
-    }
-
     pub fn add_host_func<N1, N2>(&mut self, module: N1, field: N2, f: HostFuncType<T, E>)
     where
         N1: Into<Vec<u8>>,
@@ -184,6 +175,15 @@ impl<T, E> EnvironmentDefinitionBuilder<T, E> {
     }
 }
 
+impl<T, E> Default for EnvironmentDefinitionBuilder<T, E> {
+    fn default() -> Self {
+        Self {
+            map: BTreeMap::new(),
+            defined_host_functions: DefinedHostFunctions::new(),
+        }
+    }
+}
+
 impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
     fn resolve_func(
         &self,
@@ -196,29 +196,15 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             field_name.as_bytes().to_owned(),
         );
 
-        let externval = if self.forbidden_funcs.contains(field_name) {
-            self.map
-                .get(&(b"env".to_vec(), b"forbidden".to_vec()))
-                .ok_or_else(|| {
-                    log::debug!(
-                        target: "gwasm",
-                        "Export {}:{} is forbidden",
-                        module_name,
-                        field_name
-                    );
-                    wasmi::Error::Instantiation(String::new())
-                })?
-        } else {
-            self.map.get(&key).ok_or_else(|| {
-                log::debug!(
-                    target: "gwasm",
-                    "Export {}:{} not found",
-                    module_name,
-                    field_name
-                );
-                wasmi::Error::Instantiation(String::new())
-            })?
-        };
+        let externval = self.map.get(&key).ok_or_else(|| {
+            log::debug!(
+                target: "gwasm",
+                "Export {}:{} might be forbidden or not found",
+                module_name,
+                field_name
+            );
+            wasmi::Error::Instantiation(String::new())
+        })?;
 
         let host_func_idx = match *externval {
             ExternVal::HostFunc(ref idx) => idx,
@@ -310,47 +296,43 @@ where
         F: FnOnce(&mut Self::Memory) -> Result<(), T>,
         T: fmt::Display,
     {
-        let mut builder = EnvironmentDefinitionBuilder::new(
-            ext.forbidden_funcs()
-                .clone()
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect(),
-        );
+        let mut builder = EnvBuilder::<HostFuncType<_, _>>::default();
 
-        builder.add_host_func("env", "forbidden", Funcs::forbidden);
-        builder.add_host_func("env", "gr_block_height", Funcs::block_height);
-        builder.add_host_func("env", "gr_block_timestamp", Funcs::block_timestamp);
-        builder.add_host_func("env", "gr_create_program", Funcs::create_program);
-        builder.add_host_func("env", "gr_create_program_wgas", Funcs::create_program_wgas);
-        builder.add_host_func("env", "gr_debug", Funcs::debug);
-        builder.add_host_func("env", "gr_error", Funcs::error);
-        builder.add_host_func("env", "gr_exit", Funcs::exit);
-        builder.add_host_func("env", "gr_exit_code", Funcs::exit_code);
-        builder.add_host_func("env", "gr_gas_available", Funcs::gas_available);
-        builder.add_host_func("env", "gr_leave", Funcs::leave);
-        builder.add_host_func("env", "gr_msg_id", Funcs::msg_id);
-        builder.add_host_func("env", "gr_origin", Funcs::origin);
-        builder.add_host_func("env", "gr_program_id", Funcs::program_id);
-        builder.add_host_func("env", "gr_read", Funcs::read);
-        builder.add_host_func("env", "gr_reply", Funcs::reply);
-        builder.add_host_func("env", "gr_reply_commit", Funcs::reply_commit);
-        builder.add_host_func("env", "gr_reply_commit_wgas", Funcs::reply_commit_wgas);
-        builder.add_host_func("env", "gr_reply_push", Funcs::reply_push);
-        builder.add_host_func("env", "gr_reply_to", Funcs::reply_to);
-        builder.add_host_func("env", "gr_reply_wgas", Funcs::reply_wgas);
-        builder.add_host_func("env", "gr_send", Funcs::send);
-        builder.add_host_func("env", "gr_send_commit", Funcs::send_commit);
-        builder.add_host_func("env", "gr_send_commit_wgas", Funcs::send_commit_wgas);
-        builder.add_host_func("env", "gr_send_init", Funcs::send_init);
-        builder.add_host_func("env", "gr_send_push", Funcs::send_push);
-        builder.add_host_func("env", "gr_send_wgas", Funcs::send_wgas);
-        builder.add_host_func("env", "gr_size", Funcs::size);
-        builder.add_host_func("env", "gr_source", Funcs::source);
-        builder.add_host_func("env", "gr_value", Funcs::value);
-        builder.add_host_func("env", "gr_value_available", Funcs::value_available);
-        builder.add_host_func("env", "gr_wait", Funcs::wait);
-        builder.add_host_func("env", "gr_wake", Funcs::wake);
+        builder.add_func("forbidden", Funcs::forbidden);
+        builder.add_func("gr_block_height", Funcs::block_height);
+        builder.add_func("gr_block_timestamp", Funcs::block_timestamp);
+        builder.add_func("gr_create_program", Funcs::create_program);
+        builder.add_func("gr_create_program_wgas", Funcs::create_program_wgas);
+        builder.add_func("gr_debug", Funcs::debug);
+        builder.add_func("gr_error", Funcs::error);
+        builder.add_func("gr_exit", Funcs::exit);
+        builder.add_func("gr_exit_code", Funcs::exit_code);
+        builder.add_func("gr_gas_available", Funcs::gas_available);
+        builder.add_func("gr_leave", Funcs::leave);
+        builder.add_func("gr_msg_id", Funcs::msg_id);
+        builder.add_func("gr_origin", Funcs::origin);
+        builder.add_func("gr_program_id", Funcs::program_id);
+        builder.add_func("gr_read", Funcs::read);
+        builder.add_func("gr_reply", Funcs::reply);
+        builder.add_func("gr_reply_commit", Funcs::reply_commit);
+        builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reply_push", Funcs::reply_push);
+        builder.add_func("gr_reply_to", Funcs::reply_to);
+        builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
+        builder.add_func("gr_send", Funcs::send);
+        builder.add_func("gr_send_commit", Funcs::send_commit);
+        builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_send_init", Funcs::send_init);
+        builder.add_func("gr_send_push", Funcs::send_push);
+        builder.add_func("gr_send_wgas", Funcs::send_wgas);
+        builder.add_func("gr_size", Funcs::size);
+        builder.add_func("gr_source", Funcs::source);
+        builder.add_func("gr_value", Funcs::value);
+        builder.add_func("gr_value_available", Funcs::value_available);
+        builder.add_func("gr_wait", Funcs::wait);
+        builder.add_func("gr_wake", Funcs::wake);
+        builder = builder.apply_blacklist(ext.forbidden_funcs(), Funcs::forbidden);
+        builder = builder.apply_whitelist(&entry_point.allowed_funcs(), Funcs::forbidden);
 
         let mem: MemoryRef = match MemoryInstance::alloc(Pages(mem_size.0 as usize), None) {
             Ok(mem) => mem,
@@ -361,10 +343,16 @@ where
             }
         };
 
-        builder.add_memory("env", "memory", mem.clone());
-        builder.add_host_func("env", "alloc", Funcs::alloc);
-        builder.add_host_func("env", "free", Funcs::free);
-        builder.add_host_func("env", "gas", Funcs::gas);
+        let mut env_builder = EnvironmentDefinitionBuilder::default();
+
+        for (name, func) in builder.build() {
+            env_builder.add_host_func("env", name, func);
+        }
+
+        env_builder.add_memory("env", "memory", mem.clone());
+        env_builder.add_host_func("env", "alloc", Funcs::alloc);
+        env_builder.add_host_func("env", "free", Funcs::free);
+        env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
@@ -374,7 +362,7 @@ where
             err: FuncError::Terminated(TerminationReason::Success),
         };
 
-        let defined_host_functions = builder.defined_host_functions.clone();
+        let defined_host_functions = env_builder.defined_host_functions.clone();
         let module = match wasmi::Module::from_buffer(binary) {
             Ok(module) => module,
             Err(e) => {
@@ -383,7 +371,7 @@ where
                 })
             }
         };
-        let instance = match ModuleInstance::new(&module, &builder) {
+        let instance = match ModuleInstance::new(&module, &env_builder) {
             Ok(inst) => inst.not_started_instance().clone(),
             Err(e) => {
                 return Err(BackendError {

@@ -25,7 +25,6 @@ use gear_backend_wasmi::{
     MemoryWrap,
 };
 use gear_core::{
-    env::Ext as ExtTrait,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{IncomingMessage, MessageContext, Payload},
@@ -49,14 +48,8 @@ impl WasmExecutor {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         function_name: &str,
     ) -> Result<Vec<u8>> {
-        let mut builder: EnvironmentDefinitionBuilder<Runtime<Ext>, <Ext as ExtTrait>::Error> =
-            EnvironmentDefinitionBuilder::new(
-                ext.forbidden_funcs()
-                    .clone()
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-            );
+        let mut builder: EnvironmentDefinitionBuilder<_, _> =
+            EnvironmentDefinitionBuilder::default();
 
         builder.add_host_func("env", "forbidden", Funcs::forbidden);
         builder.add_host_func("env", "gr_block_height", Funcs::block_height);
