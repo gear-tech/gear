@@ -197,6 +197,7 @@ enum Error {
     ValueIsNotCaught,
     ValueIsBlocked,
     ValueIsNotBlocked,
+    ConsumedWithLock,
 }
 
 impl super::Error for Error {
@@ -246,6 +247,10 @@ impl super::Error for Error {
 
     fn value_is_not_blocked() -> Self {
         Self::ValueIsNotBlocked
+    }
+
+    fn consumed_with_lock() -> Self {
+        Self::ConsumedWithLock
     }
 }
 

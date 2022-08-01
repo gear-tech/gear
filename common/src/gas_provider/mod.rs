@@ -176,6 +176,15 @@ pub trait Tree {
     /// This can't create imbalance as no value is burned or created.
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 
+    /// TODO (breathx): doc this.
+    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// TODO (breathx): doc this.
+    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// TODO (breathx): doc this.
+    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+
     /// Removes all values.
     fn clear();
 }

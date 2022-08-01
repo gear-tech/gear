@@ -70,4 +70,7 @@ pub trait Error {
     /// Value must have been blocked, but was either moved or caught
     /// (see `TreeImpl::catch_value` for details).
     fn value_is_not_blocked() -> Self;
+
+    /// TODO (breathx): doc this.
+    fn consumed_with_lock() -> Self;
 }

@@ -510,6 +510,12 @@ where
             return Err(InternalError::node_was_consumed().into());
         }
 
+        if let Some(lock) = node.lock() {
+            if !lock.is_zero() {
+                return Err(InternalError::consumed_with_lock().into());
+            }
+        }
+
         node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
         let external = Self::get_external(key)?;
@@ -578,6 +584,7 @@ where
         let node_value = node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
+
         if *node_value < amount {
             return Err(InternalError::insufficient_balance().into());
         }
@@ -631,6 +638,92 @@ where
 
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, new_key, amount, true)
+    }
+
+    // TODO (breathx): doc this.
+    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        if node.is_reserved_local() || node.is_consumed() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        let (mut upstream_node, node_id) = Self::node_with_value(node)?;
+
+        let upstream_node_value = upstream_node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        if *upstream_node_value < amount {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        *upstream_node_value = upstream_node_value.saturating_sub(amount);
+
+        let mut node = if let Some(upstream_id) = node_id {
+            StorageMap::insert(upstream_id, upstream_node);
+
+            Self::get_node(key).ok_or_else(InternalError::node_not_found)?
+        } else {
+            upstream_node
+        };
+
+        let node_lock = node
+            .lock_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *node_lock = node_lock.saturating_add(amount);
+
+        StorageMap::insert(key, node);
+
+        Ok(())
+    }
+
+    // TODO (breathx): doc this.
+    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        if node.is_reserved_local() || node.is_consumed() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        let node_lock = node
+            .lock_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        if *node_lock < amount {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        *node_lock = node_lock.saturating_sub(amount);
+
+        let (upstream_node, upstream_id) = Self::node_with_value(node.clone())?;
+
+        let (mut ancestor_node, ancestor_id) = if let Some(upstream_id) = upstream_id {
+            StorageMap::insert(key, node);
+
+            (upstream_node, upstream_id)
+        } else {
+            (node, key)
+        };
+
+        let ancestor_value = ancestor_node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *ancestor_value = ancestor_value.saturating_add(amount);
+
+        StorageMap::insert(ancestor_id, ancestor_node);
+
+        Ok(())
+    }
+
+    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        let lock = node.lock().ok_or_else(InternalError::forbidden)?;
+
+        Ok(lock)
     }
 
     fn clear() {
