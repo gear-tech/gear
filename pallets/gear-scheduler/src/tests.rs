@@ -21,7 +21,7 @@
 extern crate alloc;
 
 use crate::{mock::*, *};
-use codec::Encode;
+use alloc::string::ToString;
 use common::{scheduler::*, storage::*, GasTree, Origin};
 use core_processor::common::ExecutionErrorReason;
 use frame_support::traits::ReservableCurrency;
@@ -114,7 +114,7 @@ fn out_of_rent_reply_exists(
             msg.destination() == src
                 && msg.source() == pid
                 && msg.reply() == Some(ReplyDetails::new(mid, 1))
-                && msg.payload() == ExecutionErrorReason::OutOfRent.encode() // TODO: revert commit
+                && msg.payload() == ExecutionErrorReason::OutOfRent.to_string().as_bytes()
         } else {
             false
         }
