@@ -185,82 +185,82 @@ fixtures:
           payload:
             kind: utf-8
             value: CREATE
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: RECREATE
 
     expected:
       - step: 1
         messages:
-        - destination:
+        - destination: 1
+          payload: &recreate
+            kind: utf-8
+            value: RECREATE
+        - destination: &child_address
             kind: h256
-            value: 0x56ff19a3cc926341e0c7dab8cdcbb23eac711940c8f04619043d0adbeb8264a1
-          init: true
-          payload:
+            value: 0x2493da2f387509e5095dda01aa6885bd21623ef3a91d43bf1dea7c28785abadc
+          payload: &unique
             kind: utf-8
             value: unique
       - step: 2
         messages:
+        - destination: *child_address
+          payload: *unique
+        - destination: *child_address
+          payload:
+            kind: utf-8
+            value: not unique
+      - step: 3
+        messages:
+        - destination: *child_address
+          payload:
+            kind: utf-8
+            value: not unique
         - destination: 1
           payload:
             kind: utf-8
             value: init unique
-      - step: 3
-        messages:
-        - destination: 1
-          payload:
-            kind: utf-8
-            value: CREATE
       - step: 4
         messages:
-          - destination:
-              kind: h256
-              value: 0x56ff19a3cc926341e0c7dab8cdcbb23eac711940c8f04619043d0adbeb8264a1
+          - destination: 1
             payload:
               kind: utf-8
-              value: unique
+              value: init unique
+          - destination: 1
+            payload: *unique
       - step: 5
         messages:
         - destination: 1
           payload:
             kind: utf-8
             value: handle unique
+        - destination: 1
+          payload:
+            kind: utf-8
+            value: CREATE
       - step: 6
         messages:
         - destination: 1
           payload:
             kind: utf-8
             value: CREATE
+        - destination: 1
+          payload: *recreate
       - step: 7
         messages:
-        - destination:
-            kind: h256
-            value: 0xe70df01c6d38f490513daa11b1af17318123582f7d07c3a1438ca48612497a7f
-          payload:
-            kind: utf-8
-            value: not unique
+        - destination: 1
+          payload: *recreate
+        - destination: *child_address
+          init: true
+          payload: *unique
       - step: 8
         messages:
-        - destination: 1
-          payload:
-            kind: utf-8
-            value: <init not unique
+        - destination: *child_address
+          payload: *unique
       - step: 9
         messages:
         - destination: 1
           payload:
             kind: utf-8
-            value: CREATE
-      - step: 10
-        messages:
-        - destination:
-            kind: h256
-            value: 0xe70df01c6d38f490513daa11b1af17318123582f7d07c3a1438ca48612497a7f
-          payload:
-            kind: utf-8
-            value: not unique
-      - step: 11
-        messages:
-        - destination: 1
-          payload:
-            kind: utf-8
-            value: handle not unique
-
-
+            value: handle unique

@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{debug, msg, msg::CodecMessageFuture, prelude::*, ActorId, CodeHash};
+use gstd::{debug, msg, prelude::*, ActorId, CodeHash};
 
 static mut DEST_0: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_1: ActorId = ActorId::new([0u8; 32]);
@@ -48,6 +48,9 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 #[gstd::async_main]
 async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let submitted_code: CodeHash =
+        hex_literal::hex!("afc1f1eeccd5856ebc8ecbcb2080ecf53a383ce1158bb21cf3eb0e49963d18be")
+            .into();
     match message.as_ref() {
         "START" => {
             let reply1 = msg::send_bytes_for_reply(unsafe { DEST_0 }, b"PING", 0)
@@ -70,11 +73,6 @@ async fn main() {
             }
         }
         "CREATE" => {
-            let submitted_code: CodeHash = hex_literal::hex!(
-                "504e575efaed45a1749531e69c871d1892af0368702392f7ae32a474e52fc4dd"
-            )
-            .into();
-
             let (first_program_id, first_init_future) = msg::create_program_wgas_wbytes_for_reply(
                 submitted_code,
                 b"unique",
@@ -87,15 +85,17 @@ async fn main() {
                 .await
                 .expect("Error in async init message processing");
             debug!("Got first init answer: {:?}", init_answer);
+            debug!("Created program with id: {:?}", first_program_id);
 
             let handle_reply = msg::send_bytes_for_reply(first_program_id, b"unique", 0)
                 .expect("Error in sending message")
                 .await
                 .expect("Error in async message processing");
             debug!("Got first handle reply: {:?}", handle_reply);
-
-            let (second_program_id, second_init_future): (ActorId, CodecMessageFuture<String>) =
-                msg::create_program_wgas_for_reply(
+        }
+        "RECREATE" => {
+            let (second_program_id, second_init_future) =
+                msg::create_program_wgas_wbytes_for_reply(
                     submitted_code,
                     b"not unique",
                     10_000_000_000,
@@ -107,6 +107,7 @@ async fn main() {
                 .await
                 .expect("Error in async init message processing");
             debug!("Got second init answer: {:?}", init_answer);
+            debug!("Created program with id: {:?}", second_program_id);
 
             let handle_reply = msg::send_bytes_for_reply(second_program_id, b"not unique", 0)
                 .expect("Error in sending message")

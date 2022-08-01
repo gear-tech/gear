@@ -262,3 +262,104 @@ pub fn create_program_wgas_wbytes_for_reply<T: AsRef<[u8]>>(
         },
     ))
 }
+
+/// Create a program with salt and wait for reply.
+///
+/// This function works similarly to
+/// [`create_program_wsalt_wbytes_for_reply`], with one difference - it takes
+/// the structure in, then encodes it and sends it in bytes. The program will be
+/// interrupted (waiting for a reply) if an `.await` has been called on the
+/// `CodecMessageFuture` object returned by the function.
+pub fn create_program_wsalt_for_reply<E: Encode, D: Decode, T: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    salt: T,
+    payload: E,
+    value: u128,
+) -> Result<(ActorId, CodecMessageFuture<D>)> {
+    let (actor_id, init_message_id) =
+        crate::prog::create_program(code_hash, salt, payload.encode(), value)?;
+    signals().register_signal(init_message_id);
+
+    Ok((
+        actor_id,
+        CodecMessageFuture::<D> {
+            waiting_reply_to: init_message_id,
+            _marker: PhantomData,
+        },
+    ))
+}
+
+/// Create a program with salt with bytes payload and wait for reply.
+///
+/// This function works similarly to [`create_program_wsalt_for_reply`],
+/// with one difference - it works with raw bytes as a payload.
+/// The program will be interrupted (waiting for a reply) if an `.await`
+/// has been called on the `MessageFuture` object returned by the function.
+pub fn create_program_wsalt_wbytes_for_reply<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    salt: T1,
+    payload: T2,
+    value: u128,
+) -> Result<(ActorId, MessageFuture)> {
+    let (actor_id, init_message_id) = crate::prog::create_program(code_hash, salt, payload, value)?;
+    signals().register_signal(init_message_id);
+    Ok((
+        actor_id,
+        MessageFuture {
+            waiting_reply_to: init_message_id,
+        },
+    ))
+}
+
+/// Create a program with salt with gas and wait for reply.
+///
+/// This function works similarly to
+/// [`create_program_wgas_wsalt_wbytes_for_reply`], with one difference - it
+/// takes the structure in, then encodes it and sends it in bytes. The program
+/// will be interrupted (waiting for a reply) if an `.await` has been called on
+/// the `CodecMessageFuture` object returned by the function.
+pub fn create_program_wsalt_wgas_for_reply<E: Encode, D: Decode, T: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    salt: T,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> Result<(ActorId, CodecMessageFuture<D>)> {
+    let (actor_id, init_message_id) =
+        crate::prog::create_program_with_gas(code_hash, salt, payload.encode(), gas_limit, value)?;
+    signals().register_signal(init_message_id);
+
+    Ok((
+        actor_id,
+        CodecMessageFuture {
+            waiting_reply_to: init_message_id,
+            _marker: PhantomData,
+        },
+    ))
+}
+
+/// Create a program with salt with gas with init message payload in bytes and
+/// wait for reply.
+///
+/// This function works similarly to [`create_program_wsalt_wgas_for_reply`],
+/// with one difference - it works with raw bytes as a payload.
+/// The program will be interrupted (waiting for a reply) if an `.await`
+/// has been called on the `MessageFuture` object returned by the function.
+pub fn create_program_wsalt_wgas_wbytes_for_reply<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    salt: T1,
+    payload: T2,
+    gas_limit: u64,
+    value: u128,
+) -> Result<(ActorId, MessageFuture)> {
+    let (actor_id, init_message_id) =
+        crate::prog::create_program_with_gas(code_hash, salt, payload, gas_limit, value)?;
+    signals().register_signal(init_message_id);
+
+    Ok((
+        actor_id,
+        MessageFuture {
+            waiting_reply_to: init_message_id,
+        },
+    ))
+}
