@@ -42,6 +42,7 @@ use gear_core::{
     program::Program,
 };
 
+#[derive(Debug)]
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
     Wait,
@@ -303,7 +304,7 @@ fn process_error(
         //
         // So, the message id of this reply message will not be duplicated.
         let dispatch = ReplyMessage::system(dispatch.id(), err.encode(), crate::ERR_EXIT_CODE)
-            .into_signal_dispatch(program_id, dispatch.source(), dispatch.id());
+            .into_dispatch(program_id, dispatch.source(), dispatch.id());
 
         journal.push(JournalNote::SendDispatch {
             message_id,
@@ -502,7 +503,7 @@ fn process_non_executable(
             ExecutionErrorReason::NonExecutable.encode(),
             exit_code,
         )
-        .into_signal_dispatch(program_id, dispatch.source(), dispatch.id());
+        .into_dispatch(program_id, dispatch.source(), dispatch.id());
 
         journal.push(JournalNote::SendDispatch {
             message_id,
