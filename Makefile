@@ -260,5 +260,8 @@ doc:
 
 .PHONY: fuzz
 fuzz:
-	@ ./scripts/gear.sh test fuzz
+	@ ./scripts/gear.sh test fuzz $(target)
 
+.PHONY: fuzz-vara
+fuzz-vara:
+	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)

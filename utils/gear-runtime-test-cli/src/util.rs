@@ -23,9 +23,7 @@ use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 use gear_node_primitives::AccountPublic;
 #[cfg(feature = "gear-native")]
-use gear_runtime::{
-    AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, Signature, System,
-};
+use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 #[cfg(feature = "authoring-aura")]
@@ -40,9 +38,7 @@ use sp_core::{sr25519, Pair, Public};
 #[cfg(not(feature = "authoring-aura"))]
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
-    app_crypto::UncheckedFrom,
-    traits::IdentifyAccount,
-    AccountId32, Digest, DigestItem,
+    app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
 };
 use system::pallet_prelude::BlockNumberFor;
 #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
@@ -83,11 +79,11 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
-    #[cfg(feature = "gear-native")]
+    #[cfg(feature = "authoring-aura")]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
     };
-    #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+    #[cfg(not(feature = "authoring-aura"))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(
             BABE_ENGINE_ID,
