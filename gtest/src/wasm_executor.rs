@@ -17,14 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::{Ext, ProcessorContext, ProcessorExt};
-use gear_backend_common::TerminationReason;
+use gear_backend_common::{EnvBuilder, TerminationReason};
 use gear_backend_wasmi::{
-    env::{EnvironmentDefinitionBuilder, GuestExternals},
+    env::{EnvironmentDefinitionBuilder, GuestExternals, HostFuncType},
     funcs::{FuncError, FuncsHandler as Funcs},
     runtime::Runtime,
     MemoryWrap,
 };
 use gear_core::{
+    env::Ext as _,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageBuf, PageNumber, WasmPageNumber},
     message::{IncomingMessage, MessageContext, Payload},
@@ -48,49 +49,55 @@ impl WasmExecutor {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         function_name: &str,
     ) -> Result<Vec<u8>> {
-        let mut builder: EnvironmentDefinitionBuilder<_, _> =
-            EnvironmentDefinitionBuilder::default();
+        let mut builder = EnvBuilder::<HostFuncType<_, _>>::default();
 
-        builder.add_host_func("env", "forbidden", Funcs::forbidden);
-        builder.add_host_func("env", "gr_block_height", Funcs::block_height);
-        builder.add_host_func("env", "gr_block_timestamp", Funcs::block_timestamp);
-        builder.add_host_func("env", "gr_create_program", Funcs::create_program);
-        builder.add_host_func("env", "gr_create_program_wgas", Funcs::create_program_wgas);
-        builder.add_host_func("env", "gr_debug", Funcs::debug);
-        builder.add_host_func("env", "gr_error", Funcs::error);
-        builder.add_host_func("env", "gr_exit", Funcs::exit);
-        builder.add_host_func("env", "gr_exit_code", Funcs::exit_code);
-        builder.add_host_func("env", "gr_gas_available", Funcs::gas_available);
-        builder.add_host_func("env", "gr_leave", Funcs::leave);
-        builder.add_host_func("env", "gr_msg_id", Funcs::msg_id);
-        builder.add_host_func("env", "gr_origin", Funcs::origin);
-        builder.add_host_func("env", "gr_program_id", Funcs::program_id);
-        builder.add_host_func("env", "gr_read", Funcs::read);
-        builder.add_host_func("env", "gr_reply", Funcs::reply);
-        builder.add_host_func("env", "gr_reply_commit", Funcs::reply_commit);
-        builder.add_host_func("env", "gr_reply_commit_wgas", Funcs::reply_commit_wgas);
-        builder.add_host_func("env", "gr_reply_push", Funcs::reply_push);
-        builder.add_host_func("env", "gr_reply_to", Funcs::reply_to);
-        builder.add_host_func("env", "gr_reply_wgas", Funcs::reply_wgas);
-        builder.add_host_func("env", "gr_send", Funcs::send);
-        builder.add_host_func("env", "gr_send_commit", Funcs::send_commit);
-        builder.add_host_func("env", "gr_send_commit_wgas", Funcs::send_commit_wgas);
-        builder.add_host_func("env", "gr_send_init", Funcs::send_init);
-        builder.add_host_func("env", "gr_send_push", Funcs::send_push);
-        builder.add_host_func("env", "gr_send_wgas", Funcs::send_wgas);
-        builder.add_host_func("env", "gr_size", Funcs::size);
-        builder.add_host_func("env", "gr_source", Funcs::source);
-        builder.add_host_func("env", "gr_value", Funcs::value);
-        builder.add_host_func("env", "gr_value_available", Funcs::value_available);
-        builder.add_host_func("env", "gr_wait", Funcs::wait);
-        builder.add_host_func("env", "gr_wake", Funcs::wake);
+        builder.add_func("forbidden", Funcs::forbidden);
+        builder.add_func("gr_block_height", Funcs::block_height);
+        builder.add_func("gr_block_timestamp", Funcs::block_timestamp);
+        builder.add_func("gr_create_program", Funcs::create_program);
+        builder.add_func("gr_create_program_wgas", Funcs::create_program_wgas);
+        builder.add_func("gr_debug", Funcs::debug);
+        builder.add_func("gr_error", Funcs::error);
+        builder.add_func("gr_exit", Funcs::exit);
+        builder.add_func("gr_exit_code", Funcs::exit_code);
+        builder.add_func("gr_gas_available", Funcs::gas_available);
+        builder.add_func("gr_leave", Funcs::leave);
+        builder.add_func("gr_msg_id", Funcs::msg_id);
+        builder.add_func("gr_origin", Funcs::origin);
+        builder.add_func("gr_program_id", Funcs::program_id);
+        builder.add_func("gr_read", Funcs::read);
+        builder.add_func("gr_reply", Funcs::reply);
+        builder.add_func("gr_reply_commit", Funcs::reply_commit);
+        builder.add_func("gr_reply_commit_wgas", Funcs::reply_commit_wgas);
+        builder.add_func("gr_reply_push", Funcs::reply_push);
+        builder.add_func("gr_reply_to", Funcs::reply_to);
+        builder.add_func("gr_reply_wgas", Funcs::reply_wgas);
+        builder.add_func("gr_send", Funcs::send);
+        builder.add_func("gr_send_commit", Funcs::send_commit);
+        builder.add_func("gr_send_commit_wgas", Funcs::send_commit_wgas);
+        builder.add_func("gr_send_init", Funcs::send_init);
+        builder.add_func("gr_send_push", Funcs::send_push);
+        builder.add_func("gr_send_wgas", Funcs::send_wgas);
+        builder.add_func("gr_size", Funcs::size);
+        builder.add_func("gr_source", Funcs::source);
+        builder.add_func("gr_value", Funcs::value);
+        builder.add_func("gr_value_available", Funcs::value_available);
+        builder.add_func("gr_wait", Funcs::wait);
+        builder.add_func("gr_wake", Funcs::wake);
+        builder.apply_blacklist(ext.forbidden_funcs(), Funcs::forbidden);
 
         let mem: MemoryRef = MemoryInstance::alloc(Pages(program.static_pages().0 as usize), None)?;
 
-        builder.add_memory("env", "memory", mem.clone());
-        builder.add_host_func("env", "alloc", Funcs::alloc);
-        builder.add_host_func("env", "free", Funcs::free);
-        builder.add_host_func("env", "gas", Funcs::gas);
+        let mut env_builder = EnvironmentDefinitionBuilder::default();
+
+        for (name, func) in builder.build() {
+            env_builder.add_host_func("env", name, func);
+        }
+
+        env_builder.add_memory("env", "memory", mem.clone());
+        env_builder.add_host_func("env", "alloc", Funcs::alloc);
+        env_builder.add_host_func("env", "free", Funcs::free);
+        env_builder.add_host_func("env", "gas", Funcs::gas);
 
         let mut memory_wrap = MemoryWrap::new(mem.clone());
         let mut runtime = Runtime {
@@ -100,10 +107,10 @@ impl WasmExecutor {
             memory_wrap: &mut memory_wrap,
         };
 
-        let defined_host_functions = builder.defined_host_functions.clone();
+        let defined_host_functions = env_builder.defined_host_functions.clone();
         let instance = match ModuleInstance::new(
             &wasmi::Module::from_buffer(meta_binary).expect("wasmi can't load module binary"),
-            &builder,
+            &env_builder,
         ) {
             Ok(inst) => inst.not_started_instance().clone(),
             Err(e) => return Err(TestError::WasmiError(e.into())),
