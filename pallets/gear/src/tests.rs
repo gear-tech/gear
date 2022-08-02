@@ -3901,7 +3901,7 @@ fn calculate_gas_info_for_wait_dispatch_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Test should still be valid once #1173 solved.
-        let _ = Gear::calculate_gas_info(
+        let GasInfo { waited, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(demo_init_wait::WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
@@ -3909,6 +3909,8 @@ fn calculate_gas_info_for_wait_dispatch_works() {
             true,
         )
         .unwrap();
+
+        assert!(waited);
     });
 }
 
