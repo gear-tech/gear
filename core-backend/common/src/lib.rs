@@ -200,8 +200,8 @@ where
         self.imports.insert(name, f);
     }
 
-    fn apply(self, imports: &BTreeSet<&str>, replace_fn: T, whitelist: bool) -> Self {
-        let imports = self
+    fn apply(&mut self, imports: &BTreeSet<&str>, replace_fn: T, whitelist: bool) {
+        self.imports = self
             .imports
             .into_iter()
             .map(|(name, func)| {
@@ -212,14 +212,13 @@ where
                 }
             })
             .collect();
-        Self { imports }
     }
 
-    pub fn apply_whitelist(self, imports: &BTreeSet<&str>, replace_fn: T) -> Self {
+    pub fn apply_whitelist(&mut self, imports: &BTreeSet<&str>, replace_fn: T) {
         self.apply(imports, replace_fn, true)
     }
 
-    pub fn apply_blacklist(self, imports: &BTreeSet<&str>, replace_fn: T) -> Self {
+    pub fn apply_blacklist(&mut self, imports: &BTreeSet<&str>, replace_fn: T) {
         self.apply(imports, replace_fn, false)
     }
 

@@ -331,9 +331,10 @@ where
         builder.add_func("gr_value_available", Funcs::value_available);
         builder.add_func("gr_wait", Funcs::wait);
         builder.add_func("gr_wake", Funcs::wake);
-        builder = builder.apply_blacklist(ext.forbidden_funcs(), Funcs::forbidden);
+
+        builder.apply_blacklist(ext.forbidden_funcs(), Funcs::forbidden);
         if let Some(funcs) = entry_point.allowed_funcs() {
-            builder = builder.apply_whitelist(&funcs, Funcs::forbidden);
+            builder.apply_whitelist(&funcs, Funcs::forbidden);
         }
 
         let mem: MemoryRef = match MemoryInstance::alloc(Pages(mem_size.0 as usize), None) {
