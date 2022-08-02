@@ -286,9 +286,8 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
         WaitlistOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
                 let node_id = dispatch.id();
-                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit(node_id)
-                    .expect("There is always a value node for a valid dispatch ID")
-                    .expect("There is always a node with concrete value for a node");
+                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
+                    .expect("There is always a value node for a valid dispatch ID");
                 (ancestor_id, value)
             })
             .collect();
@@ -305,9 +304,8 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
         MailboxOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
                 let node_id = dispatch.id();
-                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit(node_id)
-                    .expect("There is always a value node for a valid dispatch ID")
-                    .expect("There is always a node with concrete value for a node");
+                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
+                    .expect("There is always a value node for a valid dispatch ID");
                 (ancestor_id, value)
             })
             .collect();

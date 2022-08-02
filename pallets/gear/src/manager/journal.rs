@@ -162,8 +162,8 @@ where
         });
 
         let _ = common::waiting_init_take_messages(id_exited);
-        let res = common::set_program_terminated_status(id_exited.into_origin());
-        assert!(res.is_ok(), "`exit` can be called only from active program");
+        common::set_program_terminated_status(id_exited.into_origin())
+            .expect("`exit` can be called only from active program; qed");
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
         let balance = CurrencyOf::<T>::total_balance(program_account);

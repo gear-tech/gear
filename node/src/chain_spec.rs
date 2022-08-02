@@ -154,8 +154,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
-        "Staging Testnet",
-        "staging_testnet",
+        "Staging Testnet V2",
+        "staging_testnet_v2",
         ChainType::Live,
         move || {
             testnet_genesis(

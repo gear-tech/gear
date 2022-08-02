@@ -92,7 +92,8 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
     gear_ri::set_program_prefix(prog_prefix);
 
     if let Some(addr) = mem.get_buffer_host_addr() {
-        // Cannot panic, unless OS allocates wasm mem buffer in not aligned by native page addr.
+        // Cannot panic, unless OS allocates wasm mem buffer
+        // in not aligned by native page addr.
         gear_ri::set_wasm_mem_begin_addr(addr).expect("Cannot set wasm mem addr");
     } else {
         return Ok(());
@@ -134,7 +135,8 @@ pub fn remove_lazy_pages_prot(mem: &impl Memory) -> Result<(), Error> {
     mprotect_lazy_pages(mem, false)
 }
 
-/// Protect lazy-pages and set new wasm mem addr and size, if they have been changed
+/// Protect lazy-pages and set new wasm mem addr and size,
+/// if they have been changed.
 pub fn update_lazy_pages_and_protect_again(
     mem: &impl Memory,
     old_mem_addr: Option<HostPointer>,
@@ -157,7 +159,8 @@ pub fn update_lazy_pages_and_protect_again(
         );
         let new_mem_addr = new_mem_addr.ok_or(Error::WasmMemBufferIsUndefined)?;
 
-        // Cannot panic, unless OS allocates wasm mem buffer in not aligned by native page addr.
+        // Cannot panic, unless OS allocates wasm mem buffer
+        // in not aligned by native page addr.
         gear_ri::set_wasm_mem_begin_addr(new_mem_addr).expect("Cannot not set new wasm mem addr");
     }
 
@@ -170,7 +173,7 @@ pub fn update_lazy_pages_and_protect_again(
     mprotect_lazy_pages(mem, true)
 }
 
-/// Returns list of realeased pages numbers
+/// Returns list of released pages numbers.
 pub fn get_released_pages() -> Vec<PageNumber> {
     gear_ri::get_released_pages()
         .into_iter()

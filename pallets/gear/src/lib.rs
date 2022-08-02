@@ -121,6 +121,8 @@ pub struct GasInfo {
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
+    /// The value may be returned if a program happens to be executed the second or next time in a block.
+    pub may_be_returned: u64,
 }
 
 #[frame_support::pallet]
@@ -139,7 +141,7 @@ pub mod pallet {
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        Ext,
+        Ext, PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -643,11 +645,15 @@ pub mod pallet {
                 )
                 .map(
                     |GasInfo {
-                         reserved, burned, ..
+                         reserved,
+                         burned,
+                         may_be_returned,
+                         ..
                      }| GasInfo {
                         min_limit,
                         reserved,
                         burned,
+                        may_be_returned,
                     },
                 )
                 .map_err(|e| {
@@ -757,6 +763,7 @@ pub mod pallet {
             let mut min_limit = 0;
             let mut reserved = 0;
             let mut burned = 0;
+            let mut may_be_returned = 0;
 
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -769,46 +776,92 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_actor(actor_id, !lazy_pages_enabled)
+                    .get_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
-                let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
-                    .ok()
-                    .flatten()
-                    .ok_or_else(|| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?;
+                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
+                    .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
+                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
                 let message_execution_context = MessageExecutionContext {
                     actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
                     gas_allowance: u64::MAX,
+                    subsequent_execution,
                 };
 
-                let journal = if lazy_pages_enabled {
-                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                        &block_config,
-                        message_execution_context,
-                    )
-                } else {
-                    core_processor::process::<Ext, SandboxEnvironment>(
-                        &block_config,
-                        message_execution_context,
-                    )
-                };
+                let may_be_returned_context = (!subsequent_execution
+                    && actor_id == main_program_id)
+                    .then(|| MessageExecutionContext {
+                        subsequent_execution: true,
+                        ..message_execution_context.clone()
+                    });
 
-                let get_main_limit = || {
-                    GasHandlerOf::<T>::get_limit(main_message_id).map_err(|_| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })
-                };
+                let journal =
+                    match core_processor::prepare(&block_config, message_execution_context) {
+                        PrepareResult::Ok {
+                            context,
+                            pages_with_data,
+                        } => {
+                            let memory_pages = if lazy_pages_enabled {
+                                Default::default()
+                            } else {
+                                match common::get_program_data_for_pages(
+                                    actor_id.into_origin(),
+                                    pages_with_data.iter(),
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!(
+                                            "Page data in storage is in invalid state: {}",
+                                            err
+                                        );
+                                        continue;
+                                    }
+                                }
+                            };
+
+                            ext_manager.insert_program_id_loaded_pages(actor_id);
+
+                            may_be_returned += may_be_returned_context
+                                .map(|c| {
+                                    let burned = match core_processor::prepare(&block_config, c) {
+                                        PrepareResult::Ok { context, .. } => {
+                                            context.gas_counter().burned()
+                                        }
+                                        _ => context.gas_counter().burned(),
+                                    };
+
+                                    context.gas_counter().burned() - burned
+                                })
+                                .unwrap_or(0);
+
+                            if lazy_pages_enabled {
+                                core_processor::process::<LazyPagesExt, SandboxEnvironment>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            } else {
+                                core_processor::process::<Ext, SandboxEnvironment>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            }
+                        }
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                            journal
+                        }
+                    };
+
+                let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
                 let get_origin_msg_of = |msg_id| {
                     GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
-                        .map(|v| v.unwrap_or(msg_id))
                 };
 
                 let from_main_chain =
@@ -818,29 +871,26 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some((remaining_gas, _)) = get_main_limit()? {
+                    if let Some(remaining_gas) = get_main_limit() {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
-                            if from_main_chain(dispatch.id())? {
+                            let destination =
+                                T::AccountId::from_origin(dispatch.destination().into_origin());
+                            if MailboxOf::<T>::contains(&destination, &dispatch.id())
+                                && from_main_chain(dispatch.id())?
+                            {
                                 let gas_limit = dispatch
                                     .gas_limit()
-                                    .or_else(|| {
-                                        GasHandlerOf::<T>::get_limit(dispatch.id())
-                                            .ok()
-                                            .flatten()
-                                            .map(|(g, _)| g)
-                                    })
+                                    .or_else(|| GasHandlerOf::<T>::get_limit(dispatch.id()).ok())
                                     .ok_or_else(|| {
                                         b"Internal error: unable to get gas limit after execution"
                                             .to_vec()
                                     })?;
 
-                                if gas_limit >= T::MailboxThreshold::get() {
-                                    reserved = reserved.saturating_add(gas_limit);
-                                }
+                                reserved = reserved.saturating_add(gas_limit);
                             }
                         }
 
@@ -868,6 +918,7 @@ pub mod pallet {
                 min_limit,
                 reserved,
                 burned,
+                may_be_returned,
             })
         }
 
@@ -1041,20 +1092,12 @@ pub mod pallet {
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let opt_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+                    let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // Gas limit may not be found only for inexistent node.
-                    let (gas_limit, _) =
-                        opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let opt_external = GasHandlerOf::<T>::get_external(dispatch.id())
+                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // External id may not be found only for inexistent node.
-                    let external = opt_external
-                        .unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     log::debug!(
                         "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
@@ -1129,24 +1172,9 @@ pub mod pallet {
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
-                            let pages_data = if lazy_pages_enabled {
-                                Default::default()
-                            } else {
-                                match common::get_program_data_for_pages(
-                                    dispatch.destination().into_origin(),
-                                    prog.pages_with_data.iter(),
-                                ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!("Cannot get data for program pages: {}", err);
-                                        continue;
-                                    }
-                                }
-                            };
-
                             Some(ExecutableActorData {
                                 program,
-                                pages_data,
+                                pages_with_data: prog.pages_with_data,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages
@@ -1170,28 +1198,60 @@ pub mod pallet {
                         ))
                         .unique_saturated_into();
 
+                    let program_id = dispatch.destination();
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
-                            destination_program: dispatch.destination(),
+                            destination_program: program_id,
                             executable_data: active_actor_data,
                         },
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(external.into_origin()),
                         gas_allowance: GasAllowanceOf::<T>::get(),
+                        subsequent_execution: ext_manager.program_pages_loaded(&program_id),
                     };
 
-                    let journal = if lazy_pages_enabled {
-                        core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                            &block_config,
-                            message_execution_context,
-                        )
-                    } else {
-                        core_processor::process::<Ext, SandboxEnvironment>(
-                            &block_config,
-                            message_execution_context,
-                        )
-                    };
+                    let journal =
+                        match core_processor::prepare(&block_config, message_execution_context) {
+                            PrepareResult::Ok {
+                                context,
+                                pages_with_data,
+                            } => {
+                                let memory_pages = if lazy_pages_enabled {
+                                    Default::default()
+                                } else {
+                                    match common::get_program_data_for_pages(
+                                        program_id.into_origin(),
+                                        pages_with_data.iter(),
+                                    ) {
+                                        Ok(data) => data,
+                                        Err(err) => {
+                                            log::error!("Cannot get data for program pages: {err}");
+                                            continue;
+                                        }
+                                    }
+                                };
+
+                                ext_manager.insert_program_id_loaded_pages(program_id);
+
+                                if lazy_pages_enabled {
+                                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
+                                        &block_config,
+                                        context,
+                                        memory_pages,
+                                    )
+                                } else {
+                                    core_processor::process::<Ext, SandboxEnvironment>(
+                                        &block_config,
+                                        context,
+                                        memory_pages,
+                                    )
+                                }
+                            }
+                            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                                journal
+                            }
+                        };
 
                     core_processor::handle_journal(journal, &mut ext_manager);
 

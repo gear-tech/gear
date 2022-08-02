@@ -107,8 +107,14 @@ fn pause_program_works() {
                 .is_empty()
         );
 
-        assert!(WaitlistOf::<Test>::remove(program_id, msg_id_1).is_err());
-        assert!(WaitlistOf::<Test>::remove(program_id, msg_id_2).is_err());
+        assert_noop!(
+            WaitlistOf::<Test>::remove(program_id, msg_id_1),
+            pallet_gear_messenger::pallet::Error::<Test>::WaitlistElementNotFound,
+        );
+        assert_noop!(
+            WaitlistOf::<Test>::remove(program_id, msg_id_2),
+            pallet_gear_messenger::pallet::Error::<Test>::WaitlistElementNotFound,
+        );
     });
 }
 
@@ -211,9 +217,18 @@ fn pause_uninitialized_program_works() {
         .unwrap()
         .is_empty());
 
-        assert!(WaitlistOf::<Test>::remove(program_id, msg_1.id()).is_err());
-        assert!(WaitlistOf::<Test>::remove(program_id, msg_2.id()).is_err());
-        assert!(WaitlistOf::<Test>::remove(program_id, init_msg.id()).is_err());
+        assert_noop!(
+            WaitlistOf::<Test>::remove(program_id, msg_1.id()),
+            pallet_gear_messenger::pallet::Error::<Test>::WaitlistElementNotFound,
+        );
+        assert_noop!(
+            WaitlistOf::<Test>::remove(program_id, msg_2.id()),
+            pallet_gear_messenger::pallet::Error::<Test>::WaitlistElementNotFound,
+        );
+        assert_noop!(
+            WaitlistOf::<Test>::remove(program_id, init_msg.id()),
+            pallet_gear_messenger::pallet::Error::<Test>::WaitlistElementNotFound,
+        );
 
         assert!(common::waiting_init_take_messages(program_id).is_empty());
     });
