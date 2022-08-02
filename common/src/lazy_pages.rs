@@ -22,10 +22,10 @@ use crate::Origin;
 use core::{convert::TryFrom, fmt};
 use gear_core::{
     ids::ProgramId,
-    memory::{HostPointer, Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
 };
 use gear_runtime_interface::{gear_ri, RIError};
-use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
+use sp_std::vec::Vec;
 
 extern crate alloc;
 use alloc::string::ToString;
@@ -105,10 +105,7 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
 }
 
 /// Lazy pages contract post execution actions
-pub fn post_execution_actions(
-    mem: &impl Memory,
-    _pages_data: &mut BTreeMap<PageNumber, PageBuf>,
-) -> Result<(), Error> {
+pub fn post_execution_actions(mem: &impl Memory) -> Result<(), Error> {
     // Removes protections from lazy pages
     mprotect_lazy_pages(mem, false)
 }

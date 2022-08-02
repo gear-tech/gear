@@ -27,8 +27,15 @@ use crate::{
     LazyPagesVersion, WasmAddr, LAZY_PAGES_CONTEXT, LAZY_PAGES_VERSION,
 };
 
-// TODO: used from `gear_core` functionality must be checked
 use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
+
+// This constants are used both in runtime and lazy-pages backend,
+// so create here aditional check. If somebody would change these values
+// in runtime he also should pay attation to support new values here:
+// 1) must rebuild node after that.
+// 2) to support old runtimes need to make lazy pages version with old constatns values.
+static_assertions::const_assert_eq!(PageNumber::size(), 0x1000);
+static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 
 cfg_if! {
     if #[cfg(windows)] {
@@ -49,11 +56,18 @@ pub struct ExceptionInfo {
     pub is_write: Option<bool>,
 }
 
+/// Struct for fast calculation of page key in storage.
+/// Key consists of two parts:
+/// 1) current program prefix in storage
+/// 2) page number in little endian bytes order
+/// First part is always the same, so we can copy it to buffer
+/// once and then use it for all pages.
 struct PagePrefix {
     buffer: Vec<u8>,
 }
 
 impl PagePrefix {
+    /// New page prefix from program prefix
     pub fn new_from_program_prefix(program_prefix: &[u8]) -> Self {
         let mut prefix = Self {
             buffer: Vec::with_capacity(program_prefix.len() + std::mem::size_of::<u32>()),
@@ -62,7 +76,8 @@ impl PagePrefix {
         prefix.buffer.extend(u32::MAX.to_le_bytes());
         prefix
     }
-    pub fn get_for_page(&mut self, page: PageNumber) -> &[u8] {
+    /// Returns key in storage for `page`.
+    pub fn calc_key_for_page(&mut self, page: PageNumber) -> &[u8] {
         let len = self.buffer.len();
         self.buffer[len - std::mem::size_of::<u32>()..len]
             .copy_from_slice(page.0.to_le_bytes().as_slice());
@@ -70,6 +85,9 @@ impl PagePrefix {
     }
 }
 
+/// Wasm address wrapper, for which we can be sure
+/// it's in safe/checked state, so we can avoid some
+/// checks while using this addr.
 struct CheckedWasmAddr {
     wasm_mem_addr: usize,
     wasm_mem_size: u32,
@@ -109,6 +127,7 @@ impl CheckedWasmAddr {
         // `addr` is less then `wasm_mem_size`, so `as u32` is safe.
         let addr = addr as u32;
 
+        // TODO: check that user incorrect stack addr cannot cause panics
         if addr < stack_end {
             return Err(Error::SignalFromStackMemory {
                 wasm_addr: addr,
@@ -128,8 +147,8 @@ impl CheckedWasmAddr {
     }
 
     pub fn as_native_addr(&self) -> usize {
-        // no need to check `+` because we check this in `Self::new_from_native`
-        // and object's changes can only decrease `addr` and never changes `wasm_mem_addr`.
+        // no need to check `+` because we check this in `Self::new_from_native`.
+        // `addr` can be only decreased and `wasm_mem_addr` is never changed.
         self.wasm_mem_addr + self.addr as usize
     }
 
@@ -156,7 +175,6 @@ impl CheckedWasmAddr {
     }
 }
 
-// TODO: change comment
 /// Before contract execution some pages from wasm memory buffer have been protected.
 /// When wasm executer tries to access one of these pages,
 /// OS emits sigsegv or sigbus or EXCEPTION_ACCESS_VIOLATION.
@@ -164,6 +182,22 @@ impl CheckedWasmAddr {
 /// Using OS signal info, it identifies memory location and page,
 /// which emits the signal. It removes read and write protections for page,
 /// then it loads wasm page data from storage to wasm page memory location.
+/// If native page size is bigger than gear page size, then this will be done
+/// for all gear pages from accessed native page.
+///
+/// [PAGE_STORAGE_GRANULARITY] (PSG) case - if page is write accessed
+/// first time in program live, then this page has no data in storage yet.
+/// This also means that all pages from the same PSG interval has no data in storage.
+/// So, in this case we have to insert in `released_lazy_pages` all pages from the same
+/// PSG interval, in order to upload their data to storage later in runtime.
+/// We have to make separate logic for this case in order to support consensus
+/// between nodes with different native page sizes. For example, if one node
+/// has native page size 4kBit and other 16kBit, then (without PSG logic)
+/// for first one gear page will be uploaded and for second 4 gear pages.
+/// This can cause conflicts in data about pages that have data in storage.
+/// So, to avoid this we upload all pages from PSG interval (which is 16kBit now),
+/// and restrict to run node on machines, that have native page number bigger than PSG.
+///
 /// After signal handler is done, OS returns execution to the same machine
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
@@ -179,9 +213,7 @@ unsafe fn user_signal_handler_internal_v2(
     let lazy_page_size = native_ps.max(gear_ps);
     let num_of_gear_pages_in_one_lazy = lazy_page_size / gear_ps;
 
-    let mem = info.fault_addr as usize;
-    let is_write = info.is_write.unwrap_or(false);
-
+    let native_addr = info.fault_addr as usize;
     let wasm_mem_addr = ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)? as usize;
     let wasm_mem_size = ctx.wasm_mem_size.ok_or(Error::WasmMemSizeIsNotSet)?;
     let stack_end = ctx.stack_end_wasm_addr;
@@ -192,17 +224,26 @@ unsafe fn user_signal_handler_internal_v2(
     );
 
     let mut wasm_addr =
-        CheckedWasmAddr::new_from_native(mem, wasm_mem_addr, stack_end, wasm_mem_size)?;
+        CheckedWasmAddr::new_from_native(native_addr, wasm_mem_addr, stack_end, wasm_mem_size)?;
 
     // Wasm addr of native page, which contains accessed gear page or which is in the beginning
     // of the accessed gear page, if native page size is smaller then gear page size.
     wasm_addr.align_down(lazy_page_size);
 
-    // Is definitely write if it's second access or there `is_write` is set true.
-    let is_definitely_write = ctx.accessed_pages_addrs.contains(&wasm_addr.get()) || is_write;
+    // If `is_write` is Some, than we definitly know whether it's `write` or `read` access.
+    // In other case we handle first access as it's `read`.
+    // This also means that we will set read protection for the accessed interval after handling.
+    // If in reality it's `write` access, then right after return from signal handler,
+    // another signal will appear from the same instruction and for the same address.
+    // Because we insert accessed pages in `accessed_pages_addrs`, then handling second signal
+    // we can definitly identify that this signal from `write` access.
+    let is_definitely_write =
+        ctx.accessed_pages_addrs.contains(&wasm_addr.get()) || info.is_write.unwrap_or(false);
+
+    // Is definitely write if it's second access or there `is_write` is set as `true`.
     let is_psg_case = is_definitely_write
         && native_ps < psg
-        && !sp_io::storage::exists(prefix.get_for_page(wasm_addr.as_page_number()));
+        && !sp_io::storage::exists(prefix.calc_key_for_page(wasm_addr.as_page_number()));
     let unprot_size = if is_psg_case {
         log::trace!("is PSG case - we need to upload to storage data for all pages from `page-storage-granularity`");
         wasm_addr.align_down(psg);
@@ -234,7 +275,7 @@ unsafe fn user_signal_handler_internal_v2(
             log::trace!("lazy page {lazy_page_wasm_addr:#x} is already accessed");
             for gear_page in (begin..end).map(PageNumber) {
                 log::trace!("add {gear_page:?} to released");
-                if ctx.released_lazy_pages.insert(gear_page, None).is_some() {
+                if !ctx.released_lazy_pages.insert(gear_page) {
                     return Err(Error::DoubleRelease(gear_page));
                 }
             }
@@ -246,7 +287,7 @@ unsafe fn user_signal_handler_internal_v2(
         for gear_page in (begin..end).map(PageNumber) {
             let page_buffer_ptr = (wasm_mem_addr as *mut u8).add(gear_page.offset());
             let buffer_as_slice = std::slice::from_raw_parts_mut(page_buffer_ptr, gear_ps as usize);
-            let res = sp_io::storage::read(prefix.get_for_page(gear_page), buffer_as_slice, 0);
+            let res = sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
 
             log::trace!(
                 "{:?} has{} data in storage",
@@ -263,7 +304,7 @@ unsafe fn user_signal_handler_internal_v2(
 
             if is_definitely_write {
                 log::trace!("add {gear_page:?} to released");
-                if ctx.released_lazy_pages.insert(gear_page, None).is_some() {
+                if !ctx.released_lazy_pages.insert(gear_page) {
                     return Err(Error::DoubleRelease(gear_page));
                 }
             }

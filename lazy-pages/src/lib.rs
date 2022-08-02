@@ -22,26 +22,10 @@
 //! During execution data from storage is loaded for all pages, which has been accesed.
 //! See also `sys::user_signal_handler` in the source code.
 //!
-//! Restrict any page handling in signal handler more then one time.
-//! If some page will be released twice it means, that this page has been added
-//! to lazy pages more then one time during current execution.
-//! This situation may cause problems with memory data update in storage.
-//! For example: one page has no data in storage, but allocated for current program.
-//! Let's make some action for it:
-//! 1) Change data in page: Default data  ->  Data1
-//! 2) Free page
-//! 3) Alloc page, data will Data2 (may be equal Data1).
-//! 4) After alloc we can set page as lazy, to identify wether page is changed after allocation.
-//! This means that we can skip page update in storage in case it wasnt changed after allocation.
-//! 5) Write some data in page but do not change it Data2 -> Data2.
-//! During this step signal handler writes Data2 as data for released page.
-//! 6) After execution we will have Data2 in page. And Data2 in released. So, nothing will be updated
-//! in storage. But program may have some significant data for next execution - so we have a bug.
-//! To avoid this we restrict double releasing.
-//! You can also check another cases in test: memory_access_cases.
+//! Currently we restrict twice write signal from same page during one execution.
+//! It's not necessary behaviour, but more simple and safe.
 
 // TODO: remove all deprecated code before release (issue #1147)
-
 #![allow(useless_deprecated, deprecated)]
 
 use gear_core::memory::{
@@ -108,7 +92,6 @@ pub enum Error {
     /// Found a write signal from same page twice - see more in head comment.
     #[display(fmt = "Any page cannot be released twice: {:?}", _0)]
     DoubleRelease(PageNumber),
-
     #[display(fmt = "Protection error: {}", _0)]
     #[from]
     MemoryProtection(region::Error),
@@ -137,9 +120,8 @@ pub(crate) struct LazyPagesExecutionContext {
     pub wasm_mem_size: Option<u32>,
     /// Current program prefix in storage
     pub program_storage_prefix: Option<Vec<u8>>,
-    /// Page data, which has been in storage before current execution.
-    /// For each lazy page, which has been accessed.
-    /// Wasm pages addresses for which signal has appeared earlier.
+    /// Wasm addresses of lazy pages, that have been read or write accessed at least once.
+    /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
     pub accessed_pages_addrs: BTreeSet<WasmAddr>,
     /// End of stack wasm address. Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
@@ -148,13 +130,15 @@ pub(crate) struct LazyPagesExecutionContext {
     /// which lies before this value will never get into `released_lazy_pages`,
     /// which means that they will never be updated in storage.
     pub stack_end_wasm_addr: WasmAddr,
-
-    // TODO: change to set (create _old field for deprecated)
-    pub released_lazy_pages: BTreeMap<PageNumber, Option<PageBuf>>,
+    /// Gear pages, which has been write accessed.
+    pub released_lazy_pages: BTreeSet<PageNumber>,
 
     #[deprecated]
     /// Keys in storage for each lazy page.
     pub lazy_pages_info: BTreeMap<PageNumber, Vec<u8>>,
+    #[deprecated]
+    /// Released lazy pages and their data before execution.
+    pub released_lazy_pages_old: BTreeMap<PageNumber, Option<PageBuf>>,
 }
 
 thread_local! {
@@ -250,7 +234,7 @@ pub fn reset_context() {
 
 /// Returns vec of lazy pages which has been accessed
 pub fn get_released_pages() -> Vec<PageNumber> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_lazy_pages.keys().copied().collect())
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_lazy_pages.iter().copied().collect())
 }
 
 /// Returns whether lazy pages env is enabled
@@ -305,8 +289,14 @@ pub fn set_program_prefix(prefix: Vec<u8>) {
 }
 
 /// Returns data for released `page`
+#[deprecated]
 pub fn get_released_page_data(page: PageNumber) -> Option<PageBuf> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow_mut().released_lazy_pages.get_mut(&page)?.take())
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        ctx.borrow_mut()
+            .released_lazy_pages_old
+            .get_mut(&page)?
+            .take()
+    })
 }
 
 #[derive(Debug, derive_more::Display)]

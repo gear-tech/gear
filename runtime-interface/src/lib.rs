@@ -297,17 +297,6 @@ pub trait GearRI {
         }
     }
 
-    // fn set_lazy_pages_addresses(stack_end_wasm_addr: WasmAddr) -> Result<(), RIError> {
-    //     // TODO: remove this panic before release and make an error (issue #1147)
-    //     assert_eq!(
-    //         stack_end_wasm_addr as usize % WasmPageNumber::size(),
-    //         0,
-    //         "Stack end addr must be multiple of wasm page size"
-    //     );
-    //     lazy_pages::set_stack_end_wasm_addr(stack_end_wasm_addr);
-    //     Ok(())
-    // }
-
     fn set_program_prefix(prefix: Vec<u8>) {
         lazy_pages::set_program_prefix(prefix);
     }

@@ -2605,6 +2605,7 @@ dependencies = [
  "region 3.0.0",
  "sp-io",
  "sp-std",
+ "static_assertions",
  "winapi",
 ]
 

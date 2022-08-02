@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Deprecated lazy-pages impl to support old runtimes.
+
 use region::Protection;
 use std::cell::RefMut;
 
@@ -117,8 +119,9 @@ pub(crate) unsafe fn user_signal_handler_internal_v1(
         let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
             .expect("Cannot panic here, because we create slice with PageBuf size");
 
+        let _ = ctx.released_lazy_pages.insert(page);
         if ctx
-            .released_lazy_pages
+            .released_lazy_pages_old
             .insert(page, Some(page_buf))
             .is_some()
         {

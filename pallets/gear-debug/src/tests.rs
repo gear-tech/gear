@@ -628,7 +628,7 @@ fn check_changed_pages_in_storage() {
                 ;; change page 3 and 4
                 ;; because we store 0x00_00_00_42 then bits will be changed
                 ;; in 3th page only. But because we store by write access, then
-                ;; both data will be for some gear pages from 3th and 4th page.
+                ;; both data will be for gear pages from 3th and 4th wasm page.
                 i32.const 0x3fffd
                 i32.const 0x42
                 i32.store

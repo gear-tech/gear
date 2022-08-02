@@ -176,9 +176,9 @@ impl ProcessorExt for LazyPagesExt {
 
     fn lazy_pages_post_execution_actions(
         mem: &impl Memory,
-        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
+        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>, // TODO: remove it (issue #1273)
     ) -> Result<(), Self::Error> {
-        lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
+        lazy_pages::post_execution_actions(mem).map_err(Error::LazyPages)
     }
 }
 
