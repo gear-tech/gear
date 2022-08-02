@@ -644,8 +644,12 @@ where
     fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        if node.is_reserved_local() || node.is_consumed() {
+        if node.is_reserved_local() {
             return Err(InternalError::forbidden().into());
+        }
+
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
         }
 
         let (mut upstream_node, node_id) = Self::node_with_value(node)?;
@@ -683,8 +687,12 @@ where
     fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        if node.is_reserved_local() || node.is_consumed() {
+        if node.is_reserved_local() {
             return Err(InternalError::forbidden().into());
+        }
+
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
         }
 
         let node_lock = node

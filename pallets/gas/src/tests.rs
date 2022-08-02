@@ -724,3 +724,96 @@ fn catch_value_all_catch() {
         assert!(Gas::total_supply().is_zero());
     })
 }
+
+#[test]
+/// TODO (breathx): doc this.
+fn lock_works() {
+    new_test_ext().execute_with(|| {
+        let external = random_node_id();
+        let specified = random_node_id();
+        let unspecified = random_node_id();
+        let reserved = random_node_id();
+
+        Gas::create(ALICE, external, 10_000).unwrap();
+        assert_eq!(Gas::total_supply(), 10_000);
+
+        assert_ok!(Gas::lock(external, 700));
+
+        assert_eq!(Gas::total_supply(), 10_000);
+        assert_ok!(Gas::get_lock(external), 700);
+        assert_ok!(Gas::get_limit(external), 9_300);
+
+        assert_ok!(Gas::split_with_value(external, specified, 3_000));
+
+        assert_eq!(Gas::total_supply(), 10_000);
+        assert_ok!(Gas::get_limit(external), 6_300);
+
+        assert_ok!(Gas::lock(specified, 600));
+
+        assert_eq!(Gas::total_supply(), 10_000);
+        assert_ok!(Gas::get_lock(specified), 600);
+        assert_ok!(Gas::get_limit(specified), 2_400);
+
+        assert_ok!(Gas::cut(external, reserved, 1_000));
+
+        assert_eq!(Gas::total_supply(), 10_000);
+        assert_noop!(Gas::get_lock(reserved), Error::<Test>::Forbidden);
+        assert_noop!(Gas::lock(reserved, 1), Error::<Test>::Forbidden);
+        assert_noop!(Gas::unlock(reserved, 1), Error::<Test>::Forbidden);
+
+        let neg_imb = Gas::consume(reserved).unwrap().unwrap();
+        assert_eq!(neg_imb.0.peek(), 1_000);
+        drop(neg_imb);
+
+        assert_eq!(Gas::total_supply(), 9_000);
+
+        assert_ok!(Gas::unlock(specified, 500));
+
+        assert_eq!(Gas::total_supply(), 9_000);
+        assert_ok!(Gas::get_lock(specified), 100);
+        assert_ok!(Gas::get_limit(specified), 2_900);
+
+        assert_ok!(Gas::split(specified, unspecified));
+
+        assert_ok!(Gas::get_lock(unspecified), 0);
+
+        assert_ok!(Gas::lock(unspecified, 600));
+
+        assert_eq!(Gas::total_supply(), 9_000);
+        assert_ok!(Gas::get_lock(specified), 100);
+        assert_ok!(Gas::get_limit(specified), 2_300);
+        assert_ok!(Gas::get_lock(unspecified), 600);
+        assert_ok!(Gas::get_limit(unspecified), 2_300);
+
+        assert_noop!(Gas::consume(specified), Error::<Test>::ConsumedWithLock);
+
+        assert_noop!(
+            Gas::unlock(specified, 101),
+            Error::<Test>::InsufficientBalance
+        );
+        assert_ok!(Gas::unlock(specified, 100));
+
+        assert_ok!(Gas::consume(specified), None);
+
+        assert_noop!(Gas::lock(specified, 1), Error::<Test>::NodeWasConsumed);
+        assert_noop!(Gas::unlock(specified, 1), Error::<Test>::NodeWasConsumed);
+
+        assert_eq!(Gas::total_supply(), 9_000);
+        assert_ok!(Gas::get_lock(specified), 0);
+        assert_ok!(Gas::get_limit(specified), 2_400);
+        assert_ok!(Gas::get_lock(unspecified), 600);
+        assert_ok!(Gas::get_limit(unspecified), 2_400);
+
+        assert_ok!(Gas::unlock(unspecified, 600));
+
+        assert_ok!(Gas::consume(unspecified), None);
+
+        assert_ok!(Gas::unlock(external, 700));
+
+        let neg_imb = Gas::consume(external).unwrap().unwrap();
+        assert_eq!(neg_imb.0.peek(), 9_000);
+        drop(neg_imb);
+
+        assert_eq!(Gas::total_supply(), 0);
+    })
+}
