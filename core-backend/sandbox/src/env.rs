@@ -115,7 +115,9 @@ where
         builder.add_func("gr_wait", Funcs::wait);
         builder.add_func("gr_wake", Funcs::wake);
         builder = builder.apply_blacklist(ext.forbidden_funcs(), Funcs::forbidden);
-        builder = builder.apply_whitelist(&entry_point.allowed_funcs(), Funcs::forbidden);
+        if let Some(funcs) = entry_point.allowed_funcs() {
+            builder = builder.apply_whitelist(&funcs, Funcs::forbidden);
+        }
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();
         for (name, func) in builder.build() {
