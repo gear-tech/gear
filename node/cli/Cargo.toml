@@ -58,13 +58,20 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 ]
-gear-native = ["service/gear-native", "gear-runtime-test-cli/gear-native", "gear-runtime"]
-vara-native = ["service/vara-native", "gear-runtime-test-cli/vara-native", "vara-runtime"]
-
+gear-native = [
+	"service/gear-native",
+	"gear-runtime-test-cli/gear-native",
+	"gear-runtime",
+]
+vara-native = [
+	"service/vara-native",
+	"gear-runtime-test-cli/vara-native",
+	"vara-runtime",
+]
 lazy-pages = ["service/lazy-pages"]
-
 runtime-benchmarks = ["service/runtime-benchmarks"]
-
 debug-mode = ["service/debug-mode"]
-
-try-runtime = ["service/try-runtime", "try-runtime-cli"]
+try-runtime = [
+	"service/try-runtime",
+	"try-runtime-cli",
+]
