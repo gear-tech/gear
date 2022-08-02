@@ -19,8 +19,8 @@
 use super::*;
 use core::cmp::Ordering;
 
-/// Opaque, move-only struct with private field to denote that value has been destroyed
-/// without any equal and opposite accounting.
+/// Opaque, move-only struct with private field to denote that value has been
+/// destroyed without any equal and opposite accounting.
 #[derive(RuntimeDebug, PartialEq, Eq)]
 pub struct NegativeImbalance<Balance: BalanceTrait, TotalValue: ValueStorage<Value = Balance>>(
     Balance,

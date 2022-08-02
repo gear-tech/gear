@@ -302,6 +302,25 @@ mod tests {
     use crate::ids;
     use alloc::vec;
 
+    macro_rules! assert_ok {
+        ( $x:expr $(,)? ) => {
+            let is = $x;
+            match is {
+                Ok(_) => (),
+                _ => assert!(false, "Expected Ok(_). Got {:#?}", is),
+            }
+        };
+        ( $x:expr, $y:expr $(,)? ) => {
+            assert_eq!($x, Ok($y));
+        };
+    }
+
+    macro_rules! assert_err {
+        ( $x:expr , $y:expr $(,)? ) => {
+            assert_eq!($x, Err($y.into()));
+        };
+    }
+
     #[test]
     fn default_message_context() {
         let message_context =
@@ -316,13 +335,13 @@ mod tests {
         let mut message_context =
             MessageContext::new(Default::default(), Default::default(), Default::default());
         // first init to default ProgramId.
-        let result = message_context.init_program(Default::default());
+        assert_ok!(message_context.init_program(Default::default()));
 
-        assert!(result.is_ok());
         // second init to same default ProgramId should get error.
-        let duplicated_init = message_context.init_program(Default::default());
-
-        assert_eq!(duplicated_init, Err(Error::DuplicateInit));
+        assert_err!(
+            message_context.init_program(Default::default()),
+            Error::DuplicateInit,
+        );
     }
 
     #[test]
@@ -374,12 +393,13 @@ mod tests {
         assert_eq!(valid_handle, 0);
 
         // Use valid handle 0.
-        let result = message_context.send_commit(0, Default::default());
-        assert!(result.is_ok());
+        assert_ok!(message_context.send_commit(0, Default::default()));
 
         // Use invalid handle 42.
-        let out_of_bounds = message_context.send_commit(42, Default::default());
-        assert_eq!(out_of_bounds, Err(Error::OutOfBounds));
+        assert_err!(
+            message_context.send_commit(42, Default::default()),
+            Error::OutOfBounds,
+        );
     }
 
     #[test]
@@ -388,12 +408,13 @@ mod tests {
             MessageContext::new(Default::default(), Default::default(), Default::default());
 
         // First reply.
-        let result = message_context.reply_commit(Default::default());
-        assert!(result.is_ok());
+        assert_ok!(message_context.reply_commit(Default::default()));
 
         // Reply twice in one message is forbidden.
-        let result = message_context.reply_commit(Default::default());
-        assert!(matches!(result, Err(Error::DuplicateReply)));
+        assert_err!(
+            message_context.reply_commit(Default::default()),
+            Error::DuplicateReply,
+        );
     }
 
     // Set of constants for clarity of a part of the test
@@ -429,10 +450,10 @@ mod tests {
         let reply_packet = ReplyPacket::new(vec![0, 0], 0);
 
         // Checking that we are able to initialize reply
-        assert!(context.reply_push(&[1, 2, 3]).is_ok());
+        assert_ok!(context.reply_push(&[1, 2, 3]));
 
         // Setting reply message and making sure the operation was successful
-        assert!(context.reply_commit(reply_packet.clone()).is_ok());
+        assert_ok!(context.reply_commit(reply_packet.clone()));
 
         // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
@@ -441,14 +462,14 @@ mod tests {
         );
 
         // Checking that repeated call `reply_push(...)` returns error and does not do anything
-        assert!(context.reply_push(&[1]).is_err());
+        assert_err!(context.reply_push(&[1]), Error::LateAccess);
         assert_eq!(
             context.outcome.reply.as_ref().unwrap().payload().to_vec(),
             vec![1, 2, 3, 0, 0],
         );
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
-        assert!(context.reply_commit(reply_packet).is_err());
+        assert_err!(context.reply_commit(reply_packet), Error::DuplicateReply);
 
         // Checking that at this point vector of outgoing messages is empty
         assert!(context.outcome.handle.is_empty());
@@ -472,31 +493,36 @@ mod tests {
 
         // Checking that we are able to push payload for the
         // message that we have not committed yet
-        assert!(context.send_push(expected_handle, &[5, 7]).is_ok());
-        assert!(context.send_push(expected_handle, &[9]).is_ok());
+        assert_ok!(context.send_push(expected_handle, &[5, 7]));
+        assert_ok!(context.send_push(expected_handle, &[9]));
 
         // Creating an outgoing packet to commit sending by parts
         let commit_packet = HandlePacket::default();
 
         // Checking if commit is successful
-        assert!(context.send_commit(expected_handle, commit_packet).is_ok());
+        assert_ok!(context.send_commit(expected_handle, commit_packet));
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already committed it or directly pushed before
-        assert!(context.send_push(expected_handle, &[5, 7]).is_err());
-        assert!(context
-            .send_commit(expected_handle, HandlePacket::default())
-            .is_err());
+        assert_err!(
+            context.send_push(expected_handle, &[5, 7]),
+            Error::LateAccess,
+        );
+        assert_err!(
+            context.send_commit(expected_handle, HandlePacket::default()),
+            Error::LateAccess,
+        );
 
         // Creating a handle to push and do commit non-existent message
         let expected_handle = 15;
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
-        assert!(context.send_push(expected_handle, &[0]).is_err());
-        assert!(context
-            .send_commit(expected_handle, HandlePacket::default())
-            .is_err());
+        assert_err!(context.send_push(expected_handle, &[0]), Error::OutOfBounds);
+        assert_err!(
+            context.send_commit(expected_handle, HandlePacket::default()),
+            Error::OutOfBounds,
+        );
 
         // Creating a handle to init and do not commit later
         // to show that the message will not be sent
@@ -506,7 +532,7 @@ mod tests {
             context.send_init().expect("Error initializing new message"),
             expected_handle
         );
-        assert!(context.send_push(expected_handle, &[2, 2]).is_ok());
+        assert_ok!(context.send_push(expected_handle, &[2, 2]));
 
         // Checking that reply message not lost and matches our initial
         assert!(context.outcome.reply.is_some());
