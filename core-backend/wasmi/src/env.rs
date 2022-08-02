@@ -199,7 +199,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
         let externval = self.map.get(&key).ok_or_else(|| {
             log::debug!(
                 target: "gwasm",
-                "Export {}:{} might be forbidden or not found",
+                "Export {}:{} not found",
                 module_name,
                 field_name
             );
