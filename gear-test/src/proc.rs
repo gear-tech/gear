@@ -23,7 +23,7 @@ use crate::{
     manager::{CollectState, State},
     sample::{PayloadVariant, Test},
 };
-use core_processor::{common::*, configs::*, Ext};
+use core_processor::{common::*, configs::*, Ext, PrepareResult};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{Code, CodeAndId},
@@ -109,15 +109,21 @@ where
             destination_program: program_id,
             executable_data: Some(ExecutableActorData {
                 program,
-                pages_data: Default::default(),
+                pages_with_data: Default::default(),
             }),
         },
         dispatch: message.into(),
         origin: Default::default(),
         gas_allowance: u64::MAX,
+        subsequent_execution: false,
     };
 
-    let journal = core_processor::process::<Ext, E>(&block_config, message_execution_context);
+    let journal = match core_processor::prepare(&block_config, message_execution_context) {
+        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+        PrepareResult::Ok { context, .. } => {
+            core_processor::process::<Ext, E>(&block_config, context, Default::default())
+        }
+    };
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -291,17 +297,25 @@ where
                 let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
                     panic!("Error: Message to user {:?} in dispatch queue!", program_id)
                 });
-                let actor = actor.into_core(program_id);
+                let (actor, memory_pages) = actor.into_parts(program_id);
 
                 let message_execution_context = MessageExecutionContext {
                     actor,
                     dispatch: dispatch.into_incoming(gas_limit),
                     origin: Default::default(),
                     gas_allowance: u64::MAX,
+                    subsequent_execution: false,
                 };
 
                 let journal =
-                    core_processor::process::<Ext, E>(&block_config, message_execution_context);
+                    match core_processor::prepare(&block_config, message_execution_context) {
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                            journal
+                        }
+                        PrepareResult::Ok { context, .. } => {
+                            core_processor::process::<Ext, E>(&block_config, context, memory_pages)
+                        }
+                    };
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -320,7 +334,7 @@ where
             let actor = state.actors.get(&program_id).cloned().unwrap_or_else(|| {
                 panic!("Error: Message to user {:?} in dispatch queue!", program_id)
             });
-            let actor = actor.into_core(program_id);
+            let (actor, memory_pages) = actor.into_parts(program_id);
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
@@ -336,10 +350,16 @@ where
                 dispatch: dispatch.into_incoming(gas_limit),
                 origin: Default::default(),
                 gas_allowance: u64::MAX,
+                subsequent_execution: false,
             };
 
-            let journal =
-                core_processor::process::<Ext, E>(&block_config, message_execution_context);
+            let journal = match core_processor::prepare(&block_config, message_execution_context) {
+                PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+                PrepareResult::Ok { context, .. } => {
+                    core_processor::process::<Ext, E>(&block_config, context, memory_pages)
+                }
+            };
+
             counter += 1;
 
             core_processor::handle_journal(journal, journal_handler);

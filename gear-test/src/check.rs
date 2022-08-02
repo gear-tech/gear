@@ -34,7 +34,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
-    memory::PageNumber,
+    memory::{PageBuf, PageNumber},
     message::*,
     program::Program,
 };
@@ -414,15 +414,15 @@ pub fn check_allocations(
 }
 
 pub fn check_memory(
-    actors_data: &Vec<ExecutableActorData>,
+    actors_data: &Vec<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        for data in actors_data {
+        for (data, memory) in actors_data {
             if data.program.id() == case.id.to_program_id() {
                 let page = PageNumber::new_from_addr(case.address);
-                if let Some(page_buf) = data.pages_data.get(&page) {
+                if let Some(page_buf) = memory.get(&page) {
                     let begin_byte = case.address - page.offset();
                     let end_byte = begin_byte + case.bytes.len();
                     if page_buf[begin_byte..end_byte] != case.bytes {
@@ -628,7 +628,10 @@ where
                 let data = final_state
                     .actors
                     .into_iter()
-                    .filter_map(|(_, actor)| actor.executable_data)
+                    .filter_map(|(_, actor)| match actor.executable_data {
+                        None => None,
+                        Some(d) => Some((d, actor.memory_pages)),
+                    })
                     .collect();
                 if let Err(mem_errors) = check_memory(&data, mem) {
                     errors.push(format!("step: {:?}", exp.step));
