@@ -201,17 +201,11 @@ where
     }
 
     fn apply(&mut self, imports: &BTreeSet<&str>, replace_fn: T, whitelist: bool) {
-        self.imports = self
-            .imports
-            .into_iter()
-            .map(|(name, func)| {
-                if imports.contains(name) == whitelist {
-                    (name, func)
-                } else {
-                    (name, replace_fn.clone())
-                }
-            })
-            .collect();
+        for (name, func) in &mut self.imports {
+            if imports.contains(name) != whitelist {
+                *func = replace_fn.clone();
+            }
+        }
     }
 
     pub fn apply_whitelist(&mut self, imports: &BTreeSet<&str>, replace_fn: T) {
