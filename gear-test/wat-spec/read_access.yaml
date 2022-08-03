@@ -1,0 +1,11 @@
+title: Read-access
+
+programs:
+  - id: 1
+    path: target/wat-examples/read_access.wasm
+    source:
+      kind: account
+      value: alice
+
+fixtures:
+  - title: read from all pages in memory
