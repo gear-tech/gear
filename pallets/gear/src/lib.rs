@@ -1498,17 +1498,16 @@ pub mod pallet {
             if !T::CodeStorage::exists(code_and_id.code_id()) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
                 // if there's code in storage, there's also metadata for it.
-                if let Ok(code_hash) =
-                    Self::set_code_with_metadata(code_and_id, who.clone().into_origin())
-                {
-                    // TODO: replace this temporary (`None`) value
-                    // for expiration block number with properly
-                    // calculated one (issues #646 and #969).
-                    Self::deposit_event(Event::CodeChanged {
-                        id: code_hash,
-                        change: CodeChangeKind::Active { expiration: None },
-                    });
-                }
+                let code_hash =
+                    Self::set_code_with_metadata(code_and_id, who.clone().into_origin())?;
+
+                // TODO: replace this temporary (`None`) value
+                // for expiration block number with properly
+                // calculated one (issues #646 and #969).
+                Self::deposit_event(Event::CodeChanged {
+                    id: code_hash,
+                    change: CodeChangeKind::Active { expiration: None },
+                });
             }
 
             Self::do_create_program(who, packet)?;
