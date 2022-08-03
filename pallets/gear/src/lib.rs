@@ -981,13 +981,9 @@ pub mod pallet {
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
-                if were_empty {
-                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
-                        stopped_at = Some(*bn);
-                        break;
-                    }
-                } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
                     stopped_at = Some(*bn);
+                    log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
 
@@ -1009,13 +1005,9 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
-                    if were_empty {
-                        if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
-                            stopped_at = Some(*bn);
-                            break;
-                        }
-                    } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
                         stopped_at = Some(*bn);
+                        log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
                 }
