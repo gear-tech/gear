@@ -4006,8 +4006,6 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 #[test]
-// This unreachable code appears, due to insufficient queried balance to burn in gas tree.
-#[should_panic(expected = "internal error: entered unreachable code: GasTree corrupted!")]
 fn free_storage_hold_on_scheduler_overwhelm() {
     use demo_value_sender::{TestData, WASM_BINARY};
 
