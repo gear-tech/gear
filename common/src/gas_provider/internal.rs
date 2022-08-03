@@ -640,20 +640,29 @@ where
         Self::create_from_with_value(key, new_key, amount, true)
     }
 
-    // TODO (breathx): doc this.
     fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        // Taking node to lock into.
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
+        // Validating node type to be able to lock.
         if node.is_reserved_local() {
             return Err(InternalError::forbidden().into());
         }
 
+        // Validating that node is not consumed.
         if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());
         }
 
+        // Quick quit on queried zero lock.
+        if amount.is_zero() {
+            return Ok(());
+        }
+
+        // Taking value provider for this node.
         let (mut upstream_node, node_id) = Self::node_with_value(node)?;
 
+        // Mutating value of provider.
         let upstream_node_value = upstream_node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
@@ -664,6 +673,8 @@ where
 
         *upstream_node_value = upstream_node_value.saturating_sub(amount);
 
+        // If provider is a parent, we save it to storage, otherwise mutating
+        // current node further, saving it afterward.
         let mut node = if let Some(upstream_id) = node_id {
             StorageMap::insert(upstream_id, upstream_node);
 
@@ -683,18 +694,38 @@ where
         Ok(())
     }
 
-    // TODO (breathx): doc this.
+    // Such implementation of moving value upper works, because:
+    //
+    // - For value-holding types (`GasNode::External` and
+    // `GasNode::SpecifiedLocal`) locking and unlocking on consumed node is denied at the moment,
+    // so on lock and unlock they will update only themselves.
+    //
+    // - For non-value-holding type (`GasNode::UnspecifiedLocal`) locking and
+    // unlocking chained with value-holding parent, which cannot be freed
+    // (can't move its balance upstream), due to existence of this
+    // unspecified node, referring it.
+    //
+    // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
     fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        // Taking node to unlock from.
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
+        // Validating node type to be able to lock.
         if node.is_reserved_local() {
             return Err(InternalError::forbidden().into());
         }
 
+        // Validating that node is not consumed.
         if node.is_consumed() {
             return Err(InternalError::node_was_consumed().into());
         }
 
+        // Quick quit on queried zero unlock.
+        if amount.is_zero() {
+            return Ok(());
+        }
+
+        // Mutating locked value of queried node.
         let node_lock = node
             .lock_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
@@ -705,8 +736,12 @@ where
 
         *node_lock = node_lock.saturating_sub(amount);
 
+        // Taking value provider for this node.
         let (upstream_node, upstream_id) = Self::node_with_value(node.clone())?;
 
+        // Mutating value of provider.
+        // If provider is a current node, we save it to storage, otherwise mutating
+        // provider node further, saving it afterward.
         let (mut ancestor_node, ancestor_id) = if let Some(upstream_id) = upstream_id {
             StorageMap::insert(key, node);
 
@@ -729,9 +764,7 @@ where
     fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error> {
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
-        let lock = node.lock().ok_or_else(InternalError::forbidden)?;
-
-        Ok(lock)
+        node.lock().ok_or_else(|| InternalError::forbidden().into())
     }
 
     fn clear() {

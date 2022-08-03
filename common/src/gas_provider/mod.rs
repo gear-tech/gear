@@ -176,13 +176,27 @@ pub trait Tree {
     /// This can't create imbalance as no value is burned or created.
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 
-    /// TODO (breathx): doc this.
+    /// Locking some value from underlying balance.
+    ///
+    /// If `key` does not identify any value or the `amount` exceeds what's
+    /// locked under that key, an error is returned.
+    ///
+    /// This can't create imbalance as no value is burned or created.
     fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 
-    /// TODO (breathx): doc this.
+    /// Unlocking some value from node's locked balance.
+    ///
+    /// If `key` does not identify any value or the `amount` exceeds what's
+    /// locked under that key, an error is returned.
+    ///
+    /// This can't create imbalance as no value is burned or created.
     fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 
-    /// TODO (breathx): doc this.
+    /// Get locked value associated with given id.
+    ///
+    /// Returns errors in cases of absence associated with given key node,
+    /// or if such functionality is forbidden for specific node type:
+    /// for example, for `GasNode::ReservedLocal`.
     fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
 
     /// Removes all values.

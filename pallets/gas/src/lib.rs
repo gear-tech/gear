@@ -194,7 +194,7 @@ pub mod pallet {
         /// Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`).
         ValueIsNotBlocked,
 
-        /// TODO (breathx): doc this.
+        /// `GasTree::consume` called on node, which has some balance locked.
         ConsumedWithLock,
     }
 

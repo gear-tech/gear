@@ -71,6 +71,6 @@ pub trait Error {
     /// (see `TreeImpl::catch_value` for details).
     fn value_is_not_blocked() -> Self;
 
-    /// TODO (breathx): doc this.
+    /// `GasTree::consume` called on node, which has some balance locked.
     fn consumed_with_lock() -> Self;
 }

@@ -726,14 +726,15 @@ fn catch_value_all_catch() {
 }
 
 #[test]
-/// TODO (breathx): doc this.
 fn lock_works() {
     new_test_ext().execute_with(|| {
+        // Ids for nodes declaration.
         let external = random_node_id();
         let specified = random_node_id();
         let unspecified = random_node_id();
         let reserved = random_node_id();
 
+        // Creating external and locking some value.
         Gas::create(ALICE, external, 10_000).unwrap();
         assert_eq!(Gas::total_supply(), 10_000);
 
@@ -743,6 +744,7 @@ fn lock_works() {
         assert_ok!(Gas::get_lock(external), 700);
         assert_ok!(Gas::get_limit(external), 9_300);
 
+        // Creating specified by root and locking some value.
         assert_ok!(Gas::split_with_value(external, specified, 3_000));
 
         assert_eq!(Gas::total_supply(), 10_000);
@@ -754,6 +756,8 @@ fn lock_works() {
         assert_ok!(Gas::get_lock(specified), 600);
         assert_ok!(Gas::get_limit(specified), 2_400);
 
+        // Creating reserved node from root and trying to lock some value there,
+        // consuming it afterward.
         assert_ok!(Gas::cut(external, reserved, 1_000));
 
         assert_eq!(Gas::total_supply(), 10_000);
@@ -767,12 +771,15 @@ fn lock_works() {
 
         assert_eq!(Gas::total_supply(), 9_000);
 
+        // Unlocking part of locked value on specified node.
         assert_ok!(Gas::unlock(specified, 500));
 
         assert_eq!(Gas::total_supply(), 9_000);
         assert_ok!(Gas::get_lock(specified), 100);
         assert_ok!(Gas::get_limit(specified), 2_900);
 
+        // Creating unspecified node from specified one,
+        // locking value there afterward.
         assert_ok!(Gas::split(specified, unspecified));
 
         assert_ok!(Gas::get_lock(unspecified), 0);
@@ -785,12 +792,17 @@ fn lock_works() {
         assert_ok!(Gas::get_lock(unspecified), 600);
         assert_ok!(Gas::get_limit(unspecified), 2_300);
 
+        // Trying to consume specified, while lock exists.
         assert_noop!(Gas::consume(specified), Error::<Test>::ConsumedWithLock);
 
+        // Trying to unlock greater value than we have locked.
         assert_noop!(
             Gas::unlock(specified, 101),
             Error::<Test>::InsufficientBalance
         );
+
+        // Success unlock for full and consuming of specified node
+        // (unspecified from it still exists).
         assert_ok!(Gas::unlock(specified, 100));
 
         assert_ok!(Gas::consume(specified), None);
@@ -804,12 +816,14 @@ fn lock_works() {
         assert_ok!(Gas::get_lock(unspecified), 600);
         assert_ok!(Gas::get_limit(unspecified), 2_400);
 
+        // Unlocking and consuming unspecified.
         assert_ok!(Gas::unlock(unspecified, 600));
 
         assert_ok!(Gas::consume(unspecified), None);
 
         assert_ok!(Gas::unlock(external, 700));
 
+        // Finally free all supply by consuming root.
         let neg_imb = Gas::consume(external).unwrap().unwrap();
         assert_eq!(neg_imb.0.peek(), 9_000);
         drop(neg_imb);
