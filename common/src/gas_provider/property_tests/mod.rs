@@ -17,33 +17,67 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Properties and invariants that are checked:
+//!
 //! 1. Nodes can become consumed only after [`Tree::consume`] call.
-//! 2. Unspec refs counter for the current node is incremented only after [`Tree::split`] which creates a node with [`GasNode::UnspecifiedLocal`] type.
-//! 3. Spec refs counter for the current node is incremented only after [`GasNode::split_with_value`], which creates a node with [`GasNode::SpecifiedLocal`] type.
-//! 4. All nodes, except for [`GasNode::ReservedLocal`] and [`GasNode::External`] have a parent in GasTree storage.
-//! 5. All nodes with parent point to a parent with value. So If a `key` is an id of [`GasNode::SpecifiedLocal`] or [`GasNode::External`] node,
-//! the node under this `key` will always be a parent of the newly generated node after [`Tree::split`]/[`Tree::split_with_value`] call.
-//! However, there is no such guarantee if key is an id of the [`GasNode::UnspecifiedLocal`] nodes.
-//! 6. All non-external nodes have ancestor with value (i.e., [`TreeImpl::node_with_value`] procedure always return `Ok`), however this value can be equal to 0.
+//!
+//! 2. Unspec refs counter for the current node is incremented only after
+//! [`Tree::split`] which creates a node with [`GasNode::UnspecifiedLocal`]
+//! type.
+//!
+//! 3. Spec refs counter for the current node is incremented only after
+//! [`GasNode::split_with_value`], which creates a node with
+//! [`GasNode::SpecifiedLocal`] type.
+//!
+//! 4. All nodes, except for [`GasNode::ReservedLocal`] and
+//! [`GasNode::External`] have a parent in GasTree storage.
+//!
+//! 5. All nodes with parent point to a parent with value. So if a `key` is an
+//! id of [`GasNode::SpecifiedLocal`] or [`GasNode::External`] node, the node
+//! under this `key` will always be a parent of the newly generated node
+//! after [`Tree::split`]/[`Tree::split_with_value`] call.
+//! However, there is no such guarantee if key is an id of the
+//! [`GasNode::UnspecifiedLocal`] nodes.
+//!
+//! 6. All non-external nodes have ancestor with value (for example,
+//! [`TreeImpl::node_with_value`] procedure always return `Ok`),
+//! however this value can be equal to 0.
 //! This ancestor is either a parent or the node itself.
-//! 7. All nodes can't have consumed parent with zero refs (there can't be any nodes like that in storage) between calls to [`Tree::consume`].
-//! Therefore, if node is deleted, it is consumed and has zero refs (and zero value).
-//! 8. [`GasNode::UnspecifiedLocal`] nodes are always leaves in the tree (they have no children), so they are always deleted after consume call.
-//! The same ruling is for [`GasNode::ReservedLocal`] nodes.
-//! So there can't be any [`GasNode::UnspecifiedLocal`] node in the tree with consumed field set to true.
-//! So if there is an **existing consumed** node, then it has non-zero refs counter and a value >= 0 (between calls to [`Tree::consume`])
+//!
+//! 7. All nodes can't have consumed parent with zero refs (there can't be any
+//! nodes like that in storage) between calls to [`Tree::consume`]. Therefore,
+//! if node is deleted, it is consumed and has zero refs (and zero value).
+//!
+//! 8. [`GasNode::UnspecifiedLocal`] nodes are always leaves in the tree (they
+//! have no children), so they are always deleted after consume call. The same
+//! rule is for [`GasNode::ReservedLocal`] nodes. So there can't be any
+//! [`GasNode::UnspecifiedLocal`] node in the tree with consumed field
+//! set to true. So if there is an **existing consumed** node, then it
+//! has non-zero refs counter and a value >= 0 (between calls to
+//! [`Tree::consume`]).
+//!
 //! 9. In a tree a root with [`GasNode::External`] type is always deleted last.
-//! 10. If node wasn't removed after `consume` it's [`GasNode::SpecifiedLocal`] or [`GasNode::External`] node. This is pretty same as the previous invariant,
-//! but focuses more on [`Tree::consume`] procedure, while the other focuses on the all tree invariant. (checked in `consume` call assertions).
-//! 11. [`GasNode::UnspecifiedLocal`] and [`GasNode::ReservedLocal`] nodes can't be removed, nor mutated during cascade removal. So after [`Tree::consume`] call not more than one node is of [`GasNode::UnspecifiedLocal`] type.
-//! 12. Between calls to [`Tree::consume`] if node is consumed and has no unspec refs, it's internal gas value is zero.
-//! 13. Between calls to [`Tree::consume`] if node has value, it's either not consumed or it has unspecified children.
+//!
+//! 10. If node wasn't removed after `consume` it's [`GasNode::SpecifiedLocal`]
+//! or [`GasNode::External`] node. Similar to the previous invariant, but
+//! focuses more on [`Tree::consume`] procedure, while the other focuses
+//! on the all tree invariant. (checked in `consume` call assertions).
+//!
+//! 11. [`GasNode::UnspecifiedLocal`] and [`GasNode::ReservedLocal`] nodes can't
+//! be removed, nor mutated during cascade removal. So after [`Tree::consume`]
+//! call not more than one node is of [`GasNode::UnspecifiedLocal`] type.
+//!
+//! 12. Between calls to [`Tree::consume`] if node is consumed and has no unspec
+//! refs, it's internal gas value is zero.
+//!
+//! 13. Between calls to [`Tree::consume`] if node has value, it's either not
+//! consumed or it has unspecified children.
+//!
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
 use super::*;
 use crate::storage::MapStorage;
 use core::{cell::RefCell, iter::FromIterator, ops::DerefMut};
-use frame_support::assert_ok;
+use frame_support::{assert_err, assert_ok};
 use primitive_types::H256;
 use proptest::prelude::*;
 use strategies::GasTreeAction;
@@ -254,7 +288,7 @@ proptest! {
         TotalIssuanceWrap::kill();
         <GasTreeNodesWrap as storage::MapStorage>::clear();
 
-        let origin = H256::random();
+        let external = H256::random();
         // `actions` can consist only from tree splits. Then it's length will
         // represent a potential amount of nodes in the tree.
         // +1 for the root
@@ -263,7 +297,7 @@ proptest! {
         node_ids.push(root_node);
 
         // Only root has a max balance
-        let _ = Gas::create(origin, root_node, max_balance);
+        Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
         assert_eq!(Gas::total_supply(), max_balance);
 
         // Nodes on which `consume` was called
@@ -309,7 +343,7 @@ proptest! {
                     if let Err(e) = &res {
                         assertions::assert_not_invariant_error(*e);
                         // The only one possible valid error, because other ones signal about invariant problems.
-                        assert_eq!(res, Err(Error::InsufficientBalance));
+                        assert_err!(res, Error::InsufficientBalance);
                     } else {
                         assert_ok!(res);
                         spent += amount;
@@ -383,13 +417,9 @@ proptest! {
         let mut rest_value = 0;
         for (node_id, node) in gas_tree_node_clone() {
             // All nodes from one tree (forest) have the same origin
-            assert_eq!(
-                Gas::get_origin(node_id)
-                    .map(|maybe_origin| maybe_origin.map(|(_, origin)| origin)),
-                Ok(Some(origin))
-            );
+            assert_ok!(Gas::get_external(node_id), external);
 
-            if let Some(value) = node.inner_value() {
+            if let Some(value) = node.value() {
                 rest_value += value;
             }
 
@@ -398,7 +428,7 @@ proptest! {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
                 let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
-                assert!(parent_node.inner_value().is_some());
+                assert!(parent_node.value().is_some());
             }
 
             // Check property: specified local nodes are created only with `split_with_value` call
@@ -421,7 +451,7 @@ proptest! {
                 // That's because anytime node becomes consumed without unspec children, it's no longer a patron.
                 // So `consume` call on non-patron leads a value to be moved upstream or returned to the `origin`.
                 if node.unspec_refs() == 0 {
-                    let value = node.inner_value().expect("node with value, checked");
+                    let value = node.value().expect("node with value, checked");
                     assert!(value == 0);
                 }
             } else {
@@ -432,7 +462,7 @@ proptest! {
             // Check property: if node has non-zero value, it's a patron node (either not consumed or with unspec refs)
             // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
             // ReservedLocal node can be not consumed with non zero value, but is not a patron
-            if let Some(value) = node.inner_value() {
+            if let Some(value) = node.value() {
                 if value != 0 && !node.is_reserved_local() {
                     assert!(node.is_patron());
                 }
@@ -444,7 +474,7 @@ proptest! {
             if ancestor_with_value != node {
                 assert_eq!(node.parent(), ancestor_id);
             }
-            assert!(ancestor_with_value.inner_value().is_some());
+            assert!(ancestor_with_value.value().is_some());
         }
 
         if !gas_tree_ids.is_empty() {
@@ -456,11 +486,12 @@ proptest! {
     #[test]
     fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
         TotalIssuanceWrap::kill();
-        <GasTreeNodesWrap as storage::MapStorage>::clear();
+        GasTreeNodesWrap::clear();
 
         // Tree can be created only with external root
 
         let mut nodes = Vec::with_capacity(actions.len());
+
         for node in &mut nodes {
             *node = H256::random();
         }
@@ -471,14 +502,14 @@ proptest! {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
                         let child = H256::random();
 
-                        let _ = Gas::split_with_value(parent, child, amount);
+                        Gas::split_with_value(parent, child, amount).expect("Failed to split with value");
                     }
                 }
                 GasTreeAction::Split(parent_idx) => {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
                         let child = H256::random();
 
-                        let _ = Gas::split(parent, child);
+                        Gas::split(parent, child).expect("Failed to split without value");
                     }
                 }
                 _ => {}

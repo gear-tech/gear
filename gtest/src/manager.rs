@@ -25,7 +25,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, MessageExecutionContext},
-    Ext,
+    Ext, PrepareResult,
 };
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
@@ -116,7 +116,9 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(&self) -> Option<ExecutableActorData> {
+    fn get_executable_actor_data(
+        &self,
+    ) -> Option<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)> {
         let (program, pages_data) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
@@ -133,10 +135,13 @@ impl TestActor {
             ) => (program.clone(), pages_data.clone()),
             _ => return None,
         };
-        Some(ExecutableActorData {
-            program,
+        Some((
+            ExecutableActorData {
+                program,
+                pages_with_data: pages_data.keys().copied().collect(),
+            },
             pages_data,
-        })
+        ))
     }
 }
 
@@ -324,8 +329,8 @@ impl ExtManager {
 
             if actor.is_dormant() {
                 self.process_dormant(balance, dispatch);
-            } else if let Some(data) = actor.get_executable_actor_data() {
-                self.process_normal(balance, data, dispatch);
+            } else if let Some((data, memory_pages)) = actor.get_executable_actor_data() {
+                self.process_normal(balance, data, memory_pages, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -544,19 +549,21 @@ impl ExtManager {
         &mut self,
         balance: u128,
         data: ExecutableActorData,
+        memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
-        self.process_dispatch(balance, Some(data), dispatch);
+        self.process_dispatch(balance, Some(data), memory_pages, dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
-        self.process_dispatch(balance, None, dispatch);
+        self.process_dispatch(balance, None, Default::default(), dispatch);
     }
 
     fn process_dispatch(
         &mut self,
         balance: u128,
         data: Option<ExecutableActorData>,
+        memory_pages: BTreeMap<PageNumber, PageBuf>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -583,11 +590,17 @@ impl ExtManager {
             dispatch: dispatch.into_incoming(gas_limit),
             origin: self.origin,
             gas_allowance: u64::MAX,
+            subsequent_execution: false,
         };
-        let journal = core_processor::process::<Ext, WasmiEnvironment>(
-            &block_config,
-            message_execution_context,
-        );
+
+        let journal = match core_processor::prepare(&block_config, message_execution_context) {
+            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => journal,
+            PrepareResult::Ok { context, .. } => core_processor::process::<Ext, WasmiEnvironment>(
+                &block_config,
+                context,
+                memory_pages,
+            ),
+        };
 
         core_processor::handle_journal(journal, self);
     }
@@ -604,11 +617,10 @@ impl ExtManager {
             .ok_or(TestError::ActorNotFound(*program_id))?;
 
         let code_id = actor.code_id();
-        let data = actor
+        let (data, memory) = actor
             .get_executable_actor_data()
             .ok_or(TestError::ActorIsNotExecutable(*program_id))?;
-        let pages_initial_data = data
-            .pages_data
+        let pages_initial_data = memory
             .into_iter()
             .map(|(page, data)| (page, Box::new(data)))
             .collect();

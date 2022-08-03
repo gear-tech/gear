@@ -124,9 +124,9 @@ pub struct Fixture {
     /// Fixture title
     pub title: String,
     /// Messages being sent to programs, defined in the test
-    pub messages: Vec<Message>,
+    pub messages: Option<Vec<Message>>,
     /// Expected results of the test run.
-    pub expected: Vec<Expectation>,
+    pub expected: Option<Vec<Expectation>>,
 }
 
 /// Payload data types being used in messages.
@@ -278,8 +278,8 @@ fn check_sample() {
     let path = test.programs.get(0).expect("Must have one").path.clone();
 
     assert_eq!(test.title, "basic");
-    assert_eq!(test.fixtures[0].messages.len(), 1);
-    assert_eq!(test.fixtures[0].messages.len(), 1);
+    assert_eq!(test.fixtures[0].messages.as_ref().unwrap().len(), 1);
+    assert_eq!(test.fixtures[0].messages.as_ref().unwrap().len(), 1);
     assert_eq!(
         path,
         "examples/target/wasm32-unknown-unknown/release/demo_ping.wasm"
