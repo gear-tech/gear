@@ -2497,6 +2497,7 @@ dependencies = [
  "frame-system",
  "gear-node-primitives",
  "gear-runtime",
+ "gear-runtime-common",
  "gear-runtime-test-cli",
  "gear-service",
  "pallet-transaction-payment",
@@ -2636,6 +2637,7 @@ dependencies = [
  "frame-try-runtime",
  "gear-common",
  "gear-node-primitives",
+ "gear-runtime-common",
  "hex-literal",
  "log",
  "pallet-aura",
@@ -2669,6 +2671,22 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
+]
+
+[[package]]
+name = "gear-runtime-common"
+version = "0.1.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "frame-system-benchmarking",
+ "gear-common",
+ "gear-node-primitives",
+ "pallet-authorship",
+ "pallet-balances",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9407,6 +9425,7 @@ dependencies = [
  "frame-try-runtime",
  "gear-common",
  "gear-node-primitives",
+ "gear-runtime-common",
  "hex-literal",
  "log",
  "pallet-authorship",

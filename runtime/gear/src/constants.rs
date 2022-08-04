@@ -21,13 +21,7 @@ pub mod currency {
     use gear_node_primitives::Balance;
 
     /// The existential deposit.
-    pub const EXISTENTIAL_DEPOSIT: Balance = MILLICENTS;
-
-    // TODO: review quantities based on economic model (issue #1277)
-    pub const UNITS: Balance = 10_000_000_000;
-    pub const DOLLARS: Balance = UNITS; // 10_000_000_000
-    pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
-    pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
+    pub const EXISTENTIAL_DEPOSIT: Balance = 500;
 }
 
 /// Time and block constants
@@ -50,17 +44,4 @@ pub mod time {
     pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
     pub const HOURS: BlockNumber = MINUTES * 60;
     pub const DAYS: BlockNumber = HOURS * 24;
-    pub const WEEKS: BlockNumber = DAYS * 7;
-
-    // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
-    //       Attempting to do so will brick block production.
-    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
-    pub const EPOCH_DURATION_IN_SLOTS: u64 = {
-        const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
-
-        (EPOCH_DURATION_IN_BLOCKS as f64 * SLOT_FILL_RATE) as u64
-    };
-
-    // 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
-    pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }

@@ -177,7 +177,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
                     .expect("Genesis block exists; qed");
                 let call = Call::System(SystemCall::remark { remark: vec![] });
                 let bob = Sr25519Keyring::Bob.pair();
-                let period = runtime::BlockHashCount::get()
+                let period = gear_runtime_common::BlockHashCount::get()
                     .checked_next_power_of_two()
                     .map(|c| c / 2)
                     .unwrap_or(2) as u64;
@@ -252,7 +252,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
                     value: EXISTENTIAL_DEPOSIT,
                 });
                 let bob = Sr25519Keyring::Bob.pair();
-                let period = runtime::BlockHashCount::get()
+                let period = gear_runtime_common::BlockHashCount::get()
                     .checked_next_power_of_two()
                     .map(|c| c / 2)
                     .unwrap_or(2) as u64;
