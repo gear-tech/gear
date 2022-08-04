@@ -4434,7 +4434,7 @@ fn missing_functions_are_not_executed() {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -4523,7 +4523,7 @@ fn missing_handle_is_not_executed() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let program_id = GearPallet::<Test>::submit_program(
+        let program_id = GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             ProgramCodeKind::Custom(wat).to_bytes(),
             vec![],
