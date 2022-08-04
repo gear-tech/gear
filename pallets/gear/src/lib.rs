@@ -622,6 +622,8 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, String> {
+            log::debug!("\n===== CALCULATE GAS INFO =====\n");
+            log::debug!("\n--- FIRST TRY ---\n");
             let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
@@ -638,7 +640,9 @@ pub mod pallet {
                 })
             })?;
 
-            Self::run_with_ext_copy(|| {
+            log::debug!("\n--- SECOND TRY ---\n");
+
+            let res = Self::run_with_ext_copy(|| {
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
@@ -664,7 +668,11 @@ pub mod pallet {
                     String::from_utf8(e)
                         .unwrap_or_else(|_| String::from("Failed to parse error to string"))
                 })
-            })
+            });
+
+            log::debug!("\n==============================\n");
+
+            res
         }
 
         pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
