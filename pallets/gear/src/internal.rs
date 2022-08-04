@@ -310,11 +310,13 @@ where
             unreachable!("Failed to figure out correct wait hold bound");
         }
 
+        // Locking funds for holding.
+        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
         let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: Lock funds for holding here (issue #1173).
 
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
@@ -354,6 +356,10 @@ where
         (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
+        // Unlocking all funds, that were locked for storing.
+        GasHandlerOf::<T>::unlock_all(waitlisted.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         // Charging for holding.
         Self::charge_for_hold(
             waitlisted.id(),
