@@ -420,12 +420,17 @@ proptest! {
         assert_eq!(gas_tree_ids, BTreeSet::from_iter(node_ids));
 
         let mut rest_value = 0;
+        let mut rest_lock = 0;
         for (node_id, node) in gas_tree_node_clone() {
             // All nodes from one tree (forest) have the same origin
             assert_ok!(Gas::get_external(node_id), external);
 
             if let Some(value) = node.value() {
                 rest_value += value;
+            }
+
+            if let Some(lock) = node.lock() {
+                rest_lock += lock;
             }
 
             // Check property: all existing specified and unspecified nodes have a parent in a tree
@@ -484,7 +489,7 @@ proptest! {
 
         if !gas_tree_ids.is_empty() {
             // Check trees imbalance
-            assert!(max_balance == spent + rest_value + caught)
+            assert_eq!(max_balance, spent + rest_value + caught + rest_lock);
         }
     }
 
