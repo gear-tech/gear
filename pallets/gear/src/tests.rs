@@ -3359,8 +3359,6 @@ fn program_messages_to_paused_program_skipped() {
 }
 
 #[test]
-// Panic occurs due to already wasted gas, we cant pay rent: burn from gas node.
-#[should_panic(expected = "internal error: entered unreachable code: GasTree corrupted!")]
 fn locking_gas_for_waitlist() {
     use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
     use demo_gasless_wasting::{InputArgs, WASM_BINARY as GASLESS_WASTING_BINARY};
