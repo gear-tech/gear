@@ -18,7 +18,7 @@
 
 //! Message processing module.
 
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -95,14 +95,6 @@ impl DispatchKind {
     /// Check if kind is signal.
     pub fn is_signal(&self) -> bool {
         matches!(self, Self::Signal)
-    }
-
-    /// Functions that user is allowed to call
-    pub fn allowed_funcs(&self) -> BTreeSet<&'static str> {
-        match self {
-            DispatchKind::Signal => ["gr_read", "gr_wake"].into(),
-            _ => BTreeSet::default(),
-        }
     }
 }
 
