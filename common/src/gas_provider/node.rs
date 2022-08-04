@@ -28,6 +28,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     External {
         id: ExternalId,
         value: Balance,
+        lock: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -49,6 +50,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     SpecifiedLocal {
         parent: Id,
         value: Balance,
+        lock: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
@@ -57,7 +59,7 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// so relies on its `parent`.
     ///
     /// Such nodes don't have children references.
-    UnspecifiedLocal { parent: Id },
+    UnspecifiedLocal { parent: Id, lock: Balance },
 }
 
 /// Children references convenience struct
@@ -75,6 +77,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         Self::External {
             id: origin,
             value,
+            lock: Zero::zero(),
             refs: Default::default(),
             consumed: false,
         }
@@ -98,16 +101,6 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Decreases node's unspec refs, if it can have any
     pub fn decrease_unspec_refs(&mut self) {
         self.adjust_refs(false, false);
-    }
-
-    /// Get's a mutable access to node's inner gas balance, if it can have any
-    pub fn value_mut(&mut self) -> Option<&mut Balance> {
-        match self {
-            Self::External { ref mut value, .. }
-            | Self::ReservedLocal { ref mut value, .. }
-            | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
-            Self::UnspecifiedLocal { .. } => None,
-        }
     }
 
     /// Marks the node as consumed, if it has the flag
@@ -160,6 +153,36 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         }
     }
 
+    /// Get's a mutable access to node's inner gas balance, if it can have any
+    pub fn value_mut(&mut self) -> Option<&mut Balance> {
+        match self {
+            Self::External { ref mut value, .. }
+            | Self::ReservedLocal { ref mut value, .. }
+            | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
+            Self::UnspecifiedLocal { .. } => None,
+        }
+    }
+
+    /// Returns node's locked gas balance, if it can have any.
+    pub fn lock(&self) -> Option<Balance> {
+        match self {
+            Self::External { lock, .. }
+            | Self::UnspecifiedLocal { lock, .. }
+            | Self::SpecifiedLocal { lock, .. } => Some(*lock),
+            Self::ReservedLocal { .. } => None,
+        }
+    }
+
+    /// Get's a mutable access to node's locked gas balance, if it can have any.
+    pub fn lock_mut(&mut self) -> Option<&mut Balance> {
+        match self {
+            Self::External { ref mut lock, .. }
+            | Self::UnspecifiedLocal { ref mut lock, .. }
+            | Self::SpecifiedLocal { ref mut lock, .. } => Some(lock),
+            Self::ReservedLocal { .. } => None,
+        }
+    }
+
     /// Returns node's parent, if it can have any.
     ///
     /// That is, `GasNode::External` and `GasNode::ReservedLocal` nodes
@@ -168,7 +191,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     pub fn parent(&self) -> Option<Id> {
         match self {
             Self::External { .. } | Self::ReservedLocal { .. } => None,
-            Self::SpecifiedLocal { parent, .. } | Self::UnspecifiedLocal { parent } => {
+            Self::SpecifiedLocal { parent, .. } | Self::UnspecifiedLocal { parent, .. } => {
                 Some(*parent)
             }
         }
