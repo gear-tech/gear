@@ -1,12 +1,12 @@
 use super::{
 	AccountId, Balances, Call, Event, Origin, ParachainInfo, ParachainSystem, PolkadotXcm, Runtime,
-	WeightToFee, XcmpQueue,
+	XcmpQueue, Balance
 };
 use core::marker::PhantomData;
 use frame_support::{
 	log, match_types, parameter_types,
 	traits::{Everything, Nothing},
-	weights::Weight,
+	weights::{Weight, IdentityFee},
 };
 use pallet_xcm::XcmPassthrough;
 use polkadot_parachain::primitives::Sibling;
@@ -175,7 +175,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader =
-		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>;
+		UsingComponents<IdentityFee<Balance>, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = PolkadotXcm;
 	type AssetTrap = PolkadotXcm;
 	type AssetClaims = PolkadotXcm;

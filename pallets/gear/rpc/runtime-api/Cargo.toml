@@ -8,9 +8,9 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-sp-api = { version = '4.0.0-dev', git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-core = { version = '6.0.0', git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-std = { version = '4.0.0-dev', git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-api = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+sp-core = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+sp-std = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
 pallet-gear = { version = "2.0.0", default-features = false, path = "../../../gear" }
 
 [features]

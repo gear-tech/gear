@@ -515,37 +515,39 @@ construct_runtime!(
         NodeBlock = opaque::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system = 0,
-        ParachainSystem: cumulus_pallet_parachain_system = 1,
-        Timestamp: pallet_timestamp = 2,
-        ParachainInfo: parachain_info = 3,
+        System: frame_system::{Pallet, Call, Config, Storage, Event<T>} = 0,
+        ParachainSystem: cumulus_pallet_parachain_system::{
+			Pallet, Call, Config, Storage, Inherent, Event<T>, ValidateUnsigned,
+		} = 1,
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
+        ParachainInfo: parachain_info::{Pallet, Storage, Config} = 3,
 
-        Balances: pallet_balances = 10,
-        TransactionPayment: pallet_transaction_payment = 11,
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 10,
+        TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 11,
 
-        Authorship: pallet_authorship = 20,
-        CollatorSelection: pallet_collator_selection = 21,
-        Session: pallet_session = 22,
-        Aura: pallet_aura = 23,
-        AuraExt: cumulus_pallet_aura_ext = 24,
+        Authorship: pallet_authorship::{Pallet, Call, Storage} = 20,
+        CollatorSelection: pallet_collator_selection::{Pallet, Call, Storage, Event<T>, Config<T>} = 21,
+        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 22,
+        Aura: pallet_aura::{Pallet, Storage, Config<T>} = 23,
+        AuraExt: cumulus_pallet_aura_ext::{Pallet, Storage, Config} = 24,
 
-        XcmpQueue: cumulus_pallet_xcmp_queue = 30,
-        PolkadotXcm: pallet_xcm = 31,
-        CumulusXcm: cumulus_pallet_xcm = 32,
-        DmpQueue: cumulus_pallet_dmp_queue = 33,
+        XcmpQueue: cumulus_pallet_xcmp_queue::{Pallet, Call, Storage, Event<T>} = 30,
+        PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin, Config} = 31,
+        CumulusXcm: cumulus_pallet_xcm::{Pallet, Event<T>, Origin} = 32,
+        DmpQueue: cumulus_pallet_dmp_queue::{Pallet, Call, Storage, Event<T>} = 33,
 
-        Sudo: pallet_sudo = 40,
-        Utility: pallet_utility = 41,
+        Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>} = 40,
+        Utility: pallet_utility::{Pallet, Call, Storage, Event} = 41,
 
-        GearProgram: pallet_gear_program = 50,
-        GearMessenger: pallet_gear_messenger = 51,
-        GearScheduler: pallet_gear_scheduler = 52,
-        GearGas: pallet_gear_gas = 53,
-        Gear: pallet_gear = 54,
-        GearPayment: pallet_gear_payment = 55,
+        GearProgram: pallet_gear_program::{Pallet, Call, Storage, Event<T>} = 50,
+        GearMessenger: pallet_gear_messenger::{Pallet, Storage} = 51,
+        GearScheduler: pallet_gear_scheduler::{Pallet, Storage} = 52,
+        GearGas: pallet_gear_gas::{Pallet, Storage} = 53,
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>} = 54,
+        GearPayment: pallet_gear_payment::{Pallet, Storage} = 55,
 
         // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug = 56,
+        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>} = 56,
     }
 );
 
