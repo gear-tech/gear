@@ -98,13 +98,10 @@ impl DispatchKind {
     }
 
     /// Functions that user is allowed to call
-    ///
-    /// Return `None` if every function is allowed
-    /// Return empty set if none of functions is allowed
-    pub fn allowed_funcs(&self) -> Option<BTreeSet<&'static str>> {
+    pub fn allowed_funcs(&self) -> BTreeSet<&'static str> {
         match self {
-            DispatchKind::Signal => Some(["gr_read", "gr_wake"].into()),
-            _ => None,
+            DispatchKind::Signal => ["gr_read", "gr_wake"].into(),
+            _ => BTreeSet::default(),
         }
     }
 }
