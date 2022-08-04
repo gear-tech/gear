@@ -159,7 +159,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
 
         // rounding error only arises for calls that do not affect MQ
         let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
+            &Call::Gear(pallet_gear::Call::claim_value {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
@@ -292,7 +292,7 @@ fn mq_size_not_affecting_fee_works() {
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
         let call: &<Test as frame_system::Config>::Call =
-            &Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
+            &Call::Gear(pallet_gear::Call::claim_value {
                 message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
             });
 
@@ -383,7 +383,7 @@ fn query_info_and_fee_details_work() {
         gas_limit: 100_000,
         value: 0,
     });
-    let call_not_affecting_mq = Call::Gear(pallet_gear::Call::claim_value_from_mailbox {
+    let call_not_affecting_mq = Call::Gear(pallet_gear::Call::claim_value {
         message_id: 1.into(),
     });
     let extra = ();

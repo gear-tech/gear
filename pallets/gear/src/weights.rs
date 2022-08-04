@@ -39,9 +39,10 @@ pub trait WeightInfo {
 	fn grow_cost() -> Weight;
 	fn initial_cost() -> Weight;
 	fn load_cost() -> Weight;
-	fn claim_value_from_mailbox() -> Weight;
-	fn submit_code(c: u32, ) -> Weight;
-	fn submit_program(c: u32, s: u32, ) -> Weight;
+	fn claim_value() -> Weight;
+	fn upload_code(c: u32, ) -> Weight;
+	fn create_program(s: u32, ) -> Weight;
+	fn upload_program(c: u32, s: u32, ) -> Weight;
 	fn send_message(p: u32, ) -> Weight;
 	fn send_reply(p: u32, ) -> Weight;
 	fn initial_allocation(q: u32, ) -> Weight;
@@ -148,19 +149,26 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	fn load_cost() -> Weight {
 		T::DbWeight::get().reads(1 as Weight)
 	}
-	fn claim_value_from_mailbox() -> Weight {
+	fn claim_value() -> Weight {
 		(116_148_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
-	fn submit_code(c: u32, ) -> Weight {
+	fn upload_code(c: u32, ) -> Weight {
 		(97_256_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((51_000 as Weight).saturating_mul(c as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
-	fn submit_program(c: u32, s: u32, ) -> Weight {
+	fn create_program(s: u32, ) -> Weight {
+		  (75_038_000 as Weight)
+			// Standard Error: 0
+			    .saturating_add((3_000 as Weight).saturating_mul(s as Weight))
+			    .saturating_add(T::DbWeight::get().reads(10 as Weight))
+			    .saturating_add(T::DbWeight::get().writes(8 as Weight))
+	}
+	fn upload_program(c: u32, s: u32, ) -> Weight {
 		(423_368_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((49_000 as Weight).saturating_mul(c as Weight))
@@ -675,19 +683,26 @@ impl WeightInfo for () {
 	fn load_cost() -> Weight {
 		RocksDbWeight::get().reads(1 as Weight)
 	}
-	fn claim_value_from_mailbox() -> Weight {
+	fn claim_value() -> Weight {
 		(116_148_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
 	}
-	fn submit_code(c: u32, ) -> Weight {
+	fn upload_code(c: u32, ) -> Weight {
 		(97_256_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((51_000 as Weight).saturating_mul(c as Weight))
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
-	fn submit_program(c: u32, s: u32, ) -> Weight {
+	fn create_program(s: u32, ) -> Weight {
+		  (75_038_000 as Weight)
+			// Standard Error: 0
+			    .saturating_add((3_000 as Weight).saturating_mul(s as Weight))
+			    .saturating_add(RocksDbWeight::get().reads(10 as Weight))
+			    .saturating_add(RocksDbWeight::get().writes(8 as Weight))
+	}
+	fn upload_program(c: u32, s: u32, ) -> Weight {
 		(423_368_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((49_000 as Weight).saturating_mul(c as Weight))
