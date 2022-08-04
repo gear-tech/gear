@@ -24,20 +24,20 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 gear-core = { path = "../../core" }
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-support = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+frame-system = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+frame-benchmarking = { git = "https://github.com/gear-tech/substrate", default-features = false, optional = true, branch = "polkagear3000-v0.9.26" }
+sp-std = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+sp-runtime = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+pallet-balances = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
 
 [dev-dependencies]
 serde = "1.0.141"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-io = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+pallet-timestamp = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
 
 [features]
 default = ['std']
@@ -48,6 +48,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
+	"sp-io/std",
 	"sp-std/std",
 	"sp-runtime/std",
 	"pallet-balances/std",
