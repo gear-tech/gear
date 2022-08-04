@@ -660,27 +660,28 @@ where
         }
 
         // Taking value provider for this node.
-        let (mut upstream_node, node_id) = Self::node_with_value(node)?;
+        let (mut ancestor_node, ancestor_id) = Self::node_with_value(node)?;
 
         // Mutating value of provider.
-        let upstream_node_value = upstream_node
+        let ancestor_node_value = ancestor_node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
-        if *upstream_node_value < amount {
+        if *ancestor_node_value < amount {
             return Err(InternalError::insufficient_balance().into());
         }
 
-        *upstream_node_value = upstream_node_value.saturating_sub(amount);
+        *ancestor_node_value = ancestor_node_value.saturating_sub(amount);
 
         // If provider is a parent, we save it to storage, otherwise mutating
         // current node further, saving it afterward.
-        let mut node = if let Some(upstream_id) = node_id {
-            StorageMap::insert(upstream_id, upstream_node);
+        let mut node = if let Some(ancestor_id) = ancestor_id {
+            StorageMap::insert(ancestor_id, ancestor_node);
 
+            // Unreachable error: the same queried at the beginning of function.
             Self::get_node(key).ok_or_else(InternalError::node_not_found)?
         } else {
-            upstream_node
+            ancestor_node
         };
 
         let node_lock = node
@@ -737,15 +738,15 @@ where
         *node_lock = node_lock.saturating_sub(amount);
 
         // Taking value provider for this node.
-        let (upstream_node, upstream_id) = Self::node_with_value(node.clone())?;
+        let (ancestor_node, ancestor_id) = Self::node_with_value(node.clone())?;
 
         // Mutating value of provider.
         // If provider is a current node, we save it to storage, otherwise mutating
         // provider node further, saving it afterward.
-        let (mut ancestor_node, ancestor_id) = if let Some(upstream_id) = upstream_id {
+        let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
             StorageMap::insert(key, node);
 
-            (upstream_node, upstream_id)
+            (ancestor_node, ancestor_id)
         } else {
             (node, key)
         };
