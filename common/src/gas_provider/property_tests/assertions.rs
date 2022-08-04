@@ -33,6 +33,7 @@ pub(super) fn assert_removed_nodes_props(
     }
     assert_not_removed_node_type(consumed, remaining_nodes);
     assert_unspec_nodes_amount(&removed_nodes);
+    assert_removed_nodes_have_no_lock(&removed_nodes);
     assert_removed_nodes_are_consumed(consumed, marked_consumed_nodes, &removed_nodes);
     assert_removed_nodes_form_path(consumed, remaining_nodes, removed_nodes);
 }
@@ -78,7 +79,7 @@ fn assert_unspec_nodes_amount(removed_nodes: &RemovedNodes) {
 fn assert_removed_nodes_are_consumed(
     consumed: Key,
     marked_consumed_nodes: &BTreeSet<Key>,
-    removed_nodes: &BTreeMap<Key, GasNode>,
+    removed_nodes: &RemovedNodes,
 ) {
     for (id, node) in removed_nodes {
         if *id != consumed {
@@ -90,6 +91,19 @@ fn assert_removed_nodes_are_consumed(
 
         // Check that they were explicitly consumed, not automatically.
         assert!(marked_consumed_nodes.contains(id))
+    }
+}
+
+// Check that removed nodes have no locked value.
+fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
+    for node in removed_nodes.values() {
+        let lock = node.lock();
+
+        if node.is_reserved_local() {
+            assert!(lock.is_none());
+        } else {
+            assert_eq!(lock, Some(0));
+        }
     }
 }
 
