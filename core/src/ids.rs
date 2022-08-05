@@ -193,6 +193,9 @@ impl MessageId {
 declare_id!(ProgramId: "Program identifier");
 
 impl ProgramId {
+    /// System program ID
+    pub const SYSTEM: Self = Self([0; HASH_LENGTH]);
+
     /// Generate ProgramId from given CodeId and salt
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
         let code_id = code_id.as_ref();

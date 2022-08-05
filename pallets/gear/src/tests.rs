@@ -25,7 +25,7 @@ use crate::{
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, Error, Event, GasAllowanceOf,
     GasHandlerOf, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, QueueOf,
-    ReplyMessage, WaitlistOf, H256,
+    ReplyMessage, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -4523,9 +4523,8 @@ fn check_signal_executed() {
 
         let trap = b"TEST".to_vec();
         let message_id = get_last_message_id();
-        let source = ProgramId::from_origin(H256::random());
         let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
-            .into_signal_dispatch(source, pid, message_id)
+            .into_signal_dispatch(pid, message_id)
             .into_stored();
 
         assert_ok!(CurrencyOf::<Test>::reserve(&USER_1, 50_000_000_000));

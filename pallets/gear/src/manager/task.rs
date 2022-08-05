@@ -101,7 +101,7 @@ where
             //
             // So, the message id of this reply message will not be duplicated.
             let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
-                .into_signal_dispatch(program_id, waitlisted.source(), message_id)
+                .into_signal_dispatch(waitlisted.source(), message_id)
                 .into_stored();
 
             // Splitting gas for newly created reply message.

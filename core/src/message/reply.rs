@@ -121,13 +121,12 @@ impl ReplyMessage {
     /// Convert ReplyMessage into signal Dispatch.
     pub fn into_signal_dispatch(
         self,
-        source: ProgramId,
         destination: ProgramId,
         origin_msg_id: MessageId,
     ) -> Dispatch {
         Dispatch::new(
             DispatchKind::Signal,
-            self.into_message(source, destination, origin_msg_id),
+            self.into_message(ProgramId::SYSTEM, destination, origin_msg_id),
         )
     }
 
