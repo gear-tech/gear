@@ -13,8 +13,8 @@ rust-version = "1.56"
 gear-core = { path = "../core" }
 log = { version = "0.4.17", optional = true }
 libc = { version = "0.2.101", default-features = false }
-sp-runtime-interface = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-sp-std = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 gear-lazy-pages = { path = "../lazy-pages", optional = true }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false }
 derive_more = "0.99.17"

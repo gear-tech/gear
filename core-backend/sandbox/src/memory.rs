@@ -34,14 +34,16 @@ impl MemoryWrap {
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
     fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
-        self.0
-            .grow(pages.0)
-            .map(|prev| prev.into())
-            .map_err(|_| Error::OutOfBounds)
+        // self.0
+        //     .grow(pages.0)
+        //     .map(|prev| prev.into())
+        //     .map_err(|_| Error::OutOfBounds)
+        unimplemented!("{pages:?}")
     }
 
     fn size(&self) -> WasmPageNumber {
-        self.0.size().into()
+        // self.0.size().into()
+        unimplemented!()
     }
 
     fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
@@ -57,11 +59,13 @@ impl Memory for MemoryWrap {
     }
 
     fn data_size(&self) -> usize {
-        self.0.size() as usize * WasmPageNumber::size()
+        // self.0.size() as usize * WasmPageNumber::size()
+        unimplemented!()
     }
 
     unsafe fn get_buffer_host_addr_unsafe(&self) -> HostPointer {
-        self.0.get_buff()
+        // self.0.get_buff()
+        unimplemented!()
     }
 }
 

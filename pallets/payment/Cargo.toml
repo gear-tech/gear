@@ -23,22 +23,22 @@ primitive-types = { version = "0.11.1", default-features = false, features = ["s
 common = { package = "gear-common", path = "../../common", default-features = false }
 
 # Substrate deps
-frame-benchmarking = { git = "https://github.com/gear-tech/substrate", default-features = false, optional = true, branch = "polkagear3000-v0.9.26" }
-frame-support = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-frame-system = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-sp-runtime = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-sp-std = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-pallet-authorship = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-pallet-balances = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-pallet-transaction-payment = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true, branch = "polkadot-v0.9.26" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 
 [dev-dependencies]
 serde = "1.0.141"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-sp-io = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
-pallet-timestamp = { git = "https://github.com/gear-tech/substrate", default-features = false, branch = "polkagear3000-v0.9.26" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 pallet-gear = { path = "../gear" }
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }
