@@ -22,28 +22,44 @@ use codec::MaxEncodedLen;
 /// Node of the ['Tree'] gas tree
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
-    /// A root node for each gas tree. Usually created when a new gas-ful logic is started (i.e., user's message is sent).
+    /// A root node for each gas tree.
+    ///
+    /// Usually created when a new gas-ful logic started (i.e., message sent).
     External {
         id: ExternalId,
         value: Balance,
+        lock: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
-    /// A node created by "cutting" value from some other tree node. Such node types are independent and aren't
-    /// part of the tree structure (not node's parent, not node's child).
+
+    /// A node created by "cutting" value from some other tree node.
+    ///
+    /// Such node types are independent and aren't part of the tree structure
+    /// (not node's parent, not node's child).
     ReservedLocal { id: ExternalId, value: Balance },
-    /// A node, which is a part of the tree structure (can be a parent and/or a child). As well as `External` node,
-    /// it has an internal balance and can exist while being consumed (for more info read [`Tree::consume`] implementor docs).
-    /// However, it has a `parent` field pointing to the node from which that one was created.
+
+    /// A node, which is a part of the tree structure, that can be
+    /// a parent and/or a child.
+    ///
+    /// As well as `External` node, it has an internal balance and can exist
+    /// while being consumed (see [`Tree::consume`] for details).
+    ///
+    /// However, it has a `parent` field pointing to the node,
+    /// from which that one was created.
     SpecifiedLocal {
         parent: Id,
         value: Balance,
+        lock: Balance,
         refs: ChildrenRefs,
         consumed: bool,
     },
-    /// Pretty same as `SpecifiedLocal`, but doesn't have internal balance, so relies on its `parent`. Also such
-    /// nodes don't have children references.
-    UnspecifiedLocal { parent: Id },
+
+    /// Pretty same as `SpecifiedLocal`, but doesn't have internal balance,
+    /// so relies on its `parent`.
+    ///
+    /// Such nodes don't have children references.
+    UnspecifiedLocal { parent: Id, lock: Balance },
 }
 
 /// Children references convenience struct
@@ -61,6 +77,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         Self::External {
             id: origin,
             value,
+            lock: Zero::zero(),
             refs: Default::default(),
             consumed: false,
         }
@@ -86,16 +103,6 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         self.adjust_refs(false, false);
     }
 
-    /// Get's a mutable access to node's inner gas balance, if it can have any
-    pub fn inner_value_mut(&mut self) -> Option<&mut Balance> {
-        match self {
-            Self::External { ref mut value, .. }
-            | Self::ReservedLocal { ref mut value, .. }
-            | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
-            Self::UnspecifiedLocal { .. } => None,
-        }
-    }
-
     /// Marks the node as consumed, if it has the flag
     pub fn mark_consumed(&mut self) {
         if let Self::External { consumed, .. } | Self::SpecifiedLocal { consumed, .. } = self {
@@ -105,8 +112,8 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
 
     /// Returns whether the node is marked consumed or not
     ///
-    /// Only `GasNode::External` and `GasNode::SpecifiedLocal` can be marked consumed and not deleted.
-    /// For more info read [`Tree::consume`] implementor docs.
+    /// Only `GasNode::External` and `GasNode::SpecifiedLocal` can be marked
+    /// consumed and not deleted. See [`Tree::consume`] for details.
     pub fn is_consumed(&self) -> bool {
         if let Self::External { consumed, .. } | Self::SpecifiedLocal { consumed, .. } = self {
             *consumed
@@ -115,13 +122,17 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         }
     }
 
-    /// Returns whether the node is patron or not
+    /// Returns whether the node is patron or not.
     ///
-    /// The flag signals whether the node isn't available for the gas to be spent from it. These are nodes that:
+    /// The flag signals whether the node isn't available
+    /// for the gas to be spent from it.
+    ///
+    /// These are nodes that have one of the following requirements:
     /// 1. Have unspec refs (regardless of being consumed).
     /// 2. Are not consumed.
     ///
-    /// Patron nodes are those on which other nodes of the tree rely (including the self node).
+    /// Patron nodes are those on which other nodes of the tree rely
+    /// (including the self node).
     pub fn is_patron(&self) -> bool {
         if let Self::External { refs, consumed, .. } | Self::SpecifiedLocal { refs, consumed, .. } =
             self
@@ -133,12 +144,42 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     }
 
     /// Returns node's inner gas balance, if it can have any
-    pub fn inner_value(&self) -> Option<Balance> {
+    pub fn value(&self) -> Option<Balance> {
         match self {
             Self::External { value, .. }
             | Self::ReservedLocal { value, .. }
             | Self::SpecifiedLocal { value, .. } => Some(*value),
             Self::UnspecifiedLocal { .. } => None,
+        }
+    }
+
+    /// Get's a mutable access to node's inner gas balance, if it can have any
+    pub fn value_mut(&mut self) -> Option<&mut Balance> {
+        match self {
+            Self::External { ref mut value, .. }
+            | Self::ReservedLocal { ref mut value, .. }
+            | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
+            Self::UnspecifiedLocal { .. } => None,
+        }
+    }
+
+    /// Returns node's locked gas balance, if it can have any.
+    pub fn lock(&self) -> Option<Balance> {
+        match self {
+            Self::External { lock, .. }
+            | Self::UnspecifiedLocal { lock, .. }
+            | Self::SpecifiedLocal { lock, .. } => Some(*lock),
+            Self::ReservedLocal { .. } => None,
+        }
+    }
+
+    /// Get's a mutable access to node's locked gas balance, if it can have any.
+    pub fn lock_mut(&mut self) -> Option<&mut Balance> {
+        match self {
+            Self::External { ref mut lock, .. }
+            | Self::UnspecifiedLocal { ref mut lock, .. }
+            | Self::SpecifiedLocal { ref mut lock, .. } => Some(lock),
+            Self::ReservedLocal { .. } => None,
         }
     }
 
@@ -150,7 +191,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     pub fn parent(&self) -> Option<Id> {
         match self {
             Self::External { .. } | Self::ReservedLocal { .. } => None,
-            Self::SpecifiedLocal { parent, .. } | Self::UnspecifiedLocal { parent } => {
+            Self::SpecifiedLocal { parent, .. } | Self::UnspecifiedLocal { parent, .. } => {
                 Some(*parent)
             }
         }

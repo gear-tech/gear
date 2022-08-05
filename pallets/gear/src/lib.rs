@@ -121,6 +121,8 @@ pub struct GasInfo {
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
+    /// The value may be returned if a program happens to be executed the second or next time in a block.
+    pub may_be_returned: u64,
 }
 
 #[frame_support::pallet]
@@ -139,7 +141,7 @@ pub mod pallet {
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        Ext,
+        Ext, PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -377,7 +379,11 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
-        /// The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the
+        /// Code not exists.
+        ///
+        /// Occurs when trying to get a program code from storage, that doesn't exist.
+        CodeNotExists,
+        /// The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the
         /// current schedule.
         CodeTooLarge,
         /// Failed to create a program.
@@ -463,7 +469,7 @@ pub mod pallet {
     {
         /// Submit program for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
-        pub fn submit_program_raw(
+        pub fn upload_program_raw(
             origin: OriginFor<T>,
             code: Vec<u8>,
             salt: Vec<u8>,
@@ -519,7 +525,7 @@ pub mod pallet {
 
             let code_id = code_and_id.code_id();
 
-            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
                 // TODO: replace this temporary (`None`) value
@@ -565,7 +571,7 @@ pub mod pallet {
 
         /// Submit code for benchmarks which does not check nor instrument the code.
         #[cfg(feature = "runtime-benchmarks")]
-        pub fn submit_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+        pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
             let schedule = T::Schedule::get();
@@ -643,11 +649,15 @@ pub mod pallet {
                 )
                 .map(
                     |GasInfo {
-                         reserved, burned, ..
+                         reserved,
+                         burned,
+                         may_be_returned,
+                         ..
                      }| GasInfo {
                         min_limit,
                         reserved,
                         burned,
+                        may_be_returned,
                     },
                 )
                 .map_err(|e| {
@@ -697,9 +707,9 @@ pub mod pallet {
             match kind {
                 HandleKind::Init(code) => {
                     let salt = b"calculate_gas_salt".to_vec();
-                    Self::submit_program(who.into(), code, salt, payload, initial_gas, value)
+                    Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|e| {
-                            format!("Internal error: submit_program failed with '{:?}'", e)
+                            format!("Internal error: upload_program failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
                 }
@@ -757,6 +767,7 @@ pub mod pallet {
             let mut min_limit = 0;
             let mut reserved = 0;
             let mut burned = 0;
+            let mut may_be_returned = 0;
 
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -769,46 +780,92 @@ pub mod pallet {
                     cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
-                    .get_actor(actor_id, !lazy_pages_enabled)
+                    .get_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
-                let (gas_limit, _) = GasHandlerOf::<T>::get_limit(dispatch_id)
-                    .ok()
-                    .flatten()
-                    .ok_or_else(|| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?;
+                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
+                    .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
+                let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
                 let message_execution_context = MessageExecutionContext {
                     actor,
                     dispatch: queued_dispatch.into_incoming(gas_limit),
                     origin: ProgramId::from_origin(source),
                     gas_allowance: u64::MAX,
+                    subsequent_execution,
                 };
 
-                let journal = if lazy_pages_enabled {
-                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                        &block_config,
-                        message_execution_context,
-                    )
-                } else {
-                    core_processor::process::<Ext, SandboxEnvironment>(
-                        &block_config,
-                        message_execution_context,
-                    )
-                };
+                let may_be_returned_context = (!subsequent_execution
+                    && actor_id == main_program_id)
+                    .then(|| MessageExecutionContext {
+                        subsequent_execution: true,
+                        ..message_execution_context.clone()
+                    });
 
-                let get_main_limit = || {
-                    GasHandlerOf::<T>::get_limit(main_message_id).map_err(|_| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })
-                };
+                let journal =
+                    match core_processor::prepare(&block_config, message_execution_context) {
+                        PrepareResult::Ok {
+                            context,
+                            pages_with_data,
+                        } => {
+                            let memory_pages = if lazy_pages_enabled {
+                                Default::default()
+                            } else {
+                                match common::get_program_data_for_pages(
+                                    actor_id.into_origin(),
+                                    pages_with_data.iter(),
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!(
+                                            "Page data in storage is in invalid state: {}",
+                                            err
+                                        );
+                                        continue;
+                                    }
+                                }
+                            };
+
+                            ext_manager.insert_program_id_loaded_pages(actor_id);
+
+                            may_be_returned += may_be_returned_context
+                                .map(|c| {
+                                    let burned = match core_processor::prepare(&block_config, c) {
+                                        PrepareResult::Ok { context, .. } => {
+                                            context.gas_counter().burned()
+                                        }
+                                        _ => context.gas_counter().burned(),
+                                    };
+
+                                    context.gas_counter().burned() - burned
+                                })
+                                .unwrap_or(0);
+
+                            if lazy_pages_enabled {
+                                core_processor::process::<LazyPagesExt, SandboxEnvironment>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            } else {
+                                core_processor::process::<Ext, SandboxEnvironment>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
+                            }
+                        }
+                        PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                            journal
+                        }
+                    };
+
+                let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
                 let get_origin_msg_of = |msg_id| {
                     GasHandlerOf::<T>::get_origin_key(msg_id)
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
-                        .map(|v| v.unwrap_or(msg_id))
                 };
 
                 let from_main_chain =
@@ -818,29 +875,26 @@ pub mod pallet {
                 for note in journal {
                     core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                    if let Some((remaining_gas, _)) = get_main_limit()? {
+                    if let Some(remaining_gas) = get_main_limit() {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
                     }
 
                     match note {
                         JournalNote::SendDispatch { dispatch, .. } => {
-                            if from_main_chain(dispatch.id())? {
+                            let destination =
+                                T::AccountId::from_origin(dispatch.destination().into_origin());
+                            if MailboxOf::<T>::contains(&destination, &dispatch.id())
+                                && from_main_chain(dispatch.id())?
+                            {
                                 let gas_limit = dispatch
                                     .gas_limit()
-                                    .or_else(|| {
-                                        GasHandlerOf::<T>::get_limit(dispatch.id())
-                                            .ok()
-                                            .flatten()
-                                            .map(|(g, _)| g)
-                                    })
+                                    .or_else(|| GasHandlerOf::<T>::get_limit(dispatch.id()).ok())
                                     .ok_or_else(|| {
                                         b"Internal error: unable to get gas limit after execution"
                                             .to_vec()
                                     })?;
 
-                                if gas_limit >= T::MailboxThreshold::get() {
-                                    reserved = reserved.saturating_add(gas_limit);
-                                }
+                                reserved = reserved.saturating_add(gas_limit);
                             }
                         }
 
@@ -868,6 +922,7 @@ pub mod pallet {
                 min_limit,
                 reserved,
                 burned,
+                may_be_returned,
             })
         }
 
@@ -1041,20 +1096,12 @@ pub mod pallet {
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let opt_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+                    let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // Gas limit may not be found only for inexistent node.
-                    let (gas_limit, _) =
-                        opt_limit.unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let opt_external = GasHandlerOf::<T>::get_external(dispatch.id())
+                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-                    // External id may not be found only for inexistent node.
-                    let external = opt_external
-                        .unwrap_or_else(|| unreachable!("Non existent GasNode queried"));
 
                     log::debug!(
                         "QueueProcessing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
@@ -1129,24 +1176,9 @@ pub mod pallet {
                                 matches!(prog.state, ProgramState::Initialized),
                             );
 
-                            let pages_data = if lazy_pages_enabled {
-                                Default::default()
-                            } else {
-                                match common::get_program_data_for_pages(
-                                    dispatch.destination().into_origin(),
-                                    prog.pages_with_data.iter(),
-                                ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!("Cannot get data for program pages: {}", err);
-                                        continue;
-                                    }
-                                }
-                            };
-
                             Some(ExecutableActorData {
                                 program,
-                                pages_data,
+                                pages_with_data: prog.pages_with_data,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages
@@ -1170,28 +1202,60 @@ pub mod pallet {
                         ))
                         .unique_saturated_into();
 
+                    let program_id = dispatch.destination();
                     let message_execution_context = MessageExecutionContext {
                         actor: Actor {
                             balance,
-                            destination_program: dispatch.destination(),
+                            destination_program: program_id,
                             executable_data: active_actor_data,
                         },
                         dispatch: dispatch.into_incoming(gas_limit),
                         origin: ProgramId::from_origin(external.into_origin()),
                         gas_allowance: GasAllowanceOf::<T>::get(),
+                        subsequent_execution: ext_manager.program_pages_loaded(&program_id),
                     };
 
-                    let journal = if lazy_pages_enabled {
-                        core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                            &block_config,
-                            message_execution_context,
-                        )
-                    } else {
-                        core_processor::process::<Ext, SandboxEnvironment>(
-                            &block_config,
-                            message_execution_context,
-                        )
-                    };
+                    let journal =
+                        match core_processor::prepare(&block_config, message_execution_context) {
+                            PrepareResult::Ok {
+                                context,
+                                pages_with_data,
+                            } => {
+                                let memory_pages = if lazy_pages_enabled {
+                                    Default::default()
+                                } else {
+                                    match common::get_program_data_for_pages(
+                                        program_id.into_origin(),
+                                        pages_with_data.iter(),
+                                    ) {
+                                        Ok(data) => data,
+                                        Err(err) => {
+                                            log::error!("Cannot get data for program pages: {err}");
+                                            continue;
+                                        }
+                                    }
+                                };
+
+                                ext_manager.insert_program_id_loaded_pages(program_id);
+
+                                if lazy_pages_enabled {
+                                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
+                                        &block_config,
+                                        context,
+                                        memory_pages,
+                                    )
+                                } else {
+                                    core_processor::process::<Ext, SandboxEnvironment>(
+                                        &block_config,
+                                        context,
+                                        memory_pages,
+                                    )
+                                }
+                            }
+                            PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
+                                journal
+                            }
+                        };
 
                     core_processor::handle_journal(journal, &mut ext_manager);
 
@@ -1266,6 +1330,126 @@ pub mod pallet {
 
             Ok(code_and_id.into_parts().0)
         }
+
+        pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
+            let schedule = T::Schedule::get();
+
+            ensure!(
+                code.len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
+            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+                schedule.rules(module)
+            })
+            .map_err(|e| {
+                log::debug!("Code failed to load: {:?}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
+
+            ensure!(
+                code.code().len() as u32 <= schedule.limits.code_len,
+                Error::<T>::CodeTooLarge
+            );
+
+            Ok(CodeAndId::new(code))
+        }
+
+        pub(crate) fn check_gas_limit_and_value(
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> Result<(), DispatchError> {
+            // Checking that applied gas limit doesn't exceed block limit.
+            ensure!(
+                gas_limit <= BlockGasLimitOf::<T>::get(),
+                Error::<T>::GasLimitTooHigh
+            );
+
+            // Checking that applied value fits existence requirements:
+            // it should be zero or not less than existential deposit.
+            ensure!(
+                value.is_zero() || value >= CurrencyOf::<T>::minimum_balance(),
+                Error::<T>::ValueLessThanMinimal
+            );
+
+            Ok(())
+        }
+
+        pub(crate) fn init_packet(
+            who: T::AccountId,
+            code_id: CodeId,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> Result<InitPacket, DispatchError> {
+            let packet = InitPacket::new_with_gas(
+                code_id,
+                salt,
+                init_payload,
+                gas_limit,
+                value.unique_saturated_into(),
+            );
+
+            let program_id = packet.destination();
+            // Make sure there is no program with such id in program storage
+            ensure!(
+                !GearProgramPallet::<T>::program_exists(program_id),
+                Error::<T>::ProgramAlreadyExists
+            );
+
+            let reserve_fee = T::GasPrice::gas_price(gas_limit);
+
+            // First we reserve enough funds on the account to pay for `gas_limit`
+            // and to transfer declared value.
+            <T as Config>::Currency::reserve(&who, reserve_fee + value)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            Ok(packet)
+        }
+
+        pub(crate) fn do_create_program(
+            who: T::AccountId,
+            packet: InitPacket,
+        ) -> Result<(), DispatchError> {
+            let origin = who.clone().into_origin();
+
+            let message_id = Self::next_message_id(origin);
+
+            ExtManager::<T>::default().set_program(
+                packet.destination(),
+                packet.code_id(),
+                message_id,
+            );
+
+            // # Safety
+            //
+            // This is unreachable since the `message_id is new generated
+            // with `Self::next_message_id`.
+            let _ = GasHandlerOf::<T>::create(
+                who.clone(),
+                message_id,
+                packet.gas_limit().expect("Can't fail"),
+            );
+
+            let message = InitMessage::from_packet(message_id, packet);
+            let dispatch = message
+                .into_dispatch(ProgramId::from_origin(origin))
+                .into_stored();
+
+            let event = Event::MessageEnqueued {
+                id: dispatch.id(),
+                source: who,
+                destination: dispatch.destination(),
+                entry: Entry::Init,
+            };
+
+            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+
+            Self::deposit_event(event);
+
+            Ok(())
+        }
     }
 
     #[pallet::call]
@@ -1290,32 +1474,12 @@ pub mod pallet {
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::weight(
-            <T as Config>::WeightInfo::submit_code(code.len() as u32)
+            <T as Config>::WeightInfo::upload_code(code.len() as u32)
         )]
-        pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+        pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let schedule = T::Schedule::get();
-
-            ensure!(
-                code.len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-                schedule.rules(module)
-            })
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
-
-            ensure!(
-                code.code().len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code_with_metadata(Self::check_code(code)?, who.into_origin())?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -1338,7 +1502,7 @@ pub mod pallet {
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
         ///
-        /// There is the same guarantee here as in `submit_code`. That is, future program's
+        /// There is the same guarantee here as in `upload_code`. That is, future program's
         /// `code` and metadata are stored before message was added to the queue and processed.
         ///
         /// The origin must be Signed and the sender must have sufficient funds to pay
@@ -1367,9 +1531,9 @@ pub mod pallet {
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
         #[pallet::weight(
-            <T as Config>::WeightInfo::submit_program(code.len() as u32, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program(code.len() as u32, salt.len() as u32)
         )]
-        pub fn submit_program(
+        pub fn upload_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
             salt: Vec<u8>,
@@ -1379,72 +1543,24 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // Check that provided `gas_limit` value does not exceed the block gas limit
-            ensure!(
-                gas_limit <= BlockGasLimitOf::<T>::get(),
-                Error::<T>::GasLimitTooHigh
-            );
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
-            let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
-            // Check that provided `value` equals 0 or greater than existential deposit
-            ensure!(
-                0 == numeric_value || numeric_value >= minimum,
-                Error::<T>::ValueLessThanMinimal
-            );
-
-            let schedule = T::Schedule::get();
-
-            ensure!(
-                code.len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
-                schedule.rules(module)
-            })
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
-
-            ensure!(
-                code.code().len() as u32 <= schedule.limits.code_len,
-                Error::<T>::CodeTooLarge
-            );
-
-            let code_and_id = CodeAndId::new(code);
-
-            let packet = InitPacket::new_with_gas(
+            let code_and_id = Self::check_code(code)?;
+            let packet = Self::init_packet(
+                who.clone(),
                 code_and_id.code_id(),
                 salt,
                 init_payload,
                 gas_limit,
-                value.unique_saturated_into(),
-            );
+                value,
+            )?;
 
-            let program_id = packet.destination();
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id),
-                Error::<T>::ProgramAlreadyExists
-            );
+            if !T::CodeStorage::exists(code_and_id.code_id()) {
+                // By that call we follow the guarantee that we have in `Self::upload_code` -
+                // if there's code in storage, there's also metadata for it.
+                let code_hash =
+                    Self::set_code_with_metadata(code_and_id, who.clone().into_origin())?;
 
-            let reserve_fee = T::GasPrice::gas_price(gas_limit);
-
-            // First we reserve enough funds on the account to pay for `gas_limit`
-            // and to transfer declared value.
-            CurrencyOf::<T>::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let origin = who.clone().into_origin();
-
-            let code_id = code_and_id.code_id();
-
-            // By that call we follow the guarantee that we have in `Self::submit_code` -
-            // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(code_and_id, origin) {
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
                 // calculated one (issues #646 and #969).
@@ -1454,37 +1570,51 @@ pub mod pallet {
                 });
             }
 
-            let message_id = Self::next_message_id(origin);
+            Self::do_create_program(who, packet)?;
 
-            ExtManager::<T>::default().set_program(program_id, code_id, message_id);
+            Ok(().into())
+        }
 
-            // # Safety
-            //
-            // This is unreachable since the `message_id is new generated
-            // with `Self::next_message_id`.
-            GasHandlerOf::<T>::create(
-                who.clone(),
-                message_id,
-                packet.gas_limit().expect("Can't fail"),
-            )
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+        /// Creates program via `code_id` from storage.
+        ///
+        /// Parameters:
+        /// - `code_id`: wasm code id in the code storage.
+        /// - `salt`: randomness term (a seed) to allow programs with identical code
+        ///   to be created independently.
+        /// - `init_payload`: encoded parameters of the wasm module `init` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
+        ///
+        /// # NOTE
+        ///
+        /// For the details of this extrinsic, see `upload_code`.
+        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
+        pub fn create_program(
+            origin: OriginFor<T>,
+            code_id: CodeId,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
 
-            let message = InitMessage::from_packet(message_id, packet);
-            let dispatch = message
-                .into_dispatch(ProgramId::from_origin(origin))
-                .into_stored();
+            // Check if code exists.
+            if !T::CodeStorage::exists(code_id) {
+                return Err(Error::<T>::CodeNotExists.into());
+            }
 
-            let event = Event::MessageEnqueued {
-                id: dispatch.id(),
-                source: who,
-                destination: dispatch.destination(),
-                entry: Entry::Init,
-            };
+            // Check `gas_limit` and `value`
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
-            QueueOf::<T>::queue(dispatch).map_err(|_| Error::<T>::MessagesStorageCorrupted)?;
+            // Construct packet.
+            let packet =
+                Self::init_packet(who.clone(), code_id, salt, init_payload, gas_limit, value)?;
 
-            Self::deposit_event(event);
-
+            Self::do_create_program(who, packet)?;
             Ok(().into())
         }
 
@@ -1516,20 +1646,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             let origin = who.clone().into_origin();
 
-            let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
-            // Check that provided `gas_limit` value does not exceed the block gas limit
-            ensure!(
-                gas_limit <= BlockGasLimitOf::<T>::get(),
-                Error::<T>::GasLimitTooHigh
-            );
-
-            // Check that provided `value` equals 0 or greater than existential deposit
-            ensure!(
-                0 == numeric_value || numeric_value >= minimum,
-                Error::<T>::ValueLessThanMinimal
-            );
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
             let message = HandleMessage::from_packet(
                 Self::next_message_id(origin),
@@ -1622,18 +1739,7 @@ pub mod pallet {
             // Validating origin.
             let origin = ensure_signed(origin)?;
 
-            // Checking that applied gas limit doesn't exceed block limit.
-            ensure!(
-                gas_limit <= BlockGasLimitOf::<T>::get(),
-                Error::<T>::GasLimitTooHigh
-            );
-
-            // Checking that applied value fits existence requirements:
-            // it should be zero or not less than existential deposit.
-            ensure!(
-                value.is_zero() || value >= CurrencyOf::<T>::minimum_balance(),
-                Error::<T>::ValueLessThanMinimal
-            );
+            Self::check_gas_limit_and_value(gas_limit, value)?;
 
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();
@@ -1706,8 +1812,8 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
-        #[pallet::weight(<T as Config>::WeightInfo::claim_value_from_mailbox())]
-        pub fn claim_value_from_mailbox(
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value())]
+        pub fn claim_value(
             origin: OriginFor<T>,
             message_id: MessageId,
         ) -> DispatchResultWithPostInfo {

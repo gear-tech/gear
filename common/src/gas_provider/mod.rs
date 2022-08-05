@@ -39,10 +39,16 @@ pub use negative_imbalance::NegativeImbalance;
 pub use node::GasNode;
 pub use positive_imbalance::PositiveImbalance;
 
-/// Abstraction for a chain of value items each piece of which has an attributed owner and
-/// can be traced up to some root origin.
-/// The definition is largely inspired by the `frame_support::traits::Currency` -
-/// <https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs>,
+/// Simplified type for result of `GasTree::consume` call.
+pub type ConsumeResultOf<T> = Result<
+    Option<(<T as Tree>::NegativeImbalance, <T as Tree>::ExternalOrigin)>,
+    <T as Tree>::Error,
+>;
+
+/// Abstraction for a chain of value items each piece of which has an attributed
+/// owner and can be traced up to some root origin.
+///
+/// The definition is largely inspired by the `frame_support::traits::Currency`,
 /// however, the intended use is very close to the UTxO based ledger model.
 pub trait Tree {
     /// Type representing the external owner of a value (gas) item.
@@ -54,15 +60,17 @@ pub trait Tree {
     /// Type representing a quantity of value.
     type Balance;
 
-    /// Types to denote a result of some unbalancing operation - that is operations that create
-    /// inequality between the underlying value supply and some hypothetical "collateral" asset.
+    /// Types to denote a result of some unbalancing operation - that is
+    /// operations that create inequality between the underlying value
+    /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been created, which will eventually
-    /// lead to an increase in total supply.
+    /// `PositiveImbalance` indicates that some value has been created,
+    /// which will eventually lead to an increase in total supply.
     type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
 
-    /// `NegativeImbalance` indicates that some value has been removed from circulation
-    /// leading to a decrease in the total supply of the underlying value.
+    /// `NegativeImbalance` indicates that some value has been removed
+    /// from circulation leading to a decrease in the total supply
+    /// of the underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
 
     type InternalError: Error;
@@ -73,67 +81,79 @@ pub trait Tree {
     /// The total amount of value currently in circulation.
     fn total_supply() -> Self::Balance;
 
-    /// Increase the total issuance of the underlying value by creating some `amount` of it
-    /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
-    /// In case the `key` already identifies some other piece of value an error is returned.
+    /// Increase the total issuance of the underlying value by creating some
+    /// `amount` of it and attributing it to the `origin`.
+    ///
+    /// The `key` identifies the created "bag" of value. In case the `key`
+    /// already identifies some other piece of value an error is returned.
     fn create(
         origin: Self::ExternalOrigin,
         key: Self::Key,
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, Self::Error>;
 
-    /// The id of node and external origin for a key, if they exist, `None` otherwise.
+    /// The id of node and external origin for a key.
     ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_origin(
-        key: Self::Key,
-    ) -> Result<OriginResult<Self::Key, Self::ExternalOrigin>, Self::Error>;
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
+    /// node identified by the `key` belongs to a subtree originating at
+    /// such "orphan" node, or in case of inexistent key.
+    fn get_origin_node(key: Self::Key) -> Result<(Self::ExternalOrigin, Self::Key), Self::Error>;
 
-    /// The external origin for a key, if the latter exists, `None` otherwise.
+    /// The external origin for a key.
     ///
-    /// Check [`get_origin`](Self::get_origin) for more details.
-    fn get_external(key: Self::Key) -> Result<Option<Self::ExternalOrigin>, Self::Error> {
-        Self::get_origin(key).map(|result| result.map(|(_, external)| external))
+    /// See [`get_origin_node`](Self::get_origin_node) for details.
+    fn get_external(key: Self::Key) -> Result<Self::ExternalOrigin, Self::Error> {
+        Self::get_origin_node(key).map(|(external, _key)| external)
     }
 
-    /// The id of external node for a key, if the latter exists, `None` otherwise.
+    /// The id of external node for a key.
     ///
-    /// Check [`get_origin`](Self::get_origin) for more details.
-    fn get_origin_key(key: Self::Key) -> Result<Option<Self::Key>, Self::Error> {
-        Self::get_origin(key).map(|result| result.map(|(key, _)| key))
+    /// See [`get_origin_node`](Self::get_origin_node) for details.
+    fn get_origin_key(key: Self::Key) -> Result<Self::Key, Self::Error> {
+        Self::get_origin_node(key).map(|(_external, key)| key)
     }
 
-    /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
+    /// Get value associated with given id and the key of an ancestor,
+    /// that keeps this value.
     ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn get_limit(key: Self::Key) -> Result<GasBalanceKey<Self::Balance, Self::Key>, Self::Error>;
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
+    /// node identified by the `key` belongs to a subtree originating at
+    /// such "orphan" node, or in case of inexistent key.
+    fn get_limit_node(key: Self::Key) -> Result<(Self::Balance, Self::Key), Self::Error>;
+
+    /// Get value associated with given id.
+    ///
+    /// See [`get_limit_node`](Self::get_limit_node) for details.
+    fn get_limit(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+        Self::get_limit_node(key).map(|(balance, _key)| balance)
+    }
 
     /// Consume underlying value.
     ///
-    /// If `key` does not identify any value or the value can't be fully consumed due to
-    /// being a part of other value or itself having unconsumed parts, return `None`,
-    /// else the corresponding piece of value is destroyed and imbalance is created.
+    /// If `key` does not identify any value or the value can't be fully
+    /// consumed due to being a part of other value or itself having
+    /// unconsumed parts, return `None`, else the corresponding
+    /// piece of value is destroyed and imbalance is created.
     ///
-    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the node identified by
-    /// the `key` belongs to a subtree originating at such "orphan" node.
-    fn consume(
-        key: Self::Key,
-    ) -> Result<ConsumeOutput<Self::NegativeImbalance, Self::ExternalOrigin>, Self::Error>;
+    /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
+    /// node identified by the `key` belongs to a subtree originating at
+    /// such "orphan" node, or in case of inexistent key.
+    fn consume(key: Self::Key) -> ConsumeResultOf<Self>;
 
-    /// Burns underlying value.
+    /// Burn underlying value.
     ///
-    /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
-    /// In case of a success, this indicates the entire value supply becomes over-collateralized,
+    /// This "spends" the specified amount of value thereby decreasing the
+    /// overall supply of it. In case of a success, this indicates the
+    /// entire value supply becomes over-collateralized,
     /// hence negative imbalance.
     fn spend(key: Self::Key, amount: Self::Balance)
         -> Result<Self::NegativeImbalance, Self::Error>;
 
     /// Split underlying value.
     ///
-    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
-    /// an error is returned.
+    /// If `key` does not identify any value or the `amount` exceeds what's
+    /// locked under that key, an error is returned.
+    ///
     /// This can't create imbalance as no value is burned or created.
     fn split_with_value(
         key: Self::Key,
@@ -144,24 +164,44 @@ pub trait Tree {
     /// Split underlying value.
     ///
     /// If `key` does not identify any value an error is returned.
+    ///
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> Result<(), Self::Error>;
 
     /// Cut underlying value to a reserved node.
     ///
-    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
-    /// an error is returned.
+    /// If `key` does not identify any value or the `amount` exceeds what's
+    /// locked under that key, an error is returned.
     ///
     /// This can't create imbalance as no value is burned or created.
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
 
+    /// Locking some value from underlying balance.
+    ///
+    /// If `key` does not identify any value or the `amount` exceeds what's
+    /// locked under that key, an error is returned.
+    ///
+    /// This can't create imbalance as no value is burned or created.
+    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// Unlocking some value from node's locked balance.
+    ///
+    /// If `key` does not identify any value or the `amount` exceeds what's
+    /// locked under that key, an error is returned.
+    ///
+    /// This can't create imbalance as no value is burned or created.
+    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// Get locked value associated with given id.
+    ///
+    /// Returns errors in cases of absence associated with given key node,
+    /// or if such functionality is forbidden for specific node type:
+    /// for example, for `GasNode::ReservedLocal`.
+    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
+
     /// Removes all values.
     fn clear();
 }
-
-pub type GasBalanceKey<Balance, Key> = Option<(Balance, Key)>;
-pub type OriginResult<Key, ExternalOrigin> = Option<(Key, ExternalOrigin)>;
-pub type ConsumeOutput<Imbalance, External> = Option<(Imbalance, External)>;
 
 /// Represents logic of centralized GasTree-algorithm.
 pub trait Provider {
@@ -174,15 +214,17 @@ pub trait Provider {
     /// Type representing a quantity of value.
     type Balance;
 
-    /// Types to denote a result of some unbalancing operation - that is operations that create
-    /// inequality between the underlying value supply and some hypothetical "collateral" asset.
+    /// Types to denote a result of some unbalancing operation - that is
+    /// operations that create inequality between the underlying value
+    /// supply and some hypothetical "collateral" asset.
 
-    /// `PositiveImbalance` indicates that some value has been created, which will eventually
-    /// lead to an increase in total supply.
+    /// `PositiveImbalance` indicates that some value has been created,
+    /// which will eventually lead to an increase in total supply.
     type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
 
-    /// `NegativeImbalance` indicates that some value has been removed from circulation
-    /// leading to a decrease in the total supply of the underlying value.
+    /// `NegativeImbalance` indicates that some value has been removed from
+    /// circulation leading to a decrease in the total supply of the
+    /// underlying value.
     type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
 
     type InternalError: Error;

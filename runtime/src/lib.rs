@@ -125,7 +125,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear-node"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 1450,
+    spec_version: 1490,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -392,7 +392,8 @@ impl Contains<Call> for ExtraFeeFilter {
         // Calls that affect message queue and are subject to extra fee
         matches!(
             call,
-            Call::Gear(pallet_gear::Call::submit_program { .. })
+            Call::Gear(pallet_gear::Call::create_program { .. })
+                | Call::Gear(pallet_gear::Call::upload_program { .. })
                 | Call::Gear(pallet_gear::Call::send_message { .. })
                 | Call::Gear(pallet_gear::Call::send_reply { .. })
         )
