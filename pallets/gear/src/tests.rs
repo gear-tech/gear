@@ -4572,7 +4572,7 @@ fn check_signal_executed() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             DEFAULT_SALT.to_vec(),
