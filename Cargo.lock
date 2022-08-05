@@ -737,6 +737,7 @@ dependencies = [
 name = "gear-program"
 version = "0.1.1"
 dependencies = [
+ "base64",
  "dialoguer",
  "dirs",
  "env_logger",
@@ -744,8 +745,11 @@ dependencies = [
  "hex",
  "lazy_static",
  "log",
+ "nacl",
  "parity-scale-codec",
+ "schnorrkel",
  "serde",
+ "serde_json",
  "structopt",
  "subxt",
  "thiserror",
@@ -1210,6 +1214,12 @@ checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
 dependencies = [
  "winapi",
 ]
+
+[[package]]
+name = "nacl"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30aefc44d813c51b5e7952950e87c17f2e0e1a3274d63c8281a701e05323d548"
 
 [[package]]
 name = "nodrop"

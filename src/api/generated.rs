@@ -2,7 +2,7 @@
 //!
 //! subxt codegen | rustfmt --edition=2021
 //!
-//! spec_version: 1420
+//! spec_version: 1480
 #![allow(clippy::all)]
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 pub mod api {
@@ -1546,9 +1546,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            121u8, 164u8, 37u8, 19u8, 226u8, 77u8, 57u8, 215u8, 154u8, 53u8, 175u8,
-                            15u8, 184u8, 58u8, 107u8, 224u8, 218u8, 105u8, 45u8, 216u8, 59u8,
-                            127u8, 189u8, 117u8, 132u8, 191u8, 82u8, 0u8, 15u8, 118u8, 2u8, 217u8,
+                            108u8, 35u8, 43u8, 214u8, 173u8, 35u8, 222u8, 174u8, 22u8, 104u8, 86u8,
+                            205u8, 94u8, 53u8, 118u8, 212u8, 196u8, 148u8, 38u8, 180u8, 99u8, 13u8,
+                            173u8, 49u8, 144u8, 239u8, 118u8, 105u8, 173u8, 26u8, 164u8, 25u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -3735,9 +3735,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            173u8, 78u8, 74u8, 172u8, 0u8, 40u8, 37u8, 22u8, 117u8, 231u8, 23u8,
-                            0u8, 45u8, 174u8, 142u8, 2u8, 89u8, 197u8, 241u8, 140u8, 151u8, 107u8,
-                            127u8, 181u8, 5u8, 189u8, 124u8, 197u8, 184u8, 206u8, 124u8, 80u8,
+                            65u8, 32u8, 31u8, 181u8, 13u8, 207u8, 135u8, 176u8, 2u8, 151u8, 249u8,
+                            78u8, 140u8, 219u8, 106u8, 81u8, 73u8, 88u8, 126u8, 127u8, 143u8,
+                            250u8, 230u8, 79u8, 0u8, 117u8, 143u8, 169u8, 219u8, 173u8, 85u8, 0u8,
                         ]
                     {
                         let call = Sudo {
@@ -3780,9 +3780,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            133u8, 75u8, 172u8, 19u8, 186u8, 105u8, 138u8, 82u8, 142u8, 38u8,
-                            191u8, 98u8, 12u8, 242u8, 230u8, 99u8, 119u8, 111u8, 40u8, 122u8, 0u8,
-                            231u8, 156u8, 38u8, 113u8, 68u8, 9u8, 80u8, 50u8, 148u8, 6u8, 56u8,
+                            185u8, 45u8, 238u8, 166u8, 129u8, 234u8, 59u8, 3u8, 220u8, 135u8, 22u8,
+                            201u8, 33u8, 26u8, 255u8, 152u8, 111u8, 219u8, 17u8, 28u8, 201u8,
+                            172u8, 8u8, 112u8, 215u8, 129u8, 134u8, 17u8, 178u8, 18u8, 124u8, 63u8,
                         ]
                     {
                         let call = SudoUncheckedWeight {
@@ -3861,10 +3861,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            75u8, 184u8, 102u8, 22u8, 103u8, 15u8, 57u8, 237u8, 100u8, 238u8,
-                            172u8, 127u8, 127u8, 238u8, 74u8, 185u8, 140u8, 157u8, 234u8, 219u8,
-                            245u8, 215u8, 168u8, 7u8, 5u8, 138u8, 54u8, 250u8, 226u8, 139u8, 0u8,
-                            33u8,
+                            4u8, 36u8, 87u8, 88u8, 125u8, 85u8, 226u8, 175u8, 104u8, 168u8, 202u8,
+                            108u8, 93u8, 231u8, 170u8, 61u8, 173u8, 42u8, 43u8, 70u8, 130u8, 160u8,
+                            179u8, 189u8, 144u8, 82u8, 128u8, 6u8, 177u8, 14u8, 145u8, 55u8,
                         ]
                     {
                         let call = SudoAs {
@@ -4066,9 +4065,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            156u8, 249u8, 190u8, 106u8, 75u8, 115u8, 105u8, 208u8, 180u8, 217u8,
-                            41u8, 169u8, 247u8, 98u8, 44u8, 225u8, 27u8, 254u8, 55u8, 82u8, 2u8,
-                            169u8, 8u8, 81u8, 199u8, 28u8, 22u8, 121u8, 130u8, 102u8, 207u8, 144u8,
+                            160u8, 90u8, 44u8, 196u8, 73u8, 37u8, 15u8, 217u8, 189u8, 204u8, 177u8,
+                            222u8, 69u8, 243u8, 139u8, 135u8, 104u8, 206u8, 61u8, 87u8, 174u8,
+                            17u8, 127u8, 248u8, 218u8, 141u8, 170u8, 157u8, 201u8, 236u8, 151u8,
+                            62u8,
                         ]
                     {
                         let call = Batch { calls };
@@ -4112,9 +4112,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            94u8, 0u8, 50u8, 173u8, 242u8, 206u8, 153u8, 249u8, 198u8, 81u8, 231u8,
-                            210u8, 185u8, 109u8, 84u8, 71u8, 61u8, 66u8, 25u8, 173u8, 156u8, 165u8,
-                            251u8, 152u8, 60u8, 240u8, 158u8, 105u8, 12u8, 58u8, 142u8, 59u8,
+                            191u8, 182u8, 32u8, 40u8, 6u8, 222u8, 39u8, 2u8, 194u8, 100u8, 137u8,
+                            20u8, 150u8, 249u8, 87u8, 178u8, 240u8, 171u8, 50u8, 233u8, 139u8,
+                            133u8, 174u8, 29u8, 85u8, 160u8, 168u8, 209u8, 145u8, 11u8, 120u8,
+                            182u8,
                         ]
                     {
                         let call = AsDerivative {
@@ -4161,9 +4162,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            53u8, 52u8, 60u8, 25u8, 157u8, 208u8, 244u8, 74u8, 203u8, 116u8, 36u8,
-                            43u8, 159u8, 70u8, 139u8, 96u8, 9u8, 30u8, 184u8, 56u8, 150u8, 135u8,
-                            10u8, 5u8, 78u8, 134u8, 59u8, 109u8, 119u8, 150u8, 30u8, 83u8,
+                            119u8, 217u8, 64u8, 80u8, 24u8, 247u8, 60u8, 105u8, 107u8, 26u8, 22u8,
+                            138u8, 124u8, 122u8, 167u8, 87u8, 140u8, 53u8, 107u8, 240u8, 22u8, 8u8,
+                            98u8, 21u8, 56u8, 53u8, 255u8, 244u8, 58u8, 240u8, 126u8, 116u8,
                         ]
                     {
                         let call = BatchAll { calls };
@@ -4204,10 +4205,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            73u8, 95u8, 113u8, 236u8, 224u8, 88u8, 248u8, 67u8, 15u8, 71u8, 216u8,
-                            111u8, 227u8, 22u8, 133u8, 222u8, 25u8, 132u8, 22u8, 155u8, 224u8,
-                            126u8, 78u8, 103u8, 156u8, 237u8, 14u8, 254u8, 166u8, 96u8, 171u8,
-                            112u8,
+                            218u8, 173u8, 250u8, 22u8, 34u8, 129u8, 102u8, 19u8, 78u8, 239u8,
+                            169u8, 46u8, 106u8, 188u8, 209u8, 141u8, 212u8, 179u8, 183u8, 19u8,
+                            120u8, 86u8, 55u8, 51u8, 4u8, 126u8, 36u8, 242u8, 123u8, 9u8, 254u8,
+                            246u8,
                         ]
                     {
                         let call = DispatchAs {
@@ -4254,10 +4255,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            78u8, 120u8, 71u8, 227u8, 46u8, 186u8, 188u8, 128u8, 80u8, 140u8,
-                            172u8, 88u8, 110u8, 115u8, 244u8, 150u8, 124u8, 185u8, 196u8, 69u8,
-                            47u8, 142u8, 236u8, 125u8, 115u8, 35u8, 99u8, 231u8, 127u8, 242u8,
-                            12u8, 110u8,
+                            159u8, 102u8, 13u8, 145u8, 84u8, 156u8, 128u8, 31u8, 151u8, 29u8,
+                            146u8, 19u8, 114u8, 155u8, 64u8, 9u8, 100u8, 121u8, 80u8, 214u8, 195u8,
+                            7u8, 83u8, 111u8, 91u8, 92u8, 36u8, 21u8, 44u8, 164u8, 221u8, 123u8,
                         ]
                     {
                         let call = ForceBatch { calls };
@@ -5821,6 +5821,28 @@ pub mod api {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
                     }
                 }
+                #[doc = " Cost for storing in mailbox per block."]
+                pub fn mailbox_cost(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u64, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("GearScheduler", "MailboxCost")?
+                        == [
+                            213u8, 84u8, 131u8, 162u8, 90u8, 131u8, 113u8, 30u8, 107u8, 65u8, 45u8,
+                            115u8, 102u8, 121u8, 211u8, 135u8, 193u8, 179u8, 216u8, 244u8, 153u8,
+                            183u8, 227u8, 139u8, 205u8, 80u8, 63u8, 115u8, 187u8, 44u8, 3u8, 87u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("GearScheduler")?;
+                        let constant = pallet.constant("MailboxCost")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
             }
         }
     }
@@ -6054,24 +6076,36 @@ pub mod api {
             use super::runtime_types;
             type DispatchError = runtime_types::sp_runtime::DispatchError;
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub struct SubmitCode {
+            pub struct UploadCode {
                 pub code: ::std::vec::Vec<::core::primitive::u8>,
             }
-            impl ::subxt::Call for SubmitCode {
+            impl ::subxt::Call for UploadCode {
                 const PALLET: &'static str = "Gear";
-                const FUNCTION: &'static str = "submit_code";
+                const FUNCTION: &'static str = "upload_code";
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub struct SubmitProgram {
+            pub struct UploadProgram {
                 pub code: ::std::vec::Vec<::core::primitive::u8>,
                 pub salt: ::std::vec::Vec<::core::primitive::u8>,
                 pub init_payload: ::std::vec::Vec<::core::primitive::u8>,
                 pub gas_limit: ::core::primitive::u64,
                 pub value: ::core::primitive::u128,
             }
-            impl ::subxt::Call for SubmitProgram {
+            impl ::subxt::Call for UploadProgram {
                 const PALLET: &'static str = "Gear";
-                const FUNCTION: &'static str = "submit_program";
+                const FUNCTION: &'static str = "upload_program";
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct CreateProgram {
+                pub code_id: runtime_types::gear_core::ids::CodeId,
+                pub salt: ::std::vec::Vec<::core::primitive::u8>,
+                pub init_payload: ::std::vec::Vec<::core::primitive::u8>,
+                pub gas_limit: ::core::primitive::u64,
+                pub value: ::core::primitive::u128,
+            }
+            impl ::subxt::Call for CreateProgram {
+                const PALLET: &'static str = "Gear";
+                const FUNCTION: &'static str = "create_program";
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct SendMessage {
@@ -6096,12 +6130,12 @@ pub mod api {
                 const FUNCTION: &'static str = "send_reply";
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub struct ClaimValueFromMailbox {
+            pub struct ClaimValue {
                 pub message_id: runtime_types::gear_core::ids::MessageId,
             }
-            impl ::subxt::Call for ClaimValueFromMailbox {
+            impl ::subxt::Call for ClaimValue {
                 const PALLET: &'static str = "Gear";
-                const FUNCTION: &'static str = "claim_value_from_mailbox";
+                const FUNCTION: &'static str = "claim_value";
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Reset;
@@ -6140,7 +6174,7 @@ pub mod api {
                 #[doc = ""]
                 #[doc = "Emits the following events:"]
                 #[doc = "- `SavedCode(H256)` - when the code is saved in storage."]
-                pub fn submit_code(
+                pub fn upload_code(
                     &self,
                     code: ::std::vec::Vec<::core::primitive::u8>,
                 ) -> Result<
@@ -6148,7 +6182,7 @@ pub mod api {
                         'a,
                         T,
                         X,
-                        SubmitCode,
+                        UploadCode,
                         DispatchError,
                         root_mod::Event,
                     >,
@@ -6157,16 +6191,16 @@ pub mod api {
                     let runtime_call_hash = {
                         let locked_metadata = self.client.metadata();
                         let metadata = locked_metadata.read();
-                        metadata.call_hash::<SubmitCode>()?
+                        metadata.call_hash::<UploadCode>()?
                     };
                     if runtime_call_hash
                         == [
-                            75u8, 224u8, 180u8, 159u8, 202u8, 222u8, 198u8, 116u8, 127u8, 67u8,
-                            127u8, 249u8, 64u8, 20u8, 65u8, 121u8, 95u8, 188u8, 46u8, 73u8, 38u8,
-                            74u8, 15u8, 157u8, 188u8, 79u8, 67u8, 138u8, 160u8, 12u8, 139u8, 133u8,
+                            82u8, 212u8, 78u8, 59u8, 185u8, 135u8, 195u8, 130u8, 116u8, 51u8, 81u8,
+                            156u8, 117u8, 158u8, 121u8, 238u8, 226u8, 227u8, 165u8, 54u8, 115u8,
+                            112u8, 85u8, 162u8, 21u8, 132u8, 3u8, 4u8, 73u8, 16u8, 153u8, 85u8,
                         ]
                     {
-                        let call = SubmitCode { code };
+                        let call = UploadCode { code };
                         Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
                     } else {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
@@ -6182,7 +6216,7 @@ pub mod api {
                 #[doc = "`ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)"]
                 #[doc = "Such `ProgramId` must not exist in the Program Storage at the time of this call."]
                 #[doc = ""]
-                #[doc = "There is the same guarantee here as in `submit_code`. That is, future program's"]
+                #[doc = "There is the same guarantee here as in `upload_code`. That is, future program's"]
                 #[doc = "`code` and metadata are stored before message was added to the queue and processed."]
                 #[doc = ""]
                 #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
@@ -6210,7 +6244,7 @@ pub mod api {
                 #[doc = "Ghost program can be removed by their original author via an explicit call."]
                 #[doc = "The funds stored by a ghost program will be release to the author once the program"]
                 #[doc = "has been removed."]
-                pub fn submit_program(
+                pub fn upload_program(
                     &self,
                     code: ::std::vec::Vec<::core::primitive::u8>,
                     salt: ::std::vec::Vec<::core::primitive::u8>,
@@ -6222,7 +6256,7 @@ pub mod api {
                         'a,
                         T,
                         X,
-                        SubmitProgram,
+                        UploadProgram,
                         DispatchError,
                         root_mod::Event,
                     >,
@@ -6231,18 +6265,76 @@ pub mod api {
                     let runtime_call_hash = {
                         let locked_metadata = self.client.metadata();
                         let metadata = locked_metadata.read();
-                        metadata.call_hash::<SubmitProgram>()?
+                        metadata.call_hash::<UploadProgram>()?
                     };
                     if runtime_call_hash
                         == [
-                            11u8, 217u8, 173u8, 239u8, 131u8, 188u8, 188u8, 122u8, 20u8, 97u8,
-                            140u8, 16u8, 79u8, 70u8, 132u8, 3u8, 241u8, 246u8, 174u8, 106u8, 120u8,
-                            42u8, 238u8, 154u8, 198u8, 163u8, 160u8, 217u8, 149u8, 220u8, 88u8,
-                            201u8,
+                            252u8, 21u8, 14u8, 152u8, 146u8, 140u8, 172u8, 242u8, 140u8, 49u8,
+                            76u8, 166u8, 167u8, 71u8, 235u8, 235u8, 228u8, 142u8, 235u8, 118u8,
+                            168u8, 175u8, 62u8, 85u8, 33u8, 222u8, 229u8, 179u8, 39u8, 43u8, 111u8,
+                            62u8,
                         ]
                     {
-                        let call = SubmitProgram {
+                        let call = UploadProgram {
                             code,
+                            salt,
+                            init_payload,
+                            gas_limit,
+                            value,
+                        };
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = "Creates program via `code_id` from storage."]
+                #[doc = ""]
+                #[doc = "Parameters:"]
+                #[doc = "- `code_id`: wasm code id in the code storage."]
+                #[doc = "- `salt`: randomness term (a seed) to allow programs with identical code"]
+                #[doc = "  to be created independently."]
+                #[doc = "- `init_payload`: encoded parameters of the wasm module `init` function."]
+                #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
+                #[doc = "- `value`: balance to be transferred to the program once it's been created."]
+                #[doc = ""]
+                #[doc = "Emits the following events:"]
+                #[doc = "- `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue."]
+                #[doc = ""]
+                #[doc = "# NOTE"]
+                #[doc = ""]
+                #[doc = "For the details of this extrinsic, see `upload_code`."]
+                pub fn create_program(
+                    &self,
+                    code_id: runtime_types::gear_core::ids::CodeId,
+                    salt: ::std::vec::Vec<::core::primitive::u8>,
+                    init_payload: ::std::vec::Vec<::core::primitive::u8>,
+                    gas_limit: ::core::primitive::u64,
+                    value: ::core::primitive::u128,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        CreateProgram,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<CreateProgram>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            140u8, 33u8, 31u8, 245u8, 206u8, 162u8, 39u8, 147u8, 121u8, 42u8, 15u8,
+                            25u8, 50u8, 25u8, 67u8, 43u8, 239u8, 49u8, 74u8, 12u8, 146u8, 249u8,
+                            106u8, 228u8, 254u8, 59u8, 95u8, 50u8, 43u8, 121u8, 178u8, 129u8,
+                        ]
+                    {
+                        let call = CreateProgram {
+                            code_id,
                             salt,
                             init_payload,
                             gas_limit,
@@ -6311,18 +6403,19 @@ pub mod api {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
                     }
                 }
-                #[doc = "Sends a reply message."]
+                #[doc = "Send reply on message in `Mailbox`."]
                 #[doc = ""]
-                #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
-                #[doc = "for `gas` and `value` (in case the latter is being transferred)."]
+                #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
+                #[doc = "rent funds become free, associated with the message value"]
+                #[doc = "transfers from message sender to extrinsic caller."]
                 #[doc = ""]
-                #[doc = "Parameters:"]
-                #[doc = "- `reply_to_id`: the original message id."]
-                #[doc = "- `payload`: data expected by the original sender."]
-                #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
-                #[doc = "- `value`: balance to be transferred to the program once it's been created."]
+                #[doc = "Generates reply on removed message with given parameters"]
+                #[doc = "and pushes it in `MessageQueue`."]
                 #[doc = ""]
-                #[doc = "- `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue."]
+                #[doc = "NOTE: source of the message in mailbox guaranteed to be a program."]
+                #[doc = ""]
+                #[doc = "NOTE: only user who is destination of the message, can claim value"]
+                #[doc = "or reply on the message from mailbox."]
                 pub fn send_reply(
                     &self,
                     reply_to_id: runtime_types::gear_core::ids::MessageId,
@@ -6363,7 +6456,15 @@ pub mod api {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
                     }
                 }
-                pub fn claim_value_from_mailbox(
+                #[doc = "Claim value from message in `Mailbox`."]
+                #[doc = ""]
+                #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
+                #[doc = "rent funds become free, associated with the message value"]
+                #[doc = "transfers from message sender to extrinsic caller."]
+                #[doc = ""]
+                #[doc = "NOTE: only user who is destination of the message, can claim value"]
+                #[doc = "or reply on the message from mailbox."]
+                pub fn claim_value(
                     &self,
                     message_id: runtime_types::gear_core::ids::MessageId,
                 ) -> Result<
@@ -6371,7 +6472,7 @@ pub mod api {
                         'a,
                         T,
                         X,
-                        ClaimValueFromMailbox,
+                        ClaimValue,
                         DispatchError,
                         root_mod::Event,
                     >,
@@ -6380,17 +6481,16 @@ pub mod api {
                     let runtime_call_hash = {
                         let locked_metadata = self.client.metadata();
                         let metadata = locked_metadata.read();
-                        metadata.call_hash::<ClaimValueFromMailbox>()?
+                        metadata.call_hash::<ClaimValue>()?
                     };
                     if runtime_call_hash
                         == [
-                            80u8, 104u8, 114u8, 97u8, 94u8, 229u8, 181u8, 80u8, 241u8, 63u8, 101u8,
-                            13u8, 218u8, 236u8, 211u8, 93u8, 199u8, 13u8, 100u8, 44u8, 173u8,
-                            134u8, 242u8, 162u8, 107u8, 240u8, 30u8, 205u8, 94u8, 135u8, 53u8,
-                            51u8,
+                            236u8, 193u8, 97u8, 137u8, 19u8, 252u8, 6u8, 238u8, 25u8, 15u8, 175u8,
+                            95u8, 12u8, 63u8, 16u8, 224u8, 235u8, 69u8, 190u8, 184u8, 55u8, 180u8,
+                            54u8, 133u8, 162u8, 118u8, 86u8, 15u8, 236u8, 76u8, 251u8, 21u8,
                         ]
                     {
-                        let call = ClaimValueFromMailbox { message_id };
+                        let call = ClaimValue { message_id };
                         Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
                     } else {
                         Err(::subxt::MetadataError::IncompatibleMetadata.into())
@@ -6612,9 +6712,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "MailboxThreshold")?
                         == [
-                            15u8, 18u8, 48u8, 140u8, 90u8, 68u8, 208u8, 39u8, 160u8, 157u8, 106u8,
-                            16u8, 26u8, 119u8, 186u8, 32u8, 24u8, 111u8, 109u8, 71u8, 21u8, 78u8,
-                            34u8, 69u8, 83u8, 50u8, 80u8, 170u8, 41u8, 220u8, 17u8, 70u8,
+                            226u8, 255u8, 9u8, 36u8, 224u8, 127u8, 120u8, 162u8, 184u8, 200u8,
+                            100u8, 95u8, 166u8, 55u8, 71u8, 224u8, 254u8, 35u8, 250u8, 54u8, 211u8,
+                            176u8, 202u8, 253u8, 4u8, 209u8, 77u8, 56u8, 163u8, 223u8, 142u8, 90u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -7879,7 +7979,7 @@ pub mod api {
                     #[doc = ""]
                     #[doc = "Emits the following events:"]
                     #[doc = "- `SavedCode(H256)` - when the code is saved in storage."]
-                    submit_code {
+                    upload_code {
                         code: ::std::vec::Vec<::core::primitive::u8>,
                     },
                     #[codec(index = 1)]
@@ -7893,7 +7993,7 @@ pub mod api {
                     #[doc = "`ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)"]
                     #[doc = "Such `ProgramId` must not exist in the Program Storage at the time of this call."]
                     #[doc = ""]
-                    #[doc = "There is the same guarantee here as in `submit_code`. That is, future program's"]
+                    #[doc = "There is the same guarantee here as in `upload_code`. That is, future program's"]
                     #[doc = "`code` and metadata are stored before message was added to the queue and processed."]
                     #[doc = ""]
                     #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
@@ -7921,7 +8021,7 @@ pub mod api {
                     #[doc = "Ghost program can be removed by their original author via an explicit call."]
                     #[doc = "The funds stored by a ghost program will be release to the author once the program"]
                     #[doc = "has been removed."]
-                    submit_program {
+                    upload_program {
                         code: ::std::vec::Vec<::core::primitive::u8>,
                         salt: ::std::vec::Vec<::core::primitive::u8>,
                         init_payload: ::std::vec::Vec<::core::primitive::u8>,
@@ -7929,6 +8029,30 @@ pub mod api {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Creates program via `code_id` from storage."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `code_id`: wasm code id in the code storage."]
+                    #[doc = "- `salt`: randomness term (a seed) to allow programs with identical code"]
+                    #[doc = "  to be created independently."]
+                    #[doc = "- `init_payload`: encoded parameters of the wasm module `init` function."]
+                    #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
+                    #[doc = "- `value`: balance to be transferred to the program once it's been created."]
+                    #[doc = ""]
+                    #[doc = "Emits the following events:"]
+                    #[doc = "- `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue."]
+                    #[doc = ""]
+                    #[doc = "# NOTE"]
+                    #[doc = ""]
+                    #[doc = "For the details of this extrinsic, see `upload_code`."]
+                    create_program {
+                        code_id: runtime_types::gear_core::ids::CodeId,
+                        salt: ::std::vec::Vec<::core::primitive::u8>,
+                        init_payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: ::core::primitive::u128,
+                    },
+                    #[codec(index = 3)]
                     #[doc = "Sends a message to a program or to another account."]
                     #[doc = ""]
                     #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
@@ -7952,30 +8076,39 @@ pub mod api {
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
                     },
-                    #[codec(index = 3)]
-                    #[doc = "Sends a reply message."]
+                    #[codec(index = 4)]
+                    #[doc = "Send reply on message in `Mailbox`."]
                     #[doc = ""]
-                    #[doc = "The origin must be Signed and the sender must have sufficient funds to pay"]
-                    #[doc = "for `gas` and `value` (in case the latter is being transferred)."]
+                    #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
+                    #[doc = "rent funds become free, associated with the message value"]
+                    #[doc = "transfers from message sender to extrinsic caller."]
                     #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `reply_to_id`: the original message id."]
-                    #[doc = "- `payload`: data expected by the original sender."]
-                    #[doc = "- `gas_limit`: maximum amount of gas the program can spend before it is halted."]
-                    #[doc = "- `value`: balance to be transferred to the program once it's been created."]
+                    #[doc = "Generates reply on removed message with given parameters"]
+                    #[doc = "and pushes it in `MessageQueue`."]
                     #[doc = ""]
-                    #[doc = "- `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue."]
+                    #[doc = "NOTE: source of the message in mailbox guaranteed to be a program."]
+                    #[doc = ""]
+                    #[doc = "NOTE: only user who is destination of the message, can claim value"]
+                    #[doc = "or reply on the message from mailbox."]
                     send_reply {
                         reply_to_id: runtime_types::gear_core::ids::MessageId,
                         payload: ::std::vec::Vec<::core::primitive::u8>,
                         gas_limit: ::core::primitive::u64,
                         value: ::core::primitive::u128,
                     },
-                    #[codec(index = 4)]
-                    claim_value_from_mailbox {
+                    #[codec(index = 5)]
+                    #[doc = "Claim value from message in `Mailbox`."]
+                    #[doc = ""]
+                    #[doc = "Removes message by given `MessageId` from callers `Mailbox`:"]
+                    #[doc = "rent funds become free, associated with the message value"]
+                    #[doc = "transfers from message sender to extrinsic caller."]
+                    #[doc = ""]
+                    #[doc = "NOTE: only user who is destination of the message, can claim value"]
+                    #[doc = "or reply on the message from mailbox."]
+                    claim_value {
                         message_id: runtime_types::gear_core::ids::MessageId,
                     },
-                    #[codec(index = 5)]
+                    #[codec(index = 6)]
                     #[doc = "Reset all pallet associated storage."]
                     reset,
                 }
@@ -7983,57 +8116,62 @@ pub mod api {
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/v3/runtime/events-and-errors)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "Message wasn't found in mailbox."]
+                    MessageNotFound,
+                    #[codec(index = 1)]
                     #[doc = "Not enough balance to reserve."]
                     #[doc = ""]
                     #[doc = "Usually occurs when gas_limit specified is such that origin account can't afford the message."]
                     NotEnoughBalanceForReserve,
-                    #[codec(index = 1)]
+                    #[codec(index = 2)]
                     #[doc = "Gas limit too high."]
                     #[doc = ""]
                     #[doc = "Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit."]
                     GasLimitTooHigh,
-                    #[codec(index = 2)]
+                    #[codec(index = 3)]
                     #[doc = "Program already exists."]
                     #[doc = ""]
                     #[doc = "Occurs if a program with some specific program id already exists in program storage."]
                     ProgramAlreadyExists,
-                    #[codec(index = 3)]
+                    #[codec(index = 4)]
                     #[doc = "Program is terminated."]
                     #[doc = ""]
                     #[doc = "Program init ended up with failure, so such message destination is unavailable anymore."]
                     ProgramIsTerminated,
-                    #[codec(index = 4)]
+                    #[codec(index = 5)]
                     #[doc = "Message gas tree is not found."]
                     #[doc = ""]
                     #[doc = "When message claimed from mailbox has a corrupted or non-extant gas tree associated."]
                     NoMessageTree,
-                    #[codec(index = 5)]
+                    #[codec(index = 6)]
                     #[doc = "Code already exists."]
                     #[doc = ""]
                     #[doc = "Occurs when trying to save to storage a program code, that has been saved there."]
                     CodeAlreadyExists,
-                    #[codec(index = 6)]
-                    #[doc = "The code supplied to `submit_code` or `submit_program` exceeds the limit specified in the"]
+                    #[codec(index = 7)]
+                    #[doc = "Code not exists."]
+                    #[doc = ""]
+                    #[doc = "Occurs when trying to get a program code from storage, that doesn't exist."]
+                    CodeNotExists,
+                    #[codec(index = 8)]
+                    #[doc = "The code supplied to `upload_code` or `upload_program` exceeds the limit specified in the"]
                     #[doc = "current schedule."]
                     CodeTooLarge,
-                    #[codec(index = 7)]
+                    #[codec(index = 9)]
                     #[doc = "Failed to create a program."]
                     FailedToConstructProgram,
-                    #[codec(index = 8)]
+                    #[codec(index = 10)]
                     #[doc = "Value doesn't cover ExistentialDeposit."]
                     ValueLessThanMinimal,
-                    #[codec(index = 9)]
+                    #[codec(index = 11)]
                     #[doc = "Unable to instrument program code."]
                     GasInstrumentationFailed,
-                    #[codec(index = 10)]
+                    #[codec(index = 12)]
                     #[doc = "No code could be found at the supplied code hash."]
                     CodeNotFound,
-                    #[codec(index = 11)]
+                    #[codec(index = 13)]
                     #[doc = "Messages storage corrupted."]
                     MessagesStorageCorrupted,
-                    #[codec(index = 12)]
-                    #[doc = "User contains mailboxed message from other user."]
-                    UserRepliesToUser,
                 }
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/v3/runtime/events-and-errors) emitted\n\t\t\tby this pallet.\n\t\t\t"]
@@ -9775,9 +9913,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    39u8, 132u8, 48u8, 29u8, 187u8, 20u8, 242u8, 64u8, 98u8, 104u8, 155u8, 225u8,
-                    83u8, 27u8, 27u8, 246u8, 231u8, 250u8, 206u8, 215u8, 140u8, 10u8, 61u8, 168u8,
-                    137u8, 14u8, 88u8, 155u8, 105u8, 239u8, 132u8, 21u8,
+                    212u8, 45u8, 228u8, 132u8, 167u8, 62u8, 109u8, 25u8, 132u8, 168u8, 34u8, 103u8,
+                    234u8, 216u8, 8u8, 77u8, 169u8, 37u8, 79u8, 29u8, 46u8, 68u8, 183u8, 0u8, 13u8,
+                    212u8, 125u8, 144u8, 83u8, 119u8, 124u8, 2u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

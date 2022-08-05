@@ -1,9 +1,7 @@
 //! Command `claim`
 use crate::{
     api::{
-        generated::api::{
-            gear::calls::ClaimValueFromMailbox, runtime_types::gear_core::ids::MessageId,
-        },
+        generated::api::{gear::calls::ClaimValue, runtime_types::gear_core::ids::MessageId},
         Api,
     },
     Result,
@@ -23,7 +21,7 @@ impl Claim {
 
         message_id
             .copy_from_slice(&mut hex::decode(self.message_id.trim_start_matches("0x"))?.as_ref());
-        api.claim_value_from_mailbox(ClaimValueFromMailbox {
+        api.claim_value_from_mailbox(ClaimValue {
             message_id: MessageId(message_id),
         })
         .await?;

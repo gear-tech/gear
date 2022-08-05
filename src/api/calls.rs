@@ -36,15 +36,8 @@ mod gear {
 
     impl Api {
         /// `pallet_gear::send_reply`
-        pub async fn claim_value_from_mailbox(
-            &self,
-            params: calls::ClaimValueFromMailbox,
-        ) -> InBlock<'_> {
-            let ex = self
-                .runtime
-                .tx()
-                .gear()
-                .claim_value_from_mailbox(params.message_id)?;
+        pub async fn claim_value_from_mailbox(&self, params: calls::ClaimValue) -> InBlock<'_> {
+            let ex = self.runtime.tx().gear().claim_value(params.message_id)?;
 
             self.ps(ex).await
         }
@@ -74,8 +67,8 @@ mod gear {
         }
 
         /// `pallet_gear::submit_program`
-        pub async fn submit_program(&self, params: calls::SubmitProgram) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().submit_program(
+        pub async fn submit_program(&self, params: calls::UploadProgram) -> InBlock<'_> {
+            let ex = self.runtime.tx().gear().upload_program(
                 params.code,
                 params.salt,
                 params.init_payload,
@@ -87,8 +80,8 @@ mod gear {
         }
 
         /// `pallet_gear::submit_code`
-        pub async fn submit_code(&self, params: calls::SubmitCode) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().submit_code(params.code)?;
+        pub async fn submit_code(&self, params: calls::UploadCode) -> InBlock<'_> {
+            let ex = self.runtime.tx().gear().upload_code(params.code)?;
 
             self.ps(ex).await
         }

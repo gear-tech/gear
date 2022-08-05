@@ -1,0 +1,20 @@
+{
+  "encoded": "X/sAaS3pNejnqvbHk0lne8tcXXmTu2gPQgXvtbf3azgAgAAAAQAAAAgAAABxGGfnP+9PCbP7Gp0+7jxxl8twTthzIq4pLfC0m6NvA8hk557A4dkDapszVKhlyDhTvnQQE2WwhqzkfDwvq0XtFl9PDW6ShvVM/lSVLkZTF6QGnTzRZ2dwT7+X5v+gjFIJftI5z3vLFg7NM+NXy7kxU039iooVTxYDqzCnMSjXMBtnY2cqNedlGUcrbDGE0lNdWqu3MWT9J27kmysC",
+  "encoding": {
+    "content": [
+      "pkcs8",
+      "sr25519"
+    ],
+    "type": [
+      "scrypt",
+      "xsalsa20-poly1305"
+    ],
+    "version": "3"
+  },
+  "address": "5Hax9tpSjfiX1nYrqhFf8F3sLiaa2ZfPv2VeDQzPBLzKNjRq",
+  "meta": {
+    "genesisHash": "",
+    "name": "GEAR",
+    "whenCreated": 1659544420591
+  }
+}

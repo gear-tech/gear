@@ -42,14 +42,24 @@ pub enum Error {
     CouldNotFindDirectory(String),
     #[error("InvalidSecret")]
     InvalidSecret,
+    #[error("Password must be provided for logining with json file.")]
+    InvalidPassword,
+    #[error("{0}")]
+    Nacl(String),
+    #[error("{0}")]
+    Schnorrkel(String),
     #[error("No available account was found in keystore, please run `gear login` first.")]
     Logout,
+    #[error(transparent)]
+    Base64Decode(#[from] base64::DecodeError),
     #[error(transparent)]
     Codec(#[from] parity_scale_codec::Error),
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     SubxtBasic(#[from] subxt::BasicError),
     #[error(transparent)]
@@ -69,6 +79,18 @@ pub enum Error {
     SubxtRpc(#[from] subxt::rpc::RpcError),
     #[error(transparent)]
     Tx(#[from] TransactionError),
+}
+
+impl From<nacl::Error> for Error {
+    fn from(err: nacl::Error) -> Self {
+        Self::Nacl(err.message)
+    }
+}
+
+impl From<schnorrkel::SignatureError> for Error {
+    fn from(err: schnorrkel::SignatureError) -> Self {
+        Self::Schnorrkel(format!("{}", err))
+    }
 }
 
 /// Custom result

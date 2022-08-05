@@ -1,13 +1,12 @@
 //! command login
 use crate::{keystore, Result};
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 /// Login to account
 #[derive(Debug, StructOpt)]
 pub struct Login {
-    /// The default keystore path is ~/.gear/keystore
-    ///
-    /// If no suri provided, will generate a new pair by default
+    /// The default keystore path is ~/.gear/keystore and ~/.gear/keystore.json
     ///
     /// @WARNING: THIS WILL ONLY BE SECURE IF THE keystore IS SECURE.
     /// when you have NO PASSWORD, If it can be got by an attacker then
@@ -27,6 +26,9 @@ pub struct Login {
     /// interpreted as above.
     pub suri: Option<String>,
 
+    /// The path of the json file generated from the polkadotjs wallet.
+    pub json: Option<PathBuf>,
+
     /// password of the signer account
     #[structopt(short, long)]
     pub passwd: Option<String>,
@@ -35,10 +37,18 @@ pub struct Login {
 impl Login {
     /// exec command login
     pub fn exec(&self) -> Result<()> {
-        let signer = if let Some(suri) = &self.suri {
-            keystore::login(suri, self.passwd.as_ref().map(|p| p.as_ref()))?
-        } else {
-            keystore::generate(self.passwd.as_ref().map(|p| p.as_ref()))?
+        let signer = match (&self.suri, &self.json) {
+            (Some(suri), _) => keystore::login(suri, self.passwd.as_ref().map(|p| p.as_ref()))?,
+            (None, Some(json)) => {
+                keystore::decode_json_file(json, self.passwd.as_ref().map(|p| p.as_ref()))?
+            }
+            _ => {
+                if let Ok(pair) = keystore::cache(self.passwd.as_deref()) {
+                    pair
+                } else {
+                    keystore::generate(self.passwd.as_ref().map(|p| p.as_ref()))?
+                }
+            }
         };
 
         println!("Successfully logged in as {}!", signer.account_id());

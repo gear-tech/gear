@@ -1,7 +1,7 @@
 //! command submit
 use crate::{
     api::{
-        generated::api::gear::{calls::SubmitProgram, Event as GearEvent},
+        generated::api::gear::{calls::UploadProgram, Event as GearEvent},
         Api,
     },
     Result,
@@ -67,7 +67,7 @@ impl Deploy {
         let gas_limit = api.cmp_gas_limit(gas).await?;
 
         // submit program
-        api.submit_program(SubmitProgram {
+        api.submit_program(UploadProgram {
             code: fs::read(&self.code)?,
             salt: hex::decode(&self.salt.trim_start_matches("0x"))?,
             init_payload: hex::decode(&self.init_payload.trim_start_matches("0x"))?,
