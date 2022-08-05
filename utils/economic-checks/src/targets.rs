@@ -106,7 +106,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
             let composer_id = generate_program_id(NCOMPOSE_WASM_BINARY, b"salt");
             let mul_id = generate_program_id(MUL_CONST_WASM_BINARY, b"salt");
 
-            Gear::submit_program(
+            Gear::upload_program(
                 Origin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
@@ -116,7 +116,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
             )
             .map_err(|e| e.error)?;
 
-            Gear::submit_program(
+            Gear::upload_program(
                 Origin::signed(alice.clone()),
                 NCOMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
@@ -298,7 +298,7 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
                     _ => 0_u128,
                 };
 
-                Gear::submit_program(
+                Gear::upload_program(
                     Origin::signed(author.clone()),
                     c,
                     s,
@@ -429,7 +429,7 @@ mod tests {
             let composer_id = generate_program_id(NCOMPOSE_WASM_BINARY, b"salt");
             let mul_id = generate_program_id(MUL_CONST_WASM_BINARY, b"salt");
 
-            assert_ok!(Gear::submit_program(
+            assert_ok!(Gear::upload_program(
                 Origin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
@@ -438,7 +438,7 @@ mod tests {
                 0,
             ));
 
-            assert_ok!(Gear::submit_program(
+            assert_ok!(Gear::upload_program(
                 Origin::signed(alice.clone()),
                 NCOMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),
@@ -485,7 +485,7 @@ mod tests {
             let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
             let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
 
-            assert_ok!(Gear::submit_program(
+            assert_ok!(Gear::upload_program(
                 Origin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"contract_a".to_vec(),
@@ -494,7 +494,7 @@ mod tests {
                 0,
             ));
 
-            assert_ok!(Gear::submit_program(
+            assert_ok!(Gear::upload_program(
                 Origin::signed(alice.clone()),
                 MUL_CONST_WASM_BINARY.to_vec(),
                 b"contract_b".to_vec(),
@@ -503,7 +503,7 @@ mod tests {
                 0,
             ));
 
-            assert_ok!(Gear::submit_program(
+            assert_ok!(Gear::upload_program(
                 Origin::signed(alice.clone()),
                 COMPOSE_WASM_BINARY.to_vec(),
                 b"salt".to_vec(),

@@ -193,6 +193,9 @@ pub mod pallet {
 
         /// Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`).
         ValueIsNotBlocked,
+
+        /// `GasTree::consume` called on node, which has some balance locked.
+        ConsumedWithLock,
     }
 
     impl<T: Config> GasError for Error<T> {
@@ -242,6 +245,10 @@ pub mod pallet {
 
         fn value_is_not_blocked() -> Self {
             Self::ValueIsNotBlocked
+        }
+
+        fn consumed_with_lock() -> Self {
+            Self::ConsumedWithLock
         }
     }
 

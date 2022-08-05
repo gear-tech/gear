@@ -1,0 +1,13 @@
+- name: "insert keys on aws nodes"
+  hosts: all
+  become: yes
+  remote_user: ec2-user
+  vars:
+
+#Do tasks
+  tasks:
+    - name: Install and enable required packages
+      include: tasks/packages/packages.yaml
+
+    - name: Insert keys on gear nodes
+      include: tasks/docker/docker-insert-keys.yaml

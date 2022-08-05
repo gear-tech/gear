@@ -86,7 +86,7 @@ fn debug_mode_works() {
         let program_id_1 = generate_program_id(&code_1);
         let program_id_2 = generate_program_id(&code_2);
 
-        PalletGear::<Test>::submit_program(
+        PalletGear::<Test>::upload_program(
             Origin::signed(1),
             code_1.clone(),
             b"salt".to_vec(),
@@ -120,7 +120,7 @@ fn debug_mode_works() {
             .into(),
         );
 
-        PalletGear::<Test>::submit_program(
+        PalletGear::<Test>::upload_program(
             Origin::signed(1),
             code_2.clone(),
             b"salt".to_vec(),
@@ -408,7 +408,7 @@ fn check_not_allocated_pages() {
         let program_id = generate_program_id(&code);
         let origin = Origin::signed(1);
 
-        assert_ok!(PalletGear::<Test>::submit_program(
+        assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
             code.clone(),
             b"salt".to_vec(),
@@ -622,7 +622,7 @@ fn check_changed_pages_in_storage() {
         let program_id = generate_program_id(&code);
         let origin = Origin::signed(1);
 
-        assert_ok!(PalletGear::<Test>::submit_program(
+        assert_ok!(PalletGear::<Test>::upload_program(
             origin.clone(),
             code.clone(),
             b"salt".to_vec(),
