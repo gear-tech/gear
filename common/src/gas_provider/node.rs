@@ -39,6 +39,12 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
     /// (not node's parent, not node's child).
     ReservedLocal { id: ExternalId, value: Balance },
 
+    /// A node used for gas reservation feature.
+    ///
+    /// Such node types are independent and aren't part of the tree structure
+    /// (not node's parent, not node's child).
+    Reserved { id: ExternalId, value: Balance },
+
     /// A node, which is a part of the tree structure, that can be
     /// a parent and/or a child.
     ///
@@ -148,6 +154,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { value, .. }
             | Self::ReservedLocal { value, .. }
+            | Self::Reserved { value, .. }
             | Self::SpecifiedLocal { value, .. } => Some(*value),
             Self::UnspecifiedLocal { .. } => None,
         }
@@ -158,6 +165,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         match self {
             Self::External { ref mut value, .. }
             | Self::ReservedLocal { ref mut value, .. }
+            | Self::Reserved { ref mut value, .. }
             | Self::SpecifiedLocal { ref mut value, .. } => Some(value),
             Self::UnspecifiedLocal { .. } => None,
         }
@@ -169,7 +177,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             Self::External { lock, .. }
             | Self::UnspecifiedLocal { lock, .. }
             | Self::SpecifiedLocal { lock, .. } => Some(*lock),
-            Self::ReservedLocal { .. } => None,
+            Self::ReservedLocal { .. } | Self::Reserved { .. } => None,
         }
     }
 
@@ -179,7 +187,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
             Self::External { ref mut lock, .. }
             | Self::UnspecifiedLocal { ref mut lock, .. }
             | Self::SpecifiedLocal { ref mut lock, .. } => Some(lock),
-            Self::ReservedLocal { .. } => None,
+            Self::ReservedLocal { .. } | Self::Reserved { .. } => None,
         }
     }
 
@@ -190,7 +198,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// called on them.
     pub fn parent(&self) -> Option<Id> {
         match self {
-            Self::External { .. } | Self::ReservedLocal { .. } => None,
+            Self::External { .. } | Self::ReservedLocal { .. } | Self::Reserved { .. } => None,
             Self::SpecifiedLocal { parent, .. } | Self::UnspecifiedLocal { parent, .. } => {
                 Some(*parent)
             }
@@ -236,6 +244,10 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
     /// Returns whether the node is of `ReservedLocal` type
     pub(crate) fn is_reserved_local(&self) -> bool {
         matches!(self, Self::ReservedLocal { .. })
+    }
+
+    pub(crate) fn is_reserved(&self) -> bool {
+        matches!(self, Self::Reserved { .. })
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
