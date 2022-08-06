@@ -207,6 +207,15 @@ pub trait Tree {
     /// for example, for `GasNode::ReservedLocal`.
     fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error>;
 
+    /// Reserve some value from underlying balance.
+    ///
+    /// Used in gas reservation feature.
+    fn reserve(
+        key: Self::Key,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error>;
+
     /// Removes all values.
     fn clear();
 }

@@ -207,7 +207,9 @@ where
         node: &StorageMap::Value,
     ) -> Result<Option<(StorageMap::Value, MapKey)>, Error> {
         match node {
-            GasNode::External { .. } | GasNode::ReservedLocal { .. } => Ok(None),
+            GasNode::External { .. } | GasNode::ReservedLocal { .. } | GasNode::Reserved { .. } => {
+                Ok(None)
+            }
             GasNode::SpecifiedLocal { parent, .. } => {
                 let mut ret_id = *parent;
                 let mut ret_node =
@@ -457,7 +459,10 @@ where
         // key known, must return the origin, unless corrupted
         let (root, maybe_key) = Self::root(node)?;
 
-        if let GasNode::External { id, .. } | GasNode::ReservedLocal { id, .. } = root {
+        if let GasNode::External { id, .. }
+        | GasNode::ReservedLocal { id, .. }
+        | GasNode::Reserved { id, .. } = root
+        {
             Ok((id, maybe_key.unwrap_or(key)))
         } else {
             unreachable!("Guaranteed by ValueNode::root method")
@@ -525,7 +530,9 @@ where
             StorageMap::remove(key);
 
             match node {
-                GasNode::External { .. } | GasNode::ReservedLocal { .. } => {
+                GasNode::External { .. }
+                | GasNode::ReservedLocal { .. }
+                | GasNode::Reserved { .. } => {
                     if !catch_output.is_caught() {
                         return Err(InternalError::value_is_not_caught().into());
                     }
@@ -766,6 +773,52 @@ where
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         node.lock().ok_or_else(|| InternalError::forbidden().into())
+    }
+
+    fn reserve(
+        key: Self::Key,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<(), Self::Error> {
+        let (mut node, node_id) =
+            Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
+        let node_id = node_id.unwrap_or(key);
+
+        // Check if the parent node is reserved
+        if node.is_reserved_local() || node.is_reserved() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        // This also checks if key == new_node_key
+        if StorageMap::contains_key(&new_key) {
+            return Err(InternalError::node_already_exists().into());
+        }
+
+        let id = Self::get_external(key)?;
+        let new_node = GasNode::Reserved { id, value: amount };
+
+        // A `node` is guaranteed to have inner_value here, because
+        // it was queried after `Self::node_with_value` call.
+        if node
+            .value()
+            .ok_or_else(InternalError::unexpected_node_type)?
+            < amount
+        {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        // Save new node
+        StorageMap::insert(new_key, new_node);
+
+        let node_value = node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *node_value = node_value.saturating_sub(amount);
+
+        StorageMap::insert(node_id, node);
+
+        Ok(())
     }
 
     fn clear() {
