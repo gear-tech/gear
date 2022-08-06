@@ -4129,7 +4129,7 @@ fn execution_over_blocks() {
     };
 
     let estimate_gas_for_init_and_start = || -> (u64, u64) {
-        use demo_calc_hash::sha2_256;
+        use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
 
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
@@ -4156,7 +4156,7 @@ fn execution_over_blocks() {
 
         run_to_next_block(None);
 
-        let (src, id, expected) = ([1; 32], sha2_256(b"estimate_over_blocks"), 0);
+        let (src, id, expected) = ([1; 32], sha2_512_256(b"estimate_over_blocks"), 0);
 
         // Estimate start cost.
         let start_gas_wait = Gear::calculate_gas_info(
@@ -4248,7 +4248,7 @@ fn execution_over_blocks() {
     });
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::sha2_256;
+        use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -4268,7 +4268,7 @@ fn execution_over_blocks() {
 
         assert!(program_exists(over_blocks.into_origin()));
 
-        let (src, id, expected) = ([0; 32], sha2_256(b"42"), 1024);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 1024);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
