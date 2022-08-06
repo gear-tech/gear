@@ -599,7 +599,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_send_init: cost_batched!(gr_send_init),
             gr_send_push: cost_batched!(gr_send_push),
             gr_send_push_per_byte: cost_byte_batched!(gr_send_push_per_kb),
-            gr_send_commit: cost_batched!(gr_send_commit) - cost_batched!(gr_send_init),
+            gr_send_commit: cost_batched!(gr_send_commit),
             gr_send_commit_per_byte: cost_byte!(gr_send_commit_per_kb),
             gr_reply_commit: cost_batched!(gr_reply_commit),
             gr_reply_commit_per_byte: cost_byte_batched!(gr_reply_commit_per_kb),
