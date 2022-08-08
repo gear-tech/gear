@@ -16,16 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::net::SocketAddr;
+use codec::Encode;
+use cumulus_client_cli::generate_genesis_block;
+use cumulus_primitives_core::ParaId;
+use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
+use log::info;
+use gear_runtime::{Block, RuntimeApi};
+use sc_cli::{
+	ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
+	NetworkParams, Result, RuntimeVersion, SharedParams, SubstrateCli,
+};
+use sc_service::{
+	config::{BasePath, PrometheusConfig},
+	TaskManager,
+};
+use sp_core::hexdisplay::HexDisplay;
+use sp_runtime::traits::{AccountIdConversion, Block as BlockT};
+
 use crate::{
     chain_spec,
-    cli::{Cli, Subcommand},
-    service,
+    cli::{Cli, RelayChainCli, Subcommand},
+	service::{new_partial, TemplateRuntimeExecutor},
 };
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
-use gear_runtime::{Block, EXISTENTIAL_DEPOSIT};
-use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
-use sc_service::PartialComponents;
-use sp_keyring::Sr25519Keyring;
 
 fn load_spec(id: &str) -> std::result::Result<Box<dyn ChainSpec>, String> {
 	Ok(match id {
@@ -67,7 +80,7 @@ impl SubstrateCli for Cli {
         2021
     }
 
-    fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
+    fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
         load_spec(id)
     }
 
