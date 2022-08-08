@@ -85,7 +85,6 @@ pub(crate) unsafe fn user_signal_handler_internal_v1(
         let ptr = (unprot_addr as *mut u8).add(idx as usize * gear_ps);
         let buffer_as_slice = std::slice::from_raw_parts_mut(ptr, gear_ps);
 
-        // TODO: simplify before release (issue #1147). Currently we must support here all old runtimes.
         // For new runtimes we have to calc page key from program pages prefix.
         let page_key = if let Some(prefix) = &ctx.program_storage_prefix {
             page_key_in_storage(prefix, page)
@@ -119,9 +118,9 @@ pub(crate) unsafe fn user_signal_handler_internal_v1(
         let page_buf = PageBuf::new_from_vec(buffer_as_slice.to_vec())
             .expect("Cannot panic here, because we create slice with PageBuf size");
 
-        let _ = ctx.released_lazy_pages.insert(page);
+        let _ = ctx.released_pages.insert(page);
         if ctx
-            .released_lazy_pages_old
+            .released_lazy_pages
             .insert(page, Some(page_buf))
             .is_some()
         {

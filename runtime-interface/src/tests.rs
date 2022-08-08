@@ -86,8 +86,8 @@ fn test_mprotect_pages() {
 
     let mut v = vec![0u8; 3 * WasmPageNumber::size()];
     let buff = v.as_mut_ptr() as usize;
-    let page_begin = (((buff + WasmPageNumber::size()) / WasmPageNumber::size())
-        * WasmPageNumber::size()) as u64;
+    let page_begin =
+        ((buff + WasmPageNumber::size()) / WasmPageNumber::size()) * WasmPageNumber::size();
     let mem_size = 2 * WasmPageNumber::size();
 
     // Gear pages in 2 wasm pages. Randomly choose pages, which will be protected,

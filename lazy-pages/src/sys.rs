@@ -29,11 +29,11 @@ use crate::{
 
 use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
 
-// This constants are used both in runtime and lazy-pages backend,
-// so create here aditional check. If somebody would change these values
-// in runtime he also should pay attation to support new values here:
+// These constants are used both in runtime and in lazy-pages backend,
+// so makes here additional checks. If somebody would change these values
+// in runtime, then he also should pay attation to support new values here:
 // 1) must rebuild node after that.
-// 2) to support old runtimes need to make lazy pages version with old constatns values.
+// 2) must support old runtimes: need to make lazy pages version with old constatns values.
 static_assertions::const_assert_eq!(PageNumber::size(), 0x1000);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 
@@ -127,7 +127,6 @@ impl CheckedWasmAddr {
         // `addr` is less then `wasm_mem_size`, so `as u32` is safe.
         let addr = addr as u32;
 
-        // TODO: check that user incorrect stack addr cannot cause panics
         if addr < stack_end {
             return Err(Error::SignalFromStackMemory {
                 wasm_addr: addr,
@@ -188,7 +187,7 @@ impl CheckedWasmAddr {
 /// [PAGE_STORAGE_GRANULARITY] (PSG) case - if page is write accessed
 /// first time in program live, then this page has no data in storage yet.
 /// This also means that all pages from the same PSG interval has no data in storage.
-/// So, in this case we have to insert in `released_lazy_pages` all pages from the same
+/// So, in this case we have to insert in `released_pages` all pages from the same
 /// PSG interval, in order to upload their data to storage later in runtime.
 /// We have to make separate logic for this case in order to support consensus
 /// between nodes with different native page sizes. For example, if one node
@@ -275,7 +274,7 @@ unsafe fn user_signal_handler_internal_v2(
             log::trace!("lazy page {lazy_page_wasm_addr:#x} is already accessed");
             for gear_page in (begin..end).map(PageNumber) {
                 log::trace!("add {gear_page:?} to released");
-                if !ctx.released_lazy_pages.insert(gear_page) {
+                if !ctx.released_pages.insert(gear_page) {
                     return Err(Error::DoubleRelease(gear_page));
                 }
             }
@@ -304,7 +303,7 @@ unsafe fn user_signal_handler_internal_v2(
 
             if is_definitely_write {
                 log::trace!("add {gear_page:?} to released");
-                if !ctx.released_lazy_pages.insert(gear_page) {
+                if !ctx.released_pages.insert(gear_page) {
                     return Err(Error::DoubleRelease(gear_page));
                 }
             }

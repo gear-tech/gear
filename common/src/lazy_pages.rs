@@ -91,13 +91,12 @@ pub fn is_lazy_pages_enabled() -> bool {
 pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Result<(), Error> {
     let program_prefix = crate::pages_prefix(prog_id.into_origin());
     let wasm_mem_addr = mem.get_buffer_host_addr();
-    let wasm_mem_size =
-        u32::try_from(mem.size().offset()).map_err(|_| Error::WasmMemorySizeOverflow)?;
+    let wasm_mem_size = mem.size();
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
     // TODO: currently set stack pages as None, should be resolved (issue #1253).
-    gear_ri::initilize_for_program(wasm_mem_addr, wasm_mem_size, None, program_prefix)
+    gear_ri::initilize_for_program(wasm_mem_addr, wasm_mem_size.0, None, program_prefix)
         .map_err(|err| err.to_string())
         .expect("Cannot initilize lazy pages for current program");
 
@@ -146,8 +145,7 @@ pub fn update_lazy_pages_and_protect_again(
 
     let new_mem_size = mem.size();
     if new_mem_size > old_mem_size {
-        let size = get_memory_size_in_bytes(new_mem_size)?;
-        gear_ri::set_wasm_mem_size(size)?;
+        gear_ri::set_wasm_mem_size(new_mem_size.0);
     }
 
     mprotect_lazy_pages(mem, true)
