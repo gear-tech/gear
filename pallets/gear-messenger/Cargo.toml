@@ -30,11 +30,11 @@ sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 [dev-dependencies]
-pallet-gear-gas = { path = "../gas", default-features = false }
-sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-gear-gas = { path = "../gas" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 env_logger = "0.9"
 
 [features]
@@ -50,11 +50,6 @@ std = [
 	"sp-std/std",
 	"primitive-types/std",
 	"sp-io/std",
-	"sp-runtime/std",
-	"pallet-balances/std",
-	"pallet-authorship/std",
-	"pallet-timestamp/std",
-	"pallet-gear-gas/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
