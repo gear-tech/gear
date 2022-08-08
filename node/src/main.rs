@@ -16,6 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() -> gear_cli::Result<()> {
-    gear_cli::run()
+mod chain_spec;
+#[macro_use]
+mod service;
+mod benchmarking;
+mod cli;
+mod command;
+mod rpc;
+
+fn main() -> sc_cli::Result<()> {
+    command::run()
 }

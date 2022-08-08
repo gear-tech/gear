@@ -1711,7 +1711,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-node-primitives",
  "gear-runtime",
  "hex",
  "log",
@@ -1727,14 +1726,11 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sp-consensus-aura",
- "sp-consensus-babe",
- "sp-consensus-slots",
  "sp-core",
  "sp-finality-grandpa",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "vara-runtime",
  "wasm-mutate",
  "wasmparser 0.88.0",
  "wasmprinter",
@@ -2488,34 +2484,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "frame-benchmarking",
- "frame-benchmarking-cli",
- "frame-system",
- "gear-node-primitives",
- "gear-runtime",
- "gear-runtime-common",
- "gear-runtime-test-cli",
- "gear-service",
- "pallet-transaction-payment",
- "sc-cli",
- "sc-client-api",
- "sc-service",
- "scale-info",
- "sp-core",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-timestamp",
- "substrate-build-script-utils",
- "try-runtime-cli",
- "vara-runtime",
-]
-
-[[package]]
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
@@ -2612,16 +2580,49 @@ dependencies = [
 name = "gear-node"
 version = "0.1.0"
 dependencies = [
- "gear-cli",
- "gear-service",
-]
-
-[[package]]
-name = "gear-node-primitives"
-version = "1.0.0"
-dependencies = [
+ "clap",
+ "frame-benchmarking",
+ "frame-benchmarking-cli",
+ "frame-system",
+ "gear-runtime",
+ "gear-runtime-interface",
+ "gear-runtime-test-cli",
+ "hex-literal",
+ "jsonrpsee",
+ "pallet-gear-rpc",
+ "pallet-transaction-payment",
+ "pallet-transaction-payment-rpc",
+ "primitive-types",
+ "sc-basic-authorship",
+ "sc-cli",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-consensus-aura",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-keystore",
+ "sc-rpc",
+ "sc-rpc-api",
+ "sc-service",
+ "sc-telemetry",
+ "sc-transaction-pool",
+ "sc-transaction-pool-api",
+ "scale-info",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-aura",
  "sp-core",
+ "sp-finality-grandpa",
+ "sp-inherents",
+ "sp-keyring",
  "sp-runtime",
+ "sp-timestamp",
+ "sp-transaction-pool",
+ "substrate-build-script-utils",
+ "substrate-frame-rpc-system",
+ "try-runtime-cli",
 ]
 
 [[package]]
@@ -2636,8 +2637,6 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
- "gear-node-primitives",
- "gear-runtime-common",
  "hex-literal",
  "log",
  "pallet-aura",
@@ -2674,22 +2673,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-runtime-common"
-version = "0.1.0"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "frame-system-benchmarking",
- "gear-common",
- "gear-node-primitives",
- "pallet-authorship",
- "pallet-balances",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
@@ -2719,12 +2702,10 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
- "gear-node-primitives",
  "gear-runtime",
  "gear-test",
  "junit-common",
  "log",
- "pallet-aura",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
@@ -2736,67 +2717,9 @@ dependencies = [
  "sc-service",
  "serde_json",
  "sp-consensus-aura",
- "sp-consensus-babe",
- "sp-consensus-slots",
  "sp-core",
- "sp-finality-grandpa",
  "sp-io",
  "sp-runtime",
- "vara-runtime",
-]
-
-[[package]]
-name = "gear-service"
-version = "0.1.0"
-dependencies = [
- "frame-benchmarking",
- "frame-benchmarking-cli",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "gear-node-primitives",
- "gear-runtime",
- "gear-runtime-interface",
- "hex-literal",
- "jsonrpsee",
- "pallet-gear-rpc",
- "pallet-gear-rpc-runtime-api",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc",
- "pallet-transaction-payment-rpc-runtime-api",
- "sc-basic-authorship",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-aura",
- "sc-consensus-babe",
- "sc-consensus-babe-rpc",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-keystore",
- "sc-rpc",
- "sc-rpc-api",
- "sc-service",
- "sc-telemetry",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "sp-api",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-aura",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-storage",
- "sp-timestamp",
- "sp-transaction-pool",
- "sp-trie",
- "substrate-build-script-utils",
- "substrate-frame-rpc-system",
- "try-runtime-cli",
- "vara-runtime",
 ]
 
 [[package]]
@@ -4640,7 +4563,7 @@ dependencies = [
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
- "num-rational 0.4.1",
+ "num-rational",
  "num-traits",
  "rand 0.8.5",
  "rand_distr",
@@ -4783,17 +4706,6 @@ dependencies = [
 
 [[package]]
 name = "num-bigint"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "090c7f9998ee0ff65aa5b723e4009f7b217707f1fb5ea551329cc4d6231fb304"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-bigint"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f93ab6289c7b344a8a9f60f88d80aa20032336fe78da341afc91c8a2341fc75f"
@@ -4834,24 +4746,12 @@ dependencies = [
 
 [[package]]
 name = "num-rational"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
-dependencies = [
- "autocfg",
- "num-bigint 0.2.6",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
 dependencies = [
  "autocfg",
- "num-bigint 0.4.3",
+ "num-bigint",
  "num-integer",
  "num-traits",
 ]
@@ -4974,30 +4874,6 @@ dependencies = [
  "scale-info",
  "sp-authorship",
  "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-babe"
-version = "4.0.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-authorship",
- "pallet-session",
- "pallet-timestamp",
- "parity-scale-codec",
- "scale-info",
- "sp-application-crypto",
- "sp-consensus-babe",
- "sp-consensus-vrf",
- "sp-io",
- "sp-runtime",
- "sp-session",
- "sp-staking",
  "sp-std",
 ]
 
@@ -5315,21 +5191,6 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
-]
-
-[[package]]
-name = "pallet-shift-session-manager"
-version = "0.1.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-runtime",
- "sp-staking",
- "sp-std",
 ]
 
 [[package]]
@@ -6802,84 +6663,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-babe"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
-dependencies = [
- "async-trait",
- "fork-tree",
- "futures",
- "log",
- "merlin",
- "num-bigint 0.2.6",
- "num-rational 0.2.4",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.12.1",
- "rand 0.7.3",
- "retain_mut",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-epochs",
- "sc-consensus-slots",
- "sc-keystore",
- "sc-telemetry",
- "schnorrkel",
- "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-consensus-slots",
- "sp-consensus-vrf",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keystore",
- "sp-runtime",
- "sp-version",
- "substrate-prometheus-endpoint",
- "thiserror",
-]
-
-[[package]]
-name = "sc-consensus-babe-rpc"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
-dependencies = [
- "futures",
- "jsonrpsee",
- "sc-consensus-babe",
- "sc-consensus-epochs",
- "sc-rpc-api",
- "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-keystore",
- "sp-runtime",
- "thiserror",
-]
-
-[[package]]
-name = "sc-consensus-epochs"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
-dependencies = [
- "fork-tree",
- "parity-scale-codec",
- "sc-client-api",
- "sc-consensus",
- "sp-blockchain",
- "sp-runtime",
-]
-
-[[package]]
 name = "sc-consensus-slots"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
@@ -8089,29 +7872,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-consensus-babe"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
-dependencies = [
- "async-trait",
- "merlin",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-consensus",
- "sp-consensus-slots",
- "sp-consensus-vrf",
- "sp-core",
- "sp-inherents",
- "sp-keystore",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
-]
-
-[[package]]
 name = "sp-consensus-slots"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
@@ -8123,19 +7883,6 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-timestamp",
-]
-
-[[package]]
-name = "sp-consensus-vrf"
-version = "0.10.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#afd2e78fc4a6e7d61497815505329015d7507eef"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "schnorrkel",
- "sp-core",
- "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -9413,58 +9160,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vara-runtime"
-version = "0.1.0"
-dependencies = [
- "frame-benchmarking",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-benchmarking",
- "frame-system-rpc-runtime-api",
- "frame-try-runtime",
- "gear-common",
- "gear-node-primitives",
- "gear-runtime-common",
- "hex-literal",
- "log",
- "pallet-authorship",
- "pallet-babe",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-debug",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-gear-payment",
- "pallet-gear-program",
- "pallet-gear-rpc-runtime-api",
- "pallet-gear-scheduler",
- "pallet-grandpa",
- "pallet-session",
- "pallet-shift-session-manager",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "pallet-utility",
- "parity-scale-codec",
- "scale-info",
- "sp-api",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-std",
- "sp-transaction-pool",
- "sp-version",
- "static_assertions",
- "substrate-wasm-builder",
-]
-
-[[package]]
 name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9964,7 +9659,7 @@ dependencies = [
  "downcast-rs",
  "libm",
  "memory_units",
- "num-rational 0.4.1",
+ "num-rational",
  "num-traits",
  "region 3.0.0",
 ]

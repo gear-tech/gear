@@ -21,30 +21,19 @@ use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitia
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
-use gear_node_primitives::AccountPublic;
-#[cfg(feature = "gear-native")]
-use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
+use gear_runtime::{
+    AuraConfig, Authorship, Gear, GearGas, GearMessenger, Runtime, Signature, System,
+};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
-#[cfg(not(feature = "authoring-aura"))]
-use sp_consensus_babe::{
-    digests::{PreDigest, SecondaryPlainPreDigest},
-    AuthorityId as BabeId, BABE_ENGINE_ID,
-};
-use sp_consensus_slots::Slot;
+use sp_consensus_aura::{sr25519::AuthorityId as AuraId, Slot, AURA_ENGINE_ID};
 use sp_core::{sr25519, Pair, Public};
-#[cfg(not(feature = "authoring-aura"))]
-use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
-    app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
+    app_crypto::UncheckedFrom,
+    traits::{IdentifyAccount, Verify},
+    AccountId32, Digest, DigestItem,
 };
 use system::pallet_prelude::BlockNumberFor;
-#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
-use vara_runtime::{
-    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
-};
 
 pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Mailbox;
@@ -60,13 +49,17 @@ pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<StoredMes
         run_to_block(System::block_number() + 1, None, false);
         // Parse data from events
         for event in System::events() {
-            if let Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(snapshot)) =
-                &event.event
+            if let gear_runtime::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
+                snapshot,
+            )) = &event.event
             {
                 snapshots.push(snapshot.clone());
             }
 
-            if let Event::Gear(pallet_gear::Event::UserMessageSent { message, .. }) = &event.event {
+            if let gear_runtime::Event::Gear(pallet_gear::Event::UserMessageSent {
+                message, ..
+            }) = &event.event
+            {
                 mailbox.push(message.clone());
             }
         }
@@ -79,20 +72,8 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
-    #[cfg(feature = "authoring-aura")]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-    #[cfg(not(feature = "authoring-aura"))]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(
-            BABE_ENGINE_ID,
-            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-                slot,
-                authority_index: 0,
-            })
-            .encode(),
-        )],
     };
 
     System::initialize(&new_blk, &System::parent_hash(), &pre_digest);
@@ -124,6 +105,8 @@ pub(crate) fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pa
         .public()
 }
 
+type AccountPublic = <Signature as Verify>::Signer;
+
 // Generate an account ID from seed.
 pub(crate) fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId32
 where
@@ -132,20 +115,11 @@ where
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-// Generate authority keys.
-#[cfg(feature = "authoring-aura")]
+// Generate an Aura authority key.
 pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
         get_from_seed::<AuraId>(s),
-    )
-}
-#[cfg(not(feature = "authoring-aura"))]
-pub fn authority_keys_from_seed(s: &str) -> (AccountId32, BabeId, GrandpaId) {
-    (
-        get_account_id_from_seed::<sr25519::Public>(s),
-        get_from_seed::<BabeId>(s),
-        get_from_seed::<GrandpaId>(s),
     )
 }
 
@@ -174,34 +148,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                 authorities
                     .iter()
                     .cloned()
-                    .map(|(acc, ..)| (acc, <Runtime as Config>::Currency::minimum_balance())),
+                    .map(|(acc, _)| (acc, <Runtime as Config>::Currency::minimum_balance())),
             )
             .collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "authoring-aura")]
     AuraConfig {
         authorities: authorities.iter().cloned().map(|(_, x)| x).collect(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-    #[cfg(not(feature = "authoring-aura"))]
-    SessionConfig {
-        keys: authorities
-            .iter()
-            .map(|x| {
-                (
-                    x.0.clone(),
-                    x.0.clone(),
-                    SessionKeys {
-                        babe: x.1.clone(),
-                        grandpa: x.2.clone(),
-                    },
-                )
-            })
-            .collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();

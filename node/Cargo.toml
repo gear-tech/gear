@@ -5,8 +5,10 @@ authors = ["Gear Technologies"]
 description = "Gear Node"
 edition = "2018"
 license = "GPL-3.0"
+build = "build.rs"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
+rust-version = "1.56"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -15,29 +17,72 @@ targets = ["x86_64-unknown-linux-gnu"]
 name = "gear-node"
 
 [dependencies]
-gear-cli = { path = "cli" }
-gear-service = { path = "service", default-features = false }
+clap = { version = "3.2", features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+hex-literal = "0.3.4"
+primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
+
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
+	"wasmtime",
+] }
+sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
+	"wasmtime",
+	"wasmer-sandbox",
+	"wasmer-cache",
+] }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
+	"wasmtime",
+] }
+sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-keyring = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-finality-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+# These dependencies are used for the node template's RPCs
+jsonrpsee = { version = "0.14.0", features = ["server"] }
+sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-gear-rpc = { path = "../pallets/gear/rpc" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+# These dependencies are used for runtime benchmarking
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+# Internal
+gear-runtime = { path = "../runtime" }
+gear-runtime-interface = { path = "../runtime-interface" }
+gear-runtime-test-cli = { path = "../utils/gear-runtime-test-cli" }
+
+try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+[build-dependencies]
+substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
-default = ["gear-native", "lazy-pages"]
-gear-native = [
-	"gear-cli/gear-native",
-	"gear-service/gear-native",
-]
-vara-native = [
-	"gear-cli/vara-native",
-	"gear-service/vara-native",
-]
-lazy-pages = [
-	"gear-service/lazy-pages",
-]
-runtime-benchmarks = [
-	"gear-cli/runtime-benchmarks",
-	"gear-service/runtime-benchmarks",
-]
-debug-mode = [
-	"gear-service/debug-mode",
-]
-try-runtime = [
-	"gear-cli/try-runtime",
-]
+default = ["lazy-pages"]
+runtime-benchmarks = ["gear-runtime/runtime-benchmarks"]
+debug-mode = ["gear-runtime/debug-mode"]
+# Enable features that allow the runtime to be tried and debugged.
+try-runtime = ["gear-runtime/try-runtime", "try-runtime-cli"]
+lazy-pages = ["gear-runtime/lazy-pages"]

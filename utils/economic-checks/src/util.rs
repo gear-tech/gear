@@ -27,24 +27,15 @@ use frame_support::{
 };
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
-use gear_node_primitives::AccountPublic;
-#[cfg(feature = "gear-native")]
 use gear_runtime::{
-    Aura, AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
-    Grandpa, GrandpaConfig, Runtime, SudoConfig, System, TransactionPayment,
+    AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
+    GrandpaConfig, Runtime, Signature, SudoConfig, System, TransactionPayment,
     TransactionPaymentConfig, UncheckedExtrinsic,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
-#[cfg(not(feature = "authoring-aura"))]
-use sp_consensus_babe::{
-    digests::{PreDigest, SecondaryPlainPreDigest},
-    AuthorityId as BabeId, BABE_ENGINE_ID,
-};
-use sp_consensus_slots::Slot;
+use sp_consensus_aura::{sr25519::AuthorityId as AuraId, Slot, AURA_ENGINE_ID};
 use sp_core::{
     offchain::{
         testing::{PoolState, TestOffchainExt, TestTransactionPoolExt},
@@ -53,16 +44,13 @@ use sp_core::{
     sr25519, Pair, Public,
 };
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_runtime::{traits::IdentifyAccount, AccountId32, Digest, DigestItem};
+use sp_runtime::{
+    traits::{IdentifyAccount, Verify},
+    AccountId32, Digest, DigestItem,
+};
 use sp_std::collections::btree_map::BTreeMap;
 use std::sync::Arc;
 use system::pallet_prelude::BlockNumberFor;
-#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
-use vara_runtime::{
-    Authorship, Babe, BabeConfig, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
-    Grandpa, GrandpaConfig, Runtime, Session, SessionConfig, SessionKeys, SudoConfig, System,
-    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic,
-};
 
 type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
 type GasBalanceOf<T> = <GasHandlerOf<T> as GasTree>::Balance;
@@ -77,6 +65,8 @@ pub(crate) fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pa
         .public()
 }
 
+type AccountPublic = <Signature as Verify>::Signer;
+
 // Generate an account ID from seed.
 pub(crate) fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId32
 where
@@ -85,16 +75,11 @@ where
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-#[cfg(feature = "authoring-aura")]
-type AuthorityId = AuraId;
-#[cfg(not(feature = "authoring-aura"))]
-type AuthorityId = BabeId;
-
-// Generate authority keys.
-pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuthorityId, GrandpaId) {
+// Generate an Aura authority key.
+pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId, GrandpaId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
-        get_from_seed::<AuthorityId>(s),
+        get_from_seed::<AuraId>(s),
         get_from_seed::<GrandpaId>(s),
     )
 }
@@ -118,21 +103,9 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
     log::debug!("📦 Initializing block {}", new_blk);
 
     // All blocks are to be authored by validator at index 0
-    let slot = Slot::from(u64::from(new_blk));
-    #[cfg(feature = "authoring-aura")]
+    let slot = Slot::from(0);
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-    #[cfg(not(feature = "authoring-aura"))]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(
-            BABE_ENGINE_ID,
-            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-                slot,
-                authority_index: 0,
-            })
-            .encode(),
-        )],
     };
 
     System::initialize(&new_blk, &System::parent_hash(), &pre_digest);
@@ -142,10 +115,6 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     System::on_initialize(new_block_number);
-    #[cfg(feature = "authoring-aura")]
-    Aura::on_initialize(new_block_number);
-    #[cfg(not(feature = "authoring-aura"))]
-    Babe::on_initialize(new_block_number);
     Balances::on_initialize(new_block_number);
     TransactionPayment::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
@@ -153,8 +122,6 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
-    #[cfg(not(feature = "authoring-aura"))]
-    Session::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
@@ -167,27 +134,15 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     Authorship::on_finalize(current_blk);
     TransactionPayment::on_finalize(current_blk);
     Balances::on_finalize(current_blk);
-    Grandpa::on_finalize(current_blk);
-    #[cfg(not(feature = "authoring-aura"))]
-    Babe::on_finalize(current_blk);
     System::on_finalize(current_blk);
 }
 
 pub(crate) fn new_test_ext(
     balances: Vec<(impl Into<AccountId32>, u128)>,
-    seeds: Vec<&str>,
+    initial_authorities: Vec<(AccountId32, AuraId, GrandpaId)>,
     root_key: AccountId32,
 ) -> sp_io::TestExternalities {
-    assert!(!seeds.is_empty());
-
-    #[cfg(feature = "authoring-aura")]
-    let initial_authorities: Vec<(AccountId32, AuraId, GrandpaId)> =
-        seeds.into_iter().map(authority_keys_from_seed).collect();
-    #[cfg(not(feature = "authoring-aura"))]
-    let initial_authorities: Vec<(AccountId32, BabeId, GrandpaId)> = seeds
-        .into_iter()
-        .map(|s| authority_keys_from_seed(s))
-        .collect();
+    assert!(!initial_authorities.is_empty());
 
     let mut t = system::GenesisConfig::default()
         .build_storage::<Runtime>()
@@ -208,7 +163,6 @@ pub(crate) fn new_test_ext(
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "authoring-aura")]
     AuraConfig {
         authorities: initial_authorities
             .iter()
@@ -220,44 +174,14 @@ pub(crate) fn new_test_ext(
     .unwrap();
 
     BasicExternalities::execute_with_storage(&mut t, || {
-        #[cfg(not(feature = "authoring-aura"))]
-        BabeConfig {
-            authorities: Default::default(),
-            epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
-        };
-
-        #[cfg(feature = "authoring-aura")]
         <GrandpaConfig as GenesisBuild<Runtime>>::build(&GrandpaConfig {
             authorities: initial_authorities.into_iter().map(|x| (x.2, 1)).collect(),
         });
-        #[cfg(not(feature = "authoring-aura"))]
-        GrandpaConfig {
-            authorities: Default::default(),
-        };
 
         <TransactionPaymentConfig as GenesisBuild<Runtime>>::build(
             &TransactionPaymentConfig::default(),
         );
     });
-
-    #[cfg(not(feature = "authoring-aura"))]
-    SessionConfig {
-        keys: initial_authorities
-            .iter()
-            .map(|x| {
-                (
-                    x.0.clone(),
-                    x.0.clone(),
-                    SessionKeys {
-                        babe: x.1.clone(),
-                        grandpa: x.2.clone(),
-                    },
-                )
-            })
-            .collect::<Vec<_>>(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
 
     SudoConfig {
         key: Some(root_key),
@@ -277,16 +201,22 @@ pub(crate) fn new_test_ext(
 
 pub(crate) fn with_offchain_ext(
     balances: Vec<(impl Into<AccountId32>, u128)>,
-    seeds: Vec<&str>,
+    initial_authorities: Vec<(AccountId32, AuraId, GrandpaId)>,
     root_key: AccountId32,
 ) -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>) {
-    let mut ext = new_test_ext(balances, seeds, root_key);
+    let mut ext = new_test_ext(balances, initial_authorities, root_key);
     let (offchain, _) = TestOffchainExt::new();
     let (pool, pool_state) = TestTransactionPoolExt::new();
 
     ext.register_extension(OffchainDbExt::new(offchain.clone()));
     ext.register_extension(OffchainWorkerExt::new(offchain));
     ext.register_extension(TransactionPoolExt::new(pool));
+
+    ext.execute_with(|| {
+        let new_blk = 1;
+        initialize(new_blk);
+        on_initialize(new_blk);
+    });
 
     (ext, pool_state)
 }
