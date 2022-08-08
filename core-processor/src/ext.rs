@@ -34,9 +34,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{
-        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyDetails, ReplyPacket,
-    },
+    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
@@ -456,13 +454,13 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_details(&mut self, is_exit_code: bool) -> Result<Option<ReplyDetails>, Self::Error> {
-        if is_exit_code {
-            self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
+        if let Some(details) = self.context.message_context.current().reply() {
+            Ok(Some(details.into_reply_to()))
         } else {
-            self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
+            Ok(None)
         }
-        Ok(self.context.message_context.current().reply())
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -473,6 +471,15 @@ impl EnvExt for Ext {
     fn exit(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
         Ok(())
+    }
+
+    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+        if let Some(details) = self.context.message_context.current().reply() {
+            Ok(Some(details.into_exit_code()))
+        } else {
+            Ok(None)
+        }
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {

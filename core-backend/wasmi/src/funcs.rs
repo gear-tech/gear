@@ -351,17 +351,13 @@ where
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        let opt_details = ctx
-            .ext
-            .reply_details(true)
-            .map_err(FuncError::Core)
-            .map_err(|e| {
-                ctx.err = e;
-                FuncError::HostError
-            })?;
+        let exit_code = ctx.ext.exit_code().map_err(FuncError::Core).map_err(|e| {
+            ctx.err = e;
+            FuncError::HostError
+        })?;
 
-        if let Some(details) = opt_details {
-            return_i32(details.into_exit_code()).map_err(|_| FuncError::HostError)
+        if let Some(exit_code) = exit_code {
+            return_i32(exit_code).map_err(|_| FuncError::HostError)
         } else {
             ctx.err = FuncError::NonReplyExitCode;
             Err(FuncError::HostError)
@@ -588,21 +584,16 @@ where
 
         let dest = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
-        let opt_details = ctx
-            .ext
-            .reply_details(false)
-            .map_err(FuncError::Core)
-            .map_err(|err| {
-                ctx.err = err;
+        let message_id = ctx.ext.reply_to().map_err(FuncError::Core).map_err(|err| {
+            ctx.err = err;
+            FuncError::HostError
+        })?;
+
+        if let Some(id) = message_id {
+            ctx.write_output(dest, id.as_ref()).map_err(|err| {
+                ctx.err = err.into();
                 FuncError::HostError
             })?;
-
-        if let Some(details) = opt_details {
-            ctx.write_output(dest, details.into_reply_to().as_ref())
-                .map_err(|err| {
-                    ctx.err = err.into();
-                    FuncError::HostError
-                })?;
 
             Ok(ReturnValue::Unit)
         } else {
