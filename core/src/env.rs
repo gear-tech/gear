@@ -90,7 +90,7 @@ pub trait Ext {
     }
 
     /// Read the message id, if current message is a reply.
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error>;
+    fn reply_details(&mut self, is_exit_code: bool) -> Result<Option<ReplyDetails>, Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
@@ -214,7 +214,10 @@ mod tests {
         ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
-        fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
+        fn reply_details(
+            &mut self,
+            _is_exit_code: bool,
+        ) -> Result<Option<ReplyDetails>, Self::Error> {
             Ok(None)
         }
         fn source(&mut self) -> Result<ProgramId, Self::Error> {

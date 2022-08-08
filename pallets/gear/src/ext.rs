@@ -298,8 +298,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_commit(msg).map_err(Error::Processor)
     }
 
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
-        self.inner.reply_details().map_err(Error::Processor)
+    fn reply_details(&mut self, is_exit_code: bool) -> Result<Option<ReplyDetails>, Self::Error> {
+        self.inner
+            .reply_details(is_exit_code)
+            .map_err(Error::Processor)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {

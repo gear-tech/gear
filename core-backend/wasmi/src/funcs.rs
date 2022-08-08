@@ -353,7 +353,7 @@ where
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let opt_details = ctx
             .ext
-            .reply_details()
+            .reply_details(true)
             .map_err(FuncError::Core)
             .map_err(|e| {
                 ctx.err = e;
@@ -590,7 +590,7 @@ where
 
         let opt_details = ctx
             .ext
-            .reply_details()
+            .reply_details(false)
             .map_err(FuncError::Core)
             .map_err(|err| {
                 ctx.err = err;

@@ -456,8 +456,12 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
-        self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
+    fn reply_details(&mut self, is_exit_code: bool) -> Result<Option<ReplyDetails>, Self::Error> {
+        if is_exit_code {
+            self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+        } else {
+            self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
+        }
         Ok(self.context.message_context.current().reply())
     }
 
