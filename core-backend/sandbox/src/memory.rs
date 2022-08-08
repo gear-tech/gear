@@ -90,6 +90,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn smoky() {
         let (mut mem, mut mem_wrap) = new_test_memory(16, 256);
 
