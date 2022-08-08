@@ -25,7 +25,6 @@ use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 use demo_ncompose::WASM_BINARY as NCOMPOSE_WASM_BINARY;
 use frame_support::dispatch::DispatchError;
 use gear_core::ids::ProgramId;
-#[cfg(feature = "gear-native")]
 use gear_runtime::{Gear, Origin, Runtime};
 use pallet_gear::GasHandlerOf;
 use primitive_types::H256;
@@ -33,8 +32,6 @@ use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
 use sp_core::sr25519;
 use sp_std::collections::btree_map::BTreeMap;
 use std::fmt;
-#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
-use vara_runtime::{Gear, Origin, Runtime};
 use wasm_mutate::{ErrorKind, WasmMutate};
 use wasmparser::Validator;
 
@@ -90,7 +87,7 @@ pub fn composer_target(params: &Params) -> TargetOutcome {
     let alice = get_account_id_from_seed::<sr25519::Public>("Alice");
     let (mut ext, pool) = with_offchain_ext(
         vec![(alice.clone(), 1_000_000_000_000_000_u128)],
-        vec!["Val"],
+        vec![authority_keys_from_seed("Val")],
         alice.clone(),
     );
     ext.execute_with(|| {
@@ -199,7 +196,11 @@ pub fn simple_scenario(params: &Params) -> TargetOutcome {
         log::debug!("Created balances for {} accounts", accounts.len());
 
         // Creating test externalities (with offchain workers support)
-        let (mut ext, pool) = with_offchain_ext(accounts.clone(), vec!["Val"], alice.clone());
+        let (mut ext, pool) = with_offchain_ext(
+            accounts.clone(),
+            vec![authority_keys_from_seed("Val")],
+            alice.clone(),
+        );
         ext.execute_with(|| {
             // Currency balance of all accounts (total issuance)
             let initial_total_balance =
@@ -417,7 +418,7 @@ mod tests {
 
         new_test_ext(
             vec![(alice.clone(), 1_000_000_000_000_000_u128)],
-            vec!["Val"],
+            vec![authority_keys_from_seed("Val")],
             alice.clone(),
         )
         .execute_with(|| {
@@ -472,7 +473,7 @@ mod tests {
         let alice = get_account_id_from_seed::<sr25519::Public>("Alice");
         new_test_ext(
             vec![(alice.clone(), 1_000_000_000_000_000_u128)],
-            vec!["Val"],
+            vec![authority_keys_from_seed("Val")],
             alice.clone(),
         )
         .execute_with(|| {

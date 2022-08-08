@@ -389,13 +389,13 @@ macro_rules! replace_token {
 
 macro_rules! call_zero {
 	($name:ident, $( $arg:expr ),*) => {
-        <T as Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
+        <T as super::pallet::Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
     };
 }
 
 macro_rules! cost_args {
 	($name:ident, $( $arg: expr ),+) => {
-		(<T as Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
+		(<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
 	}
 }
 
@@ -623,10 +623,10 @@ impl<T: Config> Default for HostFnWeights<T> {
 impl<T: Config> Default for MemoryWeights<T> {
     fn default() -> Self {
         Self {
-            initial_cost: <T as Config>::WeightInfo::initial_cost(),
-            allocation_cost: <T as Config>::WeightInfo::allocation_cost(),
-            grow_cost: <T as Config>::WeightInfo::grow_cost(),
-            load_cost: <T as Config>::WeightInfo::load_cost(),
+            initial_cost: <T as super::pallet::Config>::WeightInfo::initial_cost(),
+            allocation_cost: <T as super::pallet::Config>::WeightInfo::allocation_cost(),
+            grow_cost: <T as super::pallet::Config>::WeightInfo::grow_cost(),
+            load_cost: <T as super::pallet::Config>::WeightInfo::load_cost(),
             _phantom: PhantomData,
         }
     }

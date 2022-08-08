@@ -21,9 +21,9 @@ wasm-instrument = { version = "0.2", default-features = false }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "../../core-processor", default-features = false }
-gear-core = { path = "../../core", default-features = false }
-gear-core-errors = { path = "../../core-errors", default-features = false }
+core-processor = { package = "gear-core-processor", path = "../../core-processor" }
+gear-core = { path = "../../core" }
+gear-core-errors = { path = "../../core-errors" }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
@@ -73,9 +73,9 @@ demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 page_size = "0.4.2"
-pallet-gear-gas = { path = "../gas" }
-pallet-gear-messenger = { path = "../gear-messenger" }
-pallet-gear-scheduler = { path = "../gear-scheduler" }
+pallet-gear-gas = { path = "../gas", default-features = false }
+pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
+pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
 
 [features]
 default = ['std']
@@ -87,7 +87,7 @@ std = [
 	"frame-system/std",
 	"wasm-instrument/std",
 	"gear-backend-sandbox/std",
-	"gear-runtime-interface/std",
+	"pallet-gear-gas/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -97,9 +97,12 @@ std = [
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",
+	"pallet-gear-messenger/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
+	"gear-runtime-interface/std",
+	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

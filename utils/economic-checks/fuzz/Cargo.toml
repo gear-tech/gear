@@ -10,7 +10,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-economic-checks = { path = "..", default-features = false }
+economic-checks = { path = ".." }
 
 [[bin]]
 name = "composer_fuzz_target"
@@ -23,9 +23,3 @@ name = "simple_fuzz_target"
 path = "fuzz_targets/simple_fuzz_target.rs"
 test = false
 doc = false
-
-[features]
-default = ["gear-native", "lazy-pages"]
-gear-native = ["economic-checks/gear-native"]
-vara-native = ["economic-checks/vara-native"]
-lazy-pages = ["economic-checks/lazy-pages"]
