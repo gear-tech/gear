@@ -27,9 +27,6 @@ use gear_core::{
 use gear_runtime_interface::{gear_ri, RIError};
 use sp_std::vec::Vec;
 
-extern crate alloc;
-use alloc::string::ToString;
-
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum Error {
     #[display(fmt = "{}", _0)]

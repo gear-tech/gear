@@ -45,7 +45,7 @@ pub enum Error {
     WasmMemAddrIsNotSet,
     #[display(fmt = "WASM memory size is not set")]
     WasmMemSizeIsNotSet,
-    #[display(fmt = "Overflow of addr arith operation")]
+    #[display(fmt = "Overflow of address arithmetic operation")]
     AddrArithOverflow,
     #[display(fmt = "Program pages prefix in storage is not set")]
     ProgramPrefixIsNotSet,
@@ -61,7 +61,7 @@ pub enum Error {
         wasm_mem_end_addr: usize,
     },
     #[display(
-        fmt = "Signal addr {:#x} is from wasm program virt-stack memory [0, {:#x})",
+        fmt = "Signal addr {:#x} is from WASM program virtual stack memory [0, {:#x})",
         wasm_addr,
         stack_end
     )]
@@ -70,7 +70,7 @@ pub enum Error {
         stack_end: WasmAddr,
     },
     #[display(
-        fmt = "Accessed pages are not lies in wasm memory: [{:#x}, {:#x}) not in [{:#x}, {:#x})",
+        fmt = "Accessed pages do not lay in WASM memory: [{:#x}, {:#x}) not in [{:#x}, {:#x})",
         begin_addr,
         end_addr,
         wasm_mem_addr,
@@ -158,7 +158,7 @@ pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum InitForProgramErr {
+pub enum InitForProgramError {
     #[display(
         fmt = "Wasm mem native addr {:#x} is not aligned to the native page size",
         _0
@@ -175,8 +175,8 @@ pub fn initilize_for_program(
     wasm_mem_size: WasmPageNumber,
     stack_end_page: Option<WasmPageNumber>,
     program_prefix: Vec<u8>,
-) -> Result<(), InitForProgramErr> {
-    use InitForProgramErr::*;
+) -> Result<(), InitForProgramError> {
+    use InitForProgramError::*;
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
         ctx.accessed_pages_addrs.clear();

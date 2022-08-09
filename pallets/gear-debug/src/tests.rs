@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
-#[allow(unused)]
+#[cfg(feature = "lazy-pages")]
 use frame_support::assert_ok;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
@@ -285,7 +285,7 @@ fn get_last_message_id() -> MessageId {
     }
 }
 
-#[allow(unused)]
+#[cfg(feature = "lazy-pages")]
 fn append_rest_psg_pages(page: PageNumber, pages_data: &mut BTreeMap<PageNumber, Vec<u8>>) {
     let first_in_psg = PageNumber::new_from_addr((page.offset() as usize / PSG) * PSG);
     (0..(PSG / PageNumber::size()) as u32)
@@ -452,8 +452,7 @@ fn check_not_allocated_pages() {
         // For all pages, which is write accessed, and has no data in storage yet,
         // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
         [gear_page0, gear_page7]
-            .iter()
-            .copied()
+            .into_iter()
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
@@ -691,8 +690,7 @@ fn check_changed_pages_in_storage() {
         // For all pages, which is write accessed, and has no data in storage yet,
         // we must upload to storage all pages from [PAGE_STORAGE_GRANULARITY] interval.
         [gear_page1, gear_page8, gear_page9]
-            .iter()
-            .copied()
+            .into_iter()
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(
@@ -732,8 +730,7 @@ fn check_changed_pages_in_storage() {
         persistent_pages.insert(gear_page4, empty_data.to_vec());
 
         [gear_page3, gear_page4]
-            .iter()
-            .copied()
+            .into_iter()
             .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
 
         System::assert_last_event(

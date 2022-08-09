@@ -30,8 +30,8 @@ use crate::{
 use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
 
 // These constants are used both in runtime and in lazy-pages backend,
-// so makes here additional checks. If somebody would change these values
-// in runtime, then he also should pay attation to support new values here:
+// so we make here additional checks. If somebody would change these values
+// in runtime, then he also should pay attention to support new values here:
 // 1) must rebuild node after that.
 // 2) must support old runtimes: need to make lazy pages version with old constatns values.
 static_assertions::const_assert_eq!(PageNumber::size(), 0x1000);
@@ -69,12 +69,9 @@ struct PagePrefix {
 impl PagePrefix {
     /// New page prefix from program prefix
     pub fn new_from_program_prefix(program_prefix: &[u8]) -> Self {
-        let mut prefix = Self {
-            buffer: Vec::with_capacity(program_prefix.len() + std::mem::size_of::<u32>()),
-        };
-        prefix.buffer.extend(program_prefix);
-        prefix.buffer.extend(u32::MAX.to_le_bytes());
-        prefix
+        Self {
+            buffer: [program_prefix, &u32::MAX.to_le_bytes()].concat(),
+        }
     }
     /// Returns key in storage for `page`.
     pub fn calc_key_for_page(&mut self, page: PageNumber) -> &[u8] {
@@ -101,11 +98,9 @@ impl CheckedWasmAddr {
         stack_end: WasmAddr,
         wasm_mem_size: u32,
     ) -> Result<Self, Error> {
-        let calc_wasm_mem_end_addr = || {
-            wasm_mem_addr
-                .checked_add(wasm_mem_size as usize)
-                .ok_or(Error::AddrArithOverflow)
-        };
+        let wasm_mem_end_addr = wasm_mem_addr
+            .checked_add(wasm_mem_size as usize)
+            .ok_or(Error::AddrArithOverflow)?;
 
         let addr =
             native_addr
@@ -113,14 +108,14 @@ impl CheckedWasmAddr {
                 .ok_or(Error::SignalFromUnknownMemory {
                     addr: native_addr,
                     wasm_mem_addr,
-                    wasm_mem_end_addr: calc_wasm_mem_end_addr()?,
+                    wasm_mem_end_addr,
                 })?;
 
         if addr >= wasm_mem_size as usize {
             return Err(Error::SignalFromUnknownMemory {
                 addr: native_addr,
                 wasm_mem_addr,
-                wasm_mem_end_addr: calc_wasm_mem_end_addr()?,
+                wasm_mem_end_addr,
             });
         }
 
@@ -156,7 +151,7 @@ impl CheckedWasmAddr {
     }
 
     /// Checks that interval [`addr`, `addr` + `size`) is in wasm memory.
-    pub fn check_interval_with_size_is_ok(&self, size: u32) -> Result<(), Error> {
+    pub fn check_interval(&self, size: u32) -> Result<(), Error> {
         // `addr` is in wasm mem, so `sub` is safe.
         (size <= self.wasm_mem_size - self.addr)
             .then_some(())
@@ -239,19 +234,18 @@ unsafe fn user_signal_handler_internal_v2(
     let is_definitely_write =
         ctx.accessed_pages_addrs.contains(&wasm_addr.get()) || info.is_write.unwrap_or(false);
 
-    // Is definitely write if it's second access or there `is_write` is set as `true`.
     let is_psg_case = is_definitely_write
         && native_ps < psg
         && !sp_io::storage::exists(prefix.calc_key_for_page(wasm_addr.as_page_number()));
     let unprot_size = if is_psg_case {
-        log::trace!("is PSG case - we need to upload to storage data for all pages from `page-storage-granularity`");
+        log::trace!("is PSG case - we need to upload to storage data for all pages from `PAGE_STORAGE_GRANULARITY`");
         wasm_addr.align_down(psg);
         psg
     } else {
         native_ps
     };
 
-    wasm_addr.check_interval_with_size_is_ok(unprot_size)?;
+    wasm_addr.check_interval(unprot_size)?;
 
     // Set r/w protection in order to load data from storage into mem buffer.
     let unprot_addr = wasm_addr.as_native_addr();
@@ -265,7 +259,8 @@ unsafe fn user_signal_handler_internal_v2(
     let fist_gear_page = wasm_addr.as_page_number();
 
     for idx in 0..unprot_size / lazy_page_size {
-        // Arith opertaions are safe here.
+        // Arithmetic opertaions are safe here, because this values represents, address and
+        // pages, for which we have already checked, that they are inside wasm memory.
         let lazy_page_wasm_addr = wasm_addr.get() + idx * lazy_page_size;
         let begin = fist_gear_page.0 + idx * num_of_gear_pages_in_one_lazy;
         let end = begin + num_of_gear_pages_in_one_lazy;
@@ -288,11 +283,7 @@ unsafe fn user_signal_handler_internal_v2(
             let buffer_as_slice = std::slice::from_raw_parts_mut(page_buffer_ptr, gear_ps as usize);
             let res = sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
 
-            log::trace!(
-                "{:?} has{} data in storage",
-                gear_page,
-                if res.is_none() { " no" } else { "" },
-            );
+            log::trace!("{:?} has data in storage: {}", gear_page, res.is_none());
 
             if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
                 return Err(Error::InvalidPageDataSize {
