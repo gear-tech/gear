@@ -19,7 +19,7 @@
 //! Lazy pages support runtime functions
 
 use crate::Origin;
-use core::{convert::TryFrom, fmt};
+use core::fmt;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
@@ -59,15 +59,6 @@ fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
     gear_ri::mprotect_lazy_pages(protect).expect("Cannot set/unset protection for wasm mem");
 
     Ok(())
-}
-
-fn get_memory_size_in_bytes(size_in_wasm_pages: WasmPageNumber) -> Result<u32, Error> {
-    size_in_wasm_pages
-        .0
-        .checked_add(1)
-        .ok_or(Error::WasmMemorySizeOverflow)?
-        .checked_mul(WasmPageNumber::size() as u32)
-        .ok_or(Error::WasmMemorySizeOverflow)
 }
 
 /// Try to enable and initialize lazy pages env
