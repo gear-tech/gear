@@ -456,11 +456,12 @@ impl EnvExt for Ext {
 
     fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
-        if let Some(details) = self.context.message_context.current().reply() {
-            Ok(Some(details.into_reply_to()))
-        } else {
-            Ok(None)
-        }
+        Ok(self
+            .context
+            .message_context
+            .current()
+            .reply()
+            .map(|d| d.into_reply_to()))
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -475,11 +476,12 @@ impl EnvExt for Ext {
 
     fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
-        if let Some(details) = self.context.message_context.current().reply() {
-            Ok(Some(details.into_exit_code()))
-        } else {
-            Ok(None)
-        }
+        Ok(self
+            .context
+            .message_context
+            .current()
+            .reply()
+            .map(|d| d.into_exit_code()))
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
