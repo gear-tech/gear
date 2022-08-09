@@ -46,11 +46,7 @@ impl Send {
         let r = tokio::try_join!(
             self.send_message(&api),
             Api::wait_for(events, |event| {
-                if let GearEvent::MessagesDispatched { .. } = event {
-                    true
-                } else {
-                    false
-                }
+                matches!(event, GearEvent::MessagesDispatched { .. })
             })
         );
 
@@ -62,7 +58,7 @@ impl Send {
     async fn send_message(&self, api: &Api) -> Result<()> {
         let mut destination = [0; 32];
         destination
-            .copy_from_slice(&mut hex::decode(self.destination.trim_start_matches("0x"))?.as_ref());
+            .copy_from_slice(hex::decode(self.destination.trim_start_matches("0x"))?.as_ref());
 
         api.send_message(SendMessage {
             destination: ProgramId(destination),

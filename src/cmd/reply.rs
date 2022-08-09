@@ -41,11 +41,7 @@ impl Reply {
         let r = tokio::try_join!(
             self.send_reply(&api),
             Api::wait_for(events, |event| {
-                if let GearEvent::MessagesDispatched { .. } = event {
-                    true
-                } else {
-                    false
-                }
+                matches!(event, GearEvent::MessagesDispatched { .. })
             })
         );
 
@@ -57,7 +53,7 @@ impl Reply {
     async fn send_reply(&self, api: &Api) -> Result<()> {
         let mut reply_to_id = [0; 32];
         reply_to_id
-            .copy_from_slice(&mut hex::decode(self.reply_to_id.trim_start_matches("0x"))?.as_ref());
+            .copy_from_slice(hex::decode(self.reply_to_id.trim_start_matches("0x"))?.as_ref());
 
         api.send_reply(SendReply {
             reply_to_id: MessageId(reply_to_id),

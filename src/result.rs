@@ -46,10 +46,10 @@ pub enum Error {
     InvalidPassword,
     #[error("{0}")]
     Nacl(String),
-    #[error("{0}")]
-    Schnorrkel(String),
     #[error("No available account was found in keystore, please run `gear login` first.")]
     Logout,
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
     #[error(transparent)]
     Base64Decode(#[from] base64::DecodeError),
     #[error(transparent)]
@@ -58,6 +58,14 @@ pub enum Error {
     Hex(#[from] hex::FromHexError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Instantiation(#[from] wasmi::errors::InstantiationError),
+    #[error("{0}")]
+    Memory(wasmi::errors::MemoryError),
+    #[error(transparent)]
+    Metadata(#[from] crate::metadata::Error),
+    #[error("{0}")]
+    Schnorrkel(schnorrkel::SignatureError),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
@@ -79,6 +87,8 @@ pub enum Error {
     SubxtRpc(#[from] subxt::rpc::RpcError),
     #[error(transparent)]
     Tx(#[from] TransactionError),
+    #[error(transparent)]
+    Wasmi(#[from] wasmi::Error),
 }
 
 impl From<nacl::Error> for Error {
@@ -89,7 +99,13 @@ impl From<nacl::Error> for Error {
 
 impl From<schnorrkel::SignatureError> for Error {
     fn from(err: schnorrkel::SignatureError) -> Self {
-        Self::Schnorrkel(format!("{}", err))
+        Self::Schnorrkel(err)
+    }
+}
+
+impl From<wasmi::errors::MemoryError> for Error {
+    fn from(err: wasmi::errors::MemoryError) -> Self {
+        Self::Memory(err)
     }
 }
 

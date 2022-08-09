@@ -94,7 +94,7 @@ impl Encrypted {
     /// Create pair with passphrase.
     pub fn create(self, passphrase: &str) -> Result<sr25519::Pair> {
         assert!(
-            self.encoding.version != "3".to_string() || self.encoding.content[0] == "pkcs8",
+            self.encoding.version != *"3" || self.encoding.content[0] == "pkcs8",
             "Unable to decode non-pkcs8 type, [{}] found",
             self.encoding.content.join(",")
         );
@@ -105,7 +105,7 @@ impl Encrypted {
             "Only supports sr25519 for now."
         );
 
-        let decrypted = self.decrypt(&passphrase)?;
+        let decrypted = self.decrypt(passphrase)?;
         assert_eq!(
             &decrypted[0..PKCS8_HEADER.len()],
             &PKCS8_HEADER,
@@ -150,7 +150,7 @@ fn scrypt_from_slice(passphrase: &[u8], data: &[u8]) -> Result<[u8; 32]> {
     salt.copy_from_slice(&data[..SALT_LENGTH]);
 
     assert_eq!(
-        U256::from_little_endian(&data[SALT_LENGTH + 0..SALT_LENGTH + 4]),
+        U256::from_little_endian(&data[SALT_LENGTH..SALT_LENGTH + 4]),
         U256::from(1 << 15),
         "Invalid injected scrypt log_n found'"
     );

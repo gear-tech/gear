@@ -38,11 +38,7 @@ impl Deploy {
         tokio::try_join!(
             self.submit_program(&api),
             Api::wait_for(events, |event| {
-                if let GearEvent::MessageEnqueued { .. } = event {
-                    true
-                } else {
-                    false
-                }
+                matches!(event, GearEvent::MessageEnqueued { .. })
             })
         )?;
 

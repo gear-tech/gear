@@ -19,8 +19,7 @@ impl Claim {
     pub async fn exec(&self, api: Api) -> Result<()> {
         let mut message_id = [0; 32];
 
-        message_id
-            .copy_from_slice(&mut hex::decode(self.message_id.trim_start_matches("0x"))?.as_ref());
+        message_id.copy_from_slice(hex::decode(self.message_id.trim_start_matches("0x"))?.as_ref());
         api.claim_value_from_mailbox(ClaimValue {
             message_id: MessageId(message_id),
         })
