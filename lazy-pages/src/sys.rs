@@ -33,7 +33,7 @@ use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
 // so we make here additional checks. If somebody would change these values
 // in runtime, then he also should pay attention to support new values here:
 // 1) must rebuild node after that.
-// 2) must support old runtimes: need to make lazy pages version with old constatns values.
+// 2) must support old runtimes: need to make lazy pages version with old constants values.
 static_assertions::const_assert_eq!(PageNumber::size(), 0x1000);
 static_assertions::const_assert_eq!(PAGE_STORAGE_GRANULARITY, 0x4000);
 
@@ -224,13 +224,13 @@ unsafe fn user_signal_handler_internal_v2(
     // of the accessed gear page, if native page size is smaller then gear page size.
     wasm_addr.align_down(lazy_page_size);
 
-    // If `is_write` is Some, than we definitly know whether it's `write` or `read` access.
+    // If `is_write` is Some, than we definitely know whether it's `write` or `read` access.
     // In other case we handle first access as it's `read`.
     // This also means that we will set read protection for the accessed interval after handling.
     // If in reality it's `write` access, then right after return from signal handler,
     // another signal will appear from the same instruction and for the same address.
     // Because we insert accessed pages in `accessed_pages_addrs`, then handling second signal
-    // we can definitly identify that this signal from `write` access.
+    // we can definitely identify that this signal from `write` access.
     let is_definitely_write =
         ctx.accessed_pages_addrs.contains(&wasm_addr.get()) || info.is_write.unwrap_or(false);
 
@@ -259,7 +259,7 @@ unsafe fn user_signal_handler_internal_v2(
     let fist_gear_page = wasm_addr.as_page_number();
 
     for idx in 0..unprot_size / lazy_page_size {
-        // Arithmetic opertaions are safe here, because this values represents, address and
+        // Arithmetic operations are safe here, because this values represents, address and
         // pages, for which we have already checked, that they are inside wasm memory.
         let lazy_page_wasm_addr = wasm_addr.get() + idx * lazy_page_size;
         let begin = fist_gear_page.0 + idx * num_of_gear_pages_in_one_lazy;

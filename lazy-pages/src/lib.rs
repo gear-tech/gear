@@ -19,11 +19,11 @@
 //! Lazy pages support.
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
-//! During execution data from storage is loaded for all pages, which has been accesed.
+//! During execution data from storage is loaded for all pages, which has been accessed.
 //! See also `sys::user_signal_handler` in the source code.
 //!
 //! Currently we restrict twice write signal from same page during one execution.
-//! It's not necessary behaviour, but more simple and safe.
+//! It's not necessary behavior, but more simple and safe.
 
 // TODO: remove all deprecated code before release (issue #1147)
 #![allow(useless_deprecated, deprecated)]
@@ -170,7 +170,7 @@ pub enum InitForProgramError {
     StackEndAddrBiggerThenSize(WasmPageNumber, WasmPageNumber),
 }
 
-pub fn initilize_for_program(
+pub fn initialize_for_program(
     wasm_mem_addr: Option<usize>,
     wasm_mem_size: WasmPageNumber,
     stack_end_page: Option<WasmPageNumber>,

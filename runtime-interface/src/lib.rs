@@ -282,7 +282,7 @@ pub trait GearRI {
         lazy_pages::set_wasm_mem_size(size_in_bytes);
     }
 
-    fn initilize_for_program(
+    fn initialize_for_program(
         wasm_mem_addr: Option<HostPointer>,
         wasm_mem_size: u32,
         stack_end_page: Option<u32>,
@@ -293,14 +293,14 @@ pub trait GearRI {
 
         let wasm_mem_addr = wasm_mem_addr
             .map(|addr| usize::try_from(addr).expect("Cannot cast wasm mem addr to `usize`"));
-        lazy_pages::initilize_for_program(
+        lazy_pages::initialize_for_program(
             wasm_mem_addr,
             wasm_mem_size,
             stack_end_page,
             program_prefix,
         )
         .map_err(|e| e.to_string())
-        .expect("Cannot initilize lazy pages for current program");
+        .expect("Cannot initialize lazy pages for current program");
 
         if let Some(addr) = wasm_mem_addr {
             unsafe { sys_mprotect_interval(addr, wasm_mem_size.offset(), false, false, false) }
