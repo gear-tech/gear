@@ -20,13 +20,15 @@
 //!
 //! Provides API for low-level async implementation.
 
-use crate::{ActorId, MessageId};
+use crate::{ActorId, MessageId, ReservationId};
+use core::mem::MaybeUninit;
 
 mod sys {
     extern "C" {
         pub fn gr_block_height() -> u32;
         pub fn gr_block_timestamp() -> u64;
         pub fn gr_exit(value_dest_ptr: *const u8) -> !;
+        pub fn gr_reserve_gas(amount: u32, id_ptr: *mut u8);
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
         pub fn gr_origin(origin_ptr: *mut u8);
@@ -99,6 +101,16 @@ pub fn block_timestamp() -> u64 {
 /// ```
 pub fn exit(value_destination: ActorId) -> ! {
     unsafe { sys::gr_exit(value_destination.as_slice().as_ptr()) }
+}
+
+/// Reserve gas for further usage.
+// TODO: descriptive docs
+pub fn reserve_gas(amount: u32) -> ReservationId {
+    unsafe {
+        let mut id = MaybeUninit::uninit();
+        sys::gr_reserve_gas(amount, id.as_mut_ptr() as *mut u8);
+        id.assume_init()
+    }
 }
 
 /// Get the current value of the gas available for execution.

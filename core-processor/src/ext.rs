@@ -32,7 +32,7 @@ use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{AllocationsContext, Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
@@ -44,6 +44,8 @@ pub struct ProcessorContext {
     pub gas_counter: GasCounter,
     /// Gas allowance counter.
     pub gas_allowance_counter: GasAllowanceCounter,
+    /// Reserved gas counter.
+    pub gas_reservation_map: BTreeMap<ReservationId, u64>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -211,6 +213,7 @@ impl IntoExtInfo for Ext {
     fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
+            gas_reservation_map,
             message_context,
             gas_counter,
             program_candidates_data,
@@ -237,6 +240,7 @@ impl IntoExtInfo for Ext {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
+            gas_reservation_map,
             allocations: wasm_pages.ne(&initial_allocations).then_some(wasm_pages),
             pages_data,
             generated_dispatches,
@@ -555,6 +559,26 @@ impl EnvExt for Ext {
         } else {
             self.return_and_store_err(Err(ExecutionError::TooManyGasAdded))
         }
+    }
+
+    fn reserve_gas(&mut self, amount: u32) -> Result<ReservationId, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
+
+        // TODO: amount checks
+        // amount != 0, amount <= gas_allowance
+
+        let ProcessorContext {
+            message_context,
+            gas_reservation_map,
+            ..
+        } = &mut self.context;
+
+        let msg_id = message_context.current().id();
+        let idx = gas_reservation_map.len();
+        let id = ReservationId::generate(msg_id, idx);
+        gas_reservation_map.insert(id, amount as u64);
+
+        Ok(id)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {

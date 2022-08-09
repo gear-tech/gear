@@ -50,6 +50,7 @@ pub trait WeightInfo {
 	fn reinstrument(c: u32, ) -> Weight;
 	fn alloc(r: u32, ) -> Weight;
 	fn gas(r: u32, ) -> Weight;
+	fn gr_reserve_gas(r: u32, ) -> Weight;
 	fn gr_gas_available(r: u32, ) -> Weight;
 	fn gr_msg_id(r: u32, ) -> Weight;
 	fn gr_origin(r: u32, ) -> Weight;
@@ -220,6 +221,9 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			// Standard Error: 141_000
 			.saturating_add((61_679_000 as Weight).saturating_mul(r as Weight))
 	}
+	fn gr_reserve_gas(_r: u32) -> Weight {
+        0
+    }
 	fn gr_gas_available(r: u32, ) -> Weight {
 		(119_180_000 as Weight)
 			// Standard Error: 174_000
@@ -735,6 +739,9 @@ impl WeightInfo for () {
 			// Standard Error: 141_000
 			.saturating_add((61_679_000 as Weight).saturating_mul(r as Weight))
 	}
+	fn gr_reserve_gas(_r: u32) -> Weight {
+        0
+    }
 	fn gr_gas_available(r: u32, ) -> Weight {
 		(119_180_000 as Weight)
 			// Standard Error: 174_000

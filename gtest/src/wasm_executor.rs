@@ -153,6 +153,7 @@ impl WasmExecutor {
         Ext::new(ProcessorContext {
             gas_counter: GasCounter::new(u64::MAX),
             gas_allowance_counter: GasAllowanceCounter::new(u64::MAX),
+            gas_reservation_map: Default::default(),
             value_counter: ValueCounter::new(u128::MAX),
             allocations_context: AllocationsContext::new(
                 program.get_allocations().clone(),
