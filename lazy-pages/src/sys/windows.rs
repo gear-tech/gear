@@ -50,8 +50,8 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
     };
 
     super::user_signal_handler(info)
-        .map_err(|err| format!("Memory exception handler failed: {}", err))
-        .unwrap();
+        .map_err(|err| err.to_string())
+        .expect("Memory exception handler failed");
 
     EXCEPTION_CONTINUE_EXECUTION
 }

@@ -49,8 +49,8 @@ extern "C" fn handle_sigsegv(_sig: i32, info: *mut siginfo_t, ucontext: *mut c_v
         };
 
         super::user_signal_handler(info)
-            .map_err(|err| format!("Signal handler failed: {}", err))
-            .unwrap()
+            .map_err(|err| err.to_string())
+            .expect("Signal handler failed")
     }
 }
 
