@@ -144,7 +144,7 @@ Modern blockchains solve many issues of the older blockchain networks, such as:
  - Lack of scalability, low transaction speed, high transaction costs
  - Domain-specific development language (high barrier to entry)
  - Complex and inefficient native consensus protocols
- - Absence of intercommunication tool asdiis
+ - Absence of intercommunication tools
 
 But still have room for improvements due to:
  - Fixated, rigid native consensus protocols
