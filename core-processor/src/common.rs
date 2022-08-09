@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
@@ -68,6 +68,8 @@ pub struct DispatchResult {
     pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
+    /// Gas amount programs reserved.
+    pub gas_reservation_map: BTreeMap<ReservationId, u64>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -111,6 +113,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
+            gas_reservation_map: Default::default(),
             page_update: Default::default(),
             allocations: Default::default(),
         }
@@ -239,6 +242,15 @@ pub enum JournalNote {
         /// Decreases gas allowance by that amount, burned for processing try.
         gas_burned: u64,
     },
+    /// Reserve gas.
+    ReserveGas {
+        /// Message which gas will be reserved from
+        message_id: MessageId,
+        /// Reservation ID of node
+        reservation_id: ReservationId,
+        /// Gas amount to reserve.
+        amount: u64,
+    },
 }
 
 /// Journal handler.
@@ -287,6 +299,13 @@ pub trait JournalHandler {
     ///
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64);
+    /// Reserve gas.
+    fn reserve_gas(
+        &mut self,
+        message_id: MessageId,
+        reservation_id: ReservationId,
+        gas_amount: u64,
+    );
 }
 
 /// Execution error.

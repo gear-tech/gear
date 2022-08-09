@@ -344,6 +344,7 @@ fn process_success(
         awakening,
         program_candidates,
         gas_amount,
+        gas_reservation_map,
         page_update,
         program_id,
         context_store,
@@ -361,6 +362,15 @@ fn process_success(
         message_id,
         amount: gas_amount.burned(),
     });
+
+    // TODO: reserve not only in success cases
+    for (reservation_id, amount) in gas_reservation_map {
+        journal.push(JournalNote::ReserveGas {
+            message_id,
+            reservation_id,
+            amount,
+        });
+    }
 
     // We check if value is greater than zero to don't provide
     // no-op journal note.

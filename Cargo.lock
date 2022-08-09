@@ -1462,6 +1462,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-reserve-gas"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
@@ -2529,6 +2539,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
+ "primitive-types",
  "pwasm-utils",
  "scale-info",
  "static_assertions",
@@ -4912,6 +4923,7 @@ dependencies = [
  "demo-program-factory",
  "demo-proxy",
  "demo-proxy-with-gas",
+ "demo-reserve-gas",
  "demo-value-sender",
  "demo-waiting-proxy",
  "env_logger",

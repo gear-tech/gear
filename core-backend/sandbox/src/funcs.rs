@@ -634,6 +634,24 @@ where
         })
     }
 
+    pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+        let mut args = args.iter();
+
+        let gas_amount: u32 = pop_i32(&mut args)?;
+        let id_ptr: u32 = pop_i32(&mut args)?;
+
+        let mut f = || {
+            let id = ctx.ext.reserve_gas(gas_amount).map_err(FuncError::Core)?;
+            ctx.write_output(id_ptr, id.as_ref())?;
+            Ok(())
+        };
+
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            HostError
+        })
+    }
+
     pub fn gas_available(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
         let gas_available = ctx
             .ext

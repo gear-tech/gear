@@ -4554,6 +4554,24 @@ fn missing_handle_is_not_executed() {
     });
 }
 
+#[test]
+fn gas_reservation_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+        )
+        .expect("submit_program failed");
+
+        run_to_next_block(None);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 

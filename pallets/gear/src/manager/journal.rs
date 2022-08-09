@@ -30,6 +30,7 @@ use gear_core::{
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
+use gear_core::ids::ReservationId;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -341,5 +342,15 @@ where
         GasAllowanceOf::<T>::decrease(gas_burned);
         QueueOf::<T>::requeue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
+    }
+
+    fn reserve_gas(
+        &mut self,
+        message_id: MessageId,
+        reservation_id: ReservationId,
+        gas_amount: u64,
+    ) {
+        GasHandlerOf::<T>::reserve(message_id, reservation_id.into(), gas_amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
     }
 }

@@ -206,3 +206,20 @@ impl ProgramId {
         hash(&argument).into()
     }
 }
+
+// TODO: don't use `declare_id` maybe?
+declare_id!(ReservationId: "Reservation identifier");
+
+impl ReservationId {
+    /// Create a new reservation ID
+    pub fn generate(msg_id: MessageId, idx: usize) -> Self {
+        let argument = [msg_id.as_ref(), &idx.to_be_bytes()].concat();
+        hash(&argument).into()
+    }
+}
+
+impl From<ReservationId> for MessageId {
+    fn from(id: ReservationId) -> Self {
+        Self(id.0)
+    }
+}

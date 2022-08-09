@@ -271,6 +271,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
+        gas_reservation_map: Default::default(),
         value_counter,
         allocations_context,
         message_context,
@@ -378,6 +379,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         awakening: info.awakening,
         program_candidates,
         gas_amount: info.gas_amount,
+        gas_reservation_map: info.gas_reservation_map,
         page_update,
         allocations: info.allocations,
     })
