@@ -34,14 +34,8 @@ use alloc::string::ToString;
 pub enum Error {
     #[display(fmt = "{}", _0)]
     RIError(RIError),
-    #[display(fmt = "{:?} has no released data", _0)]
-    ReleasedPageHasNoData(PageNumber),
-    #[display(fmt = "Released page {:?} has initial data", _0)]
-    ReleasedPageHasInitialData(PageNumber),
-    #[display(fmt = "Wasm memory buffer is undefined")]
+    #[display(fmt = "Wasm memory buffer is undefined after wasm memory relocation")]
     WasmMemBufferIsUndefined,
-    #[display(fmt = "Wasm memory buffer size is bigger then u32::MAX")]
-    WasmMemorySizeOverflow,
 }
 
 impl From<RIError> for Error {
@@ -92,12 +86,6 @@ pub fn protect_pages_and_init_info(mem: &impl Memory, prog_id: ProgramId) -> Res
         .expect("Cannot initilize lazy pages for current program");
 
     Ok(())
-}
-
-/// Lazy pages contract post execution actions
-pub fn post_execution_actions(mem: &impl Memory) -> Result<(), Error> {
-    // Removes protections from lazy pages
-    mprotect_lazy_pages(mem, false)
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr

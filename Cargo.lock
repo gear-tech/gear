@@ -5027,6 +5027,7 @@ dependencies = [
  "demo-proxy-with-gas",
  "demo-value-sender",
  "demo-waiting-proxy",
+ "derive_more",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
