@@ -18,6 +18,8 @@
 
 use std::{sync::Arc, time::Duration};
 
+use gear_runtime_interface as gear_ri;
+
 use jsonrpsee::RpcModule;
 
 use cumulus_client_cli::CollatorOptions;
@@ -50,7 +52,10 @@ use polkadot_service::CollatorPair;
 pub struct GearRuntimeExecutor;
 
 impl sc_executor::NativeExecutionDispatch for GearRuntimeExecutor {
-    type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+    type ExtendHostFunctions = (
+        frame_benchmarking::benchmarking::HostFunctions,
+        gear_ri::gear_ri::HostFunctions,
+    );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
         gear_runtime::api::dispatch(method, data)
