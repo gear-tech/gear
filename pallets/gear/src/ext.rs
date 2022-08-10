@@ -154,13 +154,10 @@ impl ProcessorExt for LazyPagesExt {
         prog_id: ProgramId,
         stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
-        lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Into::into)
+        lazy_pages::init_for_program(mem, prog_id, stack_end).map_err(Into::into)
     }
 
-    fn lazy_pages_post_execution_actions(
-        mem: &impl Memory,
-        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>, // TODO: remove it (issue #1273)
-    ) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error> {
         lazy_pages::remove_lazy_pages_prot(mem).map_err(Into::into)
     }
 }
