@@ -49,7 +49,7 @@ use xcm_config::{XcmConfig, XcmOriginToTransactDispatchOrigin};
 // Polkadot imports
 use polkadot_runtime_common::BlockHashCount;
 
-use weights::RocksDbWeight;
+use weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
 
 // XCM Imports
 use xcm::latest::prelude::BodyId;
@@ -64,10 +64,10 @@ pub use frame_support::{
         ConstU128, ConstU32, ConstU64, ConstU8, Contains, Currency, FindAuthor,
         KeyOwnerProofSystem, OnUnbalanced, Randomness, StorageInfo,
     },
-    weights::{constants::WEIGHT_PER_SECOND, IdentityFee, Weight},
+    weights::{constants::WEIGHT_PER_SECOND, DispatchClass, IdentityFee, Weight},
     PalletId, StorageValue,
 };
-pub use frame_system::{Call as SystemCall, EnsureRoot};
+pub use frame_system::{limits::{BlockLength, BlockWeights}, Call as SystemCall, EnsureRoot};
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
@@ -170,6 +170,10 @@ pub fn native_version() -> NativeVersion {
     }
 }
 
+/// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
+/// used to limit the maximal weight of a single extrinsic.
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
+
 // Extrinsics with DispatchClass::Normal only account for user messages
 // TODO: consider making the normal extrinsics share adjustable in runtime
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(25);
@@ -179,12 +183,32 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND / 2;
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
-    /// We allow for 1/3 of a second of compute with a 2 second average block time.
-    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-        ::with_sensible_defaults(WEIGHT_PER_SECOND / 3, NORMAL_DISPATCH_RATIO);
-    pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength
-        ::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
-    pub const SS58Prefix: u8 = 42;
+	// This part is copied from Substrate's `bin/node/runtime/src/lib.rs`.
+	//  The `RuntimeBlockLength` and `RuntimeBlockWeights` exist here because the
+	// `DeletionWeightLimit` and `DeletionQueueDepth` depend on those to parameterize
+	// the lazy contract deletion.
+	pub RuntimeBlockLength: BlockLength =
+		BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+	pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
+		.base_block(BlockExecutionWeight::get())
+		.for_class(DispatchClass::all(), |weights| {
+			weights.base_extrinsic = ExtrinsicBaseWeight::get();
+		})
+		.for_class(DispatchClass::Normal, |weights| {
+			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+		})
+		.for_class(DispatchClass::Operational, |weights| {
+			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+			// Operational transactions have some extra reserved space, so that they
+			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+			weights.reserved = Some(
+				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
+			);
+		})
+		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+		.build_or_panic();
+
+    pub const SS58Prefix: u16 = 42;
 }
 
 // Configure FRAME pallets to include in runtime.
@@ -193,9 +217,9 @@ impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
     type BaseCallFilter = frame_support::traits::Everything;
     /// Block & extrinsics weights: base values and limits.
-    type BlockWeights = BlockWeights;
+    type BlockWeights = RuntimeBlockWeights;
     /// The maximum length of a block (in bytes).
-    type BlockLength = BlockLength;
+    type BlockLength = RuntimeBlockLength;
     /// The identifier used to distinguish between accounts.
     type AccountId = AccountId;
     /// The aggregated dispatch type that is available for extrinsics.
