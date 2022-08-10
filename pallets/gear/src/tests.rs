@@ -5120,3 +5120,36 @@ mod utils {
             .unwrap_or_default()
     }
 }
+
+#[test]
+fn check_gear_stack_end_fail() {
+    // This test checks, that in case user makes WASM file with incorrect
+    // `__gear_stack_end`, then execution will end with an error.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 4))
+            (export "init" (func $init))
+            (func $init)
+            ;; stack end points to the addr, bigger than static mem size
+            (global (;0;) (mut i32) (i32.const 0x50000))
+            (export "__gear_stack_end" (global 0))
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 1);
+    });
+}

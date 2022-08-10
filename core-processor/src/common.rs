@@ -357,7 +357,7 @@ pub enum ExecutionErrorReason {
     /// Message killed from storage as out of rent.
     #[display(fmt = "Out of rent")]
     OutOfRent,
-    /// Initial pages data must be empty when execute with lazy pages
+    /// Initial pages data must be empty in lazy pages mode
     #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
     InitialPagesContainsDataInLazyPagesMode,
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.

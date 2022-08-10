@@ -359,7 +359,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         })?;
 
     if A::is_lazy_pages_enabled() && !pages_initial_data.is_empty() {
-        // Something wrong in runtime logic - when lazy pages, `pages_initial_data` must be always empty.
         return Err(ExecutionError {
             program_id,
             gas_amount: info.gas_amount,

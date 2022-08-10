@@ -19,7 +19,6 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
-#[cfg(feature = "lazy-pages")]
 use frame_support::assert_ok;
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
@@ -740,6 +739,95 @@ fn check_changed_pages_in_storage() {
                     id: program_id,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
+                        persistent_pages,
+                        code_hash: generate_code_hash(&code),
+                    }),
+                }],
+            })
+            .into(),
+        );
+    })
+}
+
+#[test]
+fn check_gear_stack_end() {
+    // This test checks that all pages, before `__gear_stack_end` addr, must not be updated in storage.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 4))
+            (export "init" (func $init))
+            (func $init
+                ;; write to 0 wasm page (virtual stack)
+                i32.const 0x0
+                i32.const 0x42
+                i32.store
+
+                ;; write to 1 wasm page (virtual stack)
+                i32.const 0x10000
+                i32.const 0x42
+                i32.store
+
+                ;; write to 2 wasm page
+                i32.const 0x20000
+                i32.const 0x42
+                i32.store
+
+                ;; write to 3 wasm page
+                i32.const 0x30000
+                i32.const 0x42
+                i32.store
+            )
+            ;; "stack" contains 0 and 1 wasm pages
+            (global (;0;) (mut i32) (i32.const 0x20000))
+            (export "__gear_stack_end" (global 0))
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = generate_program_id(&code);
+        let origin = Origin::signed(1);
+
+        assert_ok!(PalletGear::<Test>::upload_program(
+            origin.clone(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+        ));
+
+        // Enable debug-mode
+        DebugMode::<Test>::put(true);
+
+        run_to_block(2, None);
+
+        Pallet::<Test>::do_snapshot();
+
+        let mut persistent_pages = BTreeMap::new();
+        let empty_data = PageBuf::new_zeroed();
+
+        let gear_page2 = WasmPageNumber(2).to_gear_page();
+        let gear_page3 = WasmPageNumber(3).to_gear_page();
+        let mut page_data = empty_data.to_vec();
+        page_data[0] = 0x42;
+
+        persistent_pages.insert(gear_page2, page_data.clone());
+        persistent_pages.insert(gear_page3, page_data);
+
+        #[cfg(feature = "lazy-pages")]
+        [gear_page2, gear_page3]
+            .into_iter()
+            .for_each(|page| append_rest_psg_pages(page, &mut persistent_pages));
+
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                dispatch_queue: vec![],
+                programs: vec![crate::ProgramDetails {
+                    id: program_id,
+                    state: crate::ProgramState::Active(crate::ProgramInfo {
+                        static_pages: WasmPageNumber(4),
                         persistent_pages,
                         code_hash: generate_code_hash(&code),
                     }),
