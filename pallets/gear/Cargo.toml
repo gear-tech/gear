@@ -18,12 +18,13 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 wasm-instrument = { version = "0.2", default-features = false }
+derive_more = "0.99.17"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "../../core-processor" }
-gear-core = { path = "../../core" }
-gear-core-errors = { path = "../../core-errors" }
+core-processor = { package = "gear-core-processor", path = "../../core-processor", default-features = false }
+gear-core = { path = "../../core", default-features = false }
+gear-core-errors = { path = "../../core-errors", default-features = false }
 gear-backend-common = { path = "../../core-backend/common", default-features = false }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
@@ -74,9 +75,9 @@ demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
 demo-reserve-gas = { path = "../../examples/binaries/reserve-gas" }
 page_size = "0.4.2"
-pallet-gear-gas = { path = "../gas", default-features = false }
-pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
-pallet-gear-scheduler = { path = "../gear-scheduler", default-features = false }
+pallet-gear-gas = { path = "../gas" }
+pallet-gear-messenger = { path = "../gear-messenger" }
+pallet-gear-scheduler = { path = "../gear-scheduler" }
 
 [features]
 default = ['std']
@@ -88,7 +89,7 @@ std = [
 	"frame-system/std",
 	"wasm-instrument/std",
 	"gear-backend-sandbox/std",
-	"pallet-gear-gas/std",
+	"gear-runtime-interface/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
@@ -98,12 +99,9 @@ std = [
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"pallet-gear-program/std",
-	"pallet-gear-messenger/std",
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
-	"gear-runtime-interface/std",
-	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

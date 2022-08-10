@@ -173,17 +173,10 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
         if A::is_lazy_pages_enabled() {
-            if let Some(initial_data) = old_pages_data.remove(&page) {
-                if new_data != initial_data {
-                    page_update.insert(page, new_data);
-                    log::trace!(
-                        "Page {} has been changed - will be updated in storage",
-                        page.0
-                    );
-                } else {
-                    log::trace!("Page {} is accessed but has not been changed", page.0);
-                }
-            }
+            // TODO: remove assert and make proper handling (issue #1273)
+            assert!(old_pages_data.is_empty());
+            log::trace!("{:?} has been write accessed, update it in storage", page);
+            page_update.insert(page, new_data);
         } else {
             let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
                 initial_data

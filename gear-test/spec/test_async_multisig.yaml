@@ -1,4 +1,3 @@
-# (issue #1102)
 title: Async-multisig (well known cases)
 
 programs:
@@ -193,100 +192,100 @@ fixtures:
               kind: utf-8
               value: "PONG"
 
-  # - title: Three signatories & redundant threshold
+  - title: Three signatories & redundant threshold
 
-  #   messages:
-  #     - destination: 2
-  #       payload: &ping
-  #         kind: bytes
-  #         value: "0x50494e47"
+    messages:
+      - destination: 2
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
 
-  #   expected:
-  #     - step: 1
-  #       messages:
-  #         - destination:
-  #             kind: account
-  #             value: bob
-  #           payload: &sign_request
-  #             kind: bytes
-  #             value: "0x1050494e47"
-  #         - destination:
-  #             kind: account
-  #             value: eve
-  #           payload: *sign_request
-  #         - destination:
-  #             kind: account
-  #             value: alice
-  #           payload: *sign_request
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x1050494e47"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
 
-  #     - step: 2
-  #       messages:
-  #         - destination:
-  #             kind: account
-  #             value: eve
-  #           payload: *sign_request
-  #         - destination:
-  #             kind: account
-  #             value: alice
-  #           payload: *sign_request
-  #         - destination: 2
-  #           payload: &signed_by_bob
-  #             kind: bytes
-  #             value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: &signed_by_bob
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
 
-  #     - step: 3
-  #       messages:
-  #         - destination:
-  #             kind: account
-  #             value: alice
-  #           payload: *sign_request
-  #         - destination: 2
-  #           payload: *signed_by_bob
-  #         - destination: 2
-  #           payload: &signed_by_eve
-  #             kind: bytes
-  #             value: "0x1050494e47010158d677fa5129987378f69fe127ec6c961d12b62b7b0fa1fdaf1671417348f10f07fbf4022285b4739054e4e372f63d6b28ddbd084c72a2e5cfc8429030dde581"
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: &signed_by_eve
+              kind: bytes
+              value: "0x1050494e47010158d677fa5129987378f69fe127ec6c961d12b62b7b0fa1fdaf1671417348f10f07fbf4022285b4739054e4e372f63d6b28ddbd084c72a2e5cfc8429030dde581"
 
-  #     - step: 4
-  #       messages:
-  #         - destination: 2
-  #           payload: *signed_by_bob
-  #         - destination: 2
-  #           payload: *signed_by_eve
-  #         - destination: 2
-  #           payload: &signed_by_alice
-  #             kind: bytes
-  #             value: "0x1050494e470101f23c6bf2014b937a6a49a0f82a9f918e646051129fed8ca02f33da2e441b7f07252c17714565c043cb9b78f317c3f3c2d8f22211b8c8c4d5810e2faae6de8181"
+      - step: 4
+        messages:
+          - destination: 2
+            payload: *signed_by_bob
+          - destination: 2
+            payload: *signed_by_eve
+          - destination: 2
+            payload: &signed_by_alice
+              kind: bytes
+              value: "0x1050494e470101f23c6bf2014b937a6a49a0f82a9f918e646051129fed8ca02f33da2e441b7f07252c17714565c043cb9b78f317c3f3c2d8f22211b8c8c4d5810e2faae6de8181"
 
-  #     - step: 5
-  #       messages:
-  #         - destination: 2
-  #           payload: *signed_by_eve
-  #         - destination: 2
-  #           payload: *signed_by_alice
-  #         - destination: 2
-  #           payload: *ping
+      - step: 5
+        messages:
+          - destination: 2
+            payload: *signed_by_eve
+          - destination: 2
+            payload: *signed_by_alice
+          - destination: 2
+            payload: *ping
 
-  #     - step: 6
-  #       messages:
-  #         - destination: 2
-  #           payload: *signed_by_alice
-  #         - destination: 2
-  #           payload: *ping
+      - step: 6
+        messages:
+          - destination: 2
+            payload: *signed_by_alice
+          - destination: 2
+            payload: *ping
 
-  #     - step: 7
-  #       messages:
-  #         - destination: 2
-  #           payload: *ping
+      - step: 7
+        messages:
+          - destination: 2
+            payload: *ping
 
-  #     - step: 8
-  #       messages:
-  #         - destination:
-  #             kind: account
-  #             value: bob
-  #           payload: *ping
+      - step: 8
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: *ping
 
-  #     - step: 9
+      - step: 9
 
   - title: Three signatories; Bob replies with incorrect signature
 

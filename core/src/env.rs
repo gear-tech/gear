@@ -22,7 +22,7 @@ use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, WasmPageNumber},
-    message::{HandlePacket, InitPacket, ReplyDetails, ReplyPacket},
+    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -89,14 +89,17 @@ pub trait Ext {
         self.reply_commit(msg)
     }
 
-    /// Read the message id, if current message is a reply.
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error>;
+    /// Get the message id of the initial message.
+    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
 
     /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self) -> Result<(), Self::Error>;
+
+    /// Get the exit code of the message being processed.
+    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -221,7 +224,7 @@ mod tests {
         ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
-        fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
+        fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
             Ok(None)
         }
         fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -229,6 +232,9 @@ mod tests {
         }
         fn exit(&mut self) -> Result<(), Self::Error> {
             Ok(())
+        }
+        fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+            Ok(None)
         }
         fn message_id(&mut self) -> Result<MessageId, Self::Error> {
             Ok(0.into())
