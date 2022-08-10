@@ -20,7 +20,6 @@ members = [
     "gtest",
     "node",
     "pallets/*",
-    "pallets/aux/shift-session-manager",
     "runtime/gear",
     "runtime/vara",
     "utils/gear-runtime-test-cli",
@@ -31,8 +30,6 @@ members = [
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
 ]
-
-exclude = ["pallets/aux"]
 
 [profile.release]
 panic = "unwind"
