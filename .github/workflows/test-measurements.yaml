@@ -131,7 +131,7 @@ jobs:
         with:
           name: Gear workspace tests
           file: ./target/action-pallet-output.json
-          ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Deploy: Node runtime tests"
@@ -139,7 +139,7 @@ jobs:
         with:
           name: Node runtime tests
           file: ./target/action-runtime-output.json
-          ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Deploy: pallet-gear host function weights"
@@ -147,7 +147,7 @@ jobs:
         with:
           name: pallet-gear host function weights
           file: ./target/action-hostfn-weights.json
-          ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Deploy: pallet-gear instruction weights"
@@ -155,7 +155,7 @@ jobs:
         with:
           name: pallet-gear instruction weights
           file: ./target/action-instruction-weights.json
-          ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Deploy: pallet-gear memory weights"
@@ -163,7 +163,7 @@ jobs:
         with:
           name: pallet-gear instruction weights
           file: ./target/action-memory-weights.json
-          ssh-deploy-key: ${{ secrets.SSH_DEPLOY_KEY }}
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Cache: collected data"
