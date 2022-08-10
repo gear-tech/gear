@@ -995,7 +995,6 @@ dependencies = [
  "subxt",
  "thiserror",
  "tokio",
- "wasmi 0.14.0",
  "wasmtime",
 ]
 
@@ -1380,12 +1379,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "505e71a4706fa491e9b1b55f51b95d4037d0821ee40131190475f692b35b009b"
 
 [[package]]
-name = "libm"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da83a57f3f5ba3680950aa3cbc806fc297bc0b289d42e8942ed528ace71b8145"
-
-[[package]]
 name = "libsecp256k1"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1518,12 +1511,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71d96e3f3c0b6325d8ccd83c33b28acb183edcb6c67938ba104ec546854b0882"
 
 [[package]]
-name = "memory_units"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
-
-[[package]]
 name = "merlin"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1606,17 +1593,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-bigint"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f93ab6289c7b344a8a9f60f88d80aa20032336fe78da341afc91c8a2341fc75f"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "num-format"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1643,19 +1619,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
 dependencies = [
  "autocfg",
- "num-bigint 0.2.6",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
-dependencies = [
- "autocfg",
- "num-bigint 0.4.3",
+ "num-bigint",
  "num-integer",
  "num-traits",
 ]
@@ -2157,7 +2121,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin 0.5.2",
+ "spin",
  "untrusted",
  "web-sys",
  "winapi",
@@ -2563,7 +2527,7 @@ dependencies = [
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
- "wasmi 0.9.1",
+ "wasmi",
  "zeroize",
 ]
 
@@ -2795,7 +2759,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-std",
- "wasmi 0.9.1",
+ "wasmi",
 ]
 
 [[package]]
@@ -2803,12 +2767,6 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
-
-[[package]]
-name = "spin"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f6002a767bff9e83f8eeecf883ecb8011875a21ae8da43bffb817a57e78cc09"
 
 [[package]]
 name = "ss58-registry"
@@ -3440,22 +3398,11 @@ checksum = "ca00c5147c319a8ec91ec1a0edbec31e566ce2c9cc93b3f9bb86a9efd0eb795d"
 dependencies = [
  "downcast-rs",
  "libc",
- "memory_units 0.3.0",
- "num-rational 0.2.4",
+ "memory_units",
+ "num-rational",
  "num-traits",
  "parity-wasm 0.42.2",
  "wasmi-validation",
-]
-
-[[package]]
-name = "wasmi"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae73f0dc2c05c94f30cb04498c67574b7588d0e674cc9255b96a05d21345528c"
-dependencies = [
- "spin 0.9.4",
- "wasmi_core",
- "wasmparser-nostd",
 ]
 
 [[package]]
@@ -3468,19 +3415,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmi_core"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0a088e8c4c59c6f2b9eae169bf86328adccc477c00b56d3661e3e9fb397b184"
-dependencies = [
- "downcast-rs",
- "libm",
- "memory_units 0.4.0",
- "num-rational 0.4.1",
- "num-traits",
-]
-
-[[package]]
 name = "wasmparser"
 version = "0.86.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3488,12 +3422,6 @@ checksum = "4bcbfe95447da2aa7ff171857fc8427513eb57c75a729bb190e974dc695e8f5c"
 dependencies = [
  "indexmap",
 ]
-
-[[package]]
-name = "wasmparser-nostd"
-version = "0.83.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58a45f1058fed5ce7ff3da64153d0537a1ae664d09855fbb1402c6472f09571b"
 
 [[package]]
 name = "wasmtime"

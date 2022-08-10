@@ -2,7 +2,7 @@
 //!
 //! subxt codegen | rustfmt --edition=2021
 //!
-//! spec_version: 1480
+//! spec_version: 1520
 #![allow(clippy::all)]
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 pub mod api {
@@ -1546,9 +1546,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            108u8, 35u8, 43u8, 214u8, 173u8, 35u8, 222u8, 174u8, 22u8, 104u8, 86u8,
-                            205u8, 94u8, 53u8, 118u8, 212u8, 196u8, 148u8, 38u8, 180u8, 99u8, 13u8,
-                            173u8, 49u8, 144u8, 239u8, 118u8, 105u8, 173u8, 26u8, 164u8, 25u8,
+                            158u8, 57u8, 99u8, 172u8, 215u8, 212u8, 205u8, 189u8, 166u8, 19u8,
+                            81u8, 181u8, 247u8, 180u8, 61u8, 173u8, 223u8, 149u8, 135u8, 11u8,
+                            69u8, 207u8, 76u8, 246u8, 82u8, 167u8, 73u8, 189u8, 99u8, 34u8, 137u8,
+                            170u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -5954,10 +5955,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                183u8, 212u8, 17u8, 53u8, 193u8, 47u8, 142u8, 214u8, 201u8, 19u8,
-                                128u8, 231u8, 18u8, 62u8, 15u8, 49u8, 67u8, 184u8, 147u8, 24u8,
-                                173u8, 247u8, 109u8, 43u8, 124u8, 204u8, 77u8, 76u8, 240u8, 83u8,
-                                227u8, 191u8,
+                                55u8, 26u8, 98u8, 40u8, 159u8, 156u8, 76u8, 198u8, 246u8, 77u8,
+                                135u8, 51u8, 175u8, 212u8, 227u8, 17u8, 230u8, 82u8, 43u8, 58u8,
+                                181u8, 189u8, 43u8, 23u8, 248u8, 24u8, 102u8, 158u8, 156u8, 23u8,
+                                50u8, 138u8,
                             ]
                         {
                             let entry = GasNodes(_0);
@@ -5988,10 +5989,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                183u8, 212u8, 17u8, 53u8, 193u8, 47u8, 142u8, 214u8, 201u8, 19u8,
-                                128u8, 231u8, 18u8, 62u8, 15u8, 49u8, 67u8, 184u8, 147u8, 24u8,
-                                173u8, 247u8, 109u8, 43u8, 124u8, 204u8, 77u8, 76u8, 240u8, 83u8,
-                                227u8, 191u8,
+                                55u8, 26u8, 98u8, 40u8, 159u8, 156u8, 76u8, 198u8, 246u8, 77u8,
+                                135u8, 51u8, 175u8, 212u8, 227u8, 17u8, 230u8, 82u8, 43u8, 58u8,
+                                181u8, 189u8, 43u8, 23u8, 248u8, 24u8, 102u8, 158u8, 156u8, 23u8,
+                                50u8, 138u8,
                             ]
                         {
                             client.storage().iter(block_hash).await
@@ -6661,9 +6662,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("Gear", "Schedule")?
                         == [
-                            219u8, 153u8, 5u8, 91u8, 147u8, 195u8, 182u8, 119u8, 96u8, 192u8,
-                            208u8, 113u8, 93u8, 244u8, 192u8, 57u8, 198u8, 63u8, 191u8, 41u8, 83u8,
-                            196u8, 144u8, 122u8, 4u8, 15u8, 134u8, 15u8, 75u8, 26u8, 190u8, 210u8,
+                            178u8, 225u8, 67u8, 17u8, 241u8, 21u8, 4u8, 205u8, 237u8, 206u8, 55u8,
+                            241u8, 57u8, 139u8, 20u8, 188u8, 136u8, 47u8, 105u8, 193u8, 109u8,
+                            56u8, 131u8, 217u8, 179u8, 41u8, 139u8, 124u8, 217u8, 244u8, 156u8,
+                            249u8,
                         ]
                     {
                         let pallet = metadata.pallet("Gear")?;
@@ -7390,6 +7392,7 @@ pub mod api {
                         External {
                             id: _0,
                             value: _2,
+                            lock: _2,
                             refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                             consumed: ::core::primitive::bool,
                         },
@@ -7399,11 +7402,12 @@ pub mod api {
                         SpecifiedLocal {
                             parent: _1,
                             value: _2,
+                            lock: _2,
                             refs: runtime_types::gear_common::gas_provider::node::ChildrenRefs,
                             consumed: ::core::primitive::bool,
                         },
                         #[codec(index = 3)]
-                        UnspecifiedLocal { parent: _1 },
+                        UnspecifiedLocal { parent: _1, lock: _2 },
                     }
                 }
             }
@@ -8483,6 +8487,9 @@ pub mod api {
                     #[codec(index = 11)]
                     #[doc = "Value must have been blocked, but was either moved or caught (for more info see `ValueNode::catch_value`)."]
                     ValueIsNotBlocked,
+                    #[codec(index = 12)]
+                    #[doc = "`GasTree::consume` called on node, which has some balance locked."]
+                    ConsumedWithLock,
                 }
             }
         }
@@ -9913,9 +9920,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    212u8, 45u8, 228u8, 132u8, 167u8, 62u8, 109u8, 25u8, 132u8, 168u8, 34u8, 103u8,
-                    234u8, 216u8, 8u8, 77u8, 169u8, 37u8, 79u8, 29u8, 46u8, 68u8, 183u8, 0u8, 13u8,
-                    212u8, 125u8, 144u8, 83u8, 119u8, 124u8, 2u8,
+                    50u8, 83u8, 42u8, 61u8, 171u8, 135u8, 79u8, 228u8, 187u8, 154u8, 240u8, 176u8,
+                    126u8, 77u8, 110u8, 209u8, 106u8, 7u8, 27u8, 182u8, 253u8, 239u8, 26u8, 67u8,
+                    111u8, 123u8, 98u8, 222u8, 5u8, 241u8, 184u8, 179u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)

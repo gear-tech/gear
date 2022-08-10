@@ -59,10 +59,6 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
-    Instantiation(#[from] wasmi::errors::InstantiationError),
-    #[error("{0}")]
-    Memory(wasmi::errors::MemoryError),
-    #[error(transparent)]
     Metadata(#[from] crate::metadata::Error),
     #[error("{0}")]
     Schnorrkel(schnorrkel::SignatureError),
@@ -87,8 +83,6 @@ pub enum Error {
     SubxtRpc(#[from] subxt::rpc::RpcError),
     #[error(transparent)]
     Tx(#[from] TransactionError),
-    #[error(transparent)]
-    Wasmi(#[from] wasmi::Error),
 }
 
 impl From<nacl::Error> for Error {
@@ -100,12 +94,6 @@ impl From<nacl::Error> for Error {
 impl From<schnorrkel::SignatureError> for Error {
     fn from(err: schnorrkel::SignatureError) -> Self {
         Self::Schnorrkel(err)
-    }
-}
-
-impl From<wasmi::errors::MemoryError> for Error {
-    fn from(err: wasmi::errors::MemoryError) -> Self {
-        Self::Memory(err)
     }
 }
 

@@ -15,11 +15,6 @@ readme = './README.md'
 path = "bin/gear.rs"
 name = "gear"
 
-[[bin]]
-path = "bin/generate-api.rs"
-name = "generate-api"
-required-features = [ "builder" ]
-
 [dependencies]
 anyhow = "1.0.60"
 base64 = "0.13.0"
@@ -41,8 +36,4 @@ structopt = "0.3.26"
 subxt = "0.22.0"
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = [ "full" ] }
-wasmi = "0.14.0"
 wasmtime = "0.39"
-
-[features]
-builder = []
