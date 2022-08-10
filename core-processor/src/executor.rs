@@ -134,6 +134,15 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     stack_end: Option<WasmPageNumber>,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
+    if let Some(stack_end) = stack_end {
+        if stack_end > static_pages {
+            return Err(ExecutionErrorReason::StackEndPageBiggerWasmMemSize(
+                stack_end,
+                static_pages,
+            ));
+        }
+    }
+
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data.as_slice())
@@ -149,7 +158,19 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
-        for page in (0..static_pages.0)
+        // Skip stack page if they are specified.
+        let begin = stack_end.unwrap_or(0.into());
+
+        if pages_data
+            .keys()
+            .filter(|&&p| p < begin.to_gear_page())
+            .next()
+            .is_some()
+        {
+            return Err(ExecutionErrorReason::StackPagesHaveInitialData);
+        }
+
+        for page in (begin.0..static_pages.0)
             .map(WasmPageNumber)
             .flat_map(|p| p.to_gear_pages_iter())
         {
@@ -170,6 +191,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 fn get_pages_to_be_updated<A: ProcessorExt>(
     mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
     new_pages_data: BTreeMap<PageNumber, PageBuf>,
+    static_pages: WasmPageNumber,
 ) -> BTreeMap<PageNumber, PageBuf> {
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
@@ -182,6 +204,12 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
             let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
                 initial_data
             } else {
+                // If it's static page without initial data,
+                // then it's stack page and we skip this page update.
+                if page < static_pages.to_gear_page() {
+                    continue;
+                }
+
                 // If page has no data in `pages_initial_data` then data is zeros.
                 // Because it's default data for wasm pages which is not static,
                 // and for all static pages we save data in `pages_initial_data` in E::new.
@@ -283,7 +311,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory, stack_end_page) = match E::execute(
+    let (termination, memory) = match E::execute(
         &mut ext,
         program.raw_code(),
         program.code().exports().clone(),
@@ -302,7 +330,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: memory,
-            stack_end_page,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
             if A::is_lazy_pages_enabled() {
@@ -314,7 +341,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                     });
                 }
             }
-            (termination, memory, stack_end_page)
+            (termination, memory)
         }
 
         Err(e) => {
@@ -326,13 +353,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    // Page which is right after stack last page
-    log::trace!("Stack end page = {stack_end_page:?}");
-
     log::debug!("Termination reason: {:?}", termination);
 
     let info = ext
-        .into_ext_info(&memory, stack_end_page.unwrap_or_default())
+        .into_ext_info(&memory)
         .map_err(|(err, gas_amount)| ExecutionError {
             program_id,
             gas_amount,
@@ -365,7 +389,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
-    let page_update = get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data);
+    let page_update =
+        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, static_pages);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;

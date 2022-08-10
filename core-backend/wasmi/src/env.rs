@@ -450,7 +450,6 @@ where
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap,
-            stack_end_page,
         })
     }
 }

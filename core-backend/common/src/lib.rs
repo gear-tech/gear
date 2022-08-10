@@ -110,11 +110,7 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-        stack_page_count: WasmPageNumber,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
@@ -149,7 +145,6 @@ where
 pub struct BackendReport<T> {
     pub termination_reason: TerminationReason,
     pub memory_wrap: T,
-    pub stack_end_page: Option<WasmPageNumber>,
 }
 
 #[derive(Debug, derive_more::Display)]

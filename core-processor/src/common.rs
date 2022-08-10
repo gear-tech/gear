@@ -360,6 +360,16 @@ pub enum ExecutionErrorReason {
     /// Initial pages data must be empty when execute with lazy pages
     #[display(fmt = "Initial pages data must be empty when execute with lazy pages")]
     InitialPagesContainsDataInLazyPagesMode,
+    /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
+    #[display(
+        fmt = "Stack end page {:?} is bigger then WASM static memory size {:?}",
+        _0,
+        _1
+    )]
+    StackEndPageBiggerWasmMemSize(WasmPageNumber, WasmPageNumber),
+    /// It's not allowed to set initial data for stack memory pages, if they are specified in WASM code.
+    #[display(fmt = "Set initial data for stack pages is restricted")]
+    StackPagesHaveInitialData,
 }
 
 /// Actor.
