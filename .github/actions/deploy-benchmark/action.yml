@@ -5,6 +5,8 @@ inputs:
     required: true
   ssh-deploy-key:
     required: true
+  github-token:
+    required: true
 
 runs:
   using: composite
@@ -20,6 +22,7 @@ runs:
         output-file-path: ${{ inputs.file }}
         fail-on-alert: true
         benchmark-data-dir-path: ./
+        github-token: ${{ inputs.github-token }}
     - name: Push to another repository
       uses: cpina/github-action-push-to-another-repository@main
       env:
