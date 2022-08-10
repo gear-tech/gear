@@ -19,8 +19,6 @@ runs:
         tool: 'customSmallerIsBetter'
         output-file-path: ${{ inputs.file }}
         fail-on-alert: true
-        gh-repository: github.com/gear-tech/performance-charts
-        gh-pages-branch: master
         benchmark-data-dir-path: ./
     - name: Push to another repository
       uses: cpina/github-action-push-to-another-repository@main
