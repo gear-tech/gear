@@ -18,7 +18,6 @@
 
 use alloc::collections::BTreeSet;
 use common::lazy_pages;
-use core::fmt;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
@@ -34,9 +33,13 @@ use gear_core::{
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 use sp_std::collections::btree_map::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
 pub enum Error {
+    #[from]
+    #[display(fmt = "{}", _0)]
     Processor(ProcessorError),
+    #[from]
+    #[display(fmt = "{}", _0)]
     LazyPages(lazy_pages::Error),
 }
 
@@ -56,27 +59,6 @@ impl AsTerminationReason for Error {
         match self {
             Error::Processor(err) => err.as_termination_reason(),
             Error::LazyPages(_) => None,
-        }
-    }
-}
-
-impl From<ProcessorError> for Error {
-    fn from(err: ProcessorError) -> Self {
-        Self::Processor(err)
-    }
-}
-
-impl From<lazy_pages::Error> for Error {
-    fn from(err: lazy_pages::Error) -> Self {
-        Self::LazyPages(err)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Processor(err) => fmt::Display::fmt(err, f),
-            Error::LazyPages(err) => fmt::Display::fmt(err, f),
         }
     }
 }
@@ -171,14 +153,14 @@ impl ProcessorExt for LazyPagesExt {
         mem: &impl Memory,
         prog_id: ProgramId,
     ) -> Result<(), Self::Error> {
-        lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Error::LazyPages)
+        lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Into::into)
     }
 
     fn lazy_pages_post_execution_actions(
         mem: &impl Memory,
-        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
+        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>, // TODO: remove it (issue #1273)
     ) -> Result<(), Self::Error> {
-        lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
+        lazy_pages::remove_lazy_pages_prot(mem).map_err(Into::into)
     }
 }
 
