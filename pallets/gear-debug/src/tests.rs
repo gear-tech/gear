@@ -790,7 +790,7 @@ fn check_gear_stack_end() {
         let origin = Origin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
-            origin.clone(),
+            origin,
             code.clone(),
             b"salt".to_vec(),
             Vec::new(),
