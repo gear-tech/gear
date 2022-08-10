@@ -150,8 +150,17 @@ impl ActorId {
 ///
 /// The ID is used to get reserved gas.
 /// See [`exec::reserve_gas`](crate::exec::reserve_gas).
+// TODO: move corresponding `exec` methods into this struct
+// TODO: consider remove `Copy` and `Default` to avoid invalid IDs
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ReservationId([u8; 32]);
+
+impl ReservationId {
+    /// Get `H256` represented as a slice of `u8`.
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct CodeHash(pub [u8; 32]);

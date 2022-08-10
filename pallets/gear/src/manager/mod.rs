@@ -186,6 +186,7 @@ where
             executable_data: Some(ExecutableActorData {
                 program,
                 pages_with_data: active.pages_with_data,
+                gas_reservation_map: active.gas_reservation_map,
             }),
         })
     }
@@ -206,6 +207,7 @@ where
             pages_with_data: Default::default(),
             code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
+            gas_reservation_map: Default::default(),
         };
 
         common::set_program(program_id.into_origin(), program);

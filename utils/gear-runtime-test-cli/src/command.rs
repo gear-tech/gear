@@ -243,6 +243,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             pages_with_data: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
+            gas_reservation_map: Default::default(),
         };
         gear_common::set_program(*id, program);
     }
@@ -454,6 +455,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         ExecutableActorData {
                             program,
                             pages_with_data: memory.keys().cloned().collect(),
+                            gas_reservation_map: todo!(),
                         },
                         memory,
                     ))

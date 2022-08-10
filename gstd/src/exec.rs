@@ -202,3 +202,9 @@ pub fn origin() -> ActorId {
 pub fn reserve_gas(amount: u32) -> ReservationId {
     gcore::exec::reserve_gas(amount)
 }
+
+/// Unreserve gas using reservation ID
+// TODO: descriptive docs
+pub fn unreserve_gas(id: ReservationId, amount: u32) {
+    gcore::exec::unreserve_gas(id, amount)
+}

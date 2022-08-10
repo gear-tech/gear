@@ -110,6 +110,7 @@ where
             executable_data: Some(ExecutableActorData {
                 program,
                 pages_with_data: Default::default(),
+                gas_reservation_map: todo!(),
             }),
         },
         dispatch: message.into(),

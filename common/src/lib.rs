@@ -56,6 +56,7 @@ use sp_std::{
 use storage::ValueStorage;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
+use gear_core::{gas::GasCounter, ids::ReservationId};
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -238,6 +239,7 @@ pub struct ActiveProgram {
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     pub code_hash: H256,
     pub state: ProgramState,
 }

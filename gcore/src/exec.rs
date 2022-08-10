@@ -28,7 +28,9 @@ mod sys {
         pub fn gr_block_height() -> u32;
         pub fn gr_block_timestamp() -> u64;
         pub fn gr_exit(value_dest_ptr: *const u8) -> !;
+        // swap `amount` and `id_ptr` args
         pub fn gr_reserve_gas(amount: u32, id_ptr: *mut u8);
+        pub fn gr_unreserve_gas(amount: u32, id_ptr: *const u8);
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
         pub fn gr_origin(origin_ptr: *mut u8);
@@ -109,6 +111,12 @@ pub fn reserve_gas(amount: u32) -> ReservationId {
         sys::gr_reserve_gas(amount, id.as_mut_ptr() as *mut u8);
         id.assume_init()
     }
+}
+
+/// Unreserve gas using reservation ID
+// TODO: descriptive docs
+pub fn unreserve_gas(id: ReservationId, amount: u32) {
+    unsafe { sys::gr_unreserve_gas(amount, id.as_slice().as_ptr()) }
 }
 
 /// Get the current value of the gas available for execution.

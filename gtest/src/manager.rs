@@ -30,6 +30,7 @@ use core_processor::{
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
+    gas::GasCounter,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
@@ -139,6 +140,7 @@ impl TestActor {
             ExecutableActorData {
                 program,
                 pages_with_data: pages_data.keys().copied().collect(),
+                gas_reservation_map: todo!(),
             },
             pages_data,
         ))
@@ -837,11 +839,10 @@ impl JournalHandler for ExtManager {
         panic!("Processing stopped. Used for on-chain logic only.")
     }
 
-    fn reserve_gas(
+    fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        reservation_id: ReservationId,
-        gas_amount: u64,
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     ) {
         todo!()
     }

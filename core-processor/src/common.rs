@@ -69,7 +69,7 @@ pub struct DispatchResult {
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
-    pub gas_reservation_map: BTreeMap<ReservationId, u64>,
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -243,13 +243,13 @@ pub enum JournalNote {
         gas_burned: u64,
     },
     /// Reserve gas.
-    ReserveGas {
-        /// Message which gas will be reserved from
+    UpdateGasReservations {
+        /// Message which gas will be reserved from.
         message_id: MessageId,
-        /// Reservation ID of node
-        reservation_id: ReservationId,
-        /// Gas amount to reserve.
-        amount: u64,
+        /// Program ID.
+        program_id: ProgramId,
+        /// Gas reservation map.
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     },
 }
 
@@ -300,11 +300,11 @@ pub trait JournalHandler {
     /// Pushes StoredDispatch back to the top of the queue and decreases gas allowance.
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64);
     /// Reserve gas.
-    fn reserve_gas(
+    fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        reservation_id: ReservationId,
-        gas_amount: u64,
+        program_id: ProgramId,
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     );
 }
 
@@ -399,6 +399,8 @@ pub struct ExecutableActorData {
     pub program: Program,
     /// Numbers of allocated memory pages that have non-default data.
     pub pages_with_data: BTreeSet<PageNumber>,
+    /// Gas reservation map
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
 }
 
 /// Execution context.
@@ -409,6 +411,8 @@ pub struct WasmExecutionContext {
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
     pub gas_allowance_counter: GasAllowanceCounter,
+    /// Gas reservation map
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     /// Program to be executed.
     pub program: Program,
     /// Memory pages with initial data.

@@ -30,7 +30,7 @@ use gear_core::{
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
-use gear_core::ids::ReservationId;
+use gear_core::{gas::GasCounter, ids::ReservationId};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -344,13 +344,34 @@ where
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
     }
 
-    fn reserve_gas(
+    fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        reservation_id: ReservationId,
-        gas_amount: u64,
+        program_id: ProgramId,
+        mut gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     ) {
-        GasHandlerOf::<T>::reserve(message_id, reservation_id.into(), gas_amount)
-            .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+        gas_reservation_map.retain(|reservation_id, gas_counter| {
+            let reservation_id: MessageId = reservation_id.clone().into();
+            if gas_counter.left() == 0 {
+                Pallet::<T>::consume_message(reservation_id);
+                false
+            } else {
+                GasHandlerOf::<T>::update_reservation(
+                    message_id,
+                    reservation_id,
+                    gas_counter.left(),
+                )
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+                true
+            }
+        });
+
+        let program_id = program_id.into_origin();
+        let prog = common::get_program(program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+        if let Program::Active(mut prog) = prog {
+            prog.gas_reservation_map = gas_reservation_map;
+            common::set_program(program_id, prog);
+        }
     }
 }
