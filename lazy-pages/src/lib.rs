@@ -158,15 +158,15 @@ pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
 }
 
 #[derive(Debug, derive_more::Display)]
-pub enum InitForProgramError {
+pub enum InitializeForProgramError {
     #[display(
-        fmt = "Wasm mem native addr {:#x} is not aligned to the native page size",
+        fmt = "WASM memory native address {:#x} is not aligned to the native page size",
         _0
     )]
     WasmMemAddrIsNotAligned(usize),
-    #[display(fmt = "Wasm mem size {:?} is bigger than u32::MAX bytes", _0)]
+    #[display(fmt = "WASM memory size {:?} is bigger than u32::MAX bytes", _0)]
     WasmMemSizeBiggerThenU32Max(WasmPageNumber),
-    #[display(fmt = "Wasm stack end addr {:?} > wasm mem size {:?}", _0, _1)]
+    #[display(fmt = "WASM stack end addr {:?} > wasm mem size {:?}", _0, _1)]
     StackEndAddrBiggerThenSize(WasmPageNumber, WasmPageNumber),
 }
 
@@ -175,8 +175,8 @@ pub fn initialize_for_program(
     wasm_mem_size: WasmPageNumber,
     stack_end_page: Option<WasmPageNumber>,
     program_prefix: Vec<u8>,
-) -> Result<(), InitForProgramError> {
-    use InitForProgramError::*;
+) -> Result<(), InitializeForProgramError> {
+    use InitializeForProgramError::*;
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
         ctx.accessed_pages_addrs.clear();
