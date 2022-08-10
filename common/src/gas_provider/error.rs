@@ -59,12 +59,18 @@ pub trait Error {
     /// Node type that can't occur if algorithm work well
     fn unexpected_node_type() -> Self;
 
-    /// Value must have been caught, but was missed or blocked (for more info see `TreeImpl::catch_value`).
+    /// Value must have been caught, but was missed or blocked
+    /// (see `TreeImpl::catch_value` for details).
     fn value_is_not_caught() -> Self;
 
-    /// Value must have been caught or moved upstream, but was blocked (for more info see `TreeImpl::catch_value`).
+    /// Value must have been caught or moved upstream, but was blocked
+    /// (see `TreeImpl::catch_value` for details).
     fn value_is_blocked() -> Self;
 
-    /// Value must have been blocked, but was either moved or caught (for more info see `TreeImpl::catch_value`).
+    /// Value must have been blocked, but was either moved or caught
+    /// (see `TreeImpl::catch_value` for details).
     fn value_is_not_blocked() -> Self;
+
+    /// `GasTree::consume` called on node, which has some balance locked.
+    fn consumed_with_lock() -> Self;
 }

@@ -26,8 +26,8 @@ Note that we specifically request not to export the bootnodnes - this section wi
 The resulting ```staging.json``` file will contain a very long segment of binary data - the runtime wasm code, and will look similar to this:
 ```
 {
-  "name": "Staging Testnet",
-  "id": "staging_testnet",
+  "name": "Staging Testnet V2",
+  "id": "staging_testnet_v2",
   "chainType": "Live",
   "bootNodes": [],
   "telemetryEndpoints": null,
@@ -55,14 +55,14 @@ This is a necessary piece of information every node that is being started using 
 For the ```staging``` testnet we list the initial validators set as the bootnodes:
 ```bash
 {
-  "name": "Staging Testnet",
-  "id": "staging_testnet",
+  "name": "Staging Testnet V2",
+  "id": "staging_testnet_v2",
   "chainType": "Live",
   "bootNodes": [
-    "/ip4/52.9.232.93/tcp/30333/p2p/12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW",
-    "/ip4/50.18.102.12/tcp/30333/p2p/12D3KooWCfm5T1uRq3rCNzqjsq3eFwu8fjHkUo1XBZmZvo611BwA",
-    "/ip4/54.153.5.48/tcp/30333/p2p/12D3KooWNnZQG4kmSoiNNPoaxDzy8GQTgDsi67hG6FxpSgVeYBeG",
-    "/ip4/54.183.129.20/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ"
+    "/ip4/52.9.232.93/tcp/30333/p2p/12D3KooWBWFtZqigVTC8W2GRMwLeuTK2o4hDC4XHVPyNV6hW1T1D",
+    "/ip4/50.18.102.12/tcp/30333/p2p/12D3KooWRf7vAr79yAyDxGvYAdSqhh2EoeWe35Lx4QH4N6XMv2gH",
+    "/ip4/54.153.5.48/tcp/30333/p2p/12D3KooWEVvqVD2mrLfmgeX1EXZ2caFXXEWWEs4Taa4mWzFUoF34",
+    "/ip4/54.183.129.20/tcp/30333/p2p/12D3KooWSf2d69w7RYKtj9mgYpLDs3rqLAz9GHNSHHoCQDLUjeiP"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,

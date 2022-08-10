@@ -65,7 +65,7 @@ fn unstoppable_block_execution_works() {
         assert!(balance_for_each_execution < BlockGasLimitOf::<Test>::get());
 
         let program_id = {
-            let res = submit_program_default(USER_2, ProgramCodeKind::Default);
+            let res = upload_program_default(USER_2, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -74,6 +74,7 @@ fn unstoppable_block_execution_works() {
 
         let GasInfo {
             burned: expected_burned_gas,
+            may_be_returned,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -96,7 +97,8 @@ fn unstoppable_block_execution_works() {
             ));
         }
 
-        let real_gas_to_burn = expected_burned_gas * executions_amount;
+        let real_gas_to_burn = expected_burned_gas
+            + executions_amount.saturating_sub(1) * (expected_burned_gas - may_be_returned);
 
         assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
 
@@ -119,7 +121,7 @@ fn mailbox_rent_out_of_rent() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -221,7 +223,7 @@ fn mailbox_rent_claimed() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -308,10 +310,7 @@ fn mailbox_rent_claimed() {
             utils::assert_balance(sender, prog_balance - data.value, data.value);
             assert!(!MailboxOf::<Test>::is_empty(&USER_2));
 
-            assert_ok!(Gear::claim_value_from_mailbox(
-                Origin::signed(USER_2),
-                message_id
-            ));
+            assert_ok!(Gear::claim_value(Origin::signed(USER_2), message_id));
 
             utils::assert_balance(
                 USER_1,
@@ -331,7 +330,7 @@ fn mailbox_sending_instant_transfer() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -419,12 +418,12 @@ fn mailbox_sending_instant_transfer() {
 }
 
 #[test]
-fn submit_program_expected_failure() {
+fn upload_program_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
         let balance = BalancesPallet::<Test>::free_balance(USER_1);
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
@@ -436,14 +435,14 @@ fn submit_program_expected_failure() {
         );
 
         assert_noop!(
-            submit_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
+            upload_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
         // Gas limit is too high
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
@@ -457,15 +456,15 @@ fn submit_program_expected_failure() {
 }
 
 #[test]
-fn submit_program_fails_on_duplicate_id() {
+fn upload_program_fails_on_duplicate_id() {
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
+        assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         // Finalize block to let queue processing run
         run_to_block(2, None);
         // By now this program id is already in the storage
         assert_noop!(
-            submit_program_default(USER_1, ProgramCodeKind::Default),
+            upload_program_default(USER_1, ProgramCodeKind::Default),
             Error::<Test>::ProgramAlreadyExists
         );
     })
@@ -482,7 +481,7 @@ fn send_message_works() {
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -552,7 +551,7 @@ fn mailbox_threshold_works() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -576,19 +575,14 @@ fn mailbox_threshold_works() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_eq!(
-                    GasHandlerOf::<Test>::get_limit(message_id)
-                        .map(|result| result.map(|(g, _)| g)),
-                    Ok(Some(rent))
-                );
+                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), rent);
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
                 assert!(!MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_eq!(
-                    GasHandlerOf::<Test>::get_limit(message_id)
-                        .map(|result| result.map(|(g, _)| g)),
-                    Ok(None)
+                assert_noop!(
+                    GasHandlerOf::<Test>::get_limit(message_id),
+                    pallet_gear_gas::Error::<Test>::NodeNotFound
                 );
             }
 
@@ -643,7 +637,7 @@ fn send_message_expected_failure() {
     new_test_ext().execute_with(|| {
         // Submitting failing in init program and check message is failed to be sent to it
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::GreedyInit);
+            let res = upload_program_default(USER_1, ProgramCodeKind::GreedyInit);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -657,7 +651,7 @@ fn send_message_expected_failure() {
 
         // Submit valid program and test failing actions on it
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -711,7 +705,7 @@ fn messages_processing_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -736,7 +730,7 @@ fn spent_gas_to_reward_block_author_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let block_author_initial_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
-        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
+        assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(2, None);
 
         assert_last_dequeued(1);
@@ -766,7 +760,7 @@ fn unused_gas_released_back_works() {
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            let res = upload_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -835,7 +829,7 @@ fn restrict_start_section() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
-        GearPallet::<Test>::submit_program(
+        GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             salt,
@@ -847,6 +841,7 @@ fn restrict_start_section() {
     });
 }
 
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
     // This test access different pages in wasm linear memory.
@@ -1037,7 +1032,7 @@ fn memory_access_cases() {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
-        let res = GearPallet::<Test>::submit_program(
+        let res = GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             salt,
@@ -1085,7 +1080,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::PageNumber;
+    use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -1103,6 +1098,7 @@ fn lazy_pages() {
             i32.const 0x0
             i32.const 0x9
             call $alloc
+            ;; store alloc result to 0x0 addr, so 0 page will be already accessed in handle
             i32.store
         )
         (func $handle
@@ -1136,7 +1132,7 @@ fn lazy_pages() {
             let code = ProgramCodeKind::Custom(wat).to_bytes();
             let salt = DEFAULT_SALT.to_vec();
             let prog_id = generate_program_id(&code, &salt);
-            let res = GearPallet::<Test>::submit_program(
+            let res = GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
                 code,
                 salt,
@@ -1150,7 +1146,6 @@ fn lazy_pages() {
         };
 
         run_to_block(2, None);
-        log::debug!("submit done {:?}", pid);
         assert_last_dequeued(1);
 
         let res = GearPallet::<Test>::send_message(
@@ -1160,7 +1155,6 @@ fn lazy_pages() {
             10_000_000_000,
             1000,
         );
-        log::debug!("res = {:?}", res);
         assert_ok!(res);
 
         run_to_block(3, None);
@@ -1168,50 +1162,85 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let released_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_released_pages()
-            .iter()
-            .map(|p| PageNumber(*p))
-            .collect();
+        let released_pages: BTreeSet<u32> =
+            gear_ri::gear_ri::get_released_pages().into_iter().collect();
 
         // checks accessed pages set
         let native_size = page_size::get();
-        let mut expected_accessed = BTreeSet::new();
+        let mut expected_released = BTreeSet::new();
 
-        let page_to_accessed = |p: u32| {
-            if native_size > PageNumber::size() {
-                // `x` is number of gear pages in one native page for current host
-                let x = (native_size / PageNumber::size()) as u32;
-                // each native page contains several gear pages
-                let first_accessed_gear_page = (p / x) * x;
+        let page_to_released = |p: u32, is_first_access: bool| {
+            // is the minimum memory interval, which must be in storage for any page.
+            let granularity = if is_first_access {
+                PAGE_STORAGE_GRANULARITY
+            } else {
+                native_size
+            };
+            if granularity > PageNumber::size() {
+                // `x` is a number of gear pages in granularity
+                let x = (granularity / PageNumber::size()) as u32;
+                // is first gear page in granularity interval
+                let first_gear_page = (p / x) * x;
                 // accessed gear pages range:
-                first_accessed_gear_page..=first_accessed_gear_page + x - 1
+                first_gear_page..=first_gear_page + x - 1
             } else {
                 p..=p
             }
         };
 
-        // accessed from 0 wasm page:
-        expected_accessed.extend(page_to_accessed(0));
+        // released from 0 wasm page:
+        expected_released.extend(page_to_released(0, false));
 
-        // accessed from 2 wasm page, can be several gear and native pages:
+        // released from 2 wasm page:
         let first_page = (0x23ffe / PageNumber::size()) as u32;
         let second_page = (0x24001 / PageNumber::size()) as u32;
-        expected_accessed.extend(page_to_accessed(first_page));
-        expected_accessed.extend(page_to_accessed(second_page));
+        expected_released.extend(page_to_released(first_page, true));
+        expected_released.extend(page_to_released(second_page, true));
 
-        // accessed from 5 wasm page:
-        expected_accessed.extend(page_to_accessed((0x50000 / PageNumber::size()) as u32));
+        // nothing for 5 wasm page, because it's just read access
 
-        // accessed from 8 and 9 wasm pages, must be several gear pages:
+        // released from 8 and 9 wasm pages, must be several gear pages:
         let first_page = (0x8fffc / PageNumber::size()) as u32;
         let second_page = (0x90003 / PageNumber::size()) as u32;
-        expected_accessed.extend(page_to_accessed(first_page));
-        expected_accessed.extend(page_to_accessed(second_page));
+        expected_released.extend(page_to_released(first_page, true));
+        expected_released.extend(page_to_released(second_page, true));
 
-        assert_eq!(
-            released_pages,
-            expected_accessed.into_iter().map(PageNumber).collect()
+        assert_eq!(released_pages, expected_released);
+
+        // For second message handle we will touch the same memory, but because
+        // some pages are already in storage, then we can skip page storage granularity
+        // when uploads pages to storage, so released pages can be different.
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            1000,
         );
+        assert_ok!(res);
+
+        run_to_block(4, None);
+
+        let released_pages: BTreeSet<u32> =
+            gear_ri::gear_ri::get_released_pages().into_iter().collect();
+        let mut expected_released = BTreeSet::new();
+
+        // released from 0 wasm page:
+        expected_released.extend(page_to_released(0, false));
+
+        // released from 2 wasm page:
+        let first_page = (0x23ffe / PageNumber::size()) as u32;
+        let second_page = (0x24001 / PageNumber::size()) as u32;
+        expected_released.extend(page_to_released(first_page, false));
+        expected_released.extend(page_to_released(second_page, false));
+
+        // released from 8 and 9 wasm pages, must be several gear pages:
+        let first_page = (0x8fffc / PageNumber::size()) as u32;
+        let second_page = (0x90003 / PageNumber::size()) as u32;
+        expected_released.extend(page_to_released(first_page, false));
+        expected_released.extend(page_to_released(second_page, false));
+
+        assert_eq!(released_pages, expected_released);
     });
 }
 
@@ -1281,12 +1310,12 @@ fn block_gas_limit_works() {
     new_test_ext().execute_with(|| {
         // Submit programs and get their ids
         let pid1 = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat1));
+            let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat1));
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
         let pid2 = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat2));
+            let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat2));
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1482,7 +1511,7 @@ fn init_message_logging_works() {
         for (code_kind, trap) in codes {
             SystemPallet::<Test>::reset_events();
 
-            assert_ok!(submit_program_default(USER_1, code_kind));
+            assert_ok!(upload_program_default(USER_1, code_kind));
 
             let event = match SystemPallet::<Test>::events()
                 .last()
@@ -1522,7 +1551,7 @@ fn program_lifecycle_works() {
     new_test_ext().execute_with(|| {
         // Submitting first program and getting its id
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
+            let res = upload_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1537,7 +1566,7 @@ fn program_lifecycle_works() {
 
         // Submitting second program, which fails on initialization, therefore is deleted
         let program_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::GreedyInit);
+            let res = upload_program_default(USER_1, ProgramCodeKind::GreedyInit);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1606,7 +1635,7 @@ fn events_logging_works() {
         for (code_kind, init_failure_reason, handle_failure_reason) in tests {
             SystemPallet::<Test>::reset_events();
             let program_id = {
-                let res = submit_program_default(USER_1, code_kind);
+                let res = upload_program_default(USER_1, code_kind);
                 assert_ok!(res);
                 res.expect("submit result was asserted")
             };
@@ -1701,7 +1730,7 @@ fn send_reply_works() {
         let expected_reply_message_id = get_last_message_id();
 
         // global nonce is 2 before sending reply message
-        // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
+        // `upload_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
         let event = match SystemPallet::<Test>::events()
             .last()
             .map(|r| r.event.clone())
@@ -1740,7 +1769,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         );
 
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            let res = upload_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1771,7 +1800,7 @@ fn send_reply_value_claiming_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            let res = upload_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1853,7 +1882,7 @@ fn send_reply_value_claiming_works() {
 // prog send to user 1 msg to mailbox
 // user 1 claims it from mailbox
 #[test]
-fn claim_value_from_mailbox_works() {
+fn claim_value_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
@@ -1865,7 +1894,7 @@ fn claim_value_from_mailbox_works() {
         let value_sent = 1000;
 
         let prog_id = {
-            let res = submit_program_default(USER_3, ProgramCodeKind::OutgoingWithValueInHandle);
+            let res = upload_program_default(USER_3, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1879,7 +1908,9 @@ fn claim_value_from_mailbox_works() {
         let holding_duration = 4;
 
         let GasInfo {
-            burned: gas_burned, ..
+            burned: gas_burned,
+            may_be_returned,
+            ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
@@ -1889,13 +1920,13 @@ fn claim_value_from_mailbox_works() {
         )
         .expect("calculate_gas_info failed");
 
-        let gas_burned = GasPrice::gas_price(gas_burned);
+        let gas_burned = GasPrice::gas_price(gas_burned - may_be_returned);
 
         run_to_block(bn_of_insertion + holding_duration, None);
 
         let block_producer_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+        assert_ok!(GearPallet::<Test>::claim_value(
             Origin::signed(USER_1),
             reply_to_id,
         ));
@@ -1938,7 +1969,7 @@ fn distributor_initialize() {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -1973,7 +2004,7 @@ fn distributor_distribute() {
 
         let program_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2020,7 +2051,7 @@ fn test_code_submission_pass() {
         let code_hash = generate_code_hash(&code).into();
         let code_id = CodeId::from_origin(code_hash);
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone()
         ));
@@ -2057,18 +2088,18 @@ fn test_same_code_submission_fails() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone()
         ),);
         // Trying to set the same code twice.
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_1), code.clone()),
+            GearPallet::<Test>::upload_code(Origin::signed(USER_1), code.clone()),
             Error::<Test>::CodeAlreadyExists,
         );
         // Trying the same from another origin
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code),
+            GearPallet::<Test>::upload_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -2082,7 +2113,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
         let code_id = generate_code_hash(&code).into();
 
         // First submit program, which will set code and metadata
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code.clone(),
             DEFAULT_SALT.to_vec(),
@@ -2105,7 +2136,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 
         // Trying to set the same code twice.
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code),
+            GearPallet::<Test>::upload_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -2120,7 +2151,7 @@ fn test_code_is_not_reset_within_program_submission() {
         let code_id = CodeId::from_origin(code_hash);
 
         // First submit code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             code.clone()
         ));
@@ -2129,7 +2160,7 @@ fn test_code_is_not_reset_within_program_submission() {
         assert!(expected_meta.is_some());
 
         // Submit program from another origin. Should not change meta or code.
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
             code,
             DEFAULT_SALT.to_vec(),
@@ -2164,7 +2195,7 @@ fn messages_to_uninitialized_program_wait() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2205,7 +2236,7 @@ fn uninitialized_program_should_accept_replies() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2250,7 +2281,7 @@ fn defer_program_initialization() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2307,7 +2338,7 @@ fn wake_messages_after_program_inited() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2364,7 +2395,7 @@ fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id =
-            submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("Failed to init");
+            upload_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("Failed to init");
         let code_hash =
             generate_code_hash(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
         let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
@@ -2412,9 +2443,10 @@ fn exit_init() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        let code_id = CodeId::generate(WASM_BINARY);
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
             vec![],
             [0].to_vec(),
             50_000_000_000u64,
@@ -2431,9 +2463,9 @@ fn exit_init() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::create_program(
                 Origin::signed(USER_1),
-                code,
+                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000,
@@ -2441,6 +2473,72 @@ fn exit_init() {
             ),
             Error::<Test>::ProgramAlreadyExists,
         );
+    })
+}
+
+#[test]
+fn test_create_program_works() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::upload_code(
+            Origin::signed(USER_1),
+            code.clone(),
+        ));
+
+        // Parse wasm code.
+        let schedule = <Test as Config>::Schedule::get();
+        let code = Code::try_new(code, schedule.instruction_weights.version, |module| {
+            schedule.rules(module)
+        })
+        .expect("Code failed to load");
+
+        let code_id = CodeId::generate(code.raw_code());
+        assert_ok!(GearPallet::<Test>::create_program(
+            Origin::signed(USER_1),
+            code_id,
+            vec![],
+            Vec::new(),
+            // # TODO
+            //
+            // Calculate the gas spent after #1242.
+            10_000_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+
+        run_to_next_block(None);
+
+        // there should be one message for the program author
+        let message_id = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .map(|(msg, _bn)| msg.id())
+            .expect("Element should be");
+        assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1),
+            message_id,
+            b"PONG".to_vec(),
+            // # TODO
+            //
+            // Calculate the gas spent after #1242.
+            10_000_000_000u64,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(program_id));
     })
 }
 
@@ -2461,7 +2559,7 @@ fn test_create_program_no_code_hash() {
             generate_code_hash(invalid_prog_code_kind.to_bytes().as_slice());
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2483,7 +2581,7 @@ fn test_create_program_no_code_hash() {
         // Init and dispatch messages from the contract are dequeued, but not executed
         // 2 error replies are generated, and executed (forwarded to USER_2 mailbox).
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 2);
-        assert_total_dequeued(4 + 2); // +2 for submit_program/send_messages
+        assert_total_dequeued(4 + 2); // +2 for upload_program/send_messages
         assert_init_success(1); // 1 for submitting factory
 
         SystemPallet::<Test>::reset_events();
@@ -2509,7 +2607,7 @@ fn test_create_program_no_code_hash() {
         assert_init_success(0);
 
         assert_noop!(
-            GearPallet::<Test>::submit_code(
+            GearPallet::<Test>::upload_code(
                 Origin::signed(USER_1),
                 invalid_prog_code_kind.to_bytes(),
             ),
@@ -2551,13 +2649,13 @@ fn test_create_program_simple() {
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             child_code,
         ));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2640,13 +2738,13 @@ fn test_create_program_duplicate() {
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             child_code.clone(),
         ));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2657,7 +2755,7 @@ fn test_create_program_duplicate() {
         run_to_block(2, None);
 
         // User creates a program
-        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
+        assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(3, None);
 
         // Program tries to create the same
@@ -2678,8 +2776,8 @@ fn test_create_program_duplicate() {
         // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
         // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 1);
-        assert_total_dequeued(3 + 3); // +3 from extrinsics (2 submit_program, 1 send_message)
-        assert_init_success(2); // +2 from extrinsics (2 submit_program)
+        assert_total_dequeued(3 + 3); // +3 from extrinsics (2 upload_program, 1 send_message)
+        assert_init_success(2); // +2 from extrinsics (2 upload_program)
 
         SystemPallet::<Test>::reset_events();
         MailboxOf::<Test>::clear();
@@ -2714,7 +2812,7 @@ fn test_create_program_duplicate() {
         assert_init_success(1);
 
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
                 child_code,
                 b"salt1".to_vec(),
@@ -2737,13 +2835,13 @@ fn test_create_program_duplicate_in_one_execution() {
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_2),
             child_code,
         ));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2822,17 +2920,17 @@ fn test_create_program_miscellaneous() {
         let child1_code_hash = generate_code_hash(&child1_code);
         let child2_code_hash = generate_code_hash(&child2_code);
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_2),
             child1_code,
         ));
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_2),
             child2_code,
         ));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2893,7 +2991,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(5, None);
 
-        assert_total_dequeued(18 + 4); // +4 for 3 send_message calls and 1 submit_program call
+        assert_total_dequeued(18 + 4); // +4 for 3 send_message calls and 1 upload_program call
         assert_init_success(3 + 1); // +1 for submitting factory
     });
 }
@@ -2907,10 +3005,11 @@ fn exit_handle() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
+        let code_id = CodeId::generate(WASM_BINARY);
         let code_hash = generate_code_hash(&code).into();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
             vec![],
             Vec::new(),
             10_000_000_000u64,
@@ -2945,9 +3044,9 @@ fn exit_handle() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::create_program(
                 Origin::signed(USER_1),
-                code,
+                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000,
@@ -2965,7 +3064,7 @@ fn no_redundant_gas_value_after_exiting() {
         use demo_exit_handle::WASM_BINARY;
 
         let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2996,8 +3095,7 @@ fn no_redundant_gas_value_after_exiting() {
         ));
 
         let msg_id = get_last_message_id();
-        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit.map(|(g, _)| g), Some(gas_spent));
+        assert_ok!(GasHandlerOf::<Test>::get_limit(msg_id), gas_spent);
 
         // before execution
         let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
@@ -3007,8 +3105,10 @@ fn no_redundant_gas_value_after_exiting() {
         run_to_block(3, None);
 
         // gas_limit has been recovered
-        let maybe_limit = GasHandlerOf::<Test>::get_limit(msg_id).expect("invalid algo");
-        assert_eq!(maybe_limit, None);
+        assert_noop!(
+            GasHandlerOf::<Test>::get_limit(msg_id),
+            pallet_gear_gas::Error::<Test>::NodeNotFound
+        );
 
         // the (reserved_after_send - gas_spent) has been unreserved
         let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
@@ -3031,7 +3131,7 @@ fn init_wait_reply_exit_cleaned_storage() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -3103,9 +3203,10 @@ fn paused_program_keeps_id() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        let code_id = CodeId::generate(WASM_BINARY);
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            code.clone(),
+            code,
             vec![],
             Vec::new(),
             50_000_000_000u64,
@@ -3119,9 +3220,9 @@ fn paused_program_keeps_id() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::create_program(
                 Origin::signed(USER_3),
-                code,
+                code_id,
                 vec![],
                 Vec::new(),
                 2_000_000_000u64,
@@ -3144,7 +3245,7 @@ fn messages_to_paused_program_skipped() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3189,7 +3290,7 @@ fn replies_to_paused_program_skipped() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3241,7 +3342,7 @@ fn program_messages_to_paused_program_skipped() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3253,7 +3354,7 @@ fn program_messages_to_paused_program_skipped() {
         let paused_program_id = utils::get_last_program_id();
 
         let code = PROXY_WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_3),
             code,
             vec![],
@@ -3301,7 +3402,7 @@ fn resume_program_works() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3379,7 +3480,7 @@ fn gas_spent_vs_balance() {
     new_test_ext().execute_with(|| {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -3479,7 +3580,7 @@ fn gas_spent_precalculated() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = submit_program_default(USER_1, ProgramCodeKind::Custom(wat))
+        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
             .expect("submit result was asserted");
 
         run_to_block(2, None);
@@ -3541,9 +3642,10 @@ fn test_two_contracts_composition_works() {
 
         let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
         let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
+        let contract_code_id = CodeId::generate(MUL_CONST_WASM_BINARY);
         let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
 
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract_a".to_vec(),
@@ -3552,16 +3654,16 @@ fn test_two_contracts_composition_works() {
             0,
         ));
 
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::create_program(
             Origin::signed(USER_1),
-            MUL_CONST_WASM_BINARY.to_vec(),
+            contract_code_id,
             b"contract_b".to_vec(),
             75_u64.encode(),
             10_000_000_000,
             0,
         ));
 
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             COMPOSE_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
@@ -3580,7 +3682,7 @@ fn test_two_contracts_composition_works() {
             Origin::signed(USER_1),
             compose_id,
             100_u64.to_le_bytes().to_vec(),
-            10_000_000_000,
+            30_000_000_000,
             0,
         ));
 
@@ -3594,7 +3696,7 @@ fn test_two_contracts_composition_works() {
     });
 }
 
-// Before introducing this test, submit_program extrinsic didn't check the value.
+// Before introducing this test, upload_program extrinsic didn't check the value.
 // Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
 //
 // User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with
@@ -3618,14 +3720,14 @@ fn test_create_program_with_value_lt_ed() {
         let msg_receiver_2 = 6u64;
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
 
         // Can't initialize program with value less than ED
         assert_noop!(
-            GearPallet::<Test>::submit_program(
+            GearPallet::<Test>::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 b"test0".to_vec(),
@@ -3637,7 +3739,7 @@ fn test_create_program_with_value_lt_ed() {
         );
 
         // Simple passing test with values
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
@@ -3677,7 +3779,7 @@ fn test_create_program_with_value_lt_ed() {
         SystemPallet::<Test>::reset_events();
 
         // Trying to send init message from program with value less than ED.
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test2".to_vec(),
@@ -3724,7 +3826,7 @@ fn test_create_program_with_value_lt_ed() {
     })
 }
 
-// Before introducing this test, submit_program extrinsic didn't check the value.
+// Before introducing this test, upload_program extrinsic didn't check the value.
 // Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
 //
 // For instance, we have a guarantee that provided init message value is more than ED before executing message.
@@ -3742,7 +3844,7 @@ fn test_create_program_with_exceeding_value() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Submit the code
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
@@ -3750,7 +3852,7 @@ fn test_create_program_with_exceeding_value() {
         let sending_to_program = 2 * get_ed();
         let random_receiver = 1;
         // Trying to send init message from program with value greater than program can send.
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
@@ -3818,12 +3920,12 @@ fn test_create_program_without_gas_works() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::submit_code(
+        assert_ok!(GearPallet::<Test>::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
 
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
@@ -3846,7 +3948,7 @@ fn test_reply_to_terminated_program() {
         use demo_exit_init::WASM_BINARY;
 
         // Deploy program, which sends mail and exits
-        assert_ok!(GearPallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -3879,7 +3981,7 @@ fn test_reply_to_terminated_program() {
         );
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
-        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+        assert_ok!(GearPallet::<Test>::claim_value(
             Origin::signed(USER_1),
             mail_id,
         ));
@@ -3903,7 +4005,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
         let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
         let wrapper_id = generate_program_id(WAITING_PROXY_WASM_BINARY, b"salt");
 
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             MUL_CONST_WASM_BINARY.to_vec(),
             b"contract".to_vec(),
@@ -3912,7 +4014,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             0,
         ));
 
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
@@ -4035,7 +4137,7 @@ fn execution_over_blocks() {
         .expect("Failed to get gas spent");
 
         // deploy demo-calc-in-one-block
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"estimate threshold".to_vec(),
@@ -4062,7 +4164,7 @@ fn execution_over_blocks() {
     };
 
     let estimate_gas_for_init_and_start = || -> (u64, u64) {
-        use demo_calc_hash::sha2_256;
+        use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
 
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
@@ -4077,7 +4179,7 @@ fn execution_over_blocks() {
         .expect("Failed to get gas spent");
 
         // deploy demo-calc-hash-over-blocks
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"estimate over blocks".to_vec(),
@@ -4089,7 +4191,7 @@ fn execution_over_blocks() {
 
         run_to_next_block(None);
 
-        let (src, id, expected) = ([1; 32], sha2_256(b"estimate_over_blocks"), 0);
+        let (src, id, expected) = ([1; 32], sha2_512_256(b"estimate_over_blocks"), 0);
 
         // Estimate start cost.
         let start_gas_wait = Gear::calculate_gas_info(
@@ -4135,7 +4237,7 @@ fn execution_over_blocks() {
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
         // Deploy demo-calc-hash-in-one-block.
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -4181,7 +4283,7 @@ fn execution_over_blocks() {
     });
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::sha2_256;
+        use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -4189,7 +4291,7 @@ fn execution_over_blocks() {
         let (init_gas, start_gas) = estimate_gas_for_init_and_start();
 
         // deploy demo-calc-hash-over-blocks
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -4201,7 +4303,7 @@ fn execution_over_blocks() {
 
         assert!(program_exists(over_blocks.into_origin()));
 
-        let (src, id, expected) = ([0; 32], sha2_256(b"42"), 1024);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 1024);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
@@ -4248,7 +4350,7 @@ fn call_forbidden_function() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = submit_program_default(USER_1, ProgramCodeKind::Custom(wat))
+        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
             .expect("submit result was asserted");
 
         run_to_block(2, None);
@@ -4276,7 +4378,7 @@ fn test_async_messages() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(Gear::submit_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -4328,14 +4430,163 @@ fn test_async_messages() {
             run_to_next_block(None);
             let last_mail = get_last_mail(USER_1);
             assert_eq!(last_mail.payload(), b"PONG");
-            assert_ok!(Gear::claim_value_from_mailbox(
-                Origin::signed(USER_1),
-                last_mail.id()
-            ));
+            assert_ok!(Gear::claim_value(Origin::signed(USER_1), last_mail.id()));
         }
 
         assert!(!Gear::is_terminated(pid));
     })
+}
+
+#[test]
+fn missing_functions_are_not_executed() {
+    // handle is copied from ProgramCodeKind::OutgoingWithValueInHandle
+    let wat = r#"
+    (module
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32) (result i32)))
+        (import "env" "memory" (memory 10))
+        (export "handle" (func $handle))
+        (func $handle
+            (local $msg_source i32)
+            (local $msg_val i32)
+            (i32.store offset=2
+                (get_local $msg_source)
+                (i32.const 1)
+            )
+            (i32.store offset=10
+                (get_local $msg_val)
+                (i32.const 1000)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+            (if
+                (then unreachable)
+                (else)
+            )
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let program_id = {
+            let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_eq!(min_limit, 0);
+
+        run_to_next_block(None);
+
+        // there is no 'init' so memory pages don't get loaded and
+        // no execution is performed at all and hence user was not charged.
+        assert_eq!(
+            initial_balance,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
+
+        // this value is actually a constant in the wat.
+        let locked_value = 1_000;
+        assert_ok!(
+            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                &USER_1,
+                &AccountId::from_origin(program_id.into_origin()),
+                locked_value,
+                frame_support::traits::ExistenceRequirement::AllowDeath
+            )
+        );
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        let reply_to_id = get_last_mail(USER_1).id();
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Reply(reply_to_id, 0),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_eq!(min_limit, 0);
+
+        let reply_value = 1_500;
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1),
+            reply_to_id,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000,
+            reply_value,
+        ));
+
+        run_to_next_block(None);
+
+        // there is no 'handle_reply' too
+        assert_eq!(
+            initial_balance - reply_value,
+            BalancesPallet::<Test>::free_balance(USER_1)
+        );
+    });
+}
+
+#[test]
+fn missing_handle_is_not_executed() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 2))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            vec![],
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        )
+        .map(|_| get_last_program_id())
+        .expect("submit_program failed");
+
+        run_to_next_block(None);
+
+        let balance_before = BalancesPallet::<Test>::free_balance(USER_1);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000_000,
+            0,
+        ));
+
+        run_to_next_block(None);
+
+        // there is no 'handle' so no memory pages are loaded and
+        // the program is not executed. Hence the user didn't pay for processing.
+        assert_eq!(balance_before, BalancesPallet::<Test>::free_balance(USER_1));
+    });
 }
 
 mod utils {
@@ -4490,7 +4741,7 @@ mod utils {
     // Returns id of the message in the mailbox
     pub(super) fn setup_mailbox_test_state(user: AccountId) -> MessageId {
         let prog_id = {
-            let res = submit_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
+            let res = upload_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -4565,14 +4816,14 @@ mod utils {
     }
 
     // Submits program with default options (salt, gas limit, value, payload)
-    pub(super) fn submit_program_default(
+    pub(super) fn upload_program_default(
         user: AccountId,
         code_kind: ProgramCodeKind,
     ) -> DispatchCustomResult<ProgramId> {
         let code = code_kind.to_bytes();
         let salt = DEFAULT_SALT.to_vec();
 
-        GearPallet::<Test>::submit_program(
+        GearPallet::<Test>::upload_program(
             Origin::signed(user),
             code,
             salt,

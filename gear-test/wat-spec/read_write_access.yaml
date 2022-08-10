@@ -1,0 +1,11 @@
+title: Read-write-access
+
+programs:
+  - id: 1
+    path: target/wat-examples/read_write_access.wasm
+    source:
+      kind: account
+      value: alice
+
+fixtures:
+  - title: read and then write to all pages in memory

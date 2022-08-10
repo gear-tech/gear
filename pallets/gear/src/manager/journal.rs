@@ -162,8 +162,8 @@ where
         });
 
         let _ = common::waiting_init_take_messages(id_exited);
-        let res = common::set_program_terminated_status(id_exited.into_origin());
-        assert!(res.is_ok(), "`exit` can be called only from active program");
+        common::set_program_terminated_status(id_exited.into_origin())
+            .expect("`exit` can be called only from active program; qed");
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
         let balance = CurrencyOf::<T>::total_balance(program_account);
@@ -202,9 +202,23 @@ where
             }
 
             if let Some(gas_limit) = gas_limit {
-                let _ = GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit);
+                // # Safety
+                //
+                // 1. There is no logic spliting value from the reserved nodes.
+                // 2. The `gas_limit` has been checked inside message queue processing.
+                // 3. The `value` of the value node has been checked before.
+                // 4. The `dispatch.id()` is new genreated by system from a checked
+                //    ( inside message queue processing ) `message_id`.
+                GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             } else {
-                let _ = GasHandlerOf::<T>::split(message_id, dispatch.id());
+                // # Safety
+                //
+                // 1. There is no logic spliting value from the reserved nodes.
+                // 2. The `dispatch.id()` is new genreated by system from a checked
+                //    ( inside message queue processing ) `message_id`.
+                GasHandlerOf::<T>::split(message_id, dispatch.id())
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 
             QueueOf::<T>::queue(dispatch)

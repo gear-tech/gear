@@ -94,15 +94,15 @@ mod sys {
 
 /// Get the exit code of the message being processed.
 ///
-/// This function is used to check the reply message was processed
-/// successfully or not.
+/// This function is used in reply handler to check the message
+/// was processed successfully or not.
 ///
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
-/// unsafe extern "C" fn handle() {
+/// unsafe extern "C" fn handle_reply() {
 ///     // ...
 ///     let exit_code = msg::exit_code();
 /// }

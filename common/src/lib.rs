@@ -54,6 +54,7 @@ use sp_std::{
     prelude::*,
 };
 use storage::ValueStorage;
+extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 

@@ -28,6 +28,10 @@ all: gear examples
 .PHONY: all-release
 all-release: gear-release examples
 
+.PHONY: build-wat-examples
+build-wat-examples:
+	@ ./scripts/gear.sh build wat-examples
+
 .PHONY: gear
 gear:
 	@ ./scripts/gear.sh build gear
@@ -66,6 +70,14 @@ node:
 .PHONY: node-release
 node-release:
 	@ ./scripts/gear.sh build node --release
+
+.PHONY: vara
+vara:
+	@ ./scripts/gear.sh build node --no-default-features --features=vara-native,lazy-pages
+
+.PHONY: vara-release
+vara-release:
+	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
 # Check section
 .PHONY: check
@@ -221,6 +233,10 @@ gtest: init-js gear-test-release examples
 rtest: init-js node-release examples
 	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
 
+.PHONY: rtest-vara
+rtest-vara: init-js vara-release examples
+	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
+
 .PHONY: test-pallet
 test-pallet:
 	@ ./scripts/gear.sh test pallet
@@ -244,4 +260,8 @@ doc:
 
 .PHONY: fuzz
 fuzz:
-	@ ./scripts/gear.sh test fuzz
+	@ ./scripts/gear.sh test fuzz $(target)
+
+.PHONY: fuzz-vara
+fuzz-vara:
+	@ ./scripts/gear.sh test fuzz --features=vara-native,lazy-pages --no-default-features $(target)

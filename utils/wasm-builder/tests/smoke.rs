@@ -18,6 +18,8 @@
 
 use std::process::Command;
 
+use gear_wasm_builder::TARGET;
+
 fn run_cargo(args: &[&str]) -> bool {
     let mut cmd = Command::new("cargo");
     cmd.args(args);
@@ -46,4 +48,9 @@ fn test_release() {
 #[test]
 fn build_release() {
     assert!(run_cargo(&["build", "--release"]));
+}
+
+#[test]
+fn build_release_for_target() {
+    assert!(run_cargo(&["build", "--release", "--target", TARGET]));
 }

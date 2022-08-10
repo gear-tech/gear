@@ -32,7 +32,6 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_processor::common::ExecutableActorData;
-use gear_runtime::{Origin, Runtime, System};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -52,6 +51,12 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
+
+// Runtime variants
+#[cfg(feature = "gear-native")]
+use gear_runtime::{Origin, Runtime, System};
+#[cfg(all(feature = "vara-native", not(feature = "gear-native")))]
+use vara_runtime::{Origin, Runtime, System};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -157,7 +162,7 @@ fn init_fixture(
                 )
             })?;
 
-            if let Err(e) = GearPallet::<Runtime>::submit_code(
+            if let Err(e) = GearPallet::<Runtime>::upload_code(
                 Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
                 code_bytes,
             ) {
@@ -191,7 +196,7 @@ fn init_fixture(
             }
         }
 
-        if let Err(e) = GearPallet::<Runtime>::submit_program(
+        if let Err(e) = GearPallet::<Runtime>::upload_program(
             Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
             program.id.to_program_id().as_ref().to_vec(),
@@ -261,7 +266,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     let mut errors = vec![];
     let mut expected_log = vec![];
 
-    for message in &fixture.messages {
+    let empty = Vec::new();
+    for message in fixture.messages.as_ref().unwrap_or(&empty) {
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
             Some(PayloadVariant::Custom(v)) => {
@@ -312,7 +318,13 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 <Runtime as Config>::GasPrice::gas_price(gas_limit),
             )
             .expect("No more funds");
-            let _ = GasHandlerOf::<Runtime>::create(origin, id, gas_limit);
+
+            // # Safety
+            //
+            // This is unreachable since the `message_id` is new generated
+            // with `GearPallet::next_message_id`.
+            GasHandlerOf::<Runtime>::create(origin, id, gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let msg = StoredMessage::new(
                 id,
@@ -366,7 +378,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         }
     }
 
-    for exp in &fixture.expected {
+    let empty = Vec::new();
+    for exp in fixture.expected.as_ref().unwrap_or(&empty) {
         let snapshot: DebugData = if let Some(step) = exp.step {
             if snapshots.len() < (step + test.programs.len()) {
                 Default::default()
@@ -422,7 +435,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
         }
 
-        let actors_data: Vec<ExecutableActorData> = snapshot
+        let actors_data: Vec<_> = snapshot
             .programs
             .iter()
             .filter_map(|p| {
@@ -440,13 +453,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         .map(|p| p.to_wasm_page())
                         .collect();
                     let program = CoreProgram::from_parts(*pid, code, pages, true);
-                    Some(ExecutableActorData {
-                        program,
-                        pages_data: vec_page_data_map_to_page_buf_map(
-                            info.persistent_pages.clone(),
-                        )
-                        .unwrap(),
-                    })
+                    let memory =
+                        vec_page_data_map_to_page_buf_map(info.persistent_pages.clone()).unwrap();
+                    Some((
+                        ExecutableActorData {
+                            program,
+                            pages_with_data: memory.keys().cloned().collect(),
+                        },
+                        memory,
+                    ))
                 } else {
                     None
                 }
@@ -464,7 +479,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             if let Err(alloc_errors) = gear_test::check::check_allocations(
                 &actors_data
                     .into_iter()
-                    .map(|a| a.program)
+                    .map(|(d, _)| d.program)
                     .collect::<Vec<gear_core::program::Program>>(),
                 alloc,
             ) {
