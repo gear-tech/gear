@@ -20,7 +20,7 @@ runs:
         name: ${{ inputs.name }}
         tool: 'customSmallerIsBetter'
         output-file-path: ${{ inputs.file }}
-        fail-on-alert: true
+        fail-on-alert: false
         gh-repository: github.com/gear-tech/performance-charts
         gh-pages-branch: master
         benchmark-data-dir-path: ./
