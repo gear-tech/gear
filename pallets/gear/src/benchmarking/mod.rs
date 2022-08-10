@@ -433,7 +433,7 @@ benchmarks! {
         } else {
             ProgramId::from_origin(benchmarking::account::<T::AccountId>("user", 0, 101).into_origin())
         };
-        
+
         let payload = vec![0_u8];
         let ed: u32  = <T as pallet::Config>::Currency::minimum_balance().unique_saturated_into();
 
