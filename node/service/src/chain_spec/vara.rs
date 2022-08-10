@@ -50,7 +50,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // Name
         "Development",
         // ID
-        "vara-dev",
+        "vara_dev",
         ChainType::Development,
         move || {
             testnet_genesis(
@@ -89,9 +89,9 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 
     Ok(ChainSpec::from_genesis(
         // Name
-        "Local Testnet",
+        "Vara Local Testnet",
         // ID
-        "vara-local",
+        "vara_local_testnet",
         ChainType::Local,
         move || {
             testnet_genesis(
@@ -142,8 +142,8 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
-        "Staging Testnet",
-        "vara-staging",
+        "Vara Staging Testnet",
+        "vara_staging_testnet",
         ChainType::Live,
         move || {
             testnet_genesis(
