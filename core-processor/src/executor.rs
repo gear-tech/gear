@@ -159,14 +159,9 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
         // Skip stack page if they are specified.
-        let begin = stack_end.unwrap_or(0.into());
+        let begin = stack_end.unwrap_or(WasmPageNumber(0));
 
-        if pages_data
-            .keys()
-            .filter(|&&p| p < begin.to_gear_page())
-            .next()
-            .is_some()
-        {
+        if pages_data.keys().any(|&p| p < begin.to_gear_page()) {
             return Err(ExecutionErrorReason::StackPagesHaveInitialData);
         }
 
