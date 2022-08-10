@@ -5429,6 +5429,30 @@ fn gas_reservation_works() {
         )
         .expect("submit_program failed");
 
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let GasInfo {
+            min_limit: spent_gas,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            spent_gas,
+            0
+        ));
+
         run_to_next_block(None);
     });
 }

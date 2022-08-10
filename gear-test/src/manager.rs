@@ -20,6 +20,7 @@ use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
+    gas::GasCounter,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
@@ -149,6 +150,7 @@ impl ExecutionContext for InMemoryExtManager {
                 executable_data: Some(ExecutableActorData {
                     program: program.clone(),
                     pages_with_data: Default::default(),
+                    gas_reservation_map: todo!(),
                 }),
                 memory_pages: Default::default(),
             },
@@ -369,11 +371,10 @@ impl JournalHandler for InMemoryExtManager {
         panic!("Processing stopped. Used for on-chain logic only.");
     }
 
-    fn reserve_gas(
+    fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        reservation_id: ReservationId,
-        gas_amount: u64,
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     ) {
         todo!()
     }

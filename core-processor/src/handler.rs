@@ -76,11 +76,16 @@ pub fn handle_journal(
                 dispatch,
                 gas_burned,
             } => handler.stop_processing(dispatch, gas_burned),
-            JournalNote::ReserveGas {
+            JournalNote::UpdateGasReservations {
+                message_id,
+                program_id,
+                gas_reservation_map,
+            } => handler.update_gas_reservation(message_id, program_id, gas_reservation_map),
+            /*JournalNote::UnreserveGas {
                 message_id,
                 reservation_id,
                 amount,
-            } => handler.reserve_gas(message_id, reservation_id, amount),
+            } => handler.unreserve_gas(message_id, reservation_id, amount),*/
         }
     }
 

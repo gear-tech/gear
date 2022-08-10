@@ -30,10 +30,17 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
 
+const RESERVATION_AMOUNT: u32 = 50_000_000;
+
 #[no_mangle]
 unsafe extern "C" fn init() {
-    RESERVATION_ID = Some(exec::reserve_gas(50_000_000));
+    RESERVATION_ID = Some(exec::reserve_gas(RESERVATION_AMOUNT));
 }
 
 #[no_mangle]
-unsafe extern "C" fn handle() {}
+unsafe extern "C" fn handle() {
+    exec::unreserve_gas(
+        RESERVATION_ID.take().expect("Already taken"),
+        RESERVATION_AMOUNT,
+    );
+}

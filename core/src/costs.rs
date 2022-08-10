@@ -31,6 +31,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
 
+    /// Weight of calling `gr_unreserve_gas`
+    pub gr_unreserve_gas: u64,
+
     /// Weight of calling `gr_gas_available`.
     pub gr_gas_available: u64,
 
@@ -166,6 +169,8 @@ pub enum RuntimeCosts {
     Alloc,
     /// Weight of calling `gr_reserve_gas`
     ReserveGas,
+    /// Weight of calling `gr_unreserve_gas`
+    UnreserveGas,
     /// Weight of calling `gr_gas_available`.
     GasAvailable,
     /// Weight of calling `gr_msg_id`.
@@ -228,6 +233,7 @@ impl RuntimeCosts {
             MeteringBlock(amount) => s.gas.saturating_add(amount.into()),
             Alloc => s.alloc,
             ReserveGas => s.gr_reserve_gas,
+            UnreserveGas => s.gr_unreserve_gas,
             GasAvailable => s.gr_gas_available,
             MsgId => s.gr_msg_id,
             Origin => s.gr_origin,

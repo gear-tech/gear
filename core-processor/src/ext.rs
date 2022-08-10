@@ -45,7 +45,7 @@ pub struct ProcessorContext {
     /// Gas allowance counter.
     pub gas_allowance_counter: GasAllowanceCounter,
     /// Reserved gas counter.
-    pub gas_reservation_map: BTreeMap<ReservationId, u64>,
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -564,8 +564,7 @@ impl EnvExt for Ext {
     fn reserve_gas(&mut self, amount: u32) -> Result<ReservationId, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
-        // TODO: amount checks
-        // amount != 0, amount <= gas_allowance
+        self.charge_gas(amount)?;
 
         let ProcessorContext {
             message_context,
@@ -574,11 +573,31 @@ impl EnvExt for Ext {
         } = &mut self.context;
 
         let msg_id = message_context.current().id();
-        let idx = gas_reservation_map.len();
-        let id = ReservationId::generate(msg_id, idx);
-        gas_reservation_map.insert(id, amount as u64);
+        let id = ReservationId::generate(msg_id);
+        gas_reservation_map
+            .entry(id)
+            .and_modify(|counter| *counter = GasCounter::new(amount as u64 + counter.left()))
+            .or_insert_with(|| GasCounter::new(amount as u64));
 
         Ok(id)
+    }
+
+    fn unreserve_gas(&mut self, id: ReservationId, amount: u32) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::UnreserveGas)?;
+
+        let reserved_gas = self
+            .context
+            .gas_reservation_map
+            .get_mut(&id)
+            .ok_or_else::<Self::Error, _>(|| ExecutionError::InvalidReservationId.into())?;
+
+        if reserved_gas.charge(amount as u64) != ChargeResult::Enough {
+            return Err(ExecutionError::TooManyGasUnreserved.into());
+        }
+
+        self.refund_gas(amount as u32)?;
+
+        Ok(())
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {
