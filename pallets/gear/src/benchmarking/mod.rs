@@ -62,7 +62,6 @@ use sp_runtime::{
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
-const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
 /// How many batches we do per API benchmark.
@@ -422,31 +421,44 @@ benchmarks! {
     }
 
     send_message {
-        let p in 0 .. MAX_PAYLOAD_LEN;
+        let v in 0 .. 1; // value is zero or no
+        let p in 0 .. 1; // dest is program or regular account
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program(program_id.into_origin(), code, 1.into());
-        let payload = vec![0_u8; p as usize];
+        let program_id = if p == 1 {
+            let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
+            let code = benchmarking::generate_wasm2(16.into()).unwrap();
+            benchmarking::set_program(program_id.into_origin(), code, 1.into());
+            program_id
+        } else {
+            ProgramId::from_origin(benchmarking::account::<T::AccountId>("user", 0, 101).into_origin())
+        };
+        
+        let payload = vec![0_u8];
+        let ed: u32  = <T as pallet::Config>::Currency::minimum_balance().unique_saturated_into();
 
         init_block::<T>();
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, (v * ed).into())
     verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+        if p == 1 {
+            assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
+        } else {
+            assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
+        }
     }
 
     send_reply {
-        let p in 0 .. MAX_PAYLOAD_LEN;
+        let v in 0u32 .. 1u32;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program(program_id.clone().into_origin(), code, 1.into());
+        let ed: u32  = <T as pallet::Config>::Currency::minimum_balance().unique_saturated_into();
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
-        let value = (p % 2).into();
+        let value = (v * ed).into();
         GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
         <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
@@ -457,10 +469,10 @@ benchmarks! {
             value.unique_saturated_into(),
             None,
         ), u32::MAX.unique_saturated_into()).expect("Error during mailbox insertion");
-        let payload = vec![0_u8; p as usize];
+        let payload = vec![0_u8];
 
         init_block::<T>();
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
+    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, value)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))

@@ -1635,7 +1635,19 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
-        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
+        #[pallet::weight({
+            let v = if value.is_zero() {
+                0
+            } else {
+                1
+            };
+            let weight = T::DbWeight::get().reads(1);
+            if GearProgramPallet::<T>::program_exists(*destination) {
+                weight.saturating_add(<T as Config>::WeightInfo::send_message(v, 1))
+            } else {
+                weight.saturating_add(<T as Config>::WeightInfo::send_message(v, 0))
+            }
+        })]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: ProgramId,
@@ -1728,7 +1740,14 @@ pub mod pallet {
         ///
         /// NOTE: only user who is destination of the message, can claim value
         /// or reply on the message from mailbox.
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight({
+            let v = if value.is_zero() {
+                0
+            } else {
+                1
+            };
+            <T as Config>::WeightInfo::send_reply(v)
+        })]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: MessageId,

@@ -43,8 +43,8 @@ pub trait WeightInfo {
 	fn upload_code(c: u32, ) -> Weight;
 	fn create_program(s: u32, ) -> Weight;
 	fn upload_program(c: u32, s: u32, ) -> Weight;
-	fn send_message(p: u32, ) -> Weight;
-	fn send_reply(p: u32, ) -> Weight;
+	fn send_message(v: u32, p: u32, ) -> Weight;
+	fn send_reply(v: u32, ) -> Weight;
 	fn initial_allocation(q: u32, ) -> Weight;
 	fn alloc_in_handle(q: u32, ) -> Weight;
 	fn reinstrument(c: u32, ) -> Weight;
@@ -177,17 +177,21 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(10 as Weight))
 			.saturating_add(T::DbWeight::get().writes(11 as Weight))
 	}
-	fn send_message(p: u32, ) -> Weight {
-		(85_774_000 as Weight)
-			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(p as Weight))
-			.saturating_add(T::DbWeight::get().reads(10 as Weight))
-			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+	fn send_message(v: u32, p: u32, ) -> Weight {
+		(59_277_000 as Weight)
+			// Standard Error: 1_579_000
+			.saturating_add((7_840_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 1_579_000
+			.saturating_add((25_637_000 as Weight).saturating_mul(p as Weight))
+			.saturating_add(T::DbWeight::get().reads(5 as Weight))
+			.saturating_add(T::DbWeight::get().reads((5 as Weight).saturating_mul(p as Weight)))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+			.saturating_add(T::DbWeight::get().writes((5 as Weight).saturating_mul(p as Weight)))
 	}
-	fn send_reply(p: u32, ) -> Weight {
-		(137_573_000 as Weight)
-			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(p as Weight))
+	fn send_reply(v: u32, ) -> Weight {
+		(143_273_000 as Weight)
+			// Standard Error: 1_020_000
+			.saturating_add((9_646_000 as Weight).saturating_mul(v as Weight))
 			.saturating_add(T::DbWeight::get().reads(14 as Weight))
 			.saturating_add(T::DbWeight::get().writes(11 as Weight))
 	}
@@ -679,17 +683,21 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(10 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(11 as Weight))
 	}
-	fn send_message(p: u32, ) -> Weight {
-		(85_774_000 as Weight)
-			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(p as Weight))
-			.saturating_add(RocksDbWeight::get().reads(10 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(8 as Weight))
+	fn send_message(v: u32, p: u32, ) -> Weight {
+		(59_277_000 as Weight)
+			// Standard Error: 1_579_000
+			.saturating_add((7_840_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 1_579_000
+			.saturating_add((25_637_000 as Weight).saturating_mul(p as Weight))
+			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((5 as Weight).saturating_mul(p as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((5 as Weight).saturating_mul(p as Weight)))
 	}
-	fn send_reply(p: u32, ) -> Weight {
-		(137_573_000 as Weight)
-			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(p as Weight))
+	fn send_reply(v: u32, ) -> Weight {
+		(143_273_000 as Weight)
+			// Standard Error: 1_020_000
+			.saturating_add((9_646_000 as Weight).saturating_mul(v as Weight))
 			.saturating_add(RocksDbWeight::get().reads(14 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(11 as Weight))
 	}
