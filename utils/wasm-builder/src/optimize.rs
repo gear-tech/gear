@@ -40,7 +40,7 @@ impl Optimizer {
     }
 
     /// Calls chain optimizer
-    pub fn optimize(&mut self) -> Result<Vec<u8>> {
+    pub fn optimize(&self) -> Result<Vec<u8>> {
         log::debug!("*** Processing chain optimization: {}", self.file.display());
 
         let mut binary_module = self.module.clone();
@@ -68,7 +68,7 @@ impl Optimizer {
     }
 
     /// Calls metadata optimizer
-    pub fn metadata(&mut self) -> Result<Vec<u8>> {
+    pub fn metadata(&self) -> Result<Vec<u8>> {
         log::debug!(
             "*** Processing metadata optimization: {}",
             self.file.display()

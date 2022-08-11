@@ -178,22 +178,13 @@ impl WasmProject {
         fs::create_dir_all(&self.target_dir)?;
         fs::create_dir_all(&self.wasm_target_dir)?;
 
-        let to_path = self
-            .wasm_target_dir
-            .join(format!("{}.wasm", &file_base_name));
+        let [to_path, to_opt_path, to_meta_path] = [".wasm", ".opt.wasm", ".meta.wasm"]
+            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
+
         fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-
-        let to_opt_path = self
-            .wasm_target_dir
-            .join(format!("{}.opt.wasm", &file_base_name));
-
         let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
 
         Self::generate_opt(from_path.clone(), &to_opt_path)?;
-
-        let to_meta_path = self
-            .wasm_target_dir
-            .join(format!("{}.meta.wasm", &file_base_name));
         Self::generate_meta(from_path, &to_meta_path)?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
