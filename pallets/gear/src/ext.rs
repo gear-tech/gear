@@ -27,7 +27,7 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId},
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, HandlePacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
@@ -69,11 +69,7 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-        stack_page_count: WasmPageNumber,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -88,8 +84,7 @@ impl IntoExtInfo for LazyPagesExt {
         let mut accessed_pages = lazy_pages::get_released_pages();
         accessed_pages.retain(|p| {
             let wasm_page = p.to_wasm_page();
-            let not_stack_page = wasm_page >= stack_page_count;
-            not_stack_page && (wasm_page < static_pages || allocations.contains(&wasm_page))
+            wasm_page < static_pages || allocations.contains(&wasm_page)
         });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
@@ -149,17 +144,15 @@ impl ProcessorExt for LazyPagesExt {
         lazy_pages::is_lazy_pages_enabled()
     }
 
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         mem: &impl Memory,
         prog_id: ProgramId,
+        stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
-        lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Into::into)
+        lazy_pages::init_for_program(mem, prog_id, stack_end).map_err(Into::into)
     }
 
-    fn lazy_pages_post_execution_actions(
-        mem: &impl Memory,
-        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>, // TODO: remove it (issue #1273)
-    ) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error> {
         lazy_pages::remove_lazy_pages_prot(mem).map_err(Into::into)
     }
 }

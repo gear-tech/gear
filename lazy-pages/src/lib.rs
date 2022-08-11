@@ -146,7 +146,7 @@ thread_local! {
 
     /// Identify whether signal handler is set for current thread.
     static LAZY_PAGES_ENABLED: RefCell<bool> = RefCell::new(false);
-    /// Lazy pages impl version. Different runtimes may require different impl of lazy pages functionallity.
+    /// Lazy pages impl version. Different runtimes may require different impl of lazy pages functionality.
     static LAZY_PAGES_VERSION: RefCell<LazyPagesVersion> = RefCell::new(LazyPagesVersion::Version1);
     /// Lazy pages context for current execution.
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());

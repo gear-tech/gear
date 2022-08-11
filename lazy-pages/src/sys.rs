@@ -283,7 +283,7 @@ unsafe fn user_signal_handler_internal_v2(
             let buffer_as_slice = std::slice::from_raw_parts_mut(page_buffer_ptr, gear_ps as usize);
             let res = sp_io::storage::read(prefix.calc_key_for_page(gear_page), buffer_as_slice, 0);
 
-            log::trace!("{:?} has data in storage: {}", gear_page, res.is_none());
+            log::trace!("{:?} has data in storage: {}", gear_page, res.is_some());
 
             if let Some(size) = res.filter(|&size| size as usize != PageNumber::size()) {
                 return Err(Error::InvalidPageDataSize {
