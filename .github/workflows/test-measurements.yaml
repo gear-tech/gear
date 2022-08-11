@@ -9,7 +9,7 @@ env:
   RUSTUP_HOME: /tmp/rustup_home
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
-  COUNT: 3
+  COUNT: 100
   NIGHTLY_TOOLCHAIN_VERSION: ${{ secrets.NIGHTLY_TOOLCHAIN_VERSION }}
 
 jobs:
