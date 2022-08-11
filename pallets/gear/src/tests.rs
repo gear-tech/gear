@@ -5125,22 +5125,26 @@ mod utils {
 fn check_gear_stack_end_fail() {
     // This test checks, that in case user makes WASM file with incorrect
     // `__gear_stack_end`, then execution will end with an error.
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 4))
-            (export "init" (func $init))
-            (func $init)
-            ;; stack end points to the addr, bigger than static mem size
-            (global (;0;) (mut i32) (i32.const 0x50000))
-            (export "__gear_stack_end" (global 0))
-        )
-    "#;
+    macro_rules! wat_template {
+        () => {
+            r#"
+            (module
+                (import "env" "memory" (memory 4))
+                (export "init" (func $init))
+                (func $init)
+                (global (;0;) (mut i32) (i32.const {}))
+                (export "__gear_stack_end" (global 0))
+            )"#
+        };
+    }
 
     init_logger();
     new_test_ext().execute_with(|| {
+        // Check error when stack end bigger then static mem size
+        let wat = format!(wat_template!(), "0x50000");
         GearPallet::<Test>::upload_program(
             Origin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             50_000_000_000,
@@ -5151,5 +5155,53 @@ fn check_gear_stack_end_fail() {
         run_to_block(2, None);
         assert_last_dequeued(1);
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 1);
+
+        // Check error when stack end is negative
+        let wat = format!(wat_template!(), "-0x10000");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(3, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 2);
+
+        // Check error when stack end is not aligned
+        let wat = format!(wat_template!(), "0x10001");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(4, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 3);
+
+        // Check OK if stack end is suitable
+        let wat = format!(wat_template!(), "0x10000");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(5, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 3);
     });
 }

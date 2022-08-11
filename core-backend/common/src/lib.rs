@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod error_processor;
 
 mod utils;
+pub use utils::calc_stack_end;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -148,10 +149,15 @@ pub struct BackendReport<T> {
 }
 
 #[derive(Debug, derive_more::Display)]
-#[display(fmt = "{}", reason)]
-pub struct BackendError<T> {
-    pub reason: T,
+pub enum StackEndError {
+    #[display(fmt = "Stack end addr {:#x} cannot be negative", _0)]
+    IsNegative(i32),
+    #[display(fmt = "Stack end addr {:#x} must be aligned to WASM page size", _0)]
+    IsNotAligned(i32),
 }
+
+// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Memory type for current environment.
@@ -172,7 +178,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
+    ) -> Result<BackendReport<Self::Memory>, Self::Error>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display;

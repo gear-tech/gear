@@ -29,18 +29,19 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TrapExplanation,
+    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
+    IntoExtInfo, StackEndError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
-use gear_core_errors::MemoryError;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SandboxEnvironmentError {
+    #[display(fmt = "Failed to create env memory: {:?}", _0)]
+    CreateEnvMemory(sp_sandbox::Error),
     #[display(fmt = "Unable to instantiate module: {:?}", _0)]
     ModuleInstantiation(sp_sandbox::Error),
     #[display(fmt = "Unable to get wasm module exports: {}", _0)]
@@ -49,12 +50,10 @@ pub enum SandboxEnvironmentError {
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "Failed to create env memory: {:?}", _0)]
-    CreateEnvMemory(sp_sandbox::Error),
-    #[display(fmt = "{}", _0)]
-    Memory(MemoryError),
     #[display(fmt = "{}", _0)]
     PreExecutionHandler(String),
+    #[from]
+    StackEnd(StackEndError),
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -102,11 +101,13 @@ where
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
+    ) -> Result<BackendReport<Self::Memory>, Self::Error>
     where
         F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display,
     {
+        use SandboxEnvironmentError::*;
+
         let mut builder = EnvBuilder::<E> {
             env_def_builder: EnvironmentDefinitionBuilder::new(),
             forbidden_funcs: &ext.forbidden_funcs().clone(),
@@ -148,11 +149,7 @@ where
 
         let mem: DefaultExecutorMemory = match SandboxMemory::new(mem_size.0, None) {
             Ok(mem) => mem,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: SandboxEnvironmentError::CreateEnvMemory(e),
-                })
-            }
+            Err(e) => return Err(CreateEnvMemory(e)),
         };
 
         env_builder.add_memory("env", "memory", mem.clone());
@@ -170,31 +167,16 @@ where
 
         let mut instance = match Instance::new(binary, &env_builder, &mut runtime) {
             Ok(inst) => inst,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: SandboxEnvironmentError::ModuleInstantiation(e),
-                })
-            }
+            Err(e) => return Err(ModuleInstantiation(e)),
         };
 
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let stack_end_page = instance
-            .get_global_val("__gear_stack_end")
-            .and_then(|global| {
-                global.as_i32().and_then(|addr| {
-                    if addr < 0 {
-                        None
-                    } else {
-                        Some(WasmPageNumber(
-                            (addr as usize / WasmPageNumber::size()) as u32,
-                        ))
-                    }
-                })
-            });
+        let stack_end = instance
+            .get_global_val(STACK_END_EXPORT_NAME)
+            .and_then(|global| global.as_i32());
+        let stack_end_page = calc_stack_end(stack_end)?;
 
-        pre_execution_handler(runtime.memory_wrap, stack_end_page).map_err(|e| BackendError {
-            reason: SandboxEnvironmentError::PreExecutionHandler(e.to_string()),
-        })?;
+        pre_execution_handler(runtime.memory_wrap, stack_end_page)
+            .map_err(|e| PreExecutionHandler(e.to_string()))?;
 
         let res = if entries.contains(entry_point) {
             instance.invoke(entry_point.into_entry(), &[], &mut runtime)
