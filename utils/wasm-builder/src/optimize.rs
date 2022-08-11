@@ -69,9 +69,9 @@ impl Optimizer {
 
     /// Process optimization.
     pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
-        let mut binary_module = self.module.clone();
+        let mut module = self.module.clone();
         pwasm_utils::optimize(
-            &mut binary_module,
+            &mut module,
             match ty {
                 OptType::Opt => OPTIMIZED_EXPORTS.into(),
                 OptType::Meta => META_EXPORTS.into(),
@@ -87,11 +87,11 @@ impl Optimizer {
 
         // Post check exports if optimizing program binary.
         if ty == OptType::Opt {
-            check_exports(&binary_module, &self.file)?;
+            check_exports(&module, &self.file)?;
         }
 
         let mut code = vec![];
-        binary_module.serialize(&mut code)?;
+        module.serialize(&mut code)?;
 
         Ok(code)
     }
