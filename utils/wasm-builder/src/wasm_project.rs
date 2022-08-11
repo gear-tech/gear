@@ -229,18 +229,11 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         optimizer.strip_custom_sections();
 
         // Generate *.opt.wasm.
-        log::debug!("*** Processing chain optimization: {}", to_opt.display());
         let opt = optimizer.optimize(OptType::Opt)?;
-        log::debug!("Optimized wasm: {}", to_opt.to_string_lossy());
         fs::write(to_opt, opt)?;
 
         // Generate *.meta.wasm.
-        log::debug!(
-            "*** Processing metadata optimization: {}",
-            to_meta.display()
-        );
         let meta = optimizer.optimize(OptType::Meta)?;
-        log::debug!("Metadata wasm: {}", to_meta.to_string_lossy());
         fs::write(to_meta, meta)?;
 
         Ok(())
