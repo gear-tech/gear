@@ -37,6 +37,8 @@ pub enum BuilderError {
     #[error("WASM module does't contain export section `{0}`")]
     ExportSectionNotFound(PathBuf),
 
-    #[error("WASM module doesn't contain required export funtion (init/handle) `{0}`")]
+    #[error(
+        "WASM module doesn't contain required export funtions (init/handle) after optimized `{0}`"
+    )]
     RequiredExportFnNotFound(PathBuf),
 }
