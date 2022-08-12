@@ -112,7 +112,7 @@ pub fn update_lazy_pages_and_protect_again(
 
         // Cannot panic, unless OS allocates wasm mem buffer
         // in not aligned by native page addr.
-        gear_ri::set_wasm_mem_begin_addr(new_mem_addr).expect("Cannot not set new wasm mem addr");
+        gear_ri::set_wasm_mem_begin_addr(new_mem_addr).expect("Cannot set new wasm mem addr");
     }
 
     let new_mem_size = mem.size();
