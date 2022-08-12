@@ -32,18 +32,12 @@ use sp_std::vec::Vec;
 extern crate alloc;
 use alloc::string::ToString;
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
 pub enum Error {
-    #[display(fmt = "{}", _0)]
+    #[from]
     RIError(RIError),
     #[display(fmt = "Wasm memory buffer is undefined after wasm memory relocation")]
     WasmMemBufferIsUndefined,
-}
-
-impl From<RIError> for Error {
-    fn from(err: RIError) -> Self {
-        Self::RIError(err)
-    }
 }
 
 fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
