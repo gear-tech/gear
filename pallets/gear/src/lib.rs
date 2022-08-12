@@ -25,7 +25,10 @@ use codec::{Decode, Encode};
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+#[cfg(feature = "lazy-pages")]
 mod ext;
+
 mod internal;
 mod schedule;
 
@@ -129,19 +132,24 @@ pub struct GasInfo {
 pub mod pallet {
     use super::*;
 
-    use crate::{
-        ext::LazyPagesExt,
-        manager::{ExtManager, HandleKind, QueuePostProcessingData},
-    };
+    #[cfg(feature = "lazy-pages")]
+    use crate::ext::LazyPagesExt as Ext;
+    #[cfg(not(feature = "lazy-pages"))]
+    use core_processor::Ext;
+
+    #[cfg(feature = "lazy-pages")]
+    use gear_common_lazy_pages as lazy_pages;
+
+    use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree,
-        Origin, Program, ProgramState,
+        self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
+        Program, ProgramState,
     };
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        Ext, PrepareResult,
+        PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -776,9 +784,6 @@ pub mod pallet {
             {
                 let actor_id = queued_dispatch.destination();
 
-                let lazy_pages_enabled =
-                    cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
-
                 let actor = ext_manager
                     .get_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
@@ -809,21 +814,24 @@ pub mod pallet {
                             context,
                             pages_with_data,
                         } => {
-                            let memory_pages = if lazy_pages_enabled {
+                            #[cfg(feature = "lazy-pages")]
+                            let memory_pages = {
+                                let _ = pages_with_data;
+                                assert!(lazy_pages::try_to_enable_lazy_pages());
                                 Default::default()
-                            } else {
-                                match common::get_program_data_for_pages(
-                                    actor_id.into_origin(),
-                                    pages_with_data.iter(),
-                                ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
-                                        continue;
-                                    }
+                            };
+                            #[cfg(not(feature = "lazy-pages"))]
+                            let memory_pages = match common::get_program_data_for_pages(
+                                actor_id.into_origin(),
+                                pages_with_data.iter(),
+                            ) {
+                                Ok(data) => data,
+                                Err(err) => {
+                                    log::error!(
+                                        "Page data in storage is in invalid state: {}",
+                                        err
+                                    );
+                                    continue;
                                 }
                             };
 
@@ -842,19 +850,11 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
-                            if lazy_pages_enabled {
-                                core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                                    &block_config,
-                                    context,
-                                    memory_pages,
-                                )
-                            } else {
-                                core_processor::process::<Ext, SandboxEnvironment>(
-                                    &block_config,
-                                    context,
-                                    memory_pages,
-                                )
-                            }
+                            core_processor::process::<Ext, SandboxEnvironment>(
+                                &block_config,
+                                context,
+                                memory_pages,
+                            )
                         }
                         PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
                             journal
@@ -1088,9 +1088,6 @@ pub mod pallet {
                 T::DebugInfo::remap_id();
             }
 
-            let lazy_pages_enabled =
-                cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
-
             while QueueProcessingOf::<T>::allowed() {
                 if let Some(dispatch) = QueueOf::<T>::dequeue()
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
@@ -1221,36 +1218,31 @@ pub mod pallet {
                                 context,
                                 pages_with_data,
                             } => {
-                                let memory_pages = if lazy_pages_enabled {
+                                #[cfg(feature = "lazy-pages")]
+                                let memory_pages = {
+                                    let _ = pages_with_data;
+                                    assert!(lazy_pages::try_to_enable_lazy_pages());
                                     Default::default()
-                                } else {
-                                    match common::get_program_data_for_pages(
-                                        program_id.into_origin(),
-                                        pages_with_data.iter(),
-                                    ) {
-                                        Ok(data) => data,
-                                        Err(err) => {
-                                            log::error!("Cannot get data for program pages: {err}");
-                                            continue;
-                                        }
+                                };
+                                #[cfg(not(feature = "lazy-pages"))]
+                                let memory_pages = match common::get_program_data_for_pages(
+                                    program_id.into_origin(),
+                                    pages_with_data.iter(),
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!("Cannot get data for program pages: {err}");
+                                        continue;
                                     }
                                 };
 
                                 ext_manager.insert_program_id_loaded_pages(program_id);
 
-                                if lazy_pages_enabled {
-                                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                                        &block_config,
-                                        context,
-                                        memory_pages,
-                                    )
-                                } else {
-                                    core_processor::process::<Ext, SandboxEnvironment>(
-                                        &block_config,
-                                        context,
-                                        memory_pages,
-                                    )
-                                }
+                                core_processor::process::<Ext, SandboxEnvironment>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
                             }
                             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
                                 journal

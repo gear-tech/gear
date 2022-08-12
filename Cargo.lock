@@ -2525,7 +2525,6 @@ dependencies = [
  "frame-system",
  "gear-common-codegen",
  "gear-core",
- "gear-runtime-interface",
  "hex-literal",
  "log",
  "parity-scale-codec",
@@ -2547,6 +2546,18 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn",
+]
+
+[[package]]
+name = "gear-common-lazy-pages"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "gear-common",
+ "gear-core",
+ "gear-runtime-interface",
+ "log",
+ "sp-std",
 ]
 
 [[package]]
@@ -5035,6 +5046,7 @@ dependencies = [
  "gear-backend-common",
  "gear-backend-sandbox",
  "gear-common",
+ "gear-common-lazy-pages",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",

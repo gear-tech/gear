@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::collections::BTreeSet;
-use common::lazy_pages;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
     TrapExplanation,
 };
+use gear_common_lazy_pages as lazy_pages;
 use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
@@ -130,7 +130,6 @@ impl ProcessorExt for LazyPagesExt {
     type Error = Error;
 
     fn new(context: ProcessorContext) -> Self {
-        assert!(cfg!(feature = "lazy-pages"));
         Self {
             inner: Ext::new(context),
         }
