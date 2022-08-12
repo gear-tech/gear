@@ -105,6 +105,19 @@ impl GasCounter {
         }
     }
 
+    /// Increase gas by `amount`.
+    ///
+    /// Called when gas unreservation is occurred.
+    pub fn increase(&mut self, amount: u64) -> bool {
+        match self.left.checked_add(amount) {
+            None => false,
+            Some(new_left) => {
+                self.left = new_left;
+                true
+            }
+        }
+    }
+
     /// Reduce gas by `amount`.
     ///
     /// Called when message is sent to another program, so the gas `amount` is sent to
@@ -121,6 +134,7 @@ impl GasCounter {
     }
 
     /// Refund `amount` of gas.
+    // FIXME: don't use `ChargeResult`. It's semantically wrong to return it
     pub fn refund(&mut self, amount: u64) -> ChargeResult {
         if amount > u64::MAX - self.left || amount > self.burned {
             return ChargeResult::NotEnough;
