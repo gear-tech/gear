@@ -811,6 +811,7 @@ where
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
+        // TODO: don't subtract each call
         *node_value = node_value.saturating_sub(amount);
 
         StorageMap::insert(node_id, node);
