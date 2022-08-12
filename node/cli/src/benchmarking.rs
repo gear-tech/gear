@@ -118,7 +118,7 @@ macro_rules! signed_payload {
             ),
             frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
             frame_system::CheckWeight::<runtime::Runtime>::new(),
-            pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
+            pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
         );
 
         let $raw_payload = runtime::SignedPayload::from_raw(

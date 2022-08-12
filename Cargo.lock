@@ -2500,7 +2500,7 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-test-cli",
  "gear-service",
- "pallet-transaction-payment",
+ "pallet-gear-payment",
  "sc-cli",
  "sc-client-api",
  "sc-service",
