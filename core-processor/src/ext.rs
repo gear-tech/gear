@@ -574,10 +574,13 @@ impl EnvExt for Ext {
 
         let msg_id = message_context.current().id();
         let id = ReservationId::generate(msg_id);
-        gas_reservation_map
+        let gas_counter = gas_reservation_map
             .entry(id)
-            .and_modify(|counter| *counter = GasCounter::new(amount as u64 + counter.left()))
-            .or_insert_with(|| GasCounter::new(amount as u64));
+            .or_insert_with(|| GasCounter::new(0));
+
+        if !gas_counter.increase(amount as u64) {
+            return Err(ExecutionError::TooManyGasAdded.into());
+        }
 
         Ok(id)
     }
@@ -595,7 +598,13 @@ impl EnvExt for Ext {
             return Err(ExecutionError::TooManyGasUnreserved.into());
         }
 
-        self.refund_gas(amount as u32)?;
+        // this statement is like in `Self::refund_gas()` but it won't affect "burned" counter
+        // because we don't actually refund we just rise "left" counter during unreservation
+        if self.context.gas_counter.increase(amount as u64) {
+            self.context.gas_allowance_counter.refund(amount as u64);
+        } else {
+            return Err(ExecutionError::TooManyGasAdded.into());
+        }
 
         Ok(())
     }
