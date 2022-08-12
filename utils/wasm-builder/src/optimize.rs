@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{Internal, Module, Section, Serialize},
+    parity_wasm::elements::{Internal, Module, Serialize},
 };
 use std::{
     ffi::OsStr,
