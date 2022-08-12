@@ -55,18 +55,6 @@ impl Optimizer {
         let _ = crate::insert_stack_end_export(&mut self.module).map_err(|s| log::debug!("{}", s));
     }
 
-    /// Strips all custom sections.
-    ///
-    /// Presently all custom sections are not required so they can be stripped safely.
-    /// The name section is already checked by `wasm-opt`.
-    pub fn strip_custom_sections(&mut self) {
-        self.module.sections_mut().retain(|section| match section {
-            Section::Reloc(_) => false,
-            Section::Custom(custom) if custom.name() != "name" => false,
-            _ => true,
-        })
-    }
-
     /// Process optimization.
     pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
         let mut module = self.module.clone();

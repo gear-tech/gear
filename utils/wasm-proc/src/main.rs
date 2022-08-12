@@ -36,8 +36,6 @@ struct Args {
     skip_opt: bool,
     #[clap(long)]
     skip_stack_end: bool,
-    #[clap(long)]
-    skip_stripping_custom_sections: bool,
     #[clap(short, long)]
     verbose: bool,
 }
@@ -48,7 +46,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         skip_meta,
         skip_opt,
         skip_stack_end,
-        skip_stripping_custom_sections,
         verbose,
     } = Args::parse();
 
@@ -81,10 +78,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if !skip_stack_end {
             optimizer.insert_stack_and_export();
-        }
-
-        if !skip_stripping_custom_sections {
-            optimizer.strip_custom_sections();
         }
 
         if !skip_opt {
