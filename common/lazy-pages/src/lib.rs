@@ -62,11 +62,6 @@ pub fn try_to_enable_lazy_pages() -> bool {
     gear_ri::init_lazy_pages()
 }
 
-/// Returns whether lazy pages environment is enabled
-pub fn is_lazy_pages_enabled() -> bool {
-    gear_ri::is_lazy_pages_enabled()
-}
-
 /// Protect and save storage keys for pages which has no data
 pub fn init_for_program(
     mem: &impl Memory,
