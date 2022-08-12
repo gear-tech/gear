@@ -29,7 +29,7 @@ use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
 use gear_runtime::{
     AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
-    GrandpaConfig, Runtime, Signature, SudoConfig, System, TransactionPayment,
+    Runtime, Signature, SudoConfig, System, TransactionPayment,
     TransactionPaymentConfig, UncheckedExtrinsic,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
@@ -174,10 +174,6 @@ pub(crate) fn new_test_ext(
     .unwrap();
 
     BasicExternalities::execute_with_storage(&mut t, || {
-        <GrandpaConfig as GenesisBuild<Runtime>>::build(&GrandpaConfig {
-            authorities: initial_authorities.into_iter().map(|x| (x.2, 1)).collect(),
-        });
-
         <TransactionPaymentConfig as GenesisBuild<Runtime>>::build(
             &TransactionPaymentConfig::default(),
         );

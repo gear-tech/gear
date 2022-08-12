@@ -26,8 +26,8 @@ members = [
     "utils/junit-common",
     "utils/wasm-proc",
     "utils/wasm-builder",
-#    "utils/economic-checks",
-#    "utils/economic-checks/fuzz",
+    "utils/economic-checks",
+    "utils/economic-checks/fuzz",
 ]
 
 [profile.release]
