@@ -249,7 +249,7 @@ pub enum JournalNote {
         /// Decreases gas allowance by that amount, burned for processing try.
         gas_burned: u64,
     },
-    /// Reserve gas.
+    /// Update gas reservation nodes.
     UpdateGasReservations {
         /// Message which gas will be reserved from.
         message_id: MessageId,

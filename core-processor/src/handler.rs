@@ -81,11 +81,6 @@ pub fn handle_journal(
                 program_id,
                 gas_reservation_map,
             } => handler.update_gas_reservation(message_id, program_id, gas_reservation_map),
-            /*JournalNote::UnreserveGas {
-                message_id,
-                reservation_id,
-                amount,
-            } => handler.unreserve_gas(message_id, reservation_id, amount),*/
         }
     }
 
