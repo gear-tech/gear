@@ -148,6 +148,7 @@ runtime-benchmarks = [
 	"pallet-balances/runtime-benchmarks",
 	"pallet-collator-selection/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-program/runtime-benchmarks",
