@@ -359,8 +359,8 @@ where
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the parent node is reserved
-        if node.is_reserved_local() {
+        // Check if the parent node is orphan
+        if node.is_orphan() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -618,8 +618,8 @@ where
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the value node is reserved
-        if node.is_reserved_local() {
+        // Check if the value node is orphan
+        if node.is_orphan() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -652,7 +652,7 @@ where
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_reserved_local() {
+        if node.is_orphan() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -719,7 +719,7 @@ where
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_reserved_local() {
+        if node.is_orphan() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -784,10 +784,12 @@ where
             Self::node_with_value(Self::get_node(key).ok_or_else(InternalError::node_not_found)?)?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the parent node is reserved
-        if node.is_reserved_local() || node.is_reserved() {
+        // Check if the parent node is orphan
+        if node.is_orphan() {
             return Err(InternalError::forbidden().into());
         }
+
+        // TODO: tests for logic below
 
         let node_value = node
             .value_mut()
@@ -800,7 +802,12 @@ where
 
             if *reserved_value <= amount {
                 let diff = amount - *reserved_value;
-                *node_value = node_value.saturating_sub(diff);
+
+                if *node_value < diff {
+                    return Err(InternalError::insufficient_balance().into());
+                }
+
+                *node_value -= diff;
             } else {
                 let diff = *reserved_value - amount;
                 *node_value = node_value.saturating_add(diff);
@@ -813,7 +820,11 @@ where
             let id = Self::get_external(key)?;
             let new_node = GasNode::Reserved { id, value: amount };
 
-            *node_value = node_value.saturating_sub(amount);
+            if *node_value < amount {
+                return Err(InternalError::insufficient_balance().into());
+            }
+
+            *node_value -= amount;
 
             new_node
         };

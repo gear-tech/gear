@@ -246,8 +246,13 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         matches!(self, Self::ReservedLocal { .. })
     }
 
+    /// Returns wether the node is of `Reserve` type
     pub(crate) fn is_reserved(&self) -> bool {
         matches!(self, Self::Reserved { .. })
+    }
+
+    pub(crate) fn is_orphan(&self) -> bool {
+        self.is_reserved() | self.is_reserved_local()
     }
 
     fn adjust_refs(&mut self, increase: bool, spec: bool) {
