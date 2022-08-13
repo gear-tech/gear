@@ -24,6 +24,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use codec::{Decode, Encode};
 #[cfg(feature = "try-runtime")]
 use frame_support::weights::Weight;
 use frame_support::{
@@ -44,12 +45,18 @@ use runtime_common::{
     DealWithFees, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
     QueueLengthStep, ReserveThreshold, WaitlistCost,
 };
+use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
-    transaction_validity::{TransactionSource, TransactionValidity},
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, DispatchInfoOf, NumberFor, OpaqueKeys,
+        SignedExtension,
+    },
+    transaction_validity::{
+        InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
+    },
     ApplyExtrinsicResult, Percent,
 };
 use sp_std::{
@@ -86,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1540,
+    spec_version: 1541,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -106,6 +113,44 @@ pub fn native_version() -> NativeVersion {
     NativeVersion {
         runtime_version: VERSION,
         can_author_with: Default::default(),
+    }
+}
+
+/// Disallow balances transfer
+///
+/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
+/// from the release runtime.
+#[derive(Default, Encode, Debug, Decode, Clone, Eq, PartialEq, TypeInfo)]
+pub struct DisableBalancesCall;
+impl SignedExtension for DisableBalancesCall {
+    const IDENTIFIER: &'static str = "DisableBalancesCall";
+    type AccountId = AccountId;
+    type Call = Call;
+    type AdditionalSigned = ();
+    type Pre = ();
+    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+        Ok(())
+    }
+    fn validate(
+        &self,
+        _: &Self::AccountId,
+        call: &Self::Call,
+        _: &DispatchInfoOf<Self::Call>,
+        _: usize,
+    ) -> TransactionValidity {
+        match call {
+            Call::Balances(_) => Err(TransactionValidityError::Invalid(InvalidTransaction::Call)),
+            _ => Ok(Default::default()),
+        }
+    }
+    fn pre_dispatch(
+        self,
+        _: &Self::AccountId,
+        _: &Self::Call,
+        _: &DispatchInfoOf<Self::Call>,
+        _: usize,
+    ) -> Result<Self::Pre, TransactionValidityError> {
+        Ok(())
     }
 }
 
@@ -448,6 +493,8 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
+    // RELEASE: remove before final release
+    DisableBalancesCall,
     frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
