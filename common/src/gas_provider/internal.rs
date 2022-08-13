@@ -789,31 +789,36 @@ where
             return Err(InternalError::forbidden().into());
         }
 
-        // TODO: create or get existing instead of recreation each time
-
-        let id = Self::get_external(key)?;
-        let new_node = GasNode::Reserved { id, value: amount };
-
-        // A `node` is guaranteed to have inner_value here, because
-        // it was queried after `Self::node_with_value` call.
-        if node
-            .value()
-            .ok_or_else(InternalError::unexpected_node_type)?
-            < amount
-        {
-            return Err(InternalError::insufficient_balance().into());
-        }
-
-        // Save new node
-        StorageMap::insert(new_key, new_node);
-
         let node_value = node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
-        // TODO: don't subtract each call
-        *node_value = node_value.saturating_sub(amount);
+        let new_node = if let Some(mut reserved_node) = Self::get_node(new_key) {
+            let reserved_value = reserved_node
+                .value_mut()
+                .ok_or_else(InternalError::unexpected_node_type)?;
 
+            if *reserved_value <= amount {
+                let diff = amount - *reserved_value;
+                *node_value = node_value.saturating_sub(diff);
+            } else {
+                let diff = *reserved_value - amount;
+                *node_value = node_value.saturating_add(diff);
+            }
+
+            *reserved_value = amount;
+
+            reserved_node
+        } else {
+            let id = Self::get_external(key)?;
+            let new_node = GasNode::Reserved { id, value: amount };
+
+            *node_value = node_value.saturating_sub(amount);
+
+            new_node
+        };
+
+        StorageMap::insert(new_key, new_node);
         StorageMap::insert(node_id, node);
 
         Ok(())
