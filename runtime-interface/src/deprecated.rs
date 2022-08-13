@@ -90,7 +90,7 @@ pub(crate) unsafe fn sys_mprotect_wasm_pages(
     _prot_write: bool,
     _prot_exec: bool,
 ) -> Result<(), MprotectError> {
-    log::error!("unsupported OS for pages protectection");
+    log::error!("unsupported OS for pages protection");
     Err(MprotectError::OsError)
 }
 
