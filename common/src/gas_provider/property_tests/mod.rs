@@ -406,6 +406,17 @@ proptest! {
                         node_ids.push(child);
                     }
                 }
+                GasTreeAction::UpdateReservation(from, amount) => {
+                    let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
+                    let child = H256::random();
+
+
+                    if let Err(e) = Gas::update_reservation(from, child, amount) {
+                        assertions::assert_not_invariant_error(e)
+                    } else {
+                        node_ids.push(child);
+                    }
+                }
             }
 
             if node_ids.is_empty() {
@@ -473,7 +484,7 @@ proptest! {
             // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
             // ReservedLocal node can be not consumed with non zero value, but is not a patron
             if let Some(value) = node.value() {
-                if value != 0 && !node.is_reserved_local() {
+                if value != 0 && !node.is_orphan() {
                     assert!(node.is_patron());
                 }
             }
@@ -520,6 +531,13 @@ proptest! {
                         let child = H256::random();
 
                         Gas::split(parent, child).expect("Failed to split without value");
+                    }
+                }
+                GasTreeAction::UpdateReservation(parent_idx, amount) => {
+                    if let Some(&parent) = nodes.ring_get(parent_idx) {
+                        let child = H256::random();
+
+                        Gas::update_reservation(parent, child, amount).expect("Failed to update gas reservation");
                     }
                 }
                 _ => {}
