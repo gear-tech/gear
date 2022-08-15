@@ -254,6 +254,27 @@ pub fn get_released_pages() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
 }
 
+pub fn get_released_pages_patch() -> Vec<PageNumber> {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let ctx = ctx.borrow_mut();
+        if ctx.program_storage_prefix.as_ref().unwrap()
+            == &vec![
+                103, 58, 58, 112, 97, 103, 101, 115, 58, 58, 37, 234, 245, 189, 198, 95, 86, 8,
+                181, 243, 151, 188, 58, 173, 35, 83, 155, 213, 81, 68, 52, 30, 26, 95, 37, 155,
+                148, 43, 94, 120, 61, 188, 58, 58,
+            ]
+        {
+            ctx.released_pages
+                .iter()
+                .copied()
+                .filter(|&p| p.0 != 259)
+                .collect()
+        } else {
+            ctx.released_pages.iter().copied().collect()
+        }
+    })
+}
+
 /// Returns whether lazy pages env is enabled
 pub fn is_enabled() -> bool {
     LAZY_PAGES_ENABLED.with(|x| *x.borrow())
@@ -330,6 +351,10 @@ pub enum InitError {
 unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
     use InitError::*;
 
+    // Set version even if it has been already set, because runtime upgrade and then contracts
+    // execution can be done in the same thread.
+    LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
+
     if LAZY_PAGES_ENABLED.with(|x| *x.borrow()) {
         log::trace!("Lazy-pages has been already enabled for current thread");
         return Ok(());
@@ -352,7 +377,6 @@ unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
         return Err(CanNotSetUpSignalHandler(err.to_string()));
     }
 
-    LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
     LAZY_PAGES_ENABLED.with(|x| *x.borrow_mut() = true);
 
     Ok(())

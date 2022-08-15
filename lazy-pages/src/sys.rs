@@ -312,6 +312,8 @@ unsafe fn user_signal_handler_internal_v2(
         log::trace!("Is write access - keep r/w prot");
     }
 
+    log::debug!("prefix = {:?}", ctx.program_storage_prefix.as_ref().unwrap());
+
     Ok(())
 }
 
