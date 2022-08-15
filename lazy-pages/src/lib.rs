@@ -254,6 +254,8 @@ pub fn get_released_pages() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
 }
 
+/// TODO: remove this after current test-net chain will be dropped (issue #1317).
+/// This patch solves the problem for block `#866245`, see more in issue.
 pub fn get_released_pages_patch() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let ctx = ctx.borrow_mut();
