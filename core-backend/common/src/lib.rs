@@ -25,6 +25,7 @@ extern crate alloc;
 pub mod error_processor;
 
 mod utils;
+pub use utils::calc_stack_end;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -111,11 +112,7 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-        stack_page_count: WasmPageNumber,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)>;
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)>;
 
     fn into_gas_amount(self) -> GasAmount;
 
@@ -150,14 +147,18 @@ where
 pub struct BackendReport<T> {
     pub termination_reason: TerminationReason,
     pub memory_wrap: T,
-    pub stack_end_page: Option<WasmPageNumber>,
 }
 
 #[derive(Debug, derive_more::Display)]
-#[display(fmt = "{}", reason)]
-pub struct BackendError<T> {
-    pub reason: T,
+pub enum StackEndError {
+    #[display(fmt = "Stack end addr {:#x} cannot be negative", _0)]
+    IsNegative(i32),
+    #[display(fmt = "Stack end addr {:#x} must be aligned to WASM page size", _0)]
+    IsNotAligned(i32),
 }
+
+// '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Memory type for current environment.
@@ -178,9 +179,9 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
+    ) -> Result<BackendReport<Self::Memory>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display;
 }
 
