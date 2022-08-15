@@ -18,6 +18,7 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 wasm-instrument = { version = "0.2", default-features = false }
+derive_more = "0.99.17"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }

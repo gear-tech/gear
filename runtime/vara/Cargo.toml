@@ -66,7 +66,7 @@ pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
 gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
 gear-node-primitives = { version = "1.0.0", default-features = false, path = "../../node/primitives" }
-pallet-shift-session-manager = { version = "0.1.0", default-features = false, path = "../../pallets/aux/shift-session-manager" }
+pallet-shift-session-manager = { version = "0.1.0", default-features = false, path = "../../pallets/shift-session-manager" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
