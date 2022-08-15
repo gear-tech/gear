@@ -36,7 +36,7 @@ use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter},
-    ids::{ProgramId, ReservationId},
+    ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
     program::Program,
@@ -52,7 +52,7 @@ enum SuccessfulDispatchResultKind {
 pub struct PreparedMessageExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
-    gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    reserved_gas: GasCounter,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
@@ -106,7 +106,7 @@ pub fn prepare(
     let ExecutableActorData {
         program,
         pages_with_data,
-        gas_reservation_map,
+        reserved_gas,
     } = match check_is_executable(executable_data, &dispatch) {
         Err(exit_code) => {
             return PrepareResult::Error(process_non_executable(
@@ -158,7 +158,7 @@ pub fn prepare(
         context: Box::new(PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
-            gas_reservation_map,
+            reserved_gas,
             dispatch,
             origin,
             balance,
@@ -203,7 +203,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
-        gas_reservation_map: execution_context.gas_reservation_map,
+        reserved_gas: execution_context.reserved_gas,
         program: execution_context.program,
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
@@ -348,7 +348,7 @@ fn process_success(
         awakening,
         program_candidates,
         gas_amount,
-        gas_reservation_map,
+        reserved_gas,
         page_update,
         program_id,
         context_store,
@@ -368,10 +368,10 @@ fn process_success(
     });
 
     // TODO: reserve not only in success cases
-    journal.push(JournalNote::UpdateGasReservations {
+    journal.push(JournalNote::UpdateGasReservation {
         message_id,
         program_id,
-        gas_reservation_map,
+        reserved_gas,
     });
 
     // We check if value is greater than zero to don't provide

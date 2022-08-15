@@ -42,6 +42,7 @@ use frame_support::{
     weights::{IdentityFee, WeightToFee},
 };
 use gear_core::{
+    gas::GasCounter,
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
 };
@@ -54,10 +55,10 @@ use sp_std::{
     prelude::*,
 };
 use storage::ValueStorage;
+
 extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
-use gear_core::{gas::GasCounter, ids::ReservationId};
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -240,7 +241,8 @@ pub struct ActiveProgram {
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    /// Gas amount program reserved.
+    pub reserved_gas: GasCounter,
     pub code_hash: H256,
     pub state: ProgramState,
 }

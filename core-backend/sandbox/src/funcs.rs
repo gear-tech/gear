@@ -37,7 +37,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::Ext,
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{MessageId, ProgramId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use gear_core_errors::MemoryError;
@@ -629,11 +629,9 @@ where
         let mut args = args.iter();
 
         let gas_amount: u32 = pop_i32(&mut args)?;
-        let id_ptr: u32 = pop_i32(&mut args)?;
 
         let mut f = || {
-            let id = ctx.ext.reserve_gas(gas_amount).map_err(FuncError::Core)?;
-            ctx.write_output(id_ptr, id.as_ref())?;
+            ctx.ext.reserve_gas(gas_amount).map_err(FuncError::Core)?;
             Ok(())
         };
 
@@ -647,13 +645,9 @@ where
         let mut args = args.iter();
 
         let gas_amount: u32 = pop_i32(&mut args)?;
-        let id_ptr: u32 = pop_i32(&mut args)?;
 
         let mut f = || {
-            let id: ReservationId = ctx.read_memory_as(id_ptr)?;
-            ctx.ext
-                .unreserve_gas(id, gas_amount)
-                .map_err(FuncError::Core)?;
+            ctx.ext.unreserve_gas(gas_amount).map_err(FuncError::Core)?;
             Ok(())
         };
 

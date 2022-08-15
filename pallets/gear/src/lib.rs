@@ -1179,7 +1179,7 @@ pub mod pallet {
                             Some(ExecutableActorData {
                                 program,
                                 pages_with_data: prog.pages_with_data,
-                                gas_reservation_map: prog.gas_reservation_map,
+                                reserved_gas: prog.reserved_gas,
                             })
                         } else {
                             // Reaching this branch is possible when init message was processed with failure, while other kind of messages

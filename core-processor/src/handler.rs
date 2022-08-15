@@ -74,11 +74,11 @@ pub fn handle_journal(
                 dispatch,
                 gas_burned,
             } => handler.stop_processing(dispatch, gas_burned),
-            JournalNote::UpdateGasReservations {
+            JournalNote::UpdateGasReservation {
                 message_id,
                 program_id,
-                gas_reservation_map,
-            } => handler.update_gas_reservation(message_id, program_id, gas_reservation_map),
+                reserved_gas,
+            } => handler.update_gas_reservation(message_id, program_id, reserved_gas),
         }
     }
 

@@ -26,7 +26,7 @@ use gear_backend_common::{
 use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ExitCode, HandlePacket, ReplyPacket},
 };
@@ -78,7 +78,7 @@ impl IntoExtInfo for LazyPagesExt {
             allocations_context,
             message_context,
             gas_counter,
-            gas_reservation_map: reserved_gas_counter,
+            reserved_gas,
             program_candidates_data,
             ..
         } = self.inner.context;
@@ -109,7 +109,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            gas_reservation_map: reserved_gas_counter,
+            reserved_gas,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data: accessed_pages_data,
             generated_dispatches,
@@ -330,14 +330,12 @@ impl EnvExt for LazyPagesExt {
         self.inner.gas(val).map_err(Error::Processor)
     }
 
-    fn reserve_gas(&mut self, amount: u32) -> Result<ReservationId, Self::Error> {
+    fn reserve_gas(&mut self, amount: u32) -> Result<(), Self::Error> {
         self.inner.reserve_gas(amount).map_err(Error::Processor)
     }
 
-    fn unreserve_gas(&mut self, id: ReservationId, amount: u32) -> Result<(), Self::Error> {
-        self.inner
-            .unreserve_gas(id, amount)
-            .map_err(Error::Processor)
+    fn unreserve_gas(&mut self, amount: u32) -> Result<(), Self::Error> {
+        self.inner.unreserve_gas(amount).map_err(Error::Processor)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {

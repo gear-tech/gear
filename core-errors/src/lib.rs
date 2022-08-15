@@ -149,9 +149,6 @@ pub enum ExecutionError {
     /// An error occurs in attempt to unreserve more gas than reserved one.
     #[display(fmt = "Too many gas unreserved")]
     TooManyGasUnreserved,
-    /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
-    #[display(fmt = "Invalid reservation ID")]
-    InvalidReservationId,
 }
 
 /// An error occurred in API.

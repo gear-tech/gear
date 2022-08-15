@@ -212,8 +212,8 @@ declare_id!(ReservationId: "Reservation identifier");
 
 impl ReservationId {
     /// Create a new reservation ID
-    pub fn generate(msg_id: MessageId) -> Self {
-        let argument = [msg_id.as_ref(), b"reservation_id_salt"].concat();
+    pub fn generate(program_id: ProgramId) -> Self {
+        let argument = [program_id.as_ref(), b"reservation_id_salt"].concat();
         hash(&argument).into()
     }
 }

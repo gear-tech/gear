@@ -32,7 +32,7 @@ use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
@@ -44,8 +44,8 @@ pub struct ProcessorContext {
     pub gas_counter: GasCounter,
     /// Gas allowance counter.
     pub gas_allowance_counter: GasAllowanceCounter,
-    /// Reserved gas counter.
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    /// Gas amount program reserved.
+    pub reserved_gas: GasCounter,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -223,7 +223,7 @@ impl IntoExtInfo for Ext {
     ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
-            gas_reservation_map,
+            reserved_gas,
             message_context,
             gas_counter,
             program_candidates_data,
@@ -251,7 +251,7 @@ impl IntoExtInfo for Ext {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            gas_reservation_map,
+            reserved_gas,
             allocations: wasm_pages.ne(&initial_allocations).then_some(wasm_pages),
             pages_data,
             generated_dispatches,
@@ -565,40 +565,22 @@ impl EnvExt for Ext {
         }
     }
 
-    fn reserve_gas(&mut self, amount: u32) -> Result<ReservationId, Self::Error> {
+    fn reserve_gas(&mut self, amount: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReserveGas)?;
 
         self.charge_gas(amount)?;
 
-        let ProcessorContext {
-            message_context,
-            gas_reservation_map,
-            ..
-        } = &mut self.context;
-
-        let msg_id = message_context.current().id();
-        let id = ReservationId::generate(msg_id);
-        let gas_counter = gas_reservation_map
-            .entry(id)
-            .or_insert_with(|| GasCounter::new(0));
-
-        if !gas_counter.increase(amount as u64) {
+        if !self.context.reserved_gas.increase(amount as u64) {
             return Err(ExecutionError::TooManyGasAdded.into());
         }
 
-        Ok(id)
+        Ok(())
     }
 
-    fn unreserve_gas(&mut self, id: ReservationId, amount: u32) -> Result<(), Self::Error> {
+    fn unreserve_gas(&mut self, amount: u32) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::UnreserveGas)?;
 
-        let reserved_gas = self
-            .context
-            .gas_reservation_map
-            .get_mut(&id)
-            .ok_or_else::<Self::Error, _>(|| ExecutionError::InvalidReservationId.into())?;
-
-        if reserved_gas.charge(amount as u64) != ChargeResult::Enough {
+        if self.context.reserved_gas.charge(amount as u64) != ChargeResult::Enough {
             return Err(ExecutionError::TooManyGasUnreserved.into());
         }
 

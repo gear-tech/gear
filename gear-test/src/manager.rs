@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     gas::GasCounter,
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program,
@@ -150,7 +150,7 @@ impl ExecutionContext for InMemoryExtManager {
                 executable_data: Some(ExecutableActorData {
                     program: program.clone(),
                     pages_with_data: Default::default(),
-                    gas_reservation_map: todo!(),
+                    reserved_gas: todo!(),
                 }),
                 memory_pages: Default::default(),
             },
@@ -374,7 +374,8 @@ impl JournalHandler for InMemoryExtManager {
     fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+        program_id: ProgramId,
+        reserved_gas: GasCounter,
     ) {
         todo!()
     }

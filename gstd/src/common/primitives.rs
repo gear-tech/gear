@@ -45,9 +45,6 @@ use scale_info::TypeInfo;
 
 const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
-// TODO: redefinition instead of re-export?
-pub use gcore::ReservationId;
-
 /// Program (actor) identifier.
 ///
 /// Gear allows users and programs to interact with other users and programs via
