@@ -18,18 +18,11 @@
 
 //! Runtime interface for gear node
 
-// TODO: remove all deprecated code before release (issue #1147)
-
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(useless_deprecated, deprecated)]
 
-use codec::{Decode, Encode};
 use core::ops::RangeInclusive;
-use gear_core::memory::{HostPointer, PageBuf, WasmPageNumber};
+use gear_core::memory::HostPointer;
 use sp_runtime_interface::runtime_interface;
-
-mod deprecated;
-use deprecated::*;
 
 static_assertions::const_assert!(
     core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
@@ -45,28 +38,24 @@ pub use sp_std::{convert::TryFrom, result::Result, vec::Vec};
 #[cfg(test)]
 mod tests;
 
-// TODO: issue #1147. Make this error for mprotection and for internal use only.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
-pub enum RIError {
-    #[display(fmt = "Cannot mprotect interval {:#x?}, mask = {}", interval, mask)]
-    MprotectError {
-        interval: RangeInclusive<u64>,
-        mask: u64,
+#[cfg(feature = "std")]
+#[derive(Debug, derive_more::Display)]
+pub enum MprotectError {
+    #[display(
+        fmt = "Syscall mprotect error for interval {:#x?}, mask = {}, reason: {}",
+        interval,
+        mask,
+        reason
+    )]
+    SyscallError {
+        interval: RangeInclusive<usize>,
+        mask: region::Protection,
+        reason: region::Error,
     },
-    #[display(
-        fmt = "Memory interval size {:#x} for protection is not aligned by native page size {:#x}",
-        size,
-        page_size
-    )]
-    MprotectSizeError { size: u64, page_size: u64 },
-    #[display(fmt = "Unsupported OS")]
-    UnsupportedOS,
-    #[display(
-        fmt = "Wasm memory buffer addr {:#x} is not aligned by native page size {:#x}",
-        addr,
-        page_size
-    )]
-    WasmMemBufferNotAligned { addr: u64, page_size: u64 },
+    #[display(fmt = "Zero size is restricted for mprotect")]
+    ZeroSizeError,
+    #[display(fmt = "Offset {:#x} is bigger then wasm mem size {:#x}", _0, _1)]
+    OffsetOverflow(usize, usize),
 }
 
 /// Mprotect native memory interval [`addr`, `addr` + `size`].
@@ -78,44 +67,30 @@ pub(crate) unsafe fn sys_mprotect_interval(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) -> Result<(), RIError> {
-    if size == 0 || size % region::page::size() != 0 {
-        return Err(RIError::MprotectSizeError {
-            size: size as u64,
-            page_size: region::page::size() as u64,
-        });
+) -> Result<(), MprotectError> {
+    if size == 0 {
+        return Err(MprotectError::ZeroSizeError);
     }
 
-    let mut prot_mask = region::Protection::NONE;
+    let mut mask = region::Protection::NONE;
     if prot_read {
-        prot_mask |= region::Protection::READ;
+        mask |= region::Protection::READ;
     }
     if prot_write {
-        prot_mask |= region::Protection::WRITE;
+        mask |= region::Protection::WRITE;
     }
     if prot_exec {
-        prot_mask |= region::Protection::EXECUTE;
+        mask |= region::Protection::EXECUTE;
     }
-    let res = region::protect(addr as *mut (), size, prot_mask);
-    if let Err(err) = res {
-        log::error!(
-            "Cannot set page protection for addr={:#x} size={:#x} mask={}: {}",
-            addr,
-            size,
-            prot_mask,
-            err,
-        );
-        return Err(RIError::MprotectError {
-            interval: addr as u64..=addr as u64 + size as u64,
-            mask: prot_mask.bits() as u64,
+    let res = region::protect(addr as *mut (), size, mask);
+    if let Err(reason) = res {
+        return Err(MprotectError::SyscallError {
+            interval: addr..=addr + size,
+            mask,
+            reason,
         });
     }
-    log::trace!(
-        "mprotect native mem interval: {:#x}, size: {:#x}, mask: {}",
-        addr,
-        size,
-        prot_mask
-    );
+    log::trace!("mprotect interval: {addr:#x}, size: {size:#x}, mask: {mask}");
     Ok(())
 }
 
@@ -128,14 +103,16 @@ fn mprotect_mem_interval_except_pages(
     mem_size: usize,
     except_pages: impl Iterator<Item = PageNumber>,
     protect: bool,
-) -> Result<(), RIError> {
+) -> Result<(), MprotectError> {
     let mprotect = |start, end| {
         let addr = mem_addr + start;
         let size = end - start;
         unsafe { sys_mprotect_interval(addr, size, !protect, !protect, false) }
     };
 
-    assert!(start_offset as usize <= mem_size);
+    if start_offset as usize <= mem_size {
+        return Err(MprotectError::OffsetOverflow(start_offset, mem_size));
+    }
 
     let mut interval_offset = start_offset as usize;
     for page in except_pages {
@@ -156,141 +133,21 @@ fn mprotect_mem_interval_except_pages(
 /// Note: name is expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    #[deprecated]
-    fn mprotect_wasm_pages(
-        from_ptr: u64,
-        pages_nums: &[u32],
-        prot_read: bool,
-        prot_write: bool,
-        prot_exec: bool,
-    ) {
-        unsafe {
-            let _ = sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec);
-        }
-    }
-
-    #[version(2)]
-    #[deprecated]
-    fn mprotect_wasm_pages(
-        from_ptr: u64,
-        pages_nums: &[u32],
-        prot_read: bool,
-        prot_write: bool,
-        prot_exec: bool,
-    ) -> Result<(), MprotectError> {
-        unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
-    }
-
-    #[deprecated]
-    fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
-        let lazy_pages = lazy_pages::get_lazy_pages_numbers();
-        mprotect_pages_slice(wasm_mem_addr, &lazy_pages, protect).map_err(|err| match err {
-            RIError::UnsupportedOS => MprotectError::OsError,
-            _ => MprotectError::PageError,
-        })
-    }
-
-    #[deprecated]
-    #[version(2)]
-    fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), RIError> {
-        let lazy_pages = lazy_pages::get_lazy_pages_numbers();
-        mprotect_pages_slice(wasm_mem_addr, &lazy_pages, protect)
-    }
-
-    /// Mprotect all wasm mem buffer except released pages.
-    /// If `protect` argument is true then restrict all accesses to pages,
-    /// else allows read and write accesses.
-    #[version(3)]
-    fn mprotect_lazy_pages(protect: bool) -> Result<(), RIError> {
-        log::trace!("mem size = {:?}", lazy_pages::get_wasm_mem_size());
-        mprotect_mem_interval_except_pages(
-            lazy_pages::get_wasm_mem_addr()
-                .expect("Wasm mem addr must be set before using this method"),
-            lazy_pages::get_stack_end_wasm_addr() as usize,
-            lazy_pages::get_wasm_mem_size()
-                .expect("Wasm mem size must be set before using this method") as usize,
-            lazy_pages::get_released_pages().iter().copied(),
-            protect,
-        )
-    }
-
-    #[deprecated]
-    fn save_page_lazy_info(page: u32, key: &[u8]) {
-        lazy_pages::set_lazy_page_info(page.into(), key);
-    }
-
-    #[deprecated]
-    #[version(2)]
-    fn save_page_lazy_info(pages: Vec<u32>, prefix: Vec<u8>) {
-        lazy_pages::append_lazy_pages_info(pages, prefix);
-    }
-
-    #[deprecated]
+    /// Init lazy pages for `on_idle`.
+    /// Returns whether initialization was successful.
     fn init_lazy_pages() -> bool {
         lazy_pages::init(lazy_pages::LazyPagesVersion::Version1)
     }
 
-    #[version(2)]
-    fn init_lazy_pages() -> bool {
-        lazy_pages::init(lazy_pages::LazyPagesVersion::Version2)
-    }
-
-    #[deprecated]
-    fn is_lazy_pages_enabled() -> bool {
-        lazy_pages::is_enabled()
-    }
-
-    #[deprecated]
-    fn reset_lazy_pages_info() {
-        lazy_pages::reset_context()
-    }
-
-    #[deprecated]
-    fn set_wasm_mem_begin_addr(addr: u64) {
-        lazy_pages::set_wasm_mem_begin_addr(addr as usize);
-    }
-
-    #[version(2)]
-    fn set_wasm_mem_begin_addr(addr: HostPointer) -> Result<(), RIError> {
-        if addr % region::page::size() as u64 != 0 {
-            return Err(RIError::WasmMemBufferNotAligned {
-                addr: addr as u64,
-                page_size: region::page::size() as u64,
-            });
-        }
-
-        gear_lazy_pages::set_wasm_mem_begin_addr(addr as usize);
-
-        Ok(())
-    }
-
-    #[deprecated]
-    fn set_wasm_mem_size(size: u32) -> Result<(), RIError> {
-        assert_eq!(
-            size as usize % region::page::size(),
-            0,
-            "Wasm memory buffer size is not aligned by host native page size"
-        );
-
-        lazy_pages::set_wasm_mem_size(size);
-        Ok(())
-    }
-
-    #[version(2)]
-    fn set_wasm_mem_size(size_in_wasm_pages: u32) {
-        let size = WasmPageNumber(size_in_wasm_pages);
-        let size_in_bytes =
-            u32::try_from(size.offset()).expect("Wasm memory size is bigger then u32::MAX bytes");
-        lazy_pages::set_wasm_mem_size(size_in_bytes);
-    }
-
-    fn initialize_for_program(
+    /// Init lazy pages context for current program.
+    /// Panic if some goes wrong during initialization.
+    fn init_lazy_pages_for_program(
         wasm_mem_addr: Option<HostPointer>,
-        wasm_mem_size: u32,
+        wasm_mem_size_in_pages: u32,
         stack_end_page: Option<u32>,
         program_prefix: Vec<u8>,
-    ) -> Result<(), RIError> {
-        let wasm_mem_size = wasm_mem_size.into();
+    ) {
+        let wasm_mem_size = wasm_mem_size_in_pages.into();
         let stack_end_page = stack_end_page.map(Into::into);
 
         let wasm_mem_addr = wasm_mem_addr
@@ -309,60 +166,42 @@ pub trait GearRI {
             let size = wasm_mem_size.offset();
             let except_pages = std::iter::empty::<PageNumber>();
             mprotect_mem_interval_except_pages(addr, stack_end, size, except_pages, true)
-        } else {
-            Ok(())
+                .expect("Cannot set protection for wasm memory");
         }
     }
 
-    fn set_program_prefix(prefix: Vec<u8>) {
-        lazy_pages::set_program_prefix(prefix);
+    /// Mprotect all wasm mem buffer except released pages.
+    /// If `protect` argument is true then restrict all accesses to pages,
+    /// else allows read and write accesses.
+    fn mprotect_lazy_pages(protect: bool) {
+        mprotect_mem_interval_except_pages(
+            lazy_pages::get_wasm_mem_addr()
+                .expect("Wasm mem addr must be set before calling mprotect"),
+            lazy_pages::get_stack_end_wasm_addr() as usize,
+            lazy_pages::get_wasm_mem_size()
+                .expect("Wasm mem size must be set before calling mprotect") as usize,
+            lazy_pages::get_released_pages().iter().copied(),
+            protect,
+        )
+        .map_err(|e| e.to_string())
+        .expect("Cannot set mprotection for lazy pages");
+    }
+
+    fn set_wasm_mem_begin_addr(addr: HostPointer) {
+        gear_lazy_pages::set_wasm_mem_begin_addr(addr as usize)
+            .map_err(|e| e.to_string())
+            .expect("Cannot set new wasm addr");
+    }
+
+    fn set_wasm_mem_size(size_in_wasm_pages: u32) {
+        lazy_pages::set_wasm_mem_size(size_in_wasm_pages.into())
+            .map_err(|e| e.to_string())
+            .expect("Cannot set new wasm memory size");
     }
 
     fn get_released_pages() -> Vec<u32> {
         lazy_pages::get_released_pages_patched()
             .into_iter()
-            .map(|p| p.0)
-            .collect()
-    }
-
-    #[deprecated]
-    fn get_released_page_old_data(page: u32) -> Vec<u8> {
-        lazy_pages::get_released_page_data(page.into())
-            .expect("Must have data for released page")
-            .to_vec()
-    }
-
-    #[version(2)]
-    #[deprecated]
-    fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
-        lazy_pages::get_released_page_data(page.into())
-            .ok_or(GetReleasedPageError)
-            .map(|data| data.to_vec())
-    }
-
-    #[version(3)]
-    #[deprecated]
-    fn get_released_page_old_data(page: u32) -> Result<PageBuf, GetReleasedPageError> {
-        lazy_pages::get_released_page_data(page.into()).ok_or(GetReleasedPageError)
-    }
-
-    #[version(4)]
-    fn get_released_page_old_data(page: u32) -> Option<PageBuf> {
-        lazy_pages::get_released_page_data(page.into())
-    }
-
-    #[deprecated]
-    fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
-        gear_lazy_pages::get_lazy_pages_numbers()
-            .iter()
-            .map(|p| p.0)
-            .collect()
-    }
-
-    #[deprecated]
-    fn get_lazy_pages_numbers() -> Vec<u32> {
-        gear_lazy_pages::get_lazy_pages_numbers()
-            .iter()
             .map(|p| p.0)
             .collect()
     }
