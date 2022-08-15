@@ -353,8 +353,8 @@ pub enum InitError {
 unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
     use InitError::*;
 
-    // Set version even if it has been already set, because runtime upgrade and then contracts
-    // execution can be done in the same thread.
+    // Set version even if it has been already set, because `on_idle` calls can be
+    // in the same thread, even after runtime upgrade, which can change version.
     LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
 
     if LAZY_PAGES_ENABLED.with(|x| *x.borrow()) {
