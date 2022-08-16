@@ -1,0 +1,31 @@
+---
+#Install/update backend docker-compose
+
+#- name: remove db
+#  shell: >
+#    docker exec -it ec2-user_gear_1 gear-node purge-chain --base-path /gear/ --chain /gear/staging.json -y
+#  become: yes
+
+- name: Copy docker-compose
+  template:
+    src: docker-compose-vara.yaml.j2
+    dest: /home/ec2-user/docker-compose.yaml
+
+- name: Stop docker-compose
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+  become: yes
+
+- name: Pull docker images
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
+  become: yes
+
+- name: Remove old docker images
+  shell:  docker image prune -f
+  become: yes 
+
+- name: Run docker-compose
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" up -d
+  become: yes
