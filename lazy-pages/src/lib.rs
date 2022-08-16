@@ -256,7 +256,7 @@ pub fn get_released_pages() -> Vec<PageNumber> {
 
 /// TODO: remove this after current test-net chain will be dropped (issue #1317).
 /// This patch solves the problem for block `#866245`, see more in issue.
-pub fn get_released_pages_patch() -> Vec<PageNumber> {
+pub fn get_released_pages_patched() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let ctx = ctx.borrow_mut();
         if ctx.program_storage_prefix.as_ref().unwrap()
