@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
@@ -68,8 +68,8 @@ pub struct DispatchResult {
     pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
-    /// Gas amount program reserved.
-    pub reserved_gas: GasCounter,
+    /// Gas amount programs reserved.
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -113,7 +113,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
-            reserved_gas: GasCounter::new(0),
+            gas_reservation_map: Default::default(),
             page_update: Default::default(),
             allocations: Default::default(),
         }
@@ -243,13 +243,13 @@ pub enum JournalNote {
         gas_burned: u64,
     },
     /// Update gas reservation nodes.
-    UpdateGasReservation {
+    UpdateGasReservations {
         /// Message which gas will be reserved from.
         message_id: MessageId,
         /// Program ID.
         program_id: ProgramId,
-        /// Reserved gas.
-        reserved_gas: GasCounter,
+        /// Gas reservation map.
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     },
 }
 
@@ -304,7 +304,7 @@ pub trait JournalHandler {
         &mut self,
         message_id: MessageId,
         program_id: ProgramId,
-        reserved_gas: GasCounter,
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     );
 }
 
@@ -409,8 +409,8 @@ pub struct ExecutableActorData {
     pub program: Program,
     /// Numbers of allocated memory pages that have non-default data.
     pub pages_with_data: BTreeSet<PageNumber>,
-    /// Gas amount program reserved.
-    pub reserved_gas: GasCounter,
+    /// Gas reservation map
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
 }
 
 /// Execution context.
@@ -421,8 +421,8 @@ pub struct WasmExecutionContext {
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
     pub gas_allowance_counter: GasAllowanceCounter,
-    /// Gas amount program reserved.
-    pub reserved_gas: GasCounter,
+    /// Gas reservation map
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     /// Program to be executed.
     pub program: Program,
     /// Memory pages with initial data.

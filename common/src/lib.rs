@@ -43,7 +43,7 @@ use frame_support::{
 };
 use gear_core::{
     gas::GasCounter,
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
 };
 use primitive_types::H256;
@@ -241,8 +241,7 @@ pub struct ActiveProgram {
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
-    /// Gas amount program reserved.
-    pub reserved_gas: GasCounter,
+    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     pub code_hash: H256,
     pub state: ProgramState,
 }

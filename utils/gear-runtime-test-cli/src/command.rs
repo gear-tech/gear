@@ -26,7 +26,6 @@ use colored::{ColoredString, Colorize};
 use frame_support::traits::ReservableCurrency;
 use gear_common::{storage::*, CodeStorage, GasPrice, GasTree, Origin as _};
 use gear_core::{
-    gas::GasCounter,
     ids::{CodeId, ProgramId},
     memory::vec_page_data_map_to_page_buf_map,
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
@@ -249,7 +248,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             pages_with_data: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
-            reserved_gas: GasCounter::new(0),
+            gas_reservation_map: Default::default(),
         };
         gear_common::set_program(*id, program);
     }
@@ -461,7 +460,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         ExecutableActorData {
                             program,
                             pages_with_data: memory.keys().cloned().collect(),
-                            reserved_gas: todo!(),
+                            gas_reservation_map: todo!(),
                         },
                         memory,
                     ))

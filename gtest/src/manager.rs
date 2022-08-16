@@ -31,7 +31,7 @@ use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     gas::GasCounter,
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
         Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
@@ -140,7 +140,7 @@ impl TestActor {
             ExecutableActorData {
                 program,
                 pages_with_data: pages_data.keys().copied().collect(),
-                reserved_gas: todo!(),
+                gas_reservation_map: todo!(),
             },
             pages_data,
         ))
@@ -842,8 +842,7 @@ impl JournalHandler for ExtManager {
     fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
-        reserved_gas: GasCounter,
+        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     ) {
         todo!()
     }

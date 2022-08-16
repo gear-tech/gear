@@ -22,7 +22,6 @@ use common::{storage::*, ActiveProgram, CodeMetadata, CodeStorage, Origin as _, 
 use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::{Code, CodeAndId},
-    gas::GasCounter,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
@@ -72,7 +71,7 @@ fn pause_program_works() {
                 pages_with_data,
                 code_hash,
                 state: ProgramState::Initialized,
-                reserved_gas: GasCounter::new(0),
+                gas_reservation_map: Default::default(),
             },
             memory_pages.clone(),
         )
@@ -140,7 +139,7 @@ fn pause_program_twice_fails() {
                 pages_with_data: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
-                reserved_gas: GasCounter::new(0),
+                gas_reservation_map: Default::default(),
             },
         );
 
@@ -174,7 +173,7 @@ fn pause_terminated_program_fails() {
                 pages_with_data: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
-                reserved_gas: GasCounter::new(0),
+                gas_reservation_map: Default::default(),
             },
         );
 
@@ -472,7 +471,7 @@ mod utils {
                 state: ProgramState::Uninitialized {
                     message_id: init_msg_id,
                 },
-                reserved_gas: GasCounter::new(0),
+                gas_reservation_map: Default::default(),
             },
             memory_pages.clone(),
         )

@@ -24,12 +24,13 @@ use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
 use gear_core::{
-    gas::GasCounter,
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
     message::{Dispatch, StoredDispatch},
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+
+use gear_core::{gas::GasCounter, ids::ReservationId};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -347,21 +348,29 @@ where
         &mut self,
         message_id: MessageId,
         program_id: ProgramId,
-        reserved_gas: GasCounter,
+        mut gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
     ) {
-        let reservation_id = ReservationId::generate(program_id).into();
-        if reserved_gas.left() == 0 {
-            Pallet::<T>::consume_message(reservation_id);
-        } else {
-            GasHandlerOf::<T>::update_reservation(message_id, reservation_id, reserved_gas.left())
+        gas_reservation_map.retain(|reservation_id, gas_counter| {
+            let reservation_id: MessageId = reservation_id.clone().into();
+            if gas_counter.left() == 0 {
+                Pallet::<T>::consume_message(reservation_id);
+                false
+            } else {
+                GasHandlerOf::<T>::update_reservation(
+                    message_id,
+                    reservation_id,
+                    gas_counter.left(),
+                )
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
-        }
+                true
+            }
+        });
 
         let program_id = program_id.into_origin();
         let prog = common::get_program(program_id)
             .expect("gas reservation update guaranteed to be called only on existing program");
         if let Program::Active(mut prog) = prog {
-            prog.reserved_gas = reserved_gas;
+            prog.gas_reservation_map = gas_reservation_map;
             common::set_program(program_id, prog);
         }
     }

@@ -55,7 +55,6 @@ use common::{event::*, ActiveProgram, CodeStorage, Origin, ProgramState};
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use gear_core::{
-    gas::GasCounter,
     ids::{CodeId, MessageId, ProgramId},
     message::ExitCode,
     program::Program as NativeProgram,
@@ -187,7 +186,7 @@ where
             executable_data: Some(ExecutableActorData {
                 program,
                 pages_with_data: active.pages_with_data,
-                reserved_gas: active.reserved_gas,
+                gas_reservation_map: active.gas_reservation_map,
             }),
         })
     }
@@ -208,7 +207,7 @@ where
             pages_with_data: Default::default(),
             code_hash: code_id.into_origin(),
             state: common::ProgramState::Uninitialized { message_id },
-            reserved_gas: GasCounter::new(0),
+            gas_reservation_map: Default::default(),
         };
 
         common::set_program(program_id.into_origin(), program);
