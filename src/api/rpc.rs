@@ -1,8 +1,9 @@
 //! gear api rpc methods
 use crate::{
     api::{types, Api},
-    Result,
+    result::Result,
 };
+
 use std::sync::Arc;
 use subxt::{
     rpc::{rpc_params, ClientT},
@@ -21,8 +22,6 @@ impl Api {
         AsRef::<[u8; 32]>::as_ref(self.signer.account_id()).into()
     }
 
-    /// rpc call
-    ///
     /// gear_getInitGasSpent
     pub async fn get_init_gas_spent(
         &self,
@@ -40,10 +39,8 @@ impl Api {
             .map_err(Into::into)
     }
 
-    #[allow(dead_code)]
-    /// rpc call
-    ///
     /// gear_getHandleGasSpent
+    #[allow(dead_code)]
     pub async fn get_handle_gas_spent(
         &self,
         dest: H256,

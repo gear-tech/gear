@@ -7,7 +7,7 @@ use crate::{
         },
         Api,
     },
-    Result,
+    result::Result,
 };
 use structopt::StructOpt;
 

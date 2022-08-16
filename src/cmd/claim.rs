@@ -4,7 +4,7 @@ use crate::{
         generated::api::{gear::calls::ClaimValue, runtime_types::gear_core::ids::MessageId},
         Api,
     },
-    Result,
+    result::Result,
 };
 use structopt::StructOpt;
 

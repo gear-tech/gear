@@ -1,7 +1,8 @@
 //! gear api
 use crate::{
     api::{config::GearConfig, generated::api::RuntimeApi},
-    keystore, Result,
+    keystore,
+    result::Result,
 };
 use subxt::{sp_core::sr25519::Pair, ClientBuilder, PairSigner, PolkadotExtrinsicParams};
 

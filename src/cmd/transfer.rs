@@ -1,7 +1,7 @@
 //! command transfer
 use crate::{
     api::{generated::api::balances::calls::Transfer as TransferCall, Api},
-    Result,
+    result::Result,
 };
 use structopt::StructOpt;
 use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};

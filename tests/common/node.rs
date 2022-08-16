@@ -1,58 +1,43 @@
-use std::{
-    io::{BufRead, BufReader, Error, Lines, Result},
-    iter::FilterMap,
-    process::{Child, ChildStderr, Command, Stdio},
-    result::Result as StdResult,
-};
+use crate::common::{docker::Docker, logs::Logs, Error, Result};
 
 pub const GEAR_NODE_BIN_PATH: &str = "/usr/local/bin/gear-node";
 pub const GEAR_NODE_DOCKER_IMAGE: &str = "ghcr.io/gear-tech/node:latest";
 
 /// Run gear-node with docker.
-pub struct Node(Child);
+pub struct Node(Docker);
 
 impl Node {
     /// Run gear-node with docker in development mode.
     pub fn dev(ws: u16) -> Result<Self> {
-        Ok(Command::new("docker")
-            .args(&[
-                "run",
-                "--rm",
-                GEAR_NODE_DOCKER_IMAGE,
-                GEAR_NODE_BIN_PATH,
-                "--tmp",
-                "--dev",
-                "--ws-port",
-                &ws.to_string(),
-            ])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?
-            .into())
+        let child = Docker::run(&[
+            "-p",
+            &format!("{}:9944", ws),
+            GEAR_NODE_DOCKER_IMAGE,
+            GEAR_NODE_BIN_PATH,
+            "--tmp",
+            "--dev",
+            "--unsafe-ws-external",
+        ])?;
+
+        Ok(Self(child))
     }
 
     /// Spawn logs of gear-node.
-    pub fn logs(
-        &mut self,
-    ) -> Option<
-        FilterMap<Lines<BufReader<ChildStderr>>, fn(StdResult<String, Error>) -> Option<String>>,
-    > {
-        Some(
-            BufReader::new(self.0.stderr.take()?)
-                .lines()
-                .filter_map(|line| line.ok()),
-        )
+    pub fn logs(&mut self) -> Result<Logs> {
+        self.0.logs()
     }
-}
 
-impl From<Child> for Node {
-    fn from(child: Child) -> Self {
-        Self(child)
-    }
-}
+    /// Wait for the block importing
+    pub fn wait(&mut self, log: &str) -> Result<()> {
+        let mut logs: Vec<String> = Default::default();
+        for line in self.logs()? {
+            if line.contains(log) {
+                return Ok(());
+            }
 
-impl Drop for Node {
-    fn drop(&mut self) {
-        self.0.kill().expect("Failed to kill gear-node.")
+            logs.push(line.clone());
+        }
+
+        Err(Error::Spawn(logs.join("\n")))
     }
 }

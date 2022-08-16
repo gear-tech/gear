@@ -1,5 +1,5 @@
 //! commands
-use crate::{api::Api, Result};
+use crate::{api::Api, result::Result};
 use structopt::StructOpt;
 
 mod claim;
@@ -8,6 +8,7 @@ mod info;
 mod login;
 mod meta;
 mod new;
+mod program;
 mod reply;
 mod send;
 mod submit;
@@ -22,6 +23,7 @@ pub enum Command {
     Login(login::Login),
     Meta(meta::Meta),
     New(new::New),
+    Program(program::Program),
     Reply(reply::Reply),
     Send(send::Send),
     Submit(submit::Submit),
@@ -61,6 +63,11 @@ impl Opt {
 
     /// Execute command.
     pub async fn exec(&self) -> Result<()> {
+        env_logger::builder().try_init()?;
+
+        // # TODO
+        //
+        // Wrap `self.api` as closure into commands.
         match &self.command {
             Command::Claim(claim) => claim.exec(self.api().await?).await?,
             Command::Deploy(deploy) => deploy.exec(self.api().await?).await?,
@@ -68,6 +75,7 @@ impl Opt {
             Command::Login(login) => login.exec()?,
             Command::Meta(meta) => meta.exec()?,
             Command::New(new) => new.exec().await?,
+            Command::Program(program) => program.exec(self.api().await?).await?,
             Command::Reply(reply) => reply.exec(self.api().await?).await?,
             Command::Send(send) => send.exec(self.api().await?).await?,
             Command::Submit(submit) => submit.exec(self.api().await?).await?,

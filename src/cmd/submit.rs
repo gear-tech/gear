@@ -1,7 +1,7 @@
 //! Command `submit`
 use crate::{
     api::{generated::api::gear::calls::UploadCode, Api},
-    Result,
+    result::Result,
 };
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;

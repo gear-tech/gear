@@ -7,7 +7,4 @@ mod result;
 mod template;
 mod utils;
 
-pub use self::{
-    cmd::Opt,
-    result::{Error, Result},
-};
+pub use self::cmd::Opt;

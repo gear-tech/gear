@@ -1,5 +1,5 @@
 //! command new
-use crate::{registry, Result};
+use crate::{registry, result::Result};
 use std::{
     fs::{self, DirEntry},
     io,

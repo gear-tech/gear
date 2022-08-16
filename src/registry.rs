@@ -1,5 +1,8 @@
 //! Examples registry
-use crate::{utils, Error, Result};
+use crate::{
+    result::{Error, Result},
+    utils,
+};
 use lazy_static::lazy_static;
 use std::{
     fs,

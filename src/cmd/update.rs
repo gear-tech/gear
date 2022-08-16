@@ -1,5 +1,5 @@
 //! command update
-use crate::{registry, Result};
+use crate::{registry, result::Result};
 use std::process::{self, Command};
 use structopt::StructOpt;
 

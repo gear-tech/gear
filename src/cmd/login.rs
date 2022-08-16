@@ -1,9 +1,9 @@
 //! command login
-use crate::{keystore, Result};
+use crate::{keystore, result::Result};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-/// Login to account
+/// Log in to account
 #[derive(Debug, StructOpt)]
 pub struct Login {
     /// The default keystore path is ~/.gear/keystore and ~/.gear/keystore.json

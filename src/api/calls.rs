@@ -5,7 +5,7 @@ use crate::{
         generated::api::{runtime_types::sp_runtime::DispatchError, Event},
         Api,
     },
-    Result,
+    result::Result,
 };
 use subxt::{
     sp_core::crypto::Ss58Codec, PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionInBlock,

@@ -34,22 +34,34 @@ Usages:
 
 ```sh
 $ gear 
-gear-program 0.1.0
+gear-program 0.1.1
 
 USAGE:
-    gear [FLAGS] <SUBCOMMAND>
+    gear [FLAGS] [OPTIONS] <SUBCOMMAND>
 
 FLAGS:
     -d, --debug      Enable debug logs
     -h, --help       Prints help information
     -V, --version    Prints version information
 
+OPTIONS:
+    -e, --endpoint <endpoint>    Gear node rpc endpoint
+    -p, --passwd <passwd>        Password of the signer account
+
 SUBCOMMANDS:
-    deploy    Deploy program to gear node
-    help      Prints this message or the help of the given subcommand(s)
-    login     Login to account
-    new       Create a new gear program
-    update    Update resources
+    claim       Claim value from mailbox
+    deploy      Deploy program to gear node
+    help        Prints this message or the help of the given subcommand(s)
+    info        Get account info from ss58address
+    login       Log in to account
+    meta        Show metadata structure, read types from registry, etc
+    new         Create a new gear program
+    program     Read program state, etc
+    reply       Sends a reply message
+    send        Sends a message to a program or to another account
+    submit      Saves program `code` in storage
+    transfer    Transfer value
+    update      Update resources
 ```
 
 Now, let's create a <kbd>new</kbd> gear program and deploy it to the staging testnet.

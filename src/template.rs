@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::result::Result;
 use std::{fs, process::Command};
 
 const NAME: &str = "$NAME";

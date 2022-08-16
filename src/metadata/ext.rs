@@ -5,4 +5,6 @@ use wasmtime::{AsContextMut, Memory, Trap};
 #[derive(Default)]
 pub struct Ext {
     pub msg: Vec<u8>,
+    pub timestamp: u64,
+    pub height: u64,
 }

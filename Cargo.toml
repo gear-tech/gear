@@ -17,6 +17,7 @@ name = "gear"
 
 [dependencies]
 anyhow = "1.0.60"
+blake2-rfc = "0.2.18"
 base64 = "0.13.0"
 dialoguer = "0.10.1"
 dirs = "4.0.0"

@@ -2,7 +2,11 @@
 
 mod json;
 
-use crate::{api::config::GearConfig, utils, Error, Result};
+use crate::{
+    api::config::GearConfig,
+    result::{Error, Result},
+    utils,
+};
 use lazy_static::lazy_static;
 use std::{
     fs,

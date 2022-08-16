@@ -8,6 +8,7 @@ use scale_info::{
 
 const DEMO_METADATA: &str = r#"
 Metadata {
+    meta_title: Example program with metadata,
     meta_init_input: MessageInitIn {
         amount: u8,
         currency: String,
@@ -34,6 +35,8 @@ Metadata {
     meta_async_handle_output: MessageHandleAsyncOut {
         empty: (),
     },
+    meta_state_input: Option<Id>,
+    meta_state_output: Vec<Wallet>,
 }
 "#;
 
@@ -64,4 +67,57 @@ fn test_parsing_metadata() {
         DEMO_METADATA.trim(),
         &format!("{:#}", metadata).replace('"', "")
     );
+}
+
+#[test]
+fn test_encode_depth1_1() {
+    /// Depth 1 with 1 parameter
+    #[derive(Encode, Decode)]
+    struct Depth1_1 {
+        number: u32,
+    }
+
+    let depth_1_1 = Depth1_1 { number: 42 };
+    let encoded = depth_1_1.encode();
+    assert_eq!(encoded, (42).encode());
+}
+
+#[test]
+fn test_encode_depth1_2() {
+    /// Depth 1 with 2 parameters
+    #[derive(Encode, Decode)]
+    struct Depth1_2 {
+        foo: u32,
+        bar: u32,
+    }
+
+    let depth1_2 = Depth1_2 { foo: 42, bar: 42 };
+    let encoded = depth1_2.encode();
+    assert_eq!(encoded, (42, 42).encode());
+}
+
+#[test]
+fn test_encode_depth2_2() {
+    // Depth 1 with 2 paramters
+    #[derive(Encode, Decode)]
+    struct Depth1_2 {
+        foo: u32,
+        bar: u32,
+    }
+
+    // Depth 2 with 2 parameters
+    #[derive(Encode, Decode)]
+    struct Depth2_2 {
+        foo: Depth1_2,
+        bar: u32,
+    }
+
+    let depth1_2 = Depth1_2 { foo: 42, bar: 42 };
+    let depth2_2 = Depth2_2 {
+        foo: depth1_2,
+        bar: 42,
+    };
+    let encoded = depth2_2.encode();
+    assert_eq!(encoded, ((42, 42), 42).encode());
+    assert_eq!(encoded, (42, 42, 42).encode());
 }

@@ -2,18 +2,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 //! WASM executor for getting metadata from `*.meta.wasm`
-use crate::metadata::{
-    env,
-    ext::Ext,
-    result::{Error, Result},
-    StoreData,
+use crate::{
+    api::types::GearPages,
+    metadata::{
+        env,
+        ext::Ext,
+        result::{Error, Result},
+        StoreData,
+    },
 };
 use wasmtime::{
-    AsContext, AsContextMut, Engine, Extern, Func, Instance, Linker, Memory, Module, Store, Val,
+    AsContext, AsContextMut, Config, Engine, Extern, Func, Instance, Linker, Memory, Module, Store,
+    Val,
 };
 
+const PAGE_SIZE: usize = 4096;
+const META_STATE: &str = "meta_state";
+
 /// Exeucte wasm binary
-pub fn execute<R>(wasm: &[u8], f: fn(Reader) -> Result<R>) -> Result<R> {
+pub fn execute<R>(wasm: &[u8], f: impl Fn(Reader) -> Result<R>) -> Result<R> {
     let engine = Engine::default();
     let module = Module::new(&engine, &mut &wasm[..])?;
     let mut store = Store::new(&engine, Default::default());
@@ -61,7 +68,7 @@ impl Reader {
     }
 
     /// Read metadata from meta type
-    pub unsafe fn meta(&mut self, memory: &Memory, meta: &str) -> Result<String> {
+    pub fn meta(&mut self, memory: &Memory, meta: &str) -> Result<Vec<u8>> {
         let mut res = [Val::null()];
         self.func(meta)?.call(&mut self.store, &[], &mut res)?;
 
@@ -81,6 +88,40 @@ impl Reader {
         len_bytes.copy_from_slice(&mem[(at + 4)..(at + 8)]);
         let len = i32::from_le_bytes(len_bytes) as usize;
 
-        Ok(String::from_utf8_lossy(&mem[ptr..(ptr + len)]).into())
+        Ok(mem[ptr..(ptr + len)].into())
+    }
+
+    /// Read the state of this program.
+    pub fn state(
+        &mut self,
+        initial_size: u64,
+        pages: GearPages,
+        msg: Vec<u8>,
+        timestamp: u64,
+        height: u64,
+    ) -> Result<Vec<u8>> {
+        // 1. Grow memory if needed.
+        let mem = self.memory()?;
+        let mem_size = mem.size(&self.store);
+        if mem_size < initial_size {
+            mem.grow(self.store.as_context_mut(), initial_size - mem_size)?;
+        }
+
+        // 2. Update the host state in ext.
+        let data = self.store.data_mut();
+        data.msg = msg;
+        data.timestamp = timestamp;
+        data.height = height;
+
+        // 3. Apply pages to the current wasm module
+        let mem_mut = mem.data_mut(self.store.as_context_mut());
+        for (idx, page) in pages {
+            let start = (idx as usize) * PAGE_SIZE;
+            let end = start + PAGE_SIZE;
+
+            mem_mut[start..end].copy_from_slice(&page);
+        }
+
+        self.meta(&mem, META_STATE)
     }
 }

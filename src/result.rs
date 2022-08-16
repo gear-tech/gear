@@ -38,28 +38,38 @@ impl From<TxStatus<'_>> for Error {
 /// Errors
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Could not find directory {0}")]
-    CouldNotFindDirectory(String),
-    #[error("InvalidSecret")]
-    InvalidSecret,
-    #[error("Password must be provided for logining with json file.")]
-    InvalidPassword,
-    #[error("{0}")]
-    Nacl(String),
-    #[error("No available account was found in keystore, please run `gear login` first.")]
-    Logout,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
     #[error(transparent)]
     Base64Decode(#[from] base64::DecodeError),
     #[error(transparent)]
     Codec(#[from] parity_scale_codec::Error),
+    #[error("Code not found {0}")]
+    CodeNotFound(String),
+    #[error("Could not find directory {0}")]
+    CouldNotFindDirectory(String),
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
+    #[error("InvalidSecret")]
+    InvalidSecret,
+    #[error("Password must be provided for logining with json file.")]
+    InvalidPassword,
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
+    Logger(#[from] log::SetLoggerError),
+    #[error("No available account was found in keystore, please run `gear login` first.")]
+    Logout,
+    #[error(transparent)]
     Metadata(#[from] crate::metadata::Error),
+    #[error("{0}")]
+    Nacl(String),
+    #[error("Page {0} of Program {1} was not found in the storage.")]
+    PageNotFound(u32, String),
+    #[error("Program with id {0} was not found in the storage.")]
+    ProgramNotFound(String),
+    #[error("Program has been terminated.")]
+    ProgramTerminated,
     #[error("{0}")]
     Schnorrkel(schnorrkel::SignatureError),
     #[error(transparent)]

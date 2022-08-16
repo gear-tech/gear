@@ -1,15 +1,16 @@
 //! command login
-use crate::{metadata::Metadata, Result};
+use crate::{metadata::Metadata, result::Result};
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
+/// Show metadata structure, read types from registry, etc.
 #[derive(Debug, StructOpt)]
 pub enum Action {
-    /// Display the structure of the metadata
+    /// Display the structure of the metadata.
     Display,
 }
 
-/// Login to account
+/// Show metadata structure, read types from registry, etc.
 #[derive(Debug, StructOpt)]
 pub struct Meta {
     /// Path of "*.meta.wasm".
@@ -19,15 +20,13 @@ pub struct Meta {
 }
 
 impl Meta {
-    /// exec command login
+    /// Run command meta.
     pub fn exec(&self) -> Result<()> {
         let wasm = fs::read(&self.metadata)?;
         let meta = Metadata::of(&wasm)?;
 
         match self.action {
-            Action::Display => {
-                println!("{}", format!("{:#}", meta).replace('"', ""));
-            }
+            Action::Display => println!("{}", format!("{:#}", meta).replace('"', "")),
         }
 
         Ok(())

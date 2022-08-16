@@ -4,7 +4,7 @@ use crate::{
         generated::api::gear::{calls::UploadProgram, Event as GearEvent},
         Api,
     },
-    Result,
+    result::Result,
 };
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
@@ -15,10 +15,10 @@ pub struct Deploy {
     /// gear program code <*.wasm>
     code: PathBuf,
     /// gear program salt ( hex encoding )
-    #[structopt(default_value = "0x00")]
+    #[structopt(default_value = "0x")]
     salt: String,
     /// gear program init payload ( hex encoding )
-    #[structopt(default_value = "0x00")]
+    #[structopt(default_value = "0x")]
     init_payload: String,
     /// gear program gas limit
     ///

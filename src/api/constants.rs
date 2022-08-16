@@ -1,5 +1,5 @@
 //! gear api constants methods
-use crate::{api::Api, Result};
+use crate::{api::Api, result::Result};
 
 impl Api {
     /// pallet gas constants
