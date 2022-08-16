@@ -1,0 +1,38 @@
+version: '3'
+services:
+  gear:
+    user: root
+    ports:
+      - "30333:30333"
+      - "9933:9933"
+      - "9944:9944"
+      - "9615:9615"
+    image: ghcr.io/gear-tech/node-vara:latest
+    environment:
+      - RUST_LOG=essential
+    volumes:
+      - "/home/ec2-user/gear-data/:/gear/"
+    command: >
+      gear-node --base-path /gear/ --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' --prometheus-external
+      {% if name is defined %} --name={{ name }} {% endif %}
+      {% if rpc is not defined %} --validator {% endif %}
+      {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --ws-max-connections='1000' --unsafe-rpc-external {% endif %}
+      {% if rpc is defined and unsafe == "no" and archive_node == "yes" %} --ws-external --rpc-external --pruning archive {% endif %}
+      {% if rpc is defined %} --rpc-methods Unsafe --rpc-cors all {% endif %}
+      {% if archive_node is defined and archive_node == "yes" and validator is defined and validator == "yes" %} --unsafe-ws-external --rpc-cors all --pruning archive {% endif %}
+
+{% if loki is defined and loki == "yes" and loki_url is defined %}
+    logging:
+      driver: loki
+      options:
+        loki-url: "{{ loki_url }}"
+        loki-tls-insecure-skip-verify: "true"
+        loki-external-labels: "job=docker_node"
+        loki-pipeline-stages: |
+          - regex:
+              expression: '(?P<error>ERROR.*)'
+          - labels:
+              error:
+{% endif %}
+volumes:
+  gear-data:
