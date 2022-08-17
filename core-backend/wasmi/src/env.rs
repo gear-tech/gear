@@ -372,10 +372,7 @@ where
         };
 
         let defined_host_functions = builder.defined_host_functions.clone();
-        let module = match wasmi::Module::from_buffer(binary) {
-            Ok(module) => module,
-            Err(e) => return Err(ModuleInstantiation(e)),
-        };
+        let module = wasmi::Module::from_buffer(binary).map_err(ModuleInstantiation)?;
         let instance = match ModuleInstance::new(&module, &builder) {
             Ok(inst) => inst.not_started_instance().clone(),
             Err(e) => return Err(ModuleInstantiation(e)),
