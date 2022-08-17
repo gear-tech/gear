@@ -71,5 +71,7 @@ jobs:
             [nodes]
             ${{secrets.VARA_NODE_2}} name=vara-gear02 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
             ${{secrets.VARA_NODE_3}} name=vara-rpc-node rpc=yes unsafe=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.VARA_NODE_4}} name=vara-gear03 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
-            ${{secrets.VARA_NODE_5}} name=vara-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_NODE_4}} name=vara-gear04 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_NODE_5}} name=vara-gear05 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_NODE_6}} name=vara-gear06 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
+            ${{secrets.VARA_NODE_7}} name=vara-gear07 validator=yes loki=yes loki_url=${{secrets.LOKI_URL}}
