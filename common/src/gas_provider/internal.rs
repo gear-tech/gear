@@ -89,7 +89,7 @@ where
     ) -> Result<(StorageMap::Value, Option<MapKey>), Error> {
         let mut ret_node = node;
         let mut ret_id = None;
-        if let GasNode::UnspecifiedLocal { parent } = ret_node {
+        if let GasNode::UnspecifiedLocal { parent, .. } = ret_node {
             ret_id = Some(parent);
             ret_node = Self::get_node(parent).ok_or_else(InternalError::parent_is_lost)?;
             if !(ret_node.is_external() || ret_node.is_specified_local()) {
@@ -377,6 +377,7 @@ where
 
             GasNode::SpecifiedLocal {
                 value: amount,
+                lock: Zero::zero(),
                 parent: node_id,
                 refs: Default::default(),
                 consumed: false,
@@ -509,6 +510,12 @@ where
             return Err(InternalError::node_was_consumed().into());
         }
 
+        if let Some(lock) = node.lock() {
+            if !lock.is_zero() {
+                return Err(InternalError::consumed_with_lock().into());
+            }
+        }
+
         node.mark_consumed();
         let catch_output = Self::catch_value(&mut node)?;
         let external = Self::get_external(key)?;
@@ -524,7 +531,7 @@ where
                     }
                     catch_output.into_consume_output(external)
                 }
-                GasNode::UnspecifiedLocal { parent } => {
+                GasNode::UnspecifiedLocal { parent, .. } => {
                     if !catch_output.is_blocked() {
                         return Err(InternalError::value_is_not_blocked().into());
                     }
@@ -577,6 +584,7 @@ where
         let node_value = node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
+
         if *node_value < amount {
             return Err(InternalError::insufficient_balance().into());
         }
@@ -615,7 +623,10 @@ where
 
         node.increase_unspec_refs();
 
-        let new_node = GasNode::UnspecifiedLocal { parent: node_id };
+        let new_node = GasNode::UnspecifiedLocal {
+            parent: node_id,
+            lock: Zero::zero(),
+        };
 
         // Save new node
         StorageMap::insert(new_key, new_node);
@@ -627,6 +638,134 @@ where
 
     fn cut(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
         Self::create_from_with_value(key, new_key, amount, true)
+    }
+
+    fn lock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        // Taking node to lock into.
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        // Validating node type to be able to lock.
+        if node.is_reserved_local() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        // Validating that node is not consumed.
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        // Quick quit on queried zero lock.
+        if amount.is_zero() {
+            return Ok(());
+        }
+
+        // Taking value provider for this node.
+        let (mut ancestor_node, ancestor_id) = Self::node_with_value(node)?;
+
+        // Mutating value of provider.
+        let ancestor_node_value = ancestor_node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        if *ancestor_node_value < amount {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        *ancestor_node_value = ancestor_node_value.saturating_sub(amount);
+
+        // If provider is a parent, we save it to storage, otherwise mutating
+        // current node further, saving it afterward.
+        let mut node = if let Some(ancestor_id) = ancestor_id {
+            StorageMap::insert(ancestor_id, ancestor_node);
+
+            // Unreachable error: the same queried at the beginning of function.
+            Self::get_node(key).ok_or_else(InternalError::node_not_found)?
+        } else {
+            ancestor_node
+        };
+
+        let node_lock = node
+            .lock_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *node_lock = node_lock.saturating_add(amount);
+
+        StorageMap::insert(key, node);
+
+        Ok(())
+    }
+
+    // Such implementation of moving value upper works, because:
+    //
+    // - For value-holding types (`GasNode::External` and
+    // `GasNode::SpecifiedLocal`) locking and unlocking on consumed node is denied at the moment,
+    // so on lock and unlock they will update only themselves.
+    //
+    // - For non-value-holding type (`GasNode::UnspecifiedLocal`) locking and
+    // unlocking chained with value-holding parent, which cannot be freed
+    // (can't move its balance upstream), due to existence of this
+    // unspecified node, referring it.
+    //
+    // - For reservation type (`GasNode::ReservedLocal`) locking is denied.
+    fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error> {
+        // Taking node to unlock from.
+        let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        // Validating node type to be able to lock.
+        if node.is_reserved_local() {
+            return Err(InternalError::forbidden().into());
+        }
+
+        // Validating that node is not consumed.
+        if node.is_consumed() {
+            return Err(InternalError::node_was_consumed().into());
+        }
+
+        // Quick quit on queried zero unlock.
+        if amount.is_zero() {
+            return Ok(());
+        }
+
+        // Mutating locked value of queried node.
+        let node_lock = node
+            .lock_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        if *node_lock < amount {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
+        *node_lock = node_lock.saturating_sub(amount);
+
+        // Taking value provider for this node.
+        let (ancestor_node, ancestor_id) = Self::node_with_value(node.clone())?;
+
+        // Mutating value of provider.
+        // If provider is a current node, we save it to storage, otherwise mutating
+        // provider node further, saving it afterward.
+        let (mut ancestor_node, ancestor_id) = if let Some(ancestor_id) = ancestor_id {
+            StorageMap::insert(key, node);
+
+            (ancestor_node, ancestor_id)
+        } else {
+            (node, key)
+        };
+
+        let ancestor_value = ancestor_node
+            .value_mut()
+            .ok_or_else(InternalError::unexpected_node_type)?;
+
+        *ancestor_value = ancestor_value.saturating_add(amount);
+
+        StorageMap::insert(ancestor_id, ancestor_node);
+
+        Ok(())
+    }
+
+    fn get_lock(key: Self::Key) -> Result<Self::Balance, Self::Error> {
+        let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
+
+        node.lock().ok_or_else(|| InternalError::forbidden().into())
     }
 
     fn clear() {

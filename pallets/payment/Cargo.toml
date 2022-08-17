@@ -33,7 +33,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
-serde = "1.0.141"
+serde = "1.0.143"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
@@ -59,8 +59,6 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-authorship/std",
 	"primitive-types/std",
-	"pallet-gear-messenger/std",
-	"pallet-gear-scheduler/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

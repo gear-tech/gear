@@ -139,7 +139,7 @@ where
         let salt = vec![0xff];
         let addr = ProgramId::generate(module.hash, &salt).into_origin();
 
-        Gear::<T>::submit_program_raw(
+        Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
             module.code,
             salt,
@@ -322,7 +322,7 @@ benchmarks! {
         T::AccountId: Origin,
     }
 
-    claim_value_from_mailbox {
+    claim_value {
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
@@ -354,7 +354,7 @@ benchmarks! {
     // It creates a maximum number of metering blocks per byte.
     //
     // `c`: Size of the code in kilobytes.
-    submit_code {
+    upload_code {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
         let value = <T as pallet::Config>::Currency::minimum_balance();
         let caller = whitelisted_caller();
@@ -364,6 +364,31 @@ benchmarks! {
 
         init_block::<T>();
     }: _(origin, code)
+    verify {
+        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+    }
+
+    // The size of the salt influences the runtime because is is hashed in order to
+    // determine the program address.
+    //
+    // `s`: Size of the salt in kilobytes.
+    create_program {
+        let s in 0 .. code::max_pages::<T>() * 64 * 128;
+
+        let caller = whitelisted_caller();
+        let origin = RawOrigin::Signed(caller);
+
+        let WasmModule { code, hash: code_id, .. } = WasmModule::<T>::dummy();
+        Gear::<T>::upload_code(origin.into(), code).expect("submit code failed");
+
+        let salt = vec![42u8; s as usize];
+        let value = <T as pallet::Config>::Currency::minimum_balance();
+        let caller = whitelisted_caller();
+        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let origin = RawOrigin::Signed(caller);
+
+        init_block::<T>();
+    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
@@ -380,7 +405,7 @@ benchmarks! {
     //
     // We cannot let `c` grow to the maximum code size because the code is not allowed
     // to be larger than the maximum size **after instrumentation**.
-    submit_program {
+    upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
         let s in 0 .. code::max_pages::<T>() * 64 * 128;
         let salt = vec![42u8; s as usize];
@@ -448,7 +473,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
         process_queue::<T>();
     }
     verify {
@@ -462,7 +487,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
         process_queue::<T>();
     }
     verify {
@@ -1546,7 +1571,7 @@ benchmarks! {
         let value_bytes = 0_u128.encode();
         let value_bytes_len = value_bytes.len();
         let pid_bytes = ProgramId::from(101).encode();
-        let _ = Gear::<T>::submit_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
+        let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
@@ -1610,7 +1635,7 @@ benchmarks! {
         let value_bytes = 0_u128.encode();
         let value_bytes_len = value_bytes.len();
         let pid_bytes = ProgramId::from(101).encode();
-        let _ = Gear::<T>::submit_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
+        let _ = Gear::<T>::upload_code_raw(RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(), module.code);
         let code = WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {

@@ -108,7 +108,17 @@ runtime_upgrade_test() {
 
 run_fuzzer() {
   ROOT_DIR="$1"
-  TARGET="$2"
+
+  for i in "${@:2}"; do
+    case $i in
+      *_fuzz_target)
+        TARGET="${i}"
+        ;;
+      *)
+        FEATURES="$FEATURES ${i}"
+        ;;
+    esac
+  done
 
   if [[ -z $TARGET ]]
   then
@@ -120,5 +130,5 @@ run_fuzzer() {
 
   # Run fuzzer
   RUST_LOG="essential,pallet_gear=debug,gear_core_processor::executor=debug,economic_checks=debug,gwasm=debug" \
-  cargo fuzz run --release --sanitizer=none $TARGET
+  cargo fuzz run --release "$FEATURES" --sanitizer=none "$TARGET"
 }

@@ -32,7 +32,6 @@ use gear_core::{
     program::Program as CoreProgram,
 };
 use gear_core_processor::common::ExecutableActorData;
-use gear_runtime::{Origin, Runtime, System};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -52,6 +51,12 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
+
+// Runtime variants
+#[cfg(feature = "gear-native")]
+use gear_runtime::{Origin, Runtime, System};
+#[cfg(all(feature = "vara-native", not(feature = "gear-native")))]
+use vara_runtime::{Origin, Runtime, System};
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -157,7 +162,7 @@ fn init_fixture(
                 )
             })?;
 
-            if let Err(e) = GearPallet::<Runtime>::submit_code(
+            if let Err(e) = GearPallet::<Runtime>::upload_code(
                 Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
                 code_bytes,
             ) {
@@ -191,7 +196,7 @@ fn init_fixture(
             }
         }
 
-        if let Err(e) = GearPallet::<Runtime>::submit_program(
+        if let Err(e) = GearPallet::<Runtime>::upload_program(
             Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
             program.id.to_program_id().as_ref().to_vec(),
