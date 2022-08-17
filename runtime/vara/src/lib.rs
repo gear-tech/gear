@@ -121,9 +121,10 @@ pub fn native_version() -> NativeVersion {
 /// RELEASE: This is only relevant for the initial PoA run-in period and will be removed
 /// from the release runtime.
 #[derive(Default, Encode, Debug, Decode, Clone, Eq, PartialEq, TypeInfo)]
-pub struct DisableBalancesCall;
-impl SignedExtension for DisableBalancesCall {
-    const IDENTIFIER: &'static str = "DisableBalancesCall";
+pub struct DisableValueTransfers;
+
+impl SignedExtension for DisableValueTransfers {
+    const IDENTIFIER: &'static str = "DisableValueTransfers";
     type AccountId = AccountId;
     type Call = Call;
     type AdditionalSigned = ();
@@ -504,7 +505,7 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
     // RELEASE: remove before final release
-    DisableBalancesCall,
+    DisableValueTransfers,
     frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
