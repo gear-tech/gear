@@ -36,8 +36,8 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 [dev-dependencies]
 hex-literal = "0.3.3"
 env_logger = "0.9"
-pallet-gear-gas = { path = "../gas", default-features = false }
-pallet-gear-messenger = { path = "../gear-messenger", default-features = false }
+pallet-gear-gas = { path = "../gas" }
+pallet-gear-messenger = { path = "../gear-messenger" }
 
 [features]
 default = ['std']
@@ -54,8 +54,6 @@ std = [
 	"sp-runtime/std",
 	"primitive-types/std",
 	"pallet-balances/std",
-	"pallet-gear-messenger/std",
-	"pallet-gear-gas/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

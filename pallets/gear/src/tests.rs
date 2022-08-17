@@ -841,6 +841,7 @@ fn restrict_start_section() {
     });
 }
 
+#[cfg(feature = "lazy-pages")]
 #[test]
 fn memory_access_cases() {
     // This test access different pages in wasm linear memory.
@@ -1079,7 +1080,7 @@ fn memory_access_cases() {
 #[cfg(feature = "lazy-pages")]
 #[test]
 fn lazy_pages() {
-    use gear_core::memory::PageNumber;
+    use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -1097,6 +1098,7 @@ fn lazy_pages() {
             i32.const 0x0
             i32.const 0x9
             call $alloc
+            ;; store alloc result to 0x0 addr, so 0 page will be already accessed in handle
             i32.store
         )
         (func $handle
@@ -1144,7 +1146,6 @@ fn lazy_pages() {
         };
 
         run_to_block(2, None);
-        log::debug!("submit done {:?}", pid);
         assert_last_dequeued(1);
 
         let res = GearPallet::<Test>::send_message(
@@ -1154,7 +1155,6 @@ fn lazy_pages() {
             10_000_000_000,
             1000,
         );
-        log::debug!("res = {:?}", res);
         assert_ok!(res);
 
         run_to_block(3, None);
@@ -1162,50 +1162,85 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let released_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_released_pages()
-            .iter()
-            .map(|p| PageNumber(*p))
-            .collect();
+        let released_pages: BTreeSet<u32> =
+            gear_ri::gear_ri::get_released_pages().into_iter().collect();
 
         // checks accessed pages set
         let native_size = page_size::get();
-        let mut expected_accessed = BTreeSet::new();
+        let mut expected_released = BTreeSet::new();
 
-        let page_to_accessed = |p: u32| {
-            if native_size > PageNumber::size() {
-                // `x` is number of gear pages in one native page for current host
-                let x = (native_size / PageNumber::size()) as u32;
-                // each native page contains several gear pages
-                let first_accessed_gear_page = (p / x) * x;
+        let page_to_released = |p: u32, is_first_access: bool| {
+            // is the minimum memory interval, which must be in storage for any page.
+            let granularity = if is_first_access {
+                PAGE_STORAGE_GRANULARITY
+            } else {
+                native_size
+            };
+            if granularity > PageNumber::size() {
+                // `x` is a number of gear pages in granularity
+                let x = (granularity / PageNumber::size()) as u32;
+                // is first gear page in granularity interval
+                let first_gear_page = (p / x) * x;
                 // accessed gear pages range:
-                first_accessed_gear_page..=first_accessed_gear_page + x - 1
+                first_gear_page..=first_gear_page + x - 1
             } else {
                 p..=p
             }
         };
 
-        // accessed from 0 wasm page:
-        expected_accessed.extend(page_to_accessed(0));
+        // released from 0 wasm page:
+        expected_released.extend(page_to_released(0, false));
 
-        // accessed from 2 wasm page, can be several gear and native pages:
+        // released from 2 wasm page:
         let first_page = (0x23ffe / PageNumber::size()) as u32;
         let second_page = (0x24001 / PageNumber::size()) as u32;
-        expected_accessed.extend(page_to_accessed(first_page));
-        expected_accessed.extend(page_to_accessed(second_page));
+        expected_released.extend(page_to_released(first_page, true));
+        expected_released.extend(page_to_released(second_page, true));
 
-        // accessed from 5 wasm page:
-        expected_accessed.extend(page_to_accessed((0x50000 / PageNumber::size()) as u32));
+        // nothing for 5 wasm page, because it's just read access
 
-        // accessed from 8 and 9 wasm pages, must be several gear pages:
+        // released from 8 and 9 wasm pages, must be several gear pages:
         let first_page = (0x8fffc / PageNumber::size()) as u32;
         let second_page = (0x90003 / PageNumber::size()) as u32;
-        expected_accessed.extend(page_to_accessed(first_page));
-        expected_accessed.extend(page_to_accessed(second_page));
+        expected_released.extend(page_to_released(first_page, true));
+        expected_released.extend(page_to_released(second_page, true));
 
-        assert_eq!(
-            released_pages,
-            expected_accessed.into_iter().map(PageNumber).collect()
+        assert_eq!(released_pages, expected_released);
+
+        // For second message handle we will touch the same memory, but because
+        // some pages are already in storage, then we can skip page storage granularity
+        // when uploads pages to storage, so released pages can be different.
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            1000,
         );
+        assert_ok!(res);
+
+        run_to_block(4, None);
+
+        let released_pages: BTreeSet<u32> =
+            gear_ri::gear_ri::get_released_pages().into_iter().collect();
+        let mut expected_released = BTreeSet::new();
+
+        // released from 0 wasm page:
+        expected_released.extend(page_to_released(0, false));
+
+        // released from 2 wasm page:
+        let first_page = (0x23ffe / PageNumber::size()) as u32;
+        let second_page = (0x24001 / PageNumber::size()) as u32;
+        expected_released.extend(page_to_released(first_page, false));
+        expected_released.extend(page_to_released(second_page, false));
+
+        // released from 8 and 9 wasm pages, must be several gear pages:
+        let first_page = (0x8fffc / PageNumber::size()) as u32;
+        let second_page = (0x90003 / PageNumber::size()) as u32;
+        expected_released.extend(page_to_released(first_page, false));
+        expected_released.extend(page_to_released(second_page, false));
+
+        assert_eq!(released_pages, expected_released);
     });
 }
 
@@ -4213,7 +4248,7 @@ fn execution_over_blocks() {
     };
 
     let estimate_gas_for_init_and_start = || -> (u64, u64) {
-        use demo_calc_hash::sha2_256;
+        use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
 
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
@@ -4240,7 +4275,7 @@ fn execution_over_blocks() {
 
         run_to_next_block(None);
 
-        let (src, id, expected) = ([1; 32], sha2_256(b"estimate_over_blocks"), 0);
+        let (src, id, expected) = ([1; 32], sha2_512_256(b"estimate_over_blocks"), 0);
 
         // Estimate start cost.
         let start_gas_wait = Gear::calculate_gas_info(
@@ -4332,7 +4367,7 @@ fn execution_over_blocks() {
     });
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash::sha2_256;
+        use demo_calc_hash::sha2_512_256;
         use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
 
@@ -4352,7 +4387,7 @@ fn execution_over_blocks() {
 
         assert!(program_exists(over_blocks.into_origin()));
 
-        let (src, id, expected) = ([0; 32], sha2_256(b"42"), 1024);
+        let (src, id, expected) = ([0; 32], sha2_512_256(b"42"), 1024);
 
         // trigger calculation
         assert_ok!(Gear::send_message(
@@ -5168,4 +5203,89 @@ mod utils {
             .and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok())
             .unwrap_or_default()
     }
+}
+
+#[test]
+fn check_gear_stack_end_fail() {
+    // This test checks, that in case user makes WASM file with incorrect
+    // `__gear_stack_end`, then execution will end with an error.
+    macro_rules! wat_template {
+        () => {
+            r#"
+            (module
+                (import "env" "memory" (memory 4))
+                (export "init" (func $init))
+                (func $init)
+                (global (;0;) (mut i32) (i32.const {}))
+                (export "__gear_stack_end" (global 0))
+            )"#
+        };
+    }
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Check error when stack end bigger then static mem size
+        let wat = format!(wat_template!(), "0x50000");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 1);
+
+        // Check error when stack end is negative
+        let wat = format!(wat_template!(), "-0x10000");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(3, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 2);
+
+        // Check error when stack end is not aligned
+        let wat = format!(wat_template!(), "0x10001");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(4, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 3);
+
+        // Check OK if stack end is suitable
+        let wat = format!(wat_template!(), "0x10000");
+        GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(5, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 3);
+    });
 }

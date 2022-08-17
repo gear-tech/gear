@@ -1,0 +1,38 @@
+name: Insert-node-keys
+
+on: [workflow_dispatch]
+
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  Deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Info
+        run: |
+          ls -l .
+          ls -l ../..
+          pwd
+
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          # Required, playbook filepath
+          directory: ./ansible/
+          playbook: insert-node-keys.yaml
+          # Optional, SSH private key
+          key: ${{secrets.SSH_PRIVATE_KEY}}
+          # Optional, literal inventory file contents
+          inventory: |
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+            ${{secrets.GEAR_NODE}} suri=${{secrets.GEAR_NODE_SURI}}
+            [nodes]
+            ${{secrets.GEAR_NODE_2}} suri=${{secrets.GEAR_NODE_2_SURI}}
+            ${{secrets.GEAR_NODE_4}} suri=${{secrets.GEAR_NODE_4_SURI}}
+            ${{secrets.GEAR_NODE_5}} suri=${{secrets.GEAR_NODE_5_SURI}}

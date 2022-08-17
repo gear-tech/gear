@@ -90,7 +90,7 @@ pub(crate) unsafe fn sys_mprotect_wasm_pages(
     _prot_write: bool,
     _prot_exec: bool,
 ) -> Result<(), MprotectError> {
-    log::error!("unsupported OS for pages protectection");
+    log::error!("unsupported OS for pages protection");
     Err(MprotectError::OsError)
 }
 
@@ -104,7 +104,7 @@ pub(crate) fn mprotect_pages_slice(
     let mprotect = |start: PageNumber, count, protect: bool| unsafe {
         let addr = mem_addr + (start.0 as usize * PageNumber::size()) as HostPointer;
         let size = count as usize * PageNumber::size();
-        sys_mprotect_interval(addr, size, !protect, !protect, false)
+        sys_mprotect_interval(addr as usize, size, !protect, !protect, false)
     };
 
     // Collects continuous intervals of memory from lazy pages to protect them.

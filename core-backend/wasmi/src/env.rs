@@ -29,19 +29,20 @@ use alloc::{
 };
 use core::fmt;
 use gear_backend_common::{
-    error_processor::IntoExtError, AsTerminationReason, BackendError, BackendReport, Environment,
-    IntoExtInfo, TerminationReason, TrapExplanation,
+    calc_stack_end, error_processor::IntoExtError, AsTerminationReason, BackendReport, Environment,
+    IntoExtInfo, StackEndError, TerminationReason, TrapExplanation, STACK_END_EXPORT_NAME,
 };
 use gear_core::{env::Ext, memory::WasmPageNumber, message::DispatchKind};
-use gear_core_errors::MemoryError;
 use wasmi::{
     memory_units::Pages, Externals, FuncInstance, FuncRef, GlobalDescriptor, GlobalRef,
     ImportResolver, MemoryDescriptor, MemoryInstance, MemoryRef, ModuleInstance, RuntimeArgs,
     RuntimeValue, Signature, TableDescriptor, TableRef, Trap,
 };
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum WasmiEnvironmentError {
+    #[display(fmt = "Failed to create env memory: {:?}", _0)]
+    CreateEnvMemory(wasmi::Error),
     #[display(fmt = "Unable to instantiate module: {:?}", _0)]
     ModuleInstantiation(wasmi::Error),
     #[display(fmt = "Unable to get wasm module exports: {}", _0)]
@@ -50,12 +51,10 @@ pub enum WasmiEnvironmentError {
     SetModuleMemoryData,
     #[display(fmt = "Unable to save static pages initial data")]
     SaveStaticPagesInitialData,
-    #[display(fmt = "Failed to create env memory: {:?}", _0)]
-    CreateEnvMemory(wasmi::Error),
-    #[display(fmt = "{}", _0)]
-    Memory(MemoryError),
     #[display(fmt = "{}", _0)]
     PreExecutionHandler(String),
+    #[from]
+    StackEnd(StackEndError),
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -196,7 +195,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             field_name.as_bytes().to_owned(),
         );
 
-        let externval = if self.forbidden_funcs.contains(field_name) {
+        let extern_val = if self.forbidden_funcs.contains(field_name) {
             self.map
                 .get(&(b"env".to_vec(), b"forbidden".to_vec()))
                 .ok_or_else(|| {
@@ -220,7 +219,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             })?
         };
 
-        let host_func_idx = match *externval {
+        let host_func_idx = match *extern_val {
             ExternVal::HostFunc(ref idx) => idx,
             _ => {
                 log::debug!(
@@ -255,7 +254,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             module_name.as_bytes().to_owned(),
             field_name.as_bytes().to_owned(),
         );
-        let externval = self.map.get(&key).ok_or_else(|| {
+        let extern_val = self.map.get(&key).ok_or_else(|| {
             log::debug!(
                 target: "gwasm",
                 "Memory export {}:{} not found",
@@ -264,7 +263,7 @@ impl<T, E> ImportResolver for EnvironmentDefinitionBuilder<T, E> {
             );
             wasmi::Error::Instantiation(String::new())
         })?;
-        let memory = match *externval {
+        let memory = match *extern_val {
             ExternVal::Memory(ref m) => m,
             _ => {
                 log::debug!(
@@ -305,11 +304,13 @@ where
         mem_size: WasmPageNumber,
         entry_point: &DispatchKind,
         pre_execution_handler: F,
-    ) -> Result<BackendReport<Self::Memory>, BackendError<Self::Error>>
+    ) -> Result<BackendReport<Self::Memory>, Self::Error>
     where
-        F: FnOnce(&mut Self::Memory) -> Result<(), T>,
+        F: FnOnce(&mut Self::Memory, Option<WasmPageNumber>) -> Result<(), T>,
         T: fmt::Display,
     {
+        use WasmiEnvironmentError::*;
+
         let mut builder = EnvironmentDefinitionBuilder::new(
             ext.forbidden_funcs()
                 .clone()
@@ -354,11 +355,7 @@ where
 
         let mem: MemoryRef = match MemoryInstance::alloc(Pages(mem_size.0 as usize), None) {
             Ok(mem) => mem,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: WasmiEnvironmentError::CreateEnvMemory(e),
-                })
-            }
+            Err(e) => return Err(CreateEnvMemory(e)),
         };
 
         builder.add_memory("env", "memory", mem.clone());
@@ -377,24 +374,24 @@ where
         let defined_host_functions = builder.defined_host_functions.clone();
         let module = match wasmi::Module::from_buffer(binary) {
             Ok(module) => module,
-            Err(e) => {
-                return Err(BackendError {
-                    reason: WasmiEnvironmentError::ModuleInstantiation(e),
-                })
-            }
+            Err(e) => return Err(ModuleInstantiation(e)),
         };
         let instance = match ModuleInstance::new(&module, &builder) {
             Ok(inst) => inst.not_started_instance().clone(),
-            Err(e) => {
-                return Err(BackendError {
-                    reason: WasmiEnvironmentError::ModuleInstantiation(e),
-                })
-            }
+            Err(e) => return Err(ModuleInstantiation(e)),
         };
 
-        pre_execution_handler(runtime.memory_wrap).map_err(|e| BackendError {
-            reason: WasmiEnvironmentError::PreExecutionHandler(e.to_string()),
-        })?;
+        let stack_end = instance
+            .export_by_name(STACK_END_EXPORT_NAME)
+            .and_then(|export| {
+                export
+                    .as_global()
+                    .and_then(|global| global.get().try_into::<i32>())
+            });
+        let stack_end_page = calc_stack_end(stack_end)?;
+
+        pre_execution_handler(runtime.memory_wrap, stack_end_page)
+            .map_err(|e| PreExecutionHandler(e.to_string()))?;
 
         let res = if entries.contains(entry_point) {
             let mut externals = GuestExternals {
@@ -429,28 +426,10 @@ where
             TerminationReason::Success
         };
 
-        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let stack_end_page = instance
-            .export_by_name("__gear_stack_end")
-            .and_then(|export| {
-                export.as_global().and_then(|global| {
-                    global.get().try_into::<i32>().and_then(|addr| {
-                        if addr < 0 {
-                            None
-                        } else {
-                            Some(WasmPageNumber(
-                                (addr as usize / WasmPageNumber::size()) as u32,
-                            ))
-                        }
-                    })
-                })
-            });
-
         drop(instance);
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap,
-            stack_end_page,
         })
     }
 }

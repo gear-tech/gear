@@ -19,90 +19,136 @@
 //! Lazy pages support.
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
-//! During execution data from storage is loaded for all pages, which has been accesed.
+//! During execution data from storage is loaded for all pages, which has been accessed.
 //! See also `sys::user_signal_handler` in the source code.
 //!
-//! Restrict any page handling in signal handler more then one time.
-//! If some page will be released twice it means, that this page has been added
-//! to lazy pages more then one time during current execution.
-//! This situation may cause problems with memory data update in storage.
-//! For example: one page has no data in storage, but allocated for current program.
-//! Let's make some action for it:
-//! 1) Change data in page: Default data  ->  Data1
-//! 2) Free page
-//! 3) Alloc page, data will Data2 (may be equal Data1).
-//! 4) After alloc we can set page as lazy, to identify wether page is changed after allocation.
-//! This means that we can skip page update in storage in case it wasnt changed after allocation.
-//! 5) Write some data in page but do not change it Data2 -> Data2.
-//! During this step signal handler writes Data2 as data for released page.
-//! 6) After execution we will have Data2 in page. And Data2 in released. So, nothing will be updated
-//! in storage. But program may have some significant data for next execution - so we have a bug.
-//! To avoid this we restrict double releasing.
-//! You can also check another cases in test: memory_access_cases.
+//! Currently we restrict twice write signal from same page during one execution.
+//! It's not necessary behavior, but more simple and safe.
 
 // TODO: remove all deprecated code before release (issue #1147)
-
 #![allow(useless_deprecated, deprecated)]
 
-use gear_core::memory::{HostPointer, PageBuf, PageNumber, WasmPageNumber};
+use gear_core::memory::{PageBuf, PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY};
 use sp_std::vec::Vec;
-use std::{cell::RefCell, collections::BTreeMap};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    convert::TryFrom,
+};
 
+mod deprecated;
 mod sys;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
     #[display(fmt = "WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
+    #[display(fmt = "WASM memory size is not set")]
+    WasmMemSizeIsNotSet,
+    #[display(fmt = "Overflow of address arithmetic operation")]
+    AddrArithOverflow,
+    #[display(fmt = "Program pages prefix in storage is not set")]
+    ProgramPrefixIsNotSet,
     #[display(
-        fmt = "Exception is from unknown memory (WASM {:#x} > native page {:x})",
-        wasm_mem_begin,
-        native_page
+        fmt = "Signal is from unknown memory: {:#x} not in [{:#x}, {:#x})",
+        addr,
+        wasm_mem_addr,
+        wasm_mem_end_addr
     )]
     SignalFromUnknownMemory {
-        wasm_mem_begin: usize,
-        native_page: usize,
+        addr: usize,
+        wasm_mem_addr: usize,
+        wasm_mem_end_addr: usize,
     },
     #[display(
-        fmt = "Page data must contain {} bytes, actually has {}",
+        fmt = "Signal addr {:#x} is from WASM program virtual stack memory [0, {:#x})",
+        wasm_addr,
+        stack_end
+    )]
+    SignalFromStackMemory {
+        wasm_addr: WasmAddr,
+        stack_end: WasmAddr,
+    },
+    #[display(
+        fmt = "Accessed pages do not lay in WASM memory: [{:#x}, {:#x}) not in [{:#x}, {:#x})",
+        begin_addr,
+        end_addr,
+        wasm_mem_addr,
+        wasm_mem_end_addr
+    )]
+    AccessedIntervalNotLiesInWasmBuffer {
+        begin_addr: usize,
+        end_addr: usize,
+        wasm_mem_addr: usize,
+        wasm_mem_end_addr: usize,
+    },
+    #[display(
+        fmt = "Page data in storage must contain {} bytes, actually has {}",
         expected,
         actual
     )]
-    InvalidPageSize { expected: usize, actual: u32 },
-    #[display(fmt = "Exception is from unknown memory: addr = {:?}, {:?}", _0, _1)]
-    LazyPageNotExistForSignalAddr(*const (), PageNumber),
-    /// Found a signal from same page twice - see more in head comment.
-    #[display(fmt = "Page cannot be release page twice: {:?}", _0)]
+    InvalidPageDataSize { expected: usize, actual: u32 },
+    /// Found a write signal from same page twice - see more in head comment.
+    #[display(fmt = "Any page cannot be released twice: {:?}", _0)]
     DoubleRelease(PageNumber),
     #[display(fmt = "Protection error: {}", _0)]
     #[from]
     MemoryProtection(region::Error),
+
+    #[deprecated]
+    #[display(fmt = "Signal addr {:#x} is less then {:#x}", addr, wasm_mem_addr)]
+    SignalAddrIsLessThenWasmMemAddr { addr: usize, wasm_mem_addr: usize },
+    #[deprecated]
+    #[display(fmt = "Exception is from unknown memory: addr = {:?}, {:?}", _0, _1)]
+    LazyPageNotExistForSignalAddr(*const (), PageNumber),
+}
+
+pub(crate) type WasmAddr = u32;
+
+#[derive(Clone, Copy)]
+pub enum LazyPagesVersion {
+    Version1,
+    Version2,
 }
 
 #[derive(Default, PartialEq, Eq)]
 pub(crate) struct LazyPagesExecutionContext {
     /// Pointer to the begin of wasm memory buffer
-    pub wasm_mem_addr: Option<HostPointer>,
+    pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: Option<usize>,
+    pub wasm_mem_size: Option<u32>,
     /// Current program prefix in storage
     pub program_storage_prefix: Option<Vec<u8>>,
-    /// Page data, which has been in storage before current execution.
-    /// For each lazy page, which has been accessed.
-    pub released_lazy_pages: BTreeMap<PageNumber, Option<PageBuf>>,
+    /// Wasm addresses of lazy pages, that have been read or write accessed at least once.
+    /// Lazy page here is page, which has `size = max(native_page_size, gear_page_size)`.
+    pub accessed_pages_addrs: BTreeSet<WasmAddr>,
+    /// End of stack wasm address. Default is `0`, which means,
+    /// that wasm data has no stack region. It's not necessary to specify
+    /// this value, `lazy pages` uses it to identify memory, for which we
+    /// can skip processing and this memory won't be protected. So, pages
+    /// which lies before this value will never get into `released_pages`,
+    /// which means that they will never be updated in storage.
+    pub stack_end_wasm_addr: WasmAddr,
+    /// Gear pages, which has been write accessed.
+    pub released_pages: BTreeSet<PageNumber>,
 
     #[deprecated]
     /// Keys in storage for each lazy page.
     pub lazy_pages_info: BTreeMap<PageNumber, Vec<u8>>,
+    #[deprecated]
+    /// Released lazy pages and their data before execution.
+    pub released_lazy_pages: BTreeMap<PageNumber, Option<PageBuf>>,
 }
 
 thread_local! {
     // NOTE: here we suppose, that each contract is executed in separate thread.
     // Or may be in one thread but consequentially.
 
-    /// Identify whether signal handler is set for current thread
+    /// Identify whether signal handler is set for current thread.
     static LAZY_PAGES_ENABLED: RefCell<bool> = RefCell::new(false);
-    /// Lazy pages context for current execution
+    /// Lazy pages impl version. Different runtimes may require different impl of lazy pages functionality.
+    static LAZY_PAGES_VERSION: RefCell<LazyPagesVersion> = RefCell::new(LazyPagesVersion::Version1);
+    /// Lazy pages context for current execution.
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
 }
 
@@ -111,25 +157,88 @@ pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().lazy_pages_info.keys().copied().collect())
 }
 
-/// Returns current wasm mem buffer pointer, if it's set
-pub fn get_wasm_mem_addr() -> Option<HostPointer> {
+#[derive(Debug, derive_more::Display)]
+pub enum InitializeForProgramError {
+    #[display(
+        fmt = "WASM memory native address {:#x} is not aligned to the native page size",
+        _0
+    )]
+    WasmMemAddrIsNotAligned(usize),
+    #[display(fmt = "WASM memory size {:?} is bigger than u32::MAX bytes", _0)]
+    WasmMemSizeBiggerThenU32Max(WasmPageNumber),
+    #[display(fmt = "WASM stack end addr {:?} > wasm mem size {:?}", _0, _1)]
+    StackEndAddrBiggerThenSize(WasmPageNumber, WasmPageNumber),
+}
+
+pub fn initialize_for_program(
+    wasm_mem_addr: Option<usize>,
+    wasm_mem_size: WasmPageNumber,
+    stack_end_page: Option<WasmPageNumber>,
+    program_prefix: Vec<u8>,
+) -> Result<(), InitializeForProgramError> {
+    use InitializeForProgramError::*;
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let mut ctx = ctx.borrow_mut();
+        ctx.accessed_pages_addrs.clear();
+        ctx.released_pages.clear();
+
+        ctx.wasm_mem_addr = if let Some(addr) = wasm_mem_addr {
+            if addr % region::page::size() != 0 {
+                return Err(WasmMemAddrIsNotAligned(addr));
+            }
+            Some(addr)
+        } else {
+            None
+        };
+
+        let size_in_bytes = u32::try_from(wasm_mem_size.offset())
+            .map_err(|_| WasmMemSizeBiggerThenU32Max(wasm_mem_size))?;
+        ctx.wasm_mem_size = Some(size_in_bytes);
+
+        ctx.stack_end_wasm_addr = if let Some(page) = stack_end_page {
+            if page > wasm_mem_size {
+                return Err(StackEndAddrBiggerThenSize(page, wasm_mem_size));
+            }
+            // `as u32` is safe, because page is less then mem size
+            page.offset() as u32
+        } else {
+            0
+        };
+
+        ctx.program_storage_prefix = Some(program_prefix);
+        Ok(())
+    })
+}
+
+/// Set end of stack addr in wasm memory.
+pub fn set_stack_end_wasm_addr(stack_end_wasm_addr: WasmAddr) {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow_mut().stack_end_wasm_addr = stack_end_wasm_addr);
+}
+
+/// Returns end of stack address in wasm memory.
+pub fn get_stack_end_wasm_addr() -> WasmAddr {
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().stack_end_wasm_addr)
+}
+
+/// Returns current wasm mem buffer pointer, if it's set.
+pub fn get_wasm_mem_addr() -> Option<usize> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_addr)
 }
 
 /// Returns current wasm mem buffer size, if it's set
-pub fn get_wasm_mem_size() -> Option<usize> {
+pub fn get_wasm_mem_size() -> Option<u32> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_size)
 }
 
 /// Set current wasm memory begin addr in global context
-pub fn set_wasm_mem_begin_addr(wasm_mem_addr: HostPointer) {
+pub fn set_wasm_mem_begin_addr(wasm_mem_addr: usize) {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let _ = ctx.borrow_mut().wasm_mem_addr.insert(wasm_mem_addr);
     });
 }
 
 /// Set current wasm memory size in global context
-pub fn set_wasm_mem_size(wasm_mem_size: usize) {
+pub fn set_wasm_mem_size(wasm_mem_size: u32) {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let _ = ctx.borrow_mut().wasm_mem_size.insert(wasm_mem_size);
     });
@@ -142,7 +251,30 @@ pub fn reset_context() {
 
 /// Returns vec of lazy pages which has been accessed
 pub fn get_released_pages() -> Vec<PageNumber> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_lazy_pages.keys().copied().collect())
+    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
+}
+
+/// TODO: remove this after current test-net chain will be dropped (issue #1317).
+/// This patch solves the problem for block `#866245`, see more in issue.
+pub fn get_released_pages_patched() -> Vec<PageNumber> {
+    LAZY_PAGES_CONTEXT.with(|ctx| {
+        let ctx = ctx.borrow_mut();
+        if ctx.program_storage_prefix.as_ref().unwrap()
+            == &vec![
+                103, 58, 58, 112, 97, 103, 101, 115, 58, 58, 37, 234, 245, 189, 198, 95, 86, 8,
+                181, 243, 151, 188, 58, 173, 35, 83, 155, 213, 81, 68, 52, 30, 26, 95, 37, 155,
+                148, 43, 94, 120, 61, 188, 58, 58,
+            ]
+        {
+            ctx.released_pages
+                .iter()
+                .copied()
+                .filter(|&p| p.0 != 259)
+                .collect()
+        } else {
+            ctx.released_pages.iter().copied().collect()
+        }
+    })
 }
 
 /// Returns whether lazy pages env is enabled
@@ -155,7 +287,7 @@ pub fn is_enabled() -> bool {
 pub fn set_lazy_page_info(page: PageNumber, key: &[u8]) {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
-        let page_end = page.offset() + PageNumber::size();
+        let page_end = (page.offset() + PageNumber::size()) as u32;
         let need_replace_size = ctx
             .wasm_mem_size
             .map(|size| size < page_end)
@@ -171,7 +303,7 @@ pub fn set_lazy_page_info(page: PageNumber, key: &[u8]) {
 /// Set lazy pages info and program `pages` `prefix` in global context
 pub fn append_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
     let max_page = pages.iter().max().copied().unwrap_or(0);
-    let end_offset = (max_page + 1) as usize * PageNumber::size();
+    let end_offset = ((max_page + 1) as usize * PageNumber::size()) as u32;
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
 
@@ -197,8 +329,19 @@ pub fn set_program_prefix(prefix: Vec<u8>) {
 }
 
 /// Returns data for released `page`
+#[deprecated]
 pub fn get_released_page_data(page: PageNumber) -> Option<PageBuf> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow_mut().released_lazy_pages.get_mut(&page)?.take())
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum InitError {
+    #[display(fmt = "Initial context is not in default state before initialization")]
+    InitialContextIsNotDefault,
+    #[display(fmt = "Native page size {:#x} is not suitable for lazy pages", _0)]
+    NativePageSizeIsNotSuitable(usize),
+    #[display(fmt = "Can not set signal handler: {}", _0)]
+    CanNotSetUpSignalHandler(String),
 }
 
 /// Initialize lazy pages:
@@ -207,34 +350,47 @@ pub fn get_released_page_data(page: PageNumber) -> Option<PageBuf> {
 ///
 /// # Safety
 /// See [`sys::setup_signal_handler`]
-pub unsafe fn init() -> bool {
+unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
+    use InitError::*;
+
+    // Set version even if it has been already set, because `on_idle` calls can be
+    // in the same thread, even after runtime upgrade, which can change version.
+    LAZY_PAGES_VERSION.with(|v| *v.borrow_mut() = version);
+
     if LAZY_PAGES_ENABLED.with(|x| *x.borrow()) {
-        log::trace!("Lazy-pages has been already enabled");
-        return true;
+        log::trace!("Lazy-pages has been already enabled for current thread");
+        return Ok(());
     }
 
     if LAZY_PAGES_CONTEXT.with(|ctx| *ctx.borrow() != LazyPagesExecutionContext::default()) {
-        log::error!("Lazy pages context has not default values before lazy pages initialization");
-        return false;
+        return Err(InitialContextIsNotDefault);
     }
 
     let ps = region::page::size();
-    if ps > WasmPageNumber::size()
-        || WasmPageNumber::size() % ps != 0
+    if ps > PAGE_STORAGE_GRANULARITY
+        || PAGE_STORAGE_GRANULARITY % ps != 0
         || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
         || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
     {
-        log::error!("Unsupported native pages size: {:#x}", ps);
-        return false;
+        return Err(NativePageSizeIsNotSuitable(ps));
     }
 
     if let Err(err) = sys::setup_signal_handler() {
-        log::error!("Failed to setup kernel signal handler: {}", err);
-        return false;
+        return Err(CanNotSetUpSignalHandler(err.to_string()));
     }
 
-    log::debug!("Lazy pages are successfully enabled");
     LAZY_PAGES_ENABLED.with(|x| *x.borrow_mut() = true);
 
-    true
+    Ok(())
+}
+
+/// Initialize lazy pages for current thread.
+pub fn init(version: LazyPagesVersion) -> bool {
+    if let Err(err) = unsafe { init_internal(version) } {
+        log::debug!("Cannot initialize lazy pages: {}", err);
+        false
+    } else {
+        log::debug!("Successfully enables lazy pages for current thread");
+        true
+    }
 }
