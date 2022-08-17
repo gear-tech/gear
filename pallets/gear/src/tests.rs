@@ -2435,6 +2435,68 @@ fn test_message_processing_for_non_existing_destination() {
 }
 
 #[test]
+#[should_panic] // to be deleted within the PR
+fn exit_locking_funds() {
+    use demo_exit_handle_sender::{Input, WASM_BINARY as EXIT_HANDLE_SENDER_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            EXIT_HANDLE_SENDER_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            50_000_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+
+        assert!(Gear::is_initialized(program_id));
+
+        assert_balance(program_id, 0u128, 0u128);
+
+        let value = 1_000;
+
+        let payload = Input::SendMessage {
+            destination: program_id.into_origin().into(),
+            payload: vec![],
+            value,
+        };
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload.encode(),
+            1_000_000_000,
+            value
+        ));
+        let message_1 = utils::get_last_message_id();
+
+        let payload = Input::Exit(USER_2.into_origin().into());
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload.encode(),
+            1_000_000_000,
+            0
+        ));
+        let message_2 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_1);
+        assert_succeed(message_2);
+
+        assert_balance(USER_2, user_2_balance + value, 0u128);
+        assert_balance(program_id, 0u128, 0u128);
+    });
+}
+
+#[test]
 fn exit_init() {
     use demo_exit_init::WASM_BINARY;
 

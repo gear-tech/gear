@@ -174,7 +174,7 @@ where
                 balance,
                 ExistenceRequirement::AllowDeath,
             )
-            .expect("balance is not zero; should not fail");
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
         }
     }
 

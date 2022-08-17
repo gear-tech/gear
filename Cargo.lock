@@ -1359,6 +1359,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-exit-handle-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-exit-init"
 version = "0.1.0"
 dependencies = [
@@ -5028,6 +5037,7 @@ dependencies = [
  "demo-compose",
  "demo-distributor",
  "demo-exit-handle",
+ "demo-exit-handle-sender",
  "demo-exit-init",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
