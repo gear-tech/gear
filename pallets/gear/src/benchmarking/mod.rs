@@ -46,11 +46,11 @@ use core_processor::{
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
-use gear_common_lazy_pages as lazy_pages;
 use gear_core::{
     ids::{MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
 };
+use gear_lazy_pages_common as lazy_pages;
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_aura::{Slot, AURA_ENGINE_ID};
 use sp_core::H256;

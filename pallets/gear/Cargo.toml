@@ -22,7 +22,7 @@ derive_more = "0.99.17"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-gear-common-lazy-pages = { path = "../../common/lazy-pages", default-features = false, optional = true }
+gear-lazy-pages-common = { path = "../../common/lazy-pages", default-features = false, optional = true }
 core-processor = { package = "gear-core-processor", path = "../../core-processor", default-features = false }
 gear-core = { path = "../../core", default-features = false }
 gear-core-errors = { path = "../../core-errors", default-features = false }
@@ -102,7 +102,7 @@ std = [
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
-	"gear-common-lazy-pages?/std",
+	"gear-lazy-pages-common?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -115,4 +115,4 @@ runtime-benchmarks = [
 	"rand_pcg",
 ]
 try-runtime = ["frame-support/try-runtime"]
-lazy-pages = ["gear-common-lazy-pages"]
+lazy-pages = ["gear-lazy-pages-common"]

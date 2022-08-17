@@ -22,7 +22,6 @@ use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
     TrapExplanation,
 };
-use gear_common_lazy_pages as lazy_pages;
 use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
@@ -31,6 +30,7 @@ use gear_core::{
     message::{ExitCode, HandlePacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_lazy_pages_common as lazy_pages;
 use sp_std::collections::btree_map::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]

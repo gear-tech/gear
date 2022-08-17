@@ -138,7 +138,7 @@ pub mod pallet {
     use core_processor::Ext;
 
     #[cfg(feature = "lazy-pages")]
-    use gear_common_lazy_pages as lazy_pages;
+    use gear_lazy_pages_common as lazy_pages;
 
     use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;

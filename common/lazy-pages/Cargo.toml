@@ -1,5 +1,5 @@
 [package]
-name = "gear-common-lazy-pages"
+name = "gear-lazy-pages-common"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"

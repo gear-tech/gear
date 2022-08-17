@@ -2549,18 +2549,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-common-lazy-pages"
-version = "0.1.0"
-dependencies = [
- "derive_more",
- "gear-common",
- "gear-core",
- "gear-runtime-interface",
- "log",
- "sp-std",
-]
-
-[[package]]
 name = "gear-core"
 version = "0.1.0"
 dependencies = [
@@ -2618,6 +2606,18 @@ dependencies = [
  "sp-std",
  "static_assertions",
  "winapi",
+]
+
+[[package]]
+name = "gear-lazy-pages-common"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "gear-common",
+ "gear-core",
+ "gear-runtime-interface",
+ "log",
+ "sp-std",
 ]
 
 [[package]]
@@ -5046,10 +5046,10 @@ dependencies = [
  "gear-backend-common",
  "gear-backend-sandbox",
  "gear-common",
- "gear-common-lazy-pages",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-interface",
  "log",
  "page_size",
