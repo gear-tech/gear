@@ -390,8 +390,6 @@ pub mod pallet {
         FailedToConstructProgram,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
-        /// Value is not zero.
-        ValueNotZero,
         /// Unable to instrument program code.
         GasInstrumentationFailed,
         /// No code could be found at the supplied code hash.
@@ -1367,10 +1365,11 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Value transfer prohibited.
+            // Checking that applied value fits existence requirements:
+            // it should be zero or not less than existential deposit.
             ensure!(
-                value.is_zero(),
-                Error::<T>::ValueNotZero
+                value.is_zero() || value >= CurrencyOf::<T>::minimum_balance(),
+                Error::<T>::ValueLessThanMinimal
             );
 
             Ok(())

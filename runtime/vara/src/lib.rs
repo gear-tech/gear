@@ -52,7 +52,7 @@ use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdLookup, BlakeTwo256, Block as BlockT, DispatchInfoOf, NumberFor, OpaqueKeys,
-        SignedExtension,
+        SignedExtension, Zero,
     },
     transaction_validity::{
         InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
@@ -118,7 +118,7 @@ pub fn native_version() -> NativeVersion {
 
 /// Disallow balances transfer
 ///
-/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
+/// RELEASE: This is only relevant for the initial PoA run-in period and will be removed
 /// from the release runtime.
 #[derive(Default, Encode, Debug, Decode, Clone, Eq, PartialEq, TypeInfo)]
 pub struct DisableBalancesCall;
@@ -140,6 +140,16 @@ impl SignedExtension for DisableBalancesCall {
     ) -> TransactionValidity {
         match call {
             Call::Balances(_) => Err(TransactionValidityError::Invalid(InvalidTransaction::Call)),
+            Call::Gear(pallet_gear::Call::create_program { value, .. })
+            | Call::Gear(pallet_gear::Call::upload_program { value, .. })
+            | Call::Gear(pallet_gear::Call::send_message { value, .. })
+            | Call::Gear(pallet_gear::Call::send_reply { value, .. }) => {
+                if value.is_zero() {
+                    Ok(Default::default())
+                } else {
+                    Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+                }
+            }
             _ => Ok(Default::default()),
         }
     }
