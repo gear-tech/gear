@@ -172,7 +172,7 @@ impl MessageId {
         hash(&argument).into()
     }
 
-    /// Generate MessageId for reply message depent on exit code
+    /// Generate MessageId for reply message depend on exit code
     pub fn generate_reply(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
         let unique_flag = b"reply";
 

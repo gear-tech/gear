@@ -46,9 +46,12 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
     let addr = (*exception_record).ExceptionInformation[1];
     let info = ExceptionInfo {
         fault_addr: addr as *mut _,
+        is_write: None,
     };
 
-    super::user_signal_handler(info).expect("Memory exception handler");
+    super::user_signal_handler(info)
+        .map_err(|err| err.to_string())
+        .expect("Memory exception handler failed");
 
     EXCEPTION_CONTINUE_EXECUTION
 }

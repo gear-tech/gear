@@ -22,7 +22,7 @@
 //! we need to generate programs that perform those events.
 //! Because those programs can get very big we cannot simply define
 //! them as text (.wat) as this will be too slow and consume too much memory. Therefore
-//! we define this simple definition of a program that can be passed to `submit_code` that
+//! we define this simple definition of a program that can be passed to `upload_code` that
 //! compiles it down into a `WasmModule` that can be used as a program's code.
 
 use crate::Config;
@@ -50,7 +50,7 @@ pub enum Location {
     Handle,
 }
 
-/// Pass to `submit_code` in order to create a compiled `WasmModule`.
+/// Pass to `upload_code` in order to create a compiled `WasmModule`.
 ///
 /// This exists to have a more declarative way to describe a wasm module than to use
 /// parity-wasm directly. It is tailored to fit the structure of programs that are

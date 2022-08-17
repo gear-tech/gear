@@ -3,6 +3,7 @@ name = "gear-runtime"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
+build = "build.rs"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
@@ -50,15 +51,17 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 hex-literal = { version = "0.3.4", optional = true }
 
 # Internal deps
-pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../pallets/gear-scheduler" }
-pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../pallets/gear-messenger" }
-pallet-gear-program = { version = "2.0.0", default-features = false, path = "../pallets/gear-program" }
-pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/gear" }
-pallet-gear-debug = { version = "2.0.0", default-features = false, path = "../pallets/gear-debug", optional = true }
-pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../pallets/gas" }
-pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../pallets/payment" }
-pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../pallets/gear/rpc/runtime-api" }
-gear-common = { version = "0.1.0", default-features = false, path = "../common" }
+runtime-common = { package = "gear-runtime-common", version = "0.1.0", default-features = false, path = "../common" }
+pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../../pallets/gear-scheduler" }
+pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../../pallets/gear-messenger" }
+pallet-gear-program = { version = "2.0.0", default-features = false, path = "../../pallets/gear-program" }
+pallet-gear = { version = "2.0.0", default-features = false, path = "../../pallets/gear" }
+pallet-gear-debug = { version = "2.0.0", default-features = false, path = "../../pallets/gear-debug", optional = true }
+pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../../pallets/gas" }
+pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../../pallets/payment" }
+pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
+gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
+gear-node-primitives = { version = "1.0.0", default-features = false, path = "../../node/primitives" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -83,12 +86,14 @@ std = [
 	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"gear-common/std",
+	"gear-node-primitives/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-utility/std",
+	"runtime-common/std",
 	"scale-info/std",
 	"sp-api/std",
 	"sp-block-builder/std",

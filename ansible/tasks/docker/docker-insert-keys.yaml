@@ -1,0 +1,22 @@
+---
+#Insert keys on docker-compose
+
+- name: Copy docker-compose
+  template:
+    src: docker-compose-insert-keys.yaml.j2
+    dest: /home/ec2-user/docker-compose-insert-keys.yaml
+
+- name: Stop docker-compose
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+  become: yes
+
+- name: Run docker-compose-insert-keys
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose-insert-keys.yaml" up
+  become: yes
+
+- name: Run docker-compose
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" up -d
+  become: yes

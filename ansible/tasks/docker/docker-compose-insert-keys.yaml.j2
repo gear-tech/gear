@@ -1,0 +1,16 @@
+version: '3'
+services:
+  gear:
+    user: root
+    ports:
+      - "30333:30333"
+      - "9933:9933"
+      - "9944:9944"
+      - "9615:9615"
+    image: ghcr.io/gear-tech/node:latest
+    volumes:
+      - "/home/ec2-user/gear-data/:/gear/"
+    command: bash -c 'gear-node key insert -d /gear/ --key-type gran --scheme ed25519 --suri {{ suri }} && gear-node key insert -d /gear/ --key-type aura --scheme ed25519 --suri {{ suri }}'
+
+volumes:
+  gear-data:

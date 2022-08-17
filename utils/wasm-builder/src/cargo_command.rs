@@ -35,9 +35,15 @@ impl CargoCommand {
     /// Create a new `CargoCommand`.
     pub fn new() -> Self {
         CargoCommand {
-            path: "cargo".to_string(),
+            path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
-            args: vec!["+nightly", "rustc", "--target=wasm32-unknown-unknown"],
+            args: vec![
+                "run",
+                "nightly",
+                "cargo",
+                "rustc",
+                "--target=wasm32-unknown-unknown",
+            ],
             profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
             target_dir: "target".into(),
