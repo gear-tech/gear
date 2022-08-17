@@ -3,12 +3,12 @@
   "id": "vara_staging_testnet",
   "chainType": "Live",
   "bootNodes": [
-    "/dns4/ec2-50-18-67-143.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWBWFtZqigVTC8W2GRMwLeuTK2o4hDC4XHVPyNV6hW1T1D",
-    "/dns4/ec2-54-183-230-232.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWRf7vAr79yAyDxGvYAdSqhh2EoeWe35Lx4QH4N6XMv2gH",
-    "/dns4/ec2-54-215-37-66.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWEVvqVD2mrLfmgeX1EXZ2caFXXEWWEs4Taa4mWzFUoF34",
-    "/dns4/ec2-3-101-21-213.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWSf2d69w7RYKtj9mgYpLDs3rqLAz9GHNSHHoCQDLUjeiP",
-    "/dns4/ec2-54-153-114-109.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWSf2d69w7RYKtj9mgYpLDs3rqLAz9GHNSHHoCQDLUjeiP",
-    "/dns4/ec2-52-53-151-206.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWSf2d69w7RYKtj9mgYpLDs3rqLAz9GHNSHHoCQDLUjeiP"
+    "/dns4/ec2-50-18-67-143.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWLyfgFSnm9CVaQTrZDqhBkLrRriPi9tPZSsps46FW2gZs",
+    "/dns4/ec2-54-183-230-232.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWLrzg5UMN9sGyACv5tq5QWjh5gyArga9aL8R3ns7DucBH",
+    "/dns4/ec2-54-215-37-66.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWAJDc4mPixLfTZFfaa4upCRbjw9uawr82Qd9FuEPGUHag",
+    "/dns4/ec2-3-101-21-213.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWJHbU1FKuzpciDhqHqZ922fyXxy7imDSvy46WYgynVVZv",
+    "/dns4/ec2-54-153-114-109.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWKrqWcnC9TSAXxGbo9ekdwPspDhqzWSDr4ciMH7xtZp1H",
+    "/dns4/ec2-52-53-151-206.us-west-1.compute.amazonaws.com/tcp/30333/p2p/12D3KooWKHPuceJGuKGHS1nhuEyuJ8Gmh479GCRHdZFoWDAC9WYG"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,
