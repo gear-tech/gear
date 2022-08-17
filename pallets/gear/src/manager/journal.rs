@@ -166,7 +166,7 @@ where
             .expect("`exit` can be called only from active program; qed");
 
         let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
-        let balance = CurrencyOf::<T>::total_balance(program_account);
+        let balance = CurrencyOf::<T>::free_balance(program_account);
         if !balance.is_zero() {
             CurrencyOf::<T>::transfer(
                 program_account,
