@@ -295,6 +295,9 @@ where
             .saturating_add(CostsPerBlockOf::<T>::reserve_for());
 
         // The block number, which was the last payed for hold.
+        //
+        // Outdated tasks can store for free, but this case is under
+        // control of correct `ReserveFor` constant set.
         let payed_till = current.min(deadline);
 
         // Holding duration.
