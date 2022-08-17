@@ -231,6 +231,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
     fn generate_opt(from: PathBuf, to: &Path) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
         optimizer.insert_stack_and_export();
+        optimizer.strip_custom_sections();
         let code = optimizer.optimize()?;
         fs::write(to, code)?;
         Ok(())
@@ -239,6 +240,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
     fn generate_meta(from: PathBuf, to: &Path) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
         optimizer.insert_stack_and_export();
+        optimizer.strip_custom_sections();
         let code = optimizer.metadata()?;
         fs::write(to, code)?;
         Ok(())
