@@ -1963,6 +1963,47 @@ fn claim_value_works() {
 }
 
 #[test]
+fn uninitialized_program_zero_gas() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            Vec::new(),
+            50_000_000_000u64,
+            0u128
+        ));
+
+        let init_message_id = utils::get_last_message_id();
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+
+        run_to_block(2, None);
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+        assert!(WaitlistOf::<Test>::contains(&program_id, &init_message_id));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(1),
+            program_id,
+            vec![],
+            0, // that may trigger unreachable code
+            0,
+        ));
+
+        run_to_block(3, None);
+    })
+}
+
+#[test]
 fn distributor_initialize() {
     init_logger();
     new_test_ext().execute_with(|| {
