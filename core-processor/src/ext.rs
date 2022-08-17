@@ -77,7 +77,7 @@ pub trait ProcessorExt {
     /// An error issues in processor
     type Error: fmt::Display;
     /// Whether this extension works with lazy pages.
-    const IS_LAZY_PAGES_ENABLED: bool;
+    const LAZY_PAGES_ENABLED: bool;
 
     /// Create new
     fn new(context: ProcessorContext) -> Self;
@@ -175,7 +175,7 @@ pub struct Ext {
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExt for Ext {
     type Error = ExtError;
-    const IS_LAZY_PAGES_ENABLED: bool = false;
+    const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
         Self {

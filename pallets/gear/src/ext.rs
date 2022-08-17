@@ -128,7 +128,7 @@ impl IntoExtInfo for LazyPagesExt {
 
 impl ProcessorExt for LazyPagesExt {
     type Error = Error;
-    const IS_LAZY_PAGES_ENABLED: bool = true;
+    const LAZY_PAGES_ENABLED: bool = true;
 
     fn new(context: ProcessorContext) -> Self {
         Self {
