@@ -151,7 +151,7 @@ macro_rules! signed_payload {
     $custom_ext:ident
     ) => {
         let $extra: runtime::SignedExtra = (
-            runtime::DisableBalancesCall,
+            runtime::DisableValueTransfers,
             frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
             frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
             frame_system::CheckTxVersion::<runtime::Runtime>::new(),
