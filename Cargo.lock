@@ -2525,7 +2525,6 @@ dependencies = [
  "frame-system",
  "gear-common-codegen",
  "gear-core",
- "gear-runtime-interface",
  "hex-literal",
  "log",
  "parity-scale-codec",
@@ -2607,6 +2606,18 @@ dependencies = [
  "sp-std",
  "static_assertions",
  "winapi",
+]
+
+[[package]]
+name = "gear-lazy-pages-common"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "gear-common",
+ "gear-core",
+ "gear-runtime-interface",
+ "log",
+ "sp-std",
 ]
 
 [[package]]
@@ -5038,6 +5049,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-interface",
  "log",
  "page_size",
