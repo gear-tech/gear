@@ -43,6 +43,7 @@ use frame_support::{
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{Error as MemoryError, PageBuf, PageNumber, WasmPageNumber},
+    reservation::GasReservationMap,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
@@ -52,6 +53,7 @@ use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
+
 use storage::ValueStorage;
 extern crate alloc;
 
@@ -244,7 +246,7 @@ pub struct ActiveProgram {
     pub allocations: BTreeSet<WasmPageNumber>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<PageNumber>,
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub state: ProgramState,
 }

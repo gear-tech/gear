@@ -20,11 +20,11 @@ use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
-    gas::GasCounter,
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{Dispatch, DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program,
+    reservation::GasReserver,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -148,7 +148,7 @@ impl ExecutionContext for InMemoryExtManager {
             TestActor {
                 balance: 0,
                 executable_data: Some(ExecutableActorData {
-                    program: program.clone(),
+                    program,
                     pages_with_data: Default::default(),
                     gas_reservation_map: todo!(),
                 }),
@@ -374,7 +374,8 @@ impl JournalHandler for InMemoryExtManager {
     fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+        program_id: ProgramId,
+        gas_reservation_map: GasReserver,
     ) {
         todo!()
     }

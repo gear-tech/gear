@@ -18,19 +18,24 @@
 
 use crate::{
     manager::ExtManager, Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf,
-    GearProgramPallet, Pallet, QueueOf, SentOf, WaitlistOf,
+    GearProgramPallet, Pallet, QueueOf, SentOf, TaskPoolOf, WaitlistOf,
 };
-use common::{event::*, storage::*, CodeStorage, GasTree, Origin, Program};
+use common::{
+    event::*,
+    scheduler::{ScheduledTask, TaskHandler, TaskPool},
+    storage::*,
+    CodeStorage, GasTree, Origin, Program,
+};
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
     message::{Dispatch, StoredDispatch},
+    reservation::{GasReservationTask, GasReserver},
 };
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-
-use gear_core::{gas::GasCounter, ids::ReservationId};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -375,23 +380,32 @@ where
         &mut self,
         message_id: MessageId,
         program_id: ProgramId,
-        mut gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+        gas_reserver: GasReserver,
     ) {
-        gas_reservation_map.retain(|reservation_id, gas_counter| {
-            let reservation_id: MessageId = reservation_id.clone().into();
-            if gas_counter.left() == 0 {
-                Pallet::<T>::consume_message(reservation_id);
-                false
-            } else {
-                GasHandlerOf::<T>::update_reservation(
-                    message_id,
-                    reservation_id,
-                    gas_counter.left(),
-                )
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
-                true
+        let (gas_reservation_map, tasks) = gas_reserver.into_parts();
+
+        for task in tasks {
+            match task {
+                GasReservationTask::AddReservation { id, amount, bn } => {
+                    GasHandlerOf::<T>::update_reservation(message_id, id.into(), amount as u64)
+                        .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
+
+                    TaskPoolOf::<T>::add(
+                        BlockNumberFor::<T>::from(bn),
+                        ScheduledTask::RemoveGasReservation(id),
+                    )
+                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                }
+                GasReservationTask::RemoveNode { id, bn } => {
+                    <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(self, id);
+
+                    let _ = TaskPoolOf::<T>::delete(
+                        BlockNumberFor::<T>::from(bn),
+                        ScheduledTask::RemoveGasReservation(id),
+                    );
+                }
             }
-        });
+        }
 
         let program_id = program_id.into_origin();
         let prog = common::get_program(program_id)

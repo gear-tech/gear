@@ -77,7 +77,9 @@
 //!     let _my_balance = exec::value_available();
 //! }
 //! ```
-use crate::{ActorId, MessageId, ReservationId};
+
+use crate::{ActorId, MessageId};
+
 pub use gcore::exec::{
     block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
     wait_no_more,
@@ -159,16 +161,4 @@ pub fn program_id() -> ActorId {
 /// ```
 pub fn origin() -> ActorId {
     gcore::exec::origin().into()
-}
-
-/// Reserve gas for further usage.
-// TODO: descriptive docs
-pub fn reserve_gas(amount: u32) -> ReservationId {
-    gcore::exec::reserve_gas(amount)
-}
-
-/// Unreserve gas using reservation ID
-// TODO: descriptive docs
-pub fn unreserve_gas(id: ReservationId, amount: u32) {
-    gcore::exec::unreserve_gas(id, amount)
 }

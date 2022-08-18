@@ -37,10 +37,11 @@ use core::{fmt, ops::Deref};
 use error_processor::IntoExtError;
 use gear_core::{
     env::Ext,
-    gas::{GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    gas::GasAmount,
+    ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, DispatchKind},
+    reservation::GasReserver,
 };
 use gear_core_errors::{ExtError, MemoryError};
 use scale_info::TypeInfo;
@@ -102,7 +103,7 @@ pub enum TrapExplanation {
 #[derive(Debug)]
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    pub gas_reserver: GasReserver,
     pub allocations: Option<BTreeSet<WasmPageNumber>>,
     pub pages_data: BTreeMap<PageNumber, PageBuf>,
     pub generated_dispatches: Vec<Dispatch>,

@@ -30,13 +30,13 @@ use core_processor::{
 use gear_backend_wasmi::WasmiEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
-    gas::GasCounter,
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{
         Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
+    reservation::GasReserver,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -845,7 +845,8 @@ impl JournalHandler for ExtManager {
     fn update_gas_reservation(
         &mut self,
         message_id: MessageId,
-        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+        program_id: ProgramId,
+        gas_reservation_map: GasReserver,
     ) {
         todo!()
     }
