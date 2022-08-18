@@ -24,7 +24,7 @@ use crate::{
         GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, Error, Event, GasAllowanceOf, GasHandlerOf,
-    GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, WaitlistOf,
+    GasInfo, MailboxOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -50,7 +50,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
 };
 use gear_core_errors::*;
-use pallet_balances::{self, Pallet as BalancesPallet};
 use sp_runtime::SaturatedConversion;
 use utils::*;
 
@@ -58,7 +57,7 @@ use utils::*;
 fn unstoppable_block_execution_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let user_balance = BalancesPallet::<Test>::free_balance(USER_1) as u64;
+        let user_balance = Balances::free_balance(USER_1) as u64;
         let executions_amount = 10;
         let balance_for_each_execution = user_balance / executions_amount;
 
@@ -88,7 +87,7 @@ fn unstoppable_block_execution_works() {
         assert!(balance_for_each_execution > expected_burned_gas);
 
         for _ in 0..executions_amount {
-            assert_ok!(GearPallet::<Test>::send_message(
+            assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
@@ -109,7 +108,7 @@ fn unstoppable_block_execution_works() {
         assert_eq!(GasAllowanceOf::<Test>::get(), 0);
 
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1) as u64,
+            Balances::free_balance(USER_1) as u64,
             user_balance - real_gas_to_burn
         );
     })
@@ -421,9 +420,9 @@ fn mailbox_sending_instant_transfer() {
 fn upload_program_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let balance = Balances::free_balance(USER_1);
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            Gear::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
@@ -442,7 +441,7 @@ fn upload_program_expected_failure() {
         // Gas limit is too high
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            Gear::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
@@ -474,8 +473,8 @@ fn upload_program_fails_on_duplicate_id() {
 fn send_message_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
-        let user2_initial_balance = BalancesPallet::<Test>::free_balance(USER_2);
+        let user1_initial_balance = Balances::free_balance(USER_1);
+        let user2_initial_balance = Balances::free_balance(USER_2);
 
         // No gas has been created initially
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
@@ -493,7 +492,7 @@ fn send_message_works() {
         let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
         // User 1 has sent two messages
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
+            Balances::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
         );
 
@@ -504,9 +503,9 @@ fn send_message_works() {
         let mail_value = 20_000;
 
         // Take note of up-to-date users balance
-        let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let user1_initial_balance = Balances::free_balance(USER_1);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             USER_2.into(),
             EMPTY_PAYLOAD.to_vec(),
@@ -518,13 +517,13 @@ fn send_message_works() {
         // Transfer of `mail_value` completed.
         // Gas limit is ignored for messages headed to a mailbox - no funds have been reserved.
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
+            Balances::free_balance(USER_1),
             user1_initial_balance - mail_value
         );
         // The recipient has received the funds.
         // Interaction between users doesn't affect mailbox.
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_2),
+            Balances::free_balance(USER_2),
             user2_initial_balance + mail_value
         );
 
@@ -551,7 +550,7 @@ fn mailbox_threshold_works() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -667,7 +666,7 @@ fn send_message_expected_failure() {
 
         // Because destination is user, no gas will be reserved
         MailboxOf::<Test>::clear();
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(LOW_BALANCE_USER),
             USER_1.into(),
             EMPTY_PAYLOAD.to_vec(),
@@ -688,7 +687,7 @@ fn send_message_expected_failure() {
         // Gas limit too high
         let block_gas_limit = BlockGasLimitOf::<Test>::get();
         assert_noop!(
-            GearPallet::<Test>::send_message(
+            Gear::send_message(
                 Origin::signed(USER_1),
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
@@ -729,7 +728,7 @@ fn messages_processing_works() {
 fn spent_gas_to_reward_block_author_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let block_author_initial_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        let block_author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
         assert_ok!(upload_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(2, None);
 
@@ -740,7 +739,7 @@ fn spent_gas_to_reward_block_author_works() {
         let gas_spent =
             GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get());
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
+            Balances::free_balance(BLOCK_AUTHOR),
             block_author_initial_balance + gas_spent
         );
     })
@@ -750,7 +749,7 @@ fn spent_gas_to_reward_block_author_works() {
 fn unused_gas_released_back_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let user1_initial_balance = Balances::free_balance(USER_1);
         // This amount is intentionally lower than that hardcoded in the
         // source of ProgramCodeKind::OutgoingWithValueInHandle so the
         // execution ends in a trap sending a message to user's mailbox.
@@ -765,7 +764,7 @@ fn unused_gas_released_back_works() {
             res.expect("submit result was asserted")
         };
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -778,11 +777,11 @@ fn unused_gas_released_back_works() {
             GasPrice::gas_price(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
 
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
+            Balances::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
         );
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(USER_1),
+            Balances::reserved_balance(USER_1),
             user1_potential_msgs_spends
         );
 
@@ -797,7 +796,7 @@ fn unused_gas_released_back_works() {
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
+            Balances::free_balance(USER_1),
             user1_initial_balance - user1_actual_msgs_spends - mailbox_threshold_reserved
         );
 
@@ -829,7 +828,7 @@ fn restrict_start_section() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(USER_1),
             code,
             salt,
@@ -1032,7 +1031,7 @@ fn memory_access_cases() {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
-        let res = GearPallet::<Test>::upload_program(
+        let res = Gear::upload_program(
             Origin::signed(USER_1),
             code,
             salt,
@@ -1048,7 +1047,7 @@ fn memory_access_cases() {
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // First handle: access pages
-        let res = GearPallet::<Test>::send_message(
+        let res = Gear::send_message(
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
@@ -1062,7 +1061,7 @@ fn memory_access_cases() {
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
         // Second handle: check pages data
-        let res = GearPallet::<Test>::send_message(
+        let res = Gear::send_message(
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
@@ -1132,7 +1131,7 @@ fn lazy_pages() {
             let code = ProgramCodeKind::Custom(wat).to_bytes();
             let salt = DEFAULT_SALT.to_vec();
             let prog_id = generate_program_id(&code, &salt);
-            let res = GearPallet::<Test>::upload_program(
+            let res = Gear::upload_program(
                 Origin::signed(USER_1),
                 code,
                 salt,
@@ -1148,7 +1147,7 @@ fn lazy_pages() {
         run_to_block(2, None);
         assert_last_dequeued(1);
 
-        let res = GearPallet::<Test>::send_message(
+        let res = Gear::send_message(
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
@@ -1210,7 +1209,7 @@ fn lazy_pages() {
         // For second message handle we will touch the same memory, but because
         // some pages are already in storage, then we can skip page storage granularity
         // when uploads pages to storage, so released pages can be different.
-        let res = GearPallet::<Test>::send_message(
+        let res = Gear::send_message(
             Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
@@ -1351,7 +1350,7 @@ fn block_gas_limit_works() {
         assert_eq!(gas2.burned, gas2.min_limit);
 
         // showing that min_limit works as expected.
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
@@ -1360,7 +1359,7 @@ fn block_gas_limit_works() {
         ));
         let failed1 = get_last_message_id();
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
@@ -1369,7 +1368,7 @@ fn block_gas_limit_works() {
         ));
         let succeed1 = get_last_message_id();
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             pid2,
             EMPTY_PAYLOAD.to_vec(),
@@ -1378,7 +1377,7 @@ fn block_gas_limit_works() {
         ));
         let failed2 = get_last_message_id();
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             pid2,
             EMPTY_PAYLOAD.to_vec(),
@@ -1406,7 +1405,7 @@ fn block_gas_limit_works() {
         );
 
         let send_with_min_limit_to = |pid: ProgramId, gas: &GasInfo| {
-            assert_ok!(GearPallet::<Test>::send_message(
+            assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 pid,
                 EMPTY_PAYLOAD.to_vec(),
@@ -1468,7 +1467,7 @@ fn mailbox_works() {
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(USER_1),
+            Balances::reserved_balance(USER_1),
             OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
         );
 
@@ -1509,14 +1508,11 @@ fn init_message_logging_works() {
         ];
 
         for (code_kind, trap) in codes {
-            SystemPallet::<Test>::reset_events();
+            System::reset_events();
 
             assert_ok!(upload_program_default(USER_1, code_kind));
 
-            let event = match SystemPallet::<Test>::events()
-                .last()
-                .map(|r| r.event.clone())
-            {
+            let event = match System::events().last().map(|r| r.event.clone()) {
                 Some(MockEvent::Gear(e)) => e,
                 _ => unreachable!("Should be one Gear event"),
             };
@@ -1633,7 +1629,7 @@ fn events_logging_works() {
         ];
 
         for (code_kind, init_failure_reason, handle_failure_reason) in tests {
-            SystemPallet::<Test>::reset_events();
+            System::reset_events();
             let program_id = {
                 let res = upload_program_default(USER_1, code_kind);
                 assert_ok!(res);
@@ -1642,7 +1638,7 @@ fn events_logging_works() {
 
             let message_id = get_last_message_id();
 
-            SystemPallet::<Test>::assert_last_event(
+            System::assert_last_event(
                 Event::MessageEnqueued {
                     id: message_id,
                     source: USER_1,
@@ -1675,7 +1671,7 @@ fn events_logging_works() {
 
             let message_id = get_last_message_id();
 
-            SystemPallet::<Test>::assert_last_event(
+            System::assert_last_event(
                 Event::MessageEnqueued {
                     id: message_id,
                     source: USER_1,
@@ -1711,16 +1707,14 @@ fn send_reply_works() {
         );
 
         // Top up program's account balance by 2000 to allow user claim 1000 from mailbox
-        assert_ok!(
-            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
-                &USER_1,
-                &AccountId::from_origin(prog_id.into_origin()),
-                2000,
-                frame_support::traits::ExistenceRequirement::AllowDeath
-            )
-        );
+        assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
+            &USER_1,
+            &AccountId::from_origin(prog_id.into_origin()),
+            2000,
+            frame_support::traits::ExistenceRequirement::AllowDeath
+        ));
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -1731,10 +1725,7 @@ fn send_reply_works() {
 
         // global nonce is 2 before sending reply message
         // `upload_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
+        let event = match System::events().last().map(|r| r.event.clone()) {
             Some(MockEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
@@ -1758,7 +1749,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
     new_test_ext().execute_with(|| {
         // Expecting error as long as the user doesn't have messages in mailbox
         assert_noop!(
-            GearPallet::<Test>::send_reply(
+            Gear::send_reply(
                 Origin::signed(USER_1),
                 MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
@@ -1812,14 +1803,12 @@ fn send_reply_value_claiming_works() {
         // When program sends message, message value (if not 0) is reserved.
         // If value can't be reserved, message is skipped.
         let send_to_program_amount = locked_value * 2;
-        assert_ok!(
-            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
-                &USER_1,
-                &AccountId::from_origin(prog_id.into_origin()),
-                send_to_program_amount,
-                frame_support::traits::ExistenceRequirement::AllowDeath
-            )
-        );
+        assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
+            &USER_1,
+            &AccountId::from_origin(prog_id.into_origin()),
+            send_to_program_amount,
+            frame_support::traits::ExistenceRequirement::AllowDeath
+        ));
 
         let mut next_block = 2;
 
@@ -1840,22 +1829,22 @@ fn send_reply_value_claiming_works() {
                 populate_mailbox_from_program(prog_id, USER_2, next_block, 2_000_000_000, 0);
             next_block += 1;
 
-            let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
-            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+            let user_balance = Balances::free_balance(USER_1);
+            assert_eq!(Balances::reserved_balance(USER_1), 0);
 
             assert!(MailboxOf::<Test>::contains(&USER_1, &reply_to_id));
 
             assert_eq!(
-                BalancesPallet::<Test>::reserved_balance(USER_2),
+                Balances::reserved_balance(USER_2),
                 OUTGOING_WITH_VALUE_IN_HANDLE_VALUE
             );
 
             // nothing changed
-            assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), user_balance);
-            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+            assert_eq!(Balances::free_balance(USER_1), user_balance);
+            assert_eq!(Balances::reserved_balance(USER_1), 0);
 
             // auto-claim of "locked_value" + send is here
-            assert_ok!(GearPallet::<Test>::send_reply(
+            assert_ok!(Gear::send_reply(
                 Origin::signed(USER_1),
                 reply_to_id,
                 EMPTY_PAYLOAD.to_vec(),
@@ -1866,14 +1855,11 @@ fn send_reply_value_claiming_works() {
             let currently_sent = value_to_reply + GasPrice::gas_price(gas_limit_to_reply);
 
             assert_eq!(
-                BalancesPallet::<Test>::free_balance(USER_1),
+                Balances::free_balance(USER_1),
                 user_balance + locked_value - currently_sent
             );
-            assert_eq!(
-                BalancesPallet::<Test>::reserved_balance(USER_1),
-                currently_sent
-            );
-            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_2), 0,);
+            assert_eq!(Balances::reserved_balance(USER_1), currently_sent);
+            assert_eq!(Balances::reserved_balance(USER_2), 0,);
         }
     })
 }
@@ -1885,10 +1871,10 @@ fn send_reply_value_claiming_works() {
 fn claim_value_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let sender_balance = BalancesPallet::<Test>::free_balance(USER_2);
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_2), 0);
-        let claimer_balance = BalancesPallet::<Test>::free_balance(USER_1);
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+        let sender_balance = Balances::free_balance(USER_2);
+        assert_eq!(Balances::reserved_balance(USER_2), 0);
+        let claimer_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
 
         let gas_sent = 10_000_000_000;
         let value_sent = 1000;
@@ -1904,7 +1890,7 @@ fn claim_value_works() {
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        let bn_of_insertion = SystemPallet::<Test>::block_number();
+        let bn_of_insertion = System::block_number();
         let holding_duration = 4;
 
         let GasInfo {
@@ -1924,35 +1910,26 @@ fn claim_value_works() {
 
         run_to_block(bn_of_insertion + holding_duration, None);
 
-        let block_producer_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        let block_producer_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-        assert_ok!(GearPallet::<Test>::claim_value(
-            Origin::signed(USER_1),
-            reply_to_id,
-        ));
+        assert_ok!(Gear::claim_value(Origin::signed(USER_1), reply_to_id,));
 
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
-        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_2), 0);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+        assert_eq!(Balances::reserved_balance(USER_2), 0);
 
         let expected_claimer_balance = claimer_balance + value_sent;
-        assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
-            expected_claimer_balance
-        );
+        assert_eq!(Balances::free_balance(USER_1), expected_claimer_balance);
 
         let burned_for_hold = (holding_duration * CostsPerBlockOf::<Test>::mailbox()) as u128;
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance = sender_balance - value_sent - gas_burned - burned_for_hold;
+        assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_2),
-            expected_sender_balance
-        );
-        assert_eq!(
-            BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
+            Balances::free_balance(BLOCK_AUTHOR),
             block_producer_balance + burned_for_hold
         );
 
-        SystemPallet::<Test>::assert_last_event(
+        System::assert_last_event(
             Event::UserMessageRead {
                 id: reply_to_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
@@ -1970,7 +1947,7 @@ fn uninitialized_program_zero_gas() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -1991,7 +1968,7 @@ fn uninitialized_program_zero_gas() {
         assert!(!Gear::is_terminated(program_id));
         assert!(WaitlistOf::<Test>::contains(&program_id, &init_message_id));
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(1),
             program_id,
             vec![],
@@ -2007,10 +1984,9 @@ fn uninitialized_program_zero_gas() {
 fn distributor_initialize() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
-            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        let initial_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2024,8 +2000,7 @@ fn distributor_initialize() {
         // At this point there is a message in USER_1's mailbox, however, since messages in
         // mailbox are stripped of the `gas_limit`, the respective gas tree has been consumed
         // and the value unreserved back to the original sender (USER_1)
-        let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
-            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
@@ -2037,15 +2012,14 @@ fn distributor_initialize() {
 fn distributor_distribute() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
-            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        let initial_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
         // Initial value in all gas trees is 0
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
         let program_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2056,7 +2030,7 @@ fn distributor_distribute() {
 
         run_to_block(2, None);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
@@ -2068,8 +2042,7 @@ fn distributor_distribute() {
 
         // Despite some messages are still in the mailbox all gas locked in value trees
         // has been refunded to the sender so the free balances should add up
-        let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
-            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        let final_balance = Balances::free_balance(USER_1) + Balances::free_balance(BLOCK_AUTHOR);
 
         let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get() * 2;
         let mailbox_threshold_reserved =
@@ -2092,10 +2065,7 @@ fn test_code_submission_pass() {
         let code_hash = generate_code_hash(&code).into();
         let code_id = CodeId::from_origin(code_hash);
 
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_1),
-            code.clone()
-        ));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_1), code.clone()));
 
         let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
 
@@ -2113,7 +2083,7 @@ fn test_code_submission_pass() {
         // TODO: replace this temporary (`None`) value
         // for expiration block number with properly
         // calculated one (issues #646 and #969).
-        SystemPallet::<Test>::assert_last_event(
+        System::assert_last_event(
             Event::CodeChanged {
                 id: code_id,
                 change: CodeChangeKind::Active { expiration: None },
@@ -2129,18 +2099,15 @@ fn test_same_code_submission_fails() {
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
 
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_1),
-            code.clone()
-        ),);
+        assert_ok!(Gear::upload_code(Origin::signed(USER_1), code.clone()),);
         // Trying to set the same code twice.
         assert_noop!(
-            GearPallet::<Test>::upload_code(Origin::signed(USER_1), code.clone()),
+            Gear::upload_code(Origin::signed(USER_1), code.clone()),
             Error::<Test>::CodeAlreadyExists,
         );
         // Trying the same from another origin
         assert_noop!(
-            GearPallet::<Test>::upload_code(Origin::signed(USER_2), code),
+            Gear::upload_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -2154,7 +2121,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
         let code_id = generate_code_hash(&code).into();
 
         // First submit program, which will set code and metadata
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code.clone(),
             DEFAULT_SALT.to_vec(),
@@ -2166,7 +2133,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
         // TODO: replace this temporary (`None`) value
         // for expiration block number with properly
         // calculated one (issues #646 and #969).
-        SystemPallet::<Test>::assert_has_event(
+        System::assert_has_event(
             Event::CodeChanged {
                 id: code_id,
                 change: CodeChangeKind::Active { expiration: None },
@@ -2177,7 +2144,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 
         // Trying to set the same code twice.
         assert_noop!(
-            GearPallet::<Test>::upload_code(Origin::signed(USER_2), code),
+            Gear::upload_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -2192,16 +2159,13 @@ fn test_code_is_not_reset_within_program_submission() {
         let code_id = CodeId::from_origin(code_hash);
 
         // First submit code
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_1),
-            code.clone()
-        ));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_1), code.clone()));
         let expected_code_saved_events = 1;
         let expected_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
         assert!(expected_meta.is_some());
 
         // Submit program from another origin. Should not change meta or code.
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             code,
             DEFAULT_SALT.to_vec(),
@@ -2210,7 +2174,7 @@ fn test_code_is_not_reset_within_program_submission() {
             0
         ));
         let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
-        let actual_code_saved_events = SystemPallet::<Test>::events()
+        let actual_code_saved_events = System::events()
             .iter()
             .filter(|e| {
                 matches!(
@@ -2236,7 +2200,7 @@ fn messages_to_uninitialized_program_wait() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2255,7 +2219,7 @@ fn messages_to_uninitialized_program_wait() {
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_terminated(program_id));
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(1),
             program_id,
             vec![],
@@ -2277,7 +2241,7 @@ fn uninitialized_program_should_accept_replies() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2300,7 +2264,7 @@ fn uninitialized_program_should_accept_replies() {
             .expect("Element should be");
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
@@ -2322,7 +2286,7 @@ fn defer_program_initialization() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2340,7 +2304,7 @@ fn defer_program_initialization() {
             .map(|(msg, _bn)| msg.id())
             .expect("Element should be");
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
@@ -2350,7 +2314,7 @@ fn defer_program_initialization() {
 
         run_to_block(3, None);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
             vec![],
@@ -2379,7 +2343,7 @@ fn wake_messages_after_program_inited() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
@@ -2396,7 +2360,7 @@ fn wake_messages_after_program_inited() {
         // There could be dozens of them.
         let n = 10;
         for _ in 0..n {
-            assert_ok!(GearPallet::<Test>::send_message(
+            assert_ok!(Gear::send_message(
                 Origin::signed(USER_3),
                 program_id,
                 vec![],
@@ -2412,7 +2376,7 @@ fn wake_messages_after_program_inited() {
             .map(|(msg, _bn)| msg.id())
             .expect("Element should be");
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
@@ -2439,11 +2403,11 @@ fn test_message_processing_for_non_existing_destination() {
             upload_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("Failed to init");
         let code_hash =
             generate_code_hash(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
-        let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
+        let user_balance_before = Balances::free_balance(USER_1);
 
         // After running, first message will end up with init failure, so destination address won't exist.
         // However, message to that non existing address will be in message queue. So, we test that this message is not executed.
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -2460,7 +2424,7 @@ fn test_message_processing_for_non_existing_destination() {
         let mailbox_threshold_gas_limit = <Test as Config>::MailboxThreshold::get();
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(mailbox_threshold_gas_limit);
-        let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
+        let user_balance_after = Balances::free_balance(USER_1);
         assert_eq!(
             user_balance_before - mailbox_threshold_reserved,
             user_balance_after
@@ -2485,7 +2449,7 @@ fn exit_init() {
 
         let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -2504,7 +2468,7 @@ fn exit_init() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::create_program(
+            Gear::create_program(
                 Origin::signed(USER_1),
                 code_id,
                 vec![],
@@ -2527,10 +2491,7 @@ fn test_create_program_works() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_1),
-            code.clone(),
-        ));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_1), code.clone(),));
 
         // Parse wasm code.
         let schedule = <Test as Config>::Schedule::get();
@@ -2540,7 +2501,7 @@ fn test_create_program_works() {
         .expect("Code failed to load");
 
         let code_id = CodeId::generate(code.raw_code());
-        assert_ok!(GearPallet::<Test>::create_program(
+        assert_ok!(Gear::create_program(
             Origin::signed(USER_1),
             code_id,
             vec![],
@@ -2566,7 +2527,7 @@ fn test_create_program_works() {
             .expect("Element should be");
         assert_eq!(MailboxOf::<Test>::len(&USER_1), 1);
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
@@ -2600,7 +2561,7 @@ fn test_create_program_no_code_hash() {
             generate_code_hash(invalid_prog_code_kind.to_bytes().as_slice());
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2610,7 +2571,7 @@ fn test_create_program_no_code_hash() {
         ));
 
         // Try to create a program with non existing code hash
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
@@ -2625,11 +2586,11 @@ fn test_create_program_no_code_hash() {
         assert_total_dequeued(4 + 2); // +2 for upload_program/send_messages
         assert_init_success(1); // 1 for submitting factory
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
         MailboxOf::<Test>::clear();
 
         // Try to create multiple programs with non existing code hash
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -2648,18 +2609,15 @@ fn test_create_program_no_code_hash() {
         assert_init_success(0);
 
         assert_noop!(
-            GearPallet::<Test>::upload_code(
-                Origin::signed(USER_1),
-                invalid_prog_code_kind.to_bytes(),
-            ),
+            Gear::upload_code(Origin::signed(USER_1), invalid_prog_code_kind.to_bytes(),),
             Error::<Test>::FailedToConstructProgram,
         );
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
         MailboxOf::<Test>::clear();
 
         // Try to create with invalid code hash
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -2690,13 +2648,10 @@ fn test_create_program_simple() {
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_1),
-            child_code,
-        ));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_1), child_code,));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2707,7 +2662,7 @@ fn test_create_program_simple() {
         run_to_block(2, None);
 
         // Test create one successful in init program
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
@@ -2717,7 +2672,7 @@ fn test_create_program_simple() {
         run_to_block(3, None);
 
         // Test create one failing in init program
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(
@@ -2734,10 +2689,10 @@ fn test_create_program_simple() {
         assert_total_dequeued(6 + 3); // +3 for extrinsics
         assert_init_success(1 + 1); // +1 for submitting factory
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
 
         // Create multiple successful init programs
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -2751,7 +2706,7 @@ fn test_create_program_simple() {
         run_to_block(5, None);
 
         // Create multiple successful init programs
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -2779,13 +2734,13 @@ fn test_create_program_duplicate() {
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::upload_code(
+        assert_ok!(Gear::upload_code(
             Origin::signed(USER_1),
             child_code.clone(),
         ));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2800,7 +2755,7 @@ fn test_create_program_duplicate() {
         run_to_block(3, None);
 
         // Program tries to create the same
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![(
@@ -2820,11 +2775,11 @@ fn test_create_program_duplicate() {
         assert_total_dequeued(3 + 3); // +3 from extrinsics (2 upload_program, 1 send_message)
         assert_init_success(2); // +2 from extrinsics (2 upload_program)
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
         MailboxOf::<Test>::clear();
 
         // Create a new program from program
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 2_000_000_000)])
@@ -2835,7 +2790,7 @@ fn test_create_program_duplicate() {
         run_to_block(5, None);
 
         // Try to create the same
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 2_000_000_000)])
@@ -2853,7 +2808,7 @@ fn test_create_program_duplicate() {
         assert_init_success(1);
 
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            Gear::upload_program(
                 Origin::signed(USER_1),
                 child_code,
                 b"salt1".to_vec(),
@@ -2876,13 +2831,10 @@ fn test_create_program_duplicate_in_one_execution() {
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
 
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_2),
-            child_code,
-        ));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_2), child_code,));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2893,7 +2845,7 @@ fn test_create_program_duplicate_in_one_execution() {
         run_to_block(2, None);
 
         // Try to create duplicate during one execution
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -2916,11 +2868,11 @@ fn test_create_program_duplicate_in_one_execution() {
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
         MailboxOf::<Test>::clear();
 
         // Successful child creation
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 1_000_000_000)])
@@ -2961,17 +2913,11 @@ fn test_create_program_miscellaneous() {
         let child1_code_hash = generate_code_hash(&child1_code);
         let child2_code_hash = generate_code_hash(&child2_code);
 
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_2),
-            child1_code,
-        ));
-        assert_ok!(GearPallet::<Test>::upload_code(
-            Origin::signed(USER_2),
-            child2_code,
-        ));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_2), child1_code,));
+        assert_ok!(Gear::upload_code(Origin::signed(USER_2), child2_code,));
 
         // Creating factory
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -2982,7 +2928,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(2, None);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -2999,7 +2945,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(3, None);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
@@ -3016,7 +2962,7 @@ fn test_create_program_miscellaneous() {
 
         run_to_block(4, None);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![
@@ -3048,7 +2994,7 @@ fn exit_handle() {
         let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
         let code_hash = generate_code_hash(&code).into();
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3064,7 +3010,7 @@ fn exit_handle() {
         assert!(Gear::is_initialized(program_id));
 
         // An expensive operation since "gr_exit" removes all program pages from storage.
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
             vec![],
@@ -3085,7 +3031,7 @@ fn exit_handle() {
 
         // Program is not removed and can't be submitted again
         assert_noop!(
-            GearPallet::<Test>::create_program(
+            Gear::create_program(
                 Origin::signed(USER_1),
                 code_id,
                 vec![],
@@ -3105,7 +3051,7 @@ fn no_redundant_gas_value_after_exiting() {
         use demo_exit_handle::WASM_BINARY;
 
         let prog_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -3127,7 +3073,7 @@ fn no_redundant_gas_value_after_exiting() {
             true,
         )
         .expect("calculate_gas_info failed");
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             prog_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -3139,8 +3085,8 @@ fn no_redundant_gas_value_after_exiting() {
         assert_ok!(GasHandlerOf::<Test>::get_limit(msg_id), gas_spent);
 
         // before execution
-        let free_after_send = BalancesPallet::<Test>::free_balance(USER_1);
-        let reserved_after_send = BalancesPallet::<Test>::reserved_balance(USER_1);
+        let free_after_send = Balances::free_balance(USER_1);
+        let reserved_after_send = Balances::reserved_balance(USER_1);
         assert_eq!(reserved_after_send, gas_spent as u128);
 
         run_to_block(3, None);
@@ -3152,14 +3098,14 @@ fn no_redundant_gas_value_after_exiting() {
         );
 
         // the (reserved_after_send - gas_spent) has been unreserved
-        let free_after_execution = BalancesPallet::<Test>::free_balance(USER_1);
+        let free_after_execution = Balances::free_balance(USER_1);
         assert_eq!(
             free_after_execution,
             free_after_send + (reserved_after_send - gas_spent as u128)
         );
 
         // reserved balance after execution is zero
-        let reserved_after_execution = BalancesPallet::<Test>::reserved_balance(USER_1);
+        let reserved_after_execution = Balances::reserved_balance(USER_1);
         assert!(reserved_after_execution.is_zero());
     })
 }
@@ -3172,7 +3118,7 @@ fn init_wait_reply_exit_cleaned_storage() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -3188,7 +3134,7 @@ fn init_wait_reply_exit_cleaned_storage() {
         run_to_block(2, None);
         let count = 5;
         for _ in 0..count {
-            assert_ok!(GearPallet::<Test>::send_message(
+            assert_ok!(Gear::send_message(
                 Origin::signed(USER_1),
                 pid,
                 vec![],
@@ -3211,7 +3157,7 @@ fn init_wait_reply_exit_cleaned_storage() {
             .map(|(msg, _bn)| msg.id())
             .expect("Element should be");
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             msg_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -3245,7 +3191,7 @@ fn paused_program_keeps_id() {
 
         let code = WASM_BINARY.to_vec();
         let code_id = CodeId::generate(WASM_BINARY);
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3261,7 +3207,7 @@ fn paused_program_keeps_id() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         assert_noop!(
-            GearPallet::<Test>::create_program(
+            Gear::create_program(
                 Origin::signed(USER_3),
                 code_id,
                 vec![],
@@ -3286,7 +3232,7 @@ fn messages_to_paused_program_skipped() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3301,9 +3247,9 @@ fn messages_to_paused_program_skipped() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        let before_balance = BalancesPallet::<Test>::free_balance(USER_3);
+        let before_balance = Balances::free_balance(USER_3);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_3),
             program_id,
             vec![],
@@ -3317,7 +3263,7 @@ fn messages_to_paused_program_skipped() {
             <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
         assert_eq!(
             before_balance - mailbox_threshold_reserved,
-            BalancesPallet::<Test>::free_balance(USER_3)
+            Balances::free_balance(USER_3)
         );
     })
 }
@@ -3331,7 +3277,7 @@ fn replies_to_paused_program_skipped() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3353,9 +3299,9 @@ fn replies_to_paused_program_skipped() {
             .map(|(msg, _bn)| msg.id())
             .expect("Element should be");
 
-        let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let before_balance = Balances::free_balance(USER_1);
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
@@ -3366,10 +3312,7 @@ fn replies_to_paused_program_skipped() {
         run_to_block(4, None);
 
         let after_hold_balance = before_balance - CostsPerBlockOf::<Test>::mailbox() as u128;
-        assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
-            after_hold_balance
-        );
+        assert_eq!(Balances::free_balance(USER_1), after_hold_balance);
     })
 }
 
@@ -3383,7 +3326,7 @@ fn program_messages_to_paused_program_skipped() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3395,7 +3338,7 @@ fn program_messages_to_paused_program_skipped() {
         let paused_program_id = utils::get_last_program_id();
 
         let code = PROXY_WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_3),
             code,
             vec![],
@@ -3415,7 +3358,7 @@ fn program_messages_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_3),
             program_id,
             vec![],
@@ -3427,9 +3370,9 @@ fn program_messages_to_paused_program_skipped() {
 
         assert_eq!(
             2_000u128,
-            BalancesPallet::<Test>::free_balance(
-                &<utils::AccountId as common::Origin>::from_origin(program_id.into_origin())
-            )
+            Balances::free_balance(&<utils::AccountId as common::Origin>::from_origin(
+                program_id.into_origin()
+            ))
         );
     })
 }
@@ -3498,7 +3441,7 @@ fn locking_gas_for_waitlist() {
 
         let mut expiration = None;
 
-        SystemPallet::<Test>::events().iter().for_each(|e| {
+        System::events().iter().for_each(|e| {
             if let MockEvent::Gear(Event::MessageWaited {
                 id,
                 expiration: exp,
@@ -3544,7 +3487,7 @@ fn resume_program_works() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             code,
             vec![],
@@ -3562,7 +3505,7 @@ fn resume_program_works() {
             .map(|(msg, _bn)| msg.id())
             .expect("Element should be");
 
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_id,
             b"PONG".to_vec(),
@@ -3587,7 +3530,7 @@ fn resume_program_works() {
 
         run_to_block(4, None);
 
-        assert_ok!(GearProgramPallet::<Test>::resume_program(
+        assert_ok!(GearProgram::resume_program(
             Origin::signed(USER_3),
             program_id,
             memory_pages,
@@ -3595,7 +3538,7 @@ fn resume_program_works() {
             50_000u128
         ));
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_3),
             program_id,
             vec![],
@@ -3674,9 +3617,9 @@ fn gas_spent_vs_balance() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let initial_balance = Balances::free_balance(USER_1);
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -3689,10 +3632,10 @@ fn gas_spent_vs_balance() {
 
         run_to_block(2, None);
 
-        let balance_after_init = BalancesPallet::<Test>::free_balance(USER_1);
+        let balance_after_init = Balances::free_balance(USER_1);
 
         let request = Request::Clear.encode();
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             prog_id,
             request.clone(),
@@ -3702,8 +3645,8 @@ fn gas_spent_vs_balance() {
 
         run_to_block(3, None);
 
-        let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
-        let total_balance_after_handle = BalancesPallet::<Test>::total_balance(&USER_1);
+        let balance_after_handle = Balances::free_balance(USER_1);
+        let total_balance_after_handle = Balances::total_balance(&USER_1);
 
         let GasInfo {
             min_limit: init_gas_spent,
@@ -3718,14 +3661,8 @@ fn gas_spent_vs_balance() {
         .unwrap();
 
         // check that all changes made by calculate_gas_info are rollbacked
-        assert_eq!(
-            balance_after_handle,
-            BalancesPallet::<Test>::free_balance(USER_1)
-        );
-        assert_eq!(
-            total_balance_after_handle,
-            BalancesPallet::<Test>::total_balance(&USER_1)
-        );
+        assert_eq!(balance_after_handle, Balances::free_balance(USER_1));
+        assert_eq!(total_balance_after_handle, Balances::total_balance(&USER_1));
 
         assert_eq!(
             (initial_balance - balance_after_init) as u64,
@@ -3916,14 +3853,14 @@ fn test_create_program_with_value_lt_ed() {
         let msg_receiver_2 = 6u64;
 
         // Submit the code
-        assert_ok!(GearPallet::<Test>::upload_code(
+        assert_ok!(Gear::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
 
         // Can't initialize program with value less than ED
         assert_noop!(
-            GearPallet::<Test>::upload_program(
+            Gear::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 b"test0".to_vec(),
@@ -3935,7 +3872,7 @@ fn test_create_program_with_value_lt_ed() {
         );
 
         // Simple passing test with values
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
@@ -3972,10 +3909,10 @@ fn test_create_program_with_value_lt_ed() {
         assert!(MailboxOf::<Test>::contains(&msg_receiver_1, &msg1_mailbox));
         assert!(MailboxOf::<Test>::contains(&msg_receiver_2, &msg2_mailbox));
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
 
         // Trying to send init message from program with value less than ED.
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test2".to_vec(),
@@ -4040,7 +3977,7 @@ fn test_create_program_with_exceeding_value() {
     init_logger();
     new_test_ext().execute_with(|| {
         // Submit the code
-        assert_ok!(GearPallet::<Test>::upload_code(
+        assert_ok!(Gear::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
@@ -4048,7 +3985,7 @@ fn test_create_program_with_exceeding_value() {
         let sending_to_program = 2 * get_ed();
         let random_receiver = 1;
         // Trying to send init message from program with value greater than program can send.
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
@@ -4116,12 +4053,12 @@ fn test_create_program_without_gas_works() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        assert_ok!(GearPallet::<Test>::upload_code(
+        assert_ok!(Gear::upload_code(
             Origin::signed(USER_1),
             ProgramCodeKind::Default.to_bytes(),
         ));
 
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             b"test1".to_vec(),
@@ -4144,7 +4081,7 @@ fn test_reply_to_terminated_program() {
         use demo_exit_init::WASM_BINARY;
 
         // Deploy program, which sends mail and exits
-        assert_ok!(GearPallet::<Test>::upload_program(
+        assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
@@ -4177,14 +4114,11 @@ fn test_reply_to_terminated_program() {
         );
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
-        assert_ok!(GearPallet::<Test>::claim_value(
-            Origin::signed(USER_1),
-            mail_id,
-        ));
+        assert_ok!(Gear::claim_value(Origin::signed(USER_1), mail_id,));
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
-        SystemPallet::<Test>::assert_last_event(
+        System::assert_last_event(
             Event::UserMessageRead {
                 id: mail_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
@@ -4241,7 +4175,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         let payload = 100_u64.to_le_bytes().to_vec();
 
-        let user_balance_before_calculating = BalancesPallet::<Test>::free_balance(USER_1);
+        let user_balance_before_calculating = Balances::free_balance(USER_1);
 
         run_to_block(3, None);
 
@@ -4274,14 +4208,14 @@ fn cascading_messages_with_value_do_not_overcharge() {
         // Expected outcome: the sender's balance has decreased by the
         // (`gas_to_spend` + `value`).
 
-        let user_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let user_initial_balance = Balances::free_balance(USER_1);
 
         let mailbox_threshold_reserved =
             <Test as Config>::GasPrice::gas_price(<Test as Config>::MailboxThreshold::get());
 
         assert_eq!(user_balance_before_calculating, user_initial_balance);
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(USER_1),
+            Balances::reserved_balance(USER_1),
             mailbox_threshold_reserved * 2
         );
 
@@ -4298,24 +4232,24 @@ fn cascading_messages_with_value_do_not_overcharge() {
         let reserved_balance = gas_reserved + value;
 
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
+            Balances::free_balance(USER_1),
             user_initial_balance - reserved_balance
         );
 
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(USER_1),
+            Balances::reserved_balance(USER_1),
             reserved_balance + mailbox_threshold_reserved * 2
         );
 
         run_to_block(5, None);
 
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(USER_1),
+            Balances::reserved_balance(USER_1),
             mailbox_threshold_reserved * 3
         );
 
         assert_eq!(
-            BalancesPallet::<Test>::free_balance(USER_1),
+            Balances::free_balance(USER_1),
             user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved
         );
     });
@@ -4429,7 +4363,7 @@ fn execution_over_blocks() {
 
         assert!(verify_result(src, count, result));
 
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
     };
 
     let estimate_gas_per_calc = || -> (u64, u64) {
@@ -4533,7 +4467,7 @@ fn execution_over_blocks() {
         .expect("Failed to get gas spent");
 
         run_to_next_block(None);
-        SystemPallet::<Test>::reset_events();
+        System::reset_events();
 
         (
             init_gas.min_limit,
@@ -4776,7 +4710,7 @@ fn missing_functions_are_not_executed() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let initial_balance = Balances::free_balance(USER_1);
 
         let program_id = {
             let res = upload_program_default(USER_1, ProgramCodeKind::Custom(wat));
@@ -4799,23 +4733,18 @@ fn missing_functions_are_not_executed() {
 
         // there is no 'init' so memory pages don't get loaded and
         // no execution is performed at all and hence user was not charged.
-        assert_eq!(
-            initial_balance,
-            BalancesPallet::<Test>::free_balance(USER_1)
-        );
+        assert_eq!(initial_balance, Balances::free_balance(USER_1));
 
         // this value is actually a constant in the wat.
         let locked_value = 1_000;
-        assert_ok!(
-            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
-                &USER_1,
-                &AccountId::from_origin(program_id.into_origin()),
-                locked_value,
-                frame_support::traits::ExistenceRequirement::AllowDeath
-            )
-        );
+        assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
+            &USER_1,
+            &AccountId::from_origin(program_id.into_origin()),
+            locked_value,
+            frame_support::traits::ExistenceRequirement::AllowDeath
+        ));
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_3),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -4839,7 +4768,7 @@ fn missing_functions_are_not_executed() {
         assert_eq!(min_limit, 0);
 
         let reply_value = 1_500;
-        assert_ok!(GearPallet::<Test>::send_reply(
+        assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -4852,7 +4781,7 @@ fn missing_functions_are_not_executed() {
         // there is no 'handle_reply' too
         assert_eq!(
             initial_balance - reply_value,
-            BalancesPallet::<Test>::free_balance(USER_1)
+            Balances::free_balance(USER_1)
         );
     });
 }
@@ -4868,7 +4797,7 @@ fn missing_handle_is_not_executed() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let program_id = GearPallet::<Test>::upload_program(
+        let program_id = Gear::upload_program(
             Origin::signed(USER_1),
             ProgramCodeKind::Custom(wat).to_bytes(),
             vec![],
@@ -4881,9 +4810,9 @@ fn missing_handle_is_not_executed() {
 
         run_to_next_block(None);
 
-        let balance_before = BalancesPallet::<Test>::free_balance(USER_1);
+        let balance_before = Balances::free_balance(USER_1);
 
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(USER_1),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
@@ -4895,21 +4824,19 @@ fn missing_handle_is_not_executed() {
 
         // there is no 'handle' so no memory pages are loaded and
         // the program is not executed. Hence the user didn't pay for processing.
-        assert_eq!(balance_before, BalancesPallet::<Test>::free_balance(USER_1));
+        assert_eq!(balance_before, Balances::free_balance(USER_1));
     });
 }
 
 mod utils {
     #![allow(unused)]
 
-    use crate::{
-        mock::{Balances, Gear},
-        BalanceOf, GasInfo, HandleKind,
-    };
-
     use super::{
-        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MailboxOf, MockEvent,
-        Origin, SystemPallet, Test,
+        assert_ok, pallet, run_to_block, Event, MailboxOf, MockEvent, Origin, SystemPallet, Test,
+    };
+    use crate::{
+        mock::{Balances, Gear, System},
+        BalanceOf, GasInfo, HandleKind,
     };
     use codec::Decode;
     use common::{
@@ -4941,6 +4868,7 @@ mod utils {
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
     pub(super) type GasPrice = <Test as pallet::Config>::GasPrice;
+
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
     pub(super) fn init_logger() {
@@ -4997,7 +4925,7 @@ mod utils {
 
     pub(super) fn assert_init_success(expected: u32) {
         let mut actual_children_amount = 0;
-        SystemPallet::<Test>::events().iter().for_each(|e| {
+        System::events().iter().for_each(|e| {
             if let MockEvent::Gear(Event::ProgramChanged {
                 change: ProgramChangeKind::Active { .. },
                 ..
@@ -5011,7 +4939,7 @@ mod utils {
     }
 
     pub(super) fn assert_last_dequeued(expected: u32) {
-        let last_dequeued = SystemPallet::<Test>::events()
+        let last_dequeued = System::events()
             .iter()
             .filter_map(|e| {
                 if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
@@ -5027,7 +4955,7 @@ mod utils {
     }
 
     pub(super) fn assert_total_dequeued(expected: u32) {
-        let actual_dequeued: u32 = SystemPallet::<Test>::events()
+        let actual_dequeued: u32 = System::events()
             .iter()
             .filter_map(|e| {
                 if let MockEvent::Gear(Event::MessagesDispatched { total, .. }) = e.event {
@@ -5068,7 +4996,7 @@ mod utils {
         gas_limit: u64,
         value: u128,
     ) -> MessageId {
-        assert_ok!(GearPallet::<Test>::send_message(
+        assert_ok!(Gear::send_message(
             Origin::signed(sender),
             prog_id,
             Vec::new(),
@@ -5115,14 +5043,12 @@ mod utils {
 
         // When program sends message, message value (if not 0) is reserved.
         // If value can't be reserved, message is skipped.
-        assert_ok!(
-            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
-                &sender,
-                &AccountId::from_origin(program_id.into_origin()),
-                locked_value,
-                frame_support::traits::ExistenceRequirement::AllowDeath
-            )
-        );
+        assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
+            &sender,
+            &AccountId::from_origin(program_id.into_origin()),
+            locked_value,
+            frame_support::traits::ExistenceRequirement::AllowDeath
+        ));
     }
 
     // Submits program with default options (salt, gas limit, value, payload)
@@ -5133,7 +5059,7 @@ mod utils {
         let code = code_kind.to_bytes();
         let salt = DEFAULT_SALT.to_vec();
 
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(user),
             code,
             salt,
@@ -5156,7 +5082,7 @@ mod utils {
         from: AccountId,
         to: ProgramId,
     ) -> DispatchResultWithPostInfo {
-        GearPallet::<Test>::send_message(
+        Gear::send_message(
             Origin::signed(from),
             to,
             EMPTY_PAYLOAD.to_vec(),
@@ -5176,7 +5102,7 @@ mod utils {
 
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
-        SystemPallet::<Test>::events().iter().for_each(|e| {
+        System::events().iter().for_each(|e| {
             if let MockEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
                 found_status = statuses.get(&message_id).map(Clone::clone);
             }
@@ -5204,7 +5130,7 @@ mod utils {
 
         let mut actual_error = None;
 
-        SystemPallet::<Test>::events().into_iter().for_each(|e| {
+        System::events().into_iter().for_each(|e| {
             if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
                     if details.reply_to() == message_id {
@@ -5242,7 +5168,7 @@ mod utils {
     }
 
     pub(super) fn get_last_event() -> MockEvent {
-        SystemPallet::<Test>::events()
+        System::events()
             .into_iter()
             .last()
             .expect("failed to get last event")
@@ -5250,10 +5176,7 @@ mod utils {
     }
 
     pub(super) fn get_last_program_id() -> ProgramId {
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
+        let event = match System::events().last().map(|r| r.event.clone()) {
             Some(MockEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
@@ -5271,10 +5194,7 @@ mod utils {
     }
 
     pub(super) fn get_last_code_id() -> CodeId {
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
+        let event = match System::events().last().map(|r| r.event.clone()) {
             Some(MockEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
         };
@@ -5292,7 +5212,7 @@ mod utils {
     }
 
     pub(super) fn get_last_message_id() -> MessageId {
-        SystemPallet::<Test>::events()
+        System::events()
             .iter()
             .rev()
             .filter_map(|r| {
@@ -5311,20 +5231,17 @@ mod utils {
     }
 
     pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {
-        SystemPallet::<Test>::events()
-            .into_iter()
-            .rev()
-            .find_map(|e| {
-                if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                    if message.destination() == account.into() {
-                        Some(message)
-                    } else {
-                        None
-                    }
+        System::events().into_iter().rev().find_map(|e| {
+            if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                if message.destination() == account.into() {
+                    Some(message)
                 } else {
                     None
                 }
-            })
+            } else {
+                None
+            }
+        })
     }
 
     pub(super) fn get_last_mail(account: AccountId) -> StoredMessage {
@@ -5433,7 +5350,7 @@ mod utils {
     }
 
     pub(super) fn print_gear_events() {
-        let v = SystemPallet::<Test>::events()
+        let v = System::events()
             .into_iter()
             .map(|r| r.event)
             .collect::<Vec<_>>();
@@ -5473,7 +5390,7 @@ fn check_gear_stack_end_fail() {
     new_test_ext().execute_with(|| {
         // Check error when stack end bigger then static mem size
         let wat = format!(wat_template!(), "0x50000");
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
             DEFAULT_SALT.to_vec(),
@@ -5489,7 +5406,7 @@ fn check_gear_stack_end_fail() {
 
         // Check error when stack end is negative
         let wat = format!(wat_template!(), "-0x10000");
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
             DEFAULT_SALT.to_vec(),
@@ -5505,7 +5422,7 @@ fn check_gear_stack_end_fail() {
 
         // Check error when stack end is not aligned
         let wat = format!(wat_template!(), "0x10001");
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
             DEFAULT_SALT.to_vec(),
@@ -5521,7 +5438,7 @@ fn check_gear_stack_end_fail() {
 
         // Check OK if stack end is suitable
         let wat = format!(wat_template!(), "0x10000");
-        GearPallet::<Test>::upload_program(
+        Gear::upload_program(
             Origin::signed(USER_1),
             ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
             DEFAULT_SALT.to_vec(),
