@@ -32,8 +32,18 @@ const OPTIMIZED_EXPORTS: [&str; 4] = ["handle", "handle_reply", "init", "__gear_
 /// Type of the output wasm.
 #[derive(PartialEq, Eq)]
 pub enum OptType {
-    Opt,
     Meta,
+    Opt,
+}
+
+impl OptType {
+    /// WASM exports from `OptType`.
+    pub fn exports(&self) -> &[&str] {
+        match &self {
+            OptType::Meta => &META_EXPORTS,
+            OptType::Opt => &OPTIMIZED_EXPORTS,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -58,20 +68,14 @@ impl Optimizer {
     /// Process optimization.
     pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
         let mut module = self.module.clone();
-        pwasm_utils::optimize(
-            &mut module,
-            match ty {
-                OptType::Opt => OPTIMIZED_EXPORTS.into(),
-                OptType::Meta => META_EXPORTS.into(),
-            },
-        )
-        .map_err(OptimizerError)
-        .with_context(|| {
-            format!(
-                "unable to optimize the WASM file `{0}`",
-                self.file.display()
-            )
-        })?;
+        pwasm_utils::optimize(&mut module, ty.exports().into())
+            .map_err(OptimizerError)
+            .with_context(|| {
+                format!(
+                    "unable to optimize the WASM file `{0}`",
+                    self.file.display()
+                )
+            })?;
 
         // Post check exports if optimizing program binary.
         if ty == OptType::Opt {
