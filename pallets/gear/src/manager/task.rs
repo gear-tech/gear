@@ -107,8 +107,8 @@ where
             //
             // # Safety
             //
-            // There is no logic spliting value from the reserved nodes.
-            GasHandlerOf::<T>::split(trap_reply.id(), message_id)
+            // There is no logic splitting value from the reserved nodes.
+            GasHandlerOf::<T>::split(message_id, trap_reply.id())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Enqueueing dispatch into message queue.

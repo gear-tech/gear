@@ -124,8 +124,14 @@ pub struct GasInfo {
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
-    /// The value may be returned if a program happens to be executed the second or next time in a block.
+    /// The value may be returned if a program happens to be executed
+    /// the second or next time in a block.
     pub may_be_returned: u64,
+    /// Was the message placed into waitlist at the end of calculating.
+    ///
+    /// This flag shows, that `min_limit` makes sense and have some guarantees
+    /// only before insertion into waitlist.
+    pub waited: bool,
 }
 
 #[frame_support::pallet]
@@ -630,7 +636,12 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, String> {
-            let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
+            log::debug!("\n===== CALCULATE GAS INFO =====\n");
+            log::debug!("\n--- FIRST TRY ---\n");
+
+            let GasInfo {
+                min_limit, waited, ..
+            } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -646,7 +657,9 @@ pub mod pallet {
                 })
             })?;
 
-            Self::run_with_ext_copy(|| {
+            log::debug!("\n--- SECOND TRY ---\n");
+
+            let res = Self::run_with_ext_copy(|| {
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
@@ -666,13 +679,18 @@ pub mod pallet {
                         reserved,
                         burned,
                         may_be_returned,
+                        waited,
                     },
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
                         .unwrap_or_else(|_| String::from("Failed to parse error to string"))
                 })
-            })
+            });
+
+            log::debug!("\n==============================\n");
+
+            res
         }
 
         pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
@@ -718,6 +736,14 @@ pub mod pallet {
                     Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: upload_program failed with '{:?}'", e)
+                                .into_bytes()
+                        })?;
+                }
+                HandleKind::InitByHash(code_id) => {
+                    let salt = b"calculate_gas_salt".to_vec();
+                    Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
+                        .map_err(|e| {
+                            format!("Internal error: create_program failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
                 }
@@ -918,11 +944,14 @@ pub mod pallet {
                 }
             }
 
+            let waited = WaitlistOf::<T>::contains(&main_program_id, &main_message_id);
+
             Ok(GasInfo {
                 min_limit,
                 reserved,
                 burned,
                 may_be_returned,
+                waited,
             })
         }
 
@@ -985,13 +1014,9 @@ pub mod pallet {
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
-                if were_empty {
-                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
-                        stopped_at = Some(*bn);
-                        break;
-                    }
-                } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
                     stopped_at = Some(*bn);
+                    log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
 
@@ -1013,13 +1038,9 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
-                    if were_empty {
-                        if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
-                            stopped_at = Some(*bn);
-                            break;
-                        }
-                    } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
                         stopped_at = Some(*bn);
+                        log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
                 }

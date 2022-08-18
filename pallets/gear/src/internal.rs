@@ -280,14 +280,30 @@ where
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
         message_id: MessageId,
-        held_since: BlockNumberFor<T>,
+        hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
     ) {
         // Current block number.
         let current = SystemPallet::<T>::block_number();
 
+        // Deadline of the task.
+        //
+        // NOTE: make sure to work around it, while doing db migrations,
+        // changing `ReserveFor` value.
+        let deadline = hold_interval
+            .finish
+            .saturating_add(CostsPerBlockOf::<T>::reserve_for());
+
+        // The block number, which was the last payed for hold.
+        //
+        // Outdated tasks can store for free, but this case is under
+        // control of correct `ReserveFor` constant set.
+        let payed_till = current.min(deadline);
+
         // Holding duration.
-        let duration: u64 = current.saturating_sub(held_since).unique_saturated_into();
+        let duration: u64 = payed_till
+            .saturating_sub(hold_interval.start)
+            .unique_saturated_into();
 
         // Amount of gas to charge for holding.
         let amount = duration.saturating_mul(cost);
@@ -307,14 +323,28 @@ where
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
-            unreachable!("Failed to figure out correct wait hold bound");
+            // TODO: Replace with unreachable call after:
+            // - `HoldBound` safety usage stabilized;
+            // - Issue #1173 solved.
+            log::error!("Failed to figure out correct wait hold bound");
+            return;
         }
+
+        // TODO: remove, once duration-control added inside programs (#1173).
+        //
+        // This need in async scenarios, while we send gasless message and it
+        // goes into waitlist: then all funds become locked for storing in
+        // waitlist, instead of distribute for execution and storing.
+        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist())
+            .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
+
+        // Locking funds for holding.
+        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
         let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: Lock funds for holding here (issue #1173).
 
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
@@ -354,10 +384,17 @@ where
         (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
+        // Expected block number to finish task.
+        let expected = hold_interval.finish;
+
+        // Unlocking all funds, that were locked for storing.
+        GasHandlerOf::<T>::unlock_all(waitlisted.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         // Charging for holding.
         Self::charge_for_hold(
             waitlisted.id(),
-            hold_interval.start,
+            hold_interval,
             CostsPerBlockOf::<T>::waitlist(),
         );
 
@@ -369,7 +406,7 @@ where
 
         // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
-            hold_interval.finish,
+            expected,
             ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
         );
 
@@ -400,10 +437,13 @@ where
     ) -> StoredMessage {
         use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
 
+        // Expected block number to finish task.
+        let expected = hold_interval.finish;
+
         // Charging for holding.
         Self::charge_for_hold(
             mailboxed.id(),
-            hold_interval.start,
+            hold_interval,
             CostsPerBlockOf::<T>::mailbox(),
         );
 
@@ -435,7 +475,7 @@ where
 
         // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
-            hold_interval.finish,
+            expected,
             ScheduledTask::RemoveFromMailbox(user_id, mailboxed.id()),
         );
 

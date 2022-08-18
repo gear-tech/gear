@@ -21,7 +21,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use gear_common::Origin;
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
     proc_macros::rpc,
@@ -47,8 +47,19 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
 
 #[rpc(client, server)]
 pub trait GearApi<BlockHash, ResponseType> {
-    #[method(name = "gear_calculateInitGas")]
-    fn get_init_gas_spent(
+    #[method(name = "gear_calculateInitCreateGas")]
+    fn get_init_create_gas_spent(
+        &self,
+        source: H256,
+        code_id: H256,
+        payload: Bytes,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<BlockHash>,
+    ) -> RpcResult<GasInfo>;
+
+    #[method(name = "gear_calculateInitUploadGas")]
+    fn get_init_upload_gas_spent(
         &self,
         source: H256,
         code: Bytes,
@@ -144,7 +155,44 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block>,
 {
-    fn get_init_gas_spent(
+    fn get_init_create_gas_spent(
+        &self,
+        source: H256,
+        code_id: H256,
+        payload: Bytes,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<GasInfo> {
+        let at = BlockId::hash(at.unwrap_or_else(||
+            // If the block hash is not supplied assume the best block.
+            self.client.info().best_hash));
+
+        let GasInfo { min_limit, .. } = self.run_with_api_copy(|api| {
+            api.calculate_gas_info(
+                &at,
+                source,
+                HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                None,
+            )
+        })?;
+        self.run_with_api_copy(|api| {
+            api.calculate_gas_info(
+                &at,
+                source,
+                HandleKind::InitByHash(CodeId::from_origin(code_id)),
+                payload.to_vec(),
+                value,
+                allow_other_panics,
+                Some(min_limit),
+            )
+        })
+    }
+
+    fn get_init_upload_gas_spent(
         &self,
         source: H256,
         code: Bytes,

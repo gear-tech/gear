@@ -196,12 +196,34 @@ where
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
-            .map_err(|_| "Code failed to load: {}")?;
+            .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
+
+            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+
+            Dispatch::new(
+                DispatchKind::Init,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    program_id,
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    None,
+                ),
+            )
+        }
+        HandleKind::InitByHash(code_id) => {
+            let program_id = ProgramId::generate(code_id, b"bench_salt");
+
+            if !T::CodeStorage::exists(code_id) {
+                return Err("Code not found in storage");
+            }
 
             ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
