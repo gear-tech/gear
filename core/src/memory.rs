@@ -43,7 +43,7 @@ const WASM_PAGE_SIZE: usize = 0x10000;
 /// native page size, so can vary.
 const GEAR_PAGE_SIZE: usize = 0x1000;
 
-/// Pages data storage granularity (PSG) is a size and wasm addr alignemnt
+/// Pages data storage granularity (PSG) is a size and wasm addr alignment
 /// of a memory interval, for which the following conditions must be met:
 /// if some gear page has data in storage, then all gear
 /// pages, that are in the same granularity interval, must contain

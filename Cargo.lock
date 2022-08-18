@@ -1377,6 +1377,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-gasless-wasting"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
@@ -2525,7 +2534,6 @@ dependencies = [
  "frame-system",
  "gear-common-codegen",
  "gear-core",
- "gear-runtime-interface",
  "hex-literal",
  "log",
  "parity-scale-codec",
@@ -2607,6 +2615,18 @@ dependencies = [
  "sp-std",
  "static_assertions",
  "winapi",
+]
+
+[[package]]
+name = "gear-lazy-pages-common"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "gear-common",
+ "gear-core",
+ "gear-runtime-interface",
+ "log",
+ "sp-std",
 ]
 
 [[package]]
@@ -5018,6 +5038,8 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle",
  "demo-exit-init",
+ "demo-gas-burned",
+ "demo-gasless-wasting",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
@@ -5038,6 +5060,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-lazy-pages-common",
  "gear-runtime-interface",
  "log",
  "page_size",
@@ -9611,6 +9634,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d443c5a7daae71697d97ec12ad70b4fe8766d3a0f4db16158ac8b781365892f7"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasm-gc-api"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9632,16 +9664,16 @@ dependencies = [
 
 [[package]]
 name = "wasm-mutate"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80e6de18ed96f27d3942041e5ae02177aff18e4425196a3d4b1f14145d027f71"
+checksum = "f04ad5c8a18bf9d8d07ad9df8dea5e8ff701ab3472583a79350c3ab5b4766705"
 dependencies = [
  "egg",
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder",
- "wasmparser 0.88.0",
+ "wasm-encoder 0.16.0",
+ "wasmparser 0.89.0",
 ]
 
 [[package]]
@@ -9970,6 +10002,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.89.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e93aca64a4778dde5c48d494a4a0c610ba0f06663798a2c70eaadb1d51460da"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.2.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10156,7 +10197,7 @@ dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder",
+ "wasm-encoder 0.15.0",
 ]
 
 [[package]]

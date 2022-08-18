@@ -29,7 +29,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };
-use gear_wasm_builder::optimize::Optimizer;
+use gear_wasm_builder::optimize::{OptType, Optimizer};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -271,10 +271,10 @@ impl<'a> Program<'a> {
             let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
             optimizer.insert_stack_and_export();
             let opt_code = optimizer
-                .optimize()
+                .optimize(OptType::Opt)
                 .expect("Failed to produce optimized binary");
             let meta_code = optimizer
-                .metadata()
+                .optimize(OptType::Meta)
                 .expect("Failed to produce metadata binary");
             (opt_code, Some(meta_code))
         } else {

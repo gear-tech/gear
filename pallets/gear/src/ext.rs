@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::collections::BTreeSet;
-use common::lazy_pages;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
@@ -31,6 +30,7 @@ use gear_core::{
     message::{ExitCode, HandlePacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_lazy_pages_common as lazy_pages;
 use sp_std::collections::btree_map::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
@@ -128,20 +128,12 @@ impl IntoExtInfo for LazyPagesExt {
 
 impl ProcessorExt for LazyPagesExt {
     type Error = Error;
+    const LAZY_PAGES_ENABLED: bool = true;
 
     fn new(context: ProcessorContext) -> Self {
-        assert!(cfg!(feature = "lazy-pages"));
         Self {
             inner: Ext::new(context),
         }
-    }
-
-    fn is_lazy_pages_enabled() -> bool {
-        true
-    }
-
-    fn check_lazy_pages_consistent_state() -> bool {
-        lazy_pages::is_lazy_pages_enabled()
     }
 
     fn lazy_pages_init_for_program(
