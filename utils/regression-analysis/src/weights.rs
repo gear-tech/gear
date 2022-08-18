@@ -23,7 +23,7 @@
 //! EXECUTION: Some(Native), WASM-EXECUTION: Compiled, CHAIN: Some("dev"), DB CACHE: 1024
 
 // Executed Command:
-// C:\Users\ark0f\Projects\gear\target\release\gear-node.exe benchmark pallet --steps 1 --repeat 1 --chain=dev --pallet=pallet_gear --extrinsic=* --execution=native --heap-pages=4096 --output .\utils\regression-analysis\src\weights.rs --template .\.maintain\regression-analysis-weight-template.rs.hbs
+// gear-node.exe benchmark pallet --steps 1 --repeat 1 --chain=dev --pallet=pallet_gear --extrinsic=* --execution=native --heap-pages=4096 --output .\utils\regression-analysis\src\weights.rs --template .\.maintain\regression-analysis-weight-template.rs.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
