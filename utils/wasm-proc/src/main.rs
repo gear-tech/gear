@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use gear_wasm_builder::optimize::Optimizer;
+use gear_wasm_builder::optimize::{OptType, Optimizer};
 use std::{fs, path::PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -74,21 +74,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             res.optimized_size
         );
 
-        let mut optimizer = Optimizer::new(file)?;
+        let mut optimizer = Optimizer::new(file.clone())?;
 
         if !skip_stack_end {
             optimizer.insert_stack_and_export();
         }
 
         if !skip_opt {
-            let code = optimizer.optimize()?;
-            let path = optimizer.optimized_file_name();
+            let path = file.with_extension("opt.wasm");
+
+            log::debug!("*** Processing chain optimization: {}", path.display());
+            let code = optimizer.optimize(OptType::Opt)?;
+            log::debug!("Optimized wasm: {}", path.to_string_lossy());
+
             fs::write(path, code)?;
         }
 
         if !skip_meta {
-            let code = optimizer.metadata()?;
-            let path = optimizer.metadata_file_name();
+            let path = file.with_extension("meta.wasm");
+
+            log::debug!("*** Processing metadata optimization: {}", path.display());
+            let code = optimizer.optimize(OptType::Meta)?;
+            log::debug!("Metadata wasm: {}", path.to_string_lossy());
+
             fs::write(path, code)?;
         }
     }
