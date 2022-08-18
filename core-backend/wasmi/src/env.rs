@@ -328,6 +328,8 @@ where
         builder.add_host_func("env", "gr_error", Funcs::error);
         builder.add_host_func("env", "gr_exit", Funcs::exit);
         builder.add_host_func("env", "gr_exit_code", Funcs::exit_code);
+        builder.add_host_func("env", "gr_reserve_gas", Funcs::reserve_gas);
+        builder.add_host_func("env", "gr_unreserve_gas", Funcs::unreserve_gas);
         builder.add_host_func("env", "gr_gas_available", Funcs::gas_available);
         builder.add_host_func("env", "gr_leave", Funcs::leave);
         builder.add_host_func("env", "gr_msg_id", Funcs::msg_id);

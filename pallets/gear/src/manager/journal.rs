@@ -386,7 +386,7 @@ where
 
         for task in tasks {
             match task {
-                GasReservationTask::AddReservation { id, amount, bn } => {
+                GasReservationTask::CreateReservation { id, amount, bn } => {
                     GasHandlerOf::<T>::update_reservation(message_id, id.into(), amount as u64)
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted: {:?}", e));
 
@@ -396,7 +396,7 @@ where
                     )
                     .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
-                GasReservationTask::RemoveNode { id, bn } => {
+                GasReservationTask::RemoveReservation { id, bn } => {
                     <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(self, id);
 
                     let _ = TaskPoolOf::<T>::delete(

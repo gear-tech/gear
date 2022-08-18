@@ -36,7 +36,7 @@ use gear_core::{
         Dispatch, DispatchKind, Payload, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
     },
     program::Program as CoreProgram,
-    reservation::GasReserver,
+    reservation::{GasReservationMap, GasReserver},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
@@ -120,10 +120,11 @@ impl TestActor {
     fn get_executable_actor_data(
         &self,
     ) -> Option<(ExecutableActorData, BTreeMap<PageNumber, PageBuf>)> {
-        let (program, pages_data) = match self {
+        let (program, pages_data, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
+                gas_reservation_map,
                 ..
             })
             | TestActor::Uninitialized(
@@ -131,16 +132,21 @@ impl TestActor {
                 Some(Program::Genuine {
                     program,
                     pages_data,
+                    gas_reservation_map,
                     ..
                 }),
-            ) => (program.clone(), pages_data.clone()),
+            ) => (
+                program.clone(),
+                pages_data.clone(),
+                gas_reservation_map.clone(),
+            ),
             _ => return None,
         };
         Some((
             ExecutableActorData {
                 program,
                 pages_with_data: pages_data.keys().copied().collect(),
-                gas_reservation_map: todo!(),
+                gas_reservation_map,
             },
             pages_data,
         ))
@@ -153,6 +159,7 @@ pub(crate) enum Program {
         program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
+        gas_reservation_map: GasReservationMap,
     },
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
@@ -163,11 +170,13 @@ impl Program {
         program: CoreProgram,
         code_id: CodeId,
         pages_data: BTreeMap<PageNumber, PageBuf>,
+        gas_reservation_map: GasReservationMap,
     ) -> Self {
         Program::Genuine {
             program,
             code_id,
             pages_data,
+            gas_reservation_map,
         }
     }
 
@@ -819,7 +828,7 @@ impl JournalHandler for ExtManager {
                     let candidate = CoreProgram::new(candidate_id, code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::new(candidate, code_id, Default::default()),
+                        Program::new(candidate, code_id, Default::default(), Default::default()),
                         Some(init_message_id),
                     );
                 } else {
@@ -844,10 +853,32 @@ impl JournalHandler for ExtManager {
 
     fn update_gas_reservation(
         &mut self,
-        message_id: MessageId,
+        _message_id: MessageId,
         program_id: ProgramId,
-        gas_reservation_map: GasReserver,
+        gas_reserver: GasReserver,
     ) {
-        todo!()
+        let (actor, _) = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        let (gas_reservation_map, _) = gas_reserver.into_parts();
+
+        if let TestActor::Initialized(Program::Genuine {
+            gas_reservation_map: prog_gas_reservation_map,
+            ..
+        })
+        | TestActor::Uninitialized(
+            _,
+            Some(Program::Genuine {
+                gas_reservation_map: prog_gas_reservation_map,
+                ..
+            }),
+        ) = actor
+        {
+            *prog_gas_reservation_map = gas_reservation_map;
+        } else {
+            panic!("no gas reservation map found in program");
+        }
     }
 }

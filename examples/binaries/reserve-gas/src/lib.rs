@@ -41,3 +41,21 @@ unsafe extern "C" fn init() {
 unsafe extern "C" fn handle() {
     RESERVATION_ID.take().unwrap().unreserve();
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use gtest::{Program, System};
+
+    #[test]
+    fn program_can_be_initialized() {
+        let system = System::new();
+        system.init_logger();
+
+        let program = Program::current(&system);
+
+        let res = program.send_bytes(0, b"dummy");
+        assert!(!res.main_failed());
+    }
+}
