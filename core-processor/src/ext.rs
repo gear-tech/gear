@@ -76,16 +76,11 @@ pub struct ProcessorContext {
 pub trait ProcessorExt {
     /// An error issues in processor
     type Error: fmt::Display;
+    /// Whether this extension works with lazy pages.
+    const LAZY_PAGES_ENABLED: bool;
 
     /// Create new
     fn new(context: ProcessorContext) -> Self;
-
-    /// Returns whether this extension works with lazy pages
-    fn is_lazy_pages_enabled() -> bool;
-
-    /// If extension support lazy pages, then checks that
-    /// environment for lazy pages is initialized.
-    fn check_lazy_pages_consistent_state() -> bool;
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
@@ -180,20 +175,13 @@ pub struct Ext {
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExt for Ext {
     type Error = ExtError;
+    const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
         Self {
             context,
             error_explanation: None,
         }
-    }
-
-    fn is_lazy_pages_enabled() -> bool {
-        false
-    }
-
-    fn check_lazy_pages_consistent_state() -> bool {
-        true
     }
 
     fn lazy_pages_init_for_program(

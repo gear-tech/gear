@@ -235,10 +235,12 @@ pub trait GearRI {
         lazy_pages::init(lazy_pages::LazyPagesVersion::Version2)
     }
 
+    #[deprecated]
     fn is_lazy_pages_enabled() -> bool {
         lazy_pages::is_enabled()
     }
 
+    #[deprecated]
     fn reset_lazy_pages_info() {
         lazy_pages::reset_context()
     }
