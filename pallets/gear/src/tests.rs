@@ -3471,7 +3471,11 @@ fn locking_gas_for_waitlist() {
         });
 
         let expiration = expiration.unwrap();
-        System::set_block_number(expiration - 1);
+        System::set_block_number(expiration - 2);
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
 
         run_to_next_block(None);
 
