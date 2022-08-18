@@ -3474,6 +3474,14 @@ fn locking_gas_for_waitlist() {
         System::set_block_number(expiration - 1);
 
         run_to_next_block(None);
+
+        // And nothing panics here, because `message_to_be_waited`
+        // contains enough founds to pay rent.
+
+        assert!(!WaitlistOf::<Test>::contains(
+            &waiter,
+            &message_to_be_waited
+        ));
     });
 }
 
