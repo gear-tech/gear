@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod benchmarking;
 mod cli;
 mod command;
 
-pub use benchmarking::*;
 pub use cli::*;
 pub use command::*;
 pub use sc_cli::{Error, Result};

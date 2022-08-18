@@ -18,13 +18,11 @@
 
 use crate::{
     cli::{Cli, Subcommand},
-    inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder,
 };
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
+use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use gear_node_primitives::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use service::{chain_spec, IdentifyVariant};
-use sp_keyring::Sr25519Keyring;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -218,41 +216,7 @@ pub fn run() -> sc_cli::Result<()> {
 
                         unwrap_client!(client, cmd.run(config, client.clone(), db, storage))
                     }
-                    BenchmarkCmd::Overhead(cmd) => {
-                        let inherent_data = inherent_benchmark_data().map_err(|e| {
-                            sc_cli::Error::from(format!("generating inherent data: {:?}", e))
-                        })?;
-
-                        let (client, _, _, _) = service::new_chain_ops(&config)?;
-                        // let ext_builder = client.clone();
-                        let ext_builder = RemarkBuilder::new(client.clone());
-
-                        unwrap_client!(
-                            client,
-                            // cmd.run(config, client.clone(), inherent_data, ext_builder)
-                            cmd.run(config, client.clone(), inherent_data, &ext_builder)
-                        )
-                    }
-                    BenchmarkCmd::Extrinsic(cmd) => {
-                        let inherent_data = inherent_benchmark_data().map_err(|e| {
-                            sc_cli::Error::from(format!("generating inherent data: {:?}", e))
-                        })?;
-                        let (client, _, _, _) = service::new_chain_ops(&config)?;
-                        // Register the *Remark* and *TKA* builders.
-                        let ext_factory = ExtrinsicFactory(vec![
-                            Box::new(RemarkBuilder::new(client.clone())),
-                            Box::new(TransferKeepAliveBuilder::new(
-                                client.clone(),
-                                Sr25519Keyring::Alice.to_account_id(),
-                            )),
-                        ]);
-
-                        unwrap_client!(
-                            client,
-                            // cmd.run(config, client.clone(), inherent_data, ext_builder)
-                            cmd.run(client.clone(), inherent_data, &ext_factory)
-                        )
-                    }
+                    BenchmarkCmd::Overhead(_) => Err("Unsupported benchmarking command".into()),
                     BenchmarkCmd::Machine(cmd) => {
                         cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
                     }
