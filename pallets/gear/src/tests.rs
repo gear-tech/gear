@@ -4108,6 +4108,102 @@ fn cascading_messages_with_value_do_not_overcharge() {
 }
 
 #[test]
+fn free_storage_hold_on_scheduler_overwhelm() {
+    use demo_value_sender::{TestData, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let sender = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(sender));
+
+        let data = TestData::gasful(20_000, 0);
+
+        let mb_cost = CostsPerBlockOf::<Test>::mailbox();
+        let reserve_for = CostsPerBlockOf::<Test>::reserve_for();
+
+        let user_1_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+        assert_eq!(Balances::reserved_balance(USER_2), 0);
+
+        let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
+        assert_eq!(
+            Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+            0
+        );
+
+        let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
+            USER_1,
+            sender,
+            data.request(USER_2).encode(),
+            Some(data.extra_gas),
+            0,
+        );
+
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+            GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+        run_to_next_block(None);
+
+        let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
+            .maximum_for(data.gas_limit_to_send);
+
+        let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
+
+        assert_eq!(
+            hold_bound.expected_duration(),
+            expected_duration.saturated_into::<BlockNumberFor<Test>>()
+        );
+
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
+            GasPrice::gas_price(data.gas_limit_to_send),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance - data.value, data.value);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Expected block.
+        run_to_block(hold_bound.expected(), Some(0));
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Deadline block (can pay till this one).
+        run_to_block(hold_bound.deadline(), Some(0));
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Block which already can't be payed.
+        run_to_next_block(None);
+
+        let gas_totally_burned = GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send);
+
+        utils::assert_balance(USER_1, user_1_balance - gas_totally_burned, 0u128);
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
+    });
+}
+
+#[test]
 fn execution_over_blocks() {
     init_logger();
 

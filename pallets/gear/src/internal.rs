@@ -280,14 +280,30 @@ where
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
         message_id: MessageId,
-        held_since: BlockNumberFor<T>,
+        hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
     ) {
         // Current block number.
         let current = SystemPallet::<T>::block_number();
 
+        // Deadline of the task.
+        //
+        // NOTE: make sure to work around it, while doing db migrations,
+        // changing `ReserveFor` value.
+        let deadline = hold_interval
+            .finish
+            .saturating_add(CostsPerBlockOf::<T>::reserve_for());
+
+        // The block number, which was the last payed for hold.
+        //
+        // Outdated tasks can store for free, but this case is under
+        // control of correct `ReserveFor` constant set.
+        let payed_till = current.min(deadline);
+
         // Holding duration.
-        let duration: u64 = current.saturating_sub(held_since).unique_saturated_into();
+        let duration: u64 = payed_till
+            .saturating_sub(hold_interval.start)
+            .unique_saturated_into();
 
         // Amount of gas to charge for holding.
         let amount = duration.saturating_mul(cost);
@@ -354,10 +370,13 @@ where
         (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
+        // Expected block number to finish task.
+        let expected = hold_interval.finish;
+
         // Charging for holding.
         Self::charge_for_hold(
             waitlisted.id(),
-            hold_interval.start,
+            hold_interval,
             CostsPerBlockOf::<T>::waitlist(),
         );
 
@@ -369,7 +388,7 @@ where
 
         // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
-            hold_interval.finish,
+            expected,
             ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
         );
 
@@ -400,10 +419,13 @@ where
     ) -> StoredMessage {
         use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
 
+        // Expected block number to finish task.
+        let expected = hold_interval.finish;
+
         // Charging for holding.
         Self::charge_for_hold(
             mailboxed.id(),
-            hold_interval.start,
+            hold_interval,
             CostsPerBlockOf::<T>::mailbox(),
         );
 
@@ -435,7 +457,7 @@ where
 
         // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
-            hold_interval.finish,
+            expected,
             ScheduledTask::RemoveFromMailbox(user_id, mailboxed.id()),
         );
 
