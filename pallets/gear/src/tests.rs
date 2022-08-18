@@ -4605,7 +4605,7 @@ fn gas_reservation_works() {
 
         let pid = get_last_program_id();
 
-        run_to_next_block(None);
+        run_to_block(2, None);
 
         let GasInfo {
             min_limit: spent_gas,
@@ -4627,7 +4627,7 @@ fn gas_reservation_works() {
             0
         ));
 
-        run_to_next_block(None);
+        run_to_block(3, None);
     });
 }
 

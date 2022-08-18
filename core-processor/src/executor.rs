@@ -242,7 +242,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
-        gas_reservation_map,
+        gas_reserver: gas_reservation_map,
         origin,
         program,
         mut pages_initial_data,
@@ -289,7 +289,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let context = ProcessorContext {
         gas_counter,
         gas_allowance_counter,
-        gas_reservation_map,
+        gas_reserver: gas_reservation_map,
         value_counter,
         allocations_context,
         message_context,
@@ -391,7 +391,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
 
-    log::info!("!!!TEST!!! {:?}", info.gas_reservation_map);
+    log::info!("!!!TEST!!! {:?}", info.gas_reserver);
 
     // Output
     Ok(DispatchResult {
@@ -403,7 +403,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         awakening: info.awakening,
         program_candidates,
         gas_amount: info.gas_amount,
-        gas_reservation_map: info.gas_reservation_map,
+        gas_reserver: info.gas_reserver,
         page_update,
         allocations: info.allocations,
     })

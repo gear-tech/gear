@@ -36,10 +36,11 @@ use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasCounter},
-    ids::{ProgramId, ReservationId},
+    ids::ProgramId,
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, StoredDispatch},
     program::Program,
+    reservation::GasReserver,
 };
 
 enum SuccessfulDispatchResultKind {
@@ -52,7 +53,7 @@ enum SuccessfulDispatchResultKind {
 pub struct PreparedMessageExecutionContext {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
-    gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    gas_reserver: GasReserver,
     dispatch: IncomingDispatch,
     origin: ProgramId,
     balance: u128,
@@ -154,11 +155,13 @@ pub fn prepare(
         }
     };
 
+    let gas_reserver = GasReserver::new(gas_reservation_map);
+
     PrepareResult::Ok {
         context: Box::new(PreparedMessageExecutionContext {
             gas_counter,
             gas_allowance_counter,
-            gas_reservation_map,
+            gas_reserver,
             dispatch,
             origin,
             balance,
@@ -203,7 +206,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         origin: execution_context.origin,
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
-        gas_reservation_map: execution_context.gas_reservation_map,
+        gas_reserver: execution_context.gas_reserver,
         program: execution_context.program,
         pages_initial_data: memory_pages,
         memory_size: execution_context.memory_size,
@@ -348,7 +351,7 @@ fn process_success(
         awakening,
         program_candidates,
         gas_amount,
-        gas_reservation_map,
+        gas_reserver,
         page_update,
         program_id,
         context_store,
@@ -371,7 +374,7 @@ fn process_success(
     journal.push(JournalNote::UpdateGasReservations {
         message_id,
         program_id,
-        gas_reservation_map,
+        gas_reserver,
     });
 
     // We check if value is greater than zero to don't provide

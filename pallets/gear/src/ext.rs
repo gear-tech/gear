@@ -74,7 +74,7 @@ impl IntoExtInfo for LazyPagesExt {
             allocations_context,
             message_context,
             gas_counter,
-            gas_reservation_map,
+            gas_reserver: gas_reservation_map,
             program_candidates_data,
             ..
         } = self.inner.context;
@@ -104,7 +104,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         let info = ExtInfo {
             gas_amount: gas_counter.into(),
-            gas_reservation_map,
+            gas_reserver: gas_reservation_map,
             allocations: allocations.ne(&initial_allocations).then_some(allocations),
             pages_data: accessed_pages_data,
             generated_dispatches,
@@ -323,14 +323,14 @@ impl EnvExt for LazyPagesExt {
         self.inner.gas(val).map_err(Error::Processor)
     }
 
-    fn reserve_gas(&mut self, amount: u32) -> Result<ReservationId, Self::Error> {
-        self.inner.reserve_gas(amount).map_err(Error::Processor)
+    fn reserve_gas(&mut self, amount: u32, blocks: u32) -> Result<ReservationId, Self::Error> {
+        self.inner
+            .reserve_gas(amount, blocks)
+            .map_err(Error::Processor)
     }
 
-    fn unreserve_gas(&mut self, id: ReservationId, amount: u32) -> Result<(), Self::Error> {
-        self.inner
-            .unreserve_gas(id, amount)
-            .map_err(Error::Processor)
+    fn unreserve_gas(&mut self, id: ReservationId) -> Result<(), Self::Error> {
+        self.inner.unreserve_gas(id).map_err(Error::Processor)
     }
 
     fn gas_available(&mut self) -> Result<u64, Self::Error> {

@@ -27,10 +27,11 @@ use codec::{Decode, Encode};
 use gear_backend_common::TrapExplanation;
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     program::Program,
+    reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::MemoryError;
 use scale_info::TypeInfo;
@@ -69,7 +70,7 @@ pub struct DispatchResult {
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    pub gas_reserver: GasReserver,
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, PageBuf>,
     /// New allocations set for program if it has been changed.
@@ -113,7 +114,7 @@ impl DispatchResult {
             awakening: Default::default(),
             program_candidates: Default::default(),
             gas_amount,
-            gas_reservation_map: Default::default(),
+            gas_reserver: GasReserver::new(Default::default()),
             page_update: Default::default(),
             allocations: Default::default(),
         }
@@ -249,7 +250,7 @@ pub enum JournalNote {
         /// Program ID.
         program_id: ProgramId,
         /// Gas reservation map.
-        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+        gas_reserver: GasReserver,
     },
 }
 
@@ -304,7 +305,7 @@ pub trait JournalHandler {
         &mut self,
         message_id: MessageId,
         program_id: ProgramId,
-        gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+        gas_reserver: GasReserver,
     );
 }
 
@@ -410,7 +411,7 @@ pub struct ExecutableActorData {
     /// Numbers of allocated memory pages that have non-default data.
     pub pages_with_data: BTreeSet<PageNumber>,
     /// Gas reservation map
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    pub gas_reservation_map: GasReservationMap,
 }
 
 /// Execution context.
@@ -422,7 +423,7 @@ pub struct WasmExecutionContext {
     /// A counter for gas allowance.
     pub gas_allowance_counter: GasAllowanceCounter,
     /// Gas reservation map
-    pub gas_reservation_map: BTreeMap<ReservationId, GasCounter>,
+    pub gas_reserver: GasReserver,
     /// Program to be executed.
     pub program: Program,
     /// Memory pages with initial data.

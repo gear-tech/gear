@@ -27,7 +27,7 @@ use common::{
 };
 use core_processor::common::ExecutionErrorReason;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::ReplyMessage,
 };
 
@@ -153,5 +153,9 @@ where
 
     fn wake_message(&mut self, _program_id: ProgramId, _message_id: MessageId) {
         todo!("issue #349");
+    }
+
+    fn remove_gas_reservation(&mut self, reservation_id: ReservationId) {
+        Pallet::<T>::consume_message(reservation_id.into());
     }
 }

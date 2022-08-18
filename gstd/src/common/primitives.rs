@@ -45,9 +45,6 @@ use scale_info::TypeInfo;
 
 const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
-// TODO: redefinition instead of re-export?
-pub use gcore::ReservationId;
-
 /// Program (actor) identifier.
 ///
 /// Gear allows users and programs to interact with other users and programs via
@@ -260,5 +257,33 @@ impl TryFrom<&[u8]> for CodeHash {
 
     fn try_from(slice: &[u8]) -> Result<Self> {
         Self::from_slice(slice)
+    }
+}
+
+/// Reservation identifier.
+///
+/// The ID is used to get reserved gas.
+#[derive(Debug, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+pub struct ReservationId([u8; 32]);
+
+impl ReservationId {
+    pub fn reserve(amount: u32, blocks: u32) -> Self {
+        gcore::exec::reserve_gas(amount, blocks).into()
+    }
+
+    pub fn unreserve(self) {
+        gcore::exec::unreserve_gas(self.into())
+    }
+}
+
+impl From<gcore::ReservationId> for ReservationId {
+    fn from(id: gcore::ReservationId) -> Self {
+        Self(id.0)
+    }
+}
+
+impl From<ReservationId> for gcore::ReservationId {
+    fn from(id: ReservationId) -> Self {
+        gcore::ReservationId(id.0)
     }
 }

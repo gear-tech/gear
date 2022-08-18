@@ -77,7 +77,7 @@ pub fn handle_journal(
             JournalNote::UpdateGasReservations {
                 message_id,
                 program_id,
-                gas_reservation_map,
+                gas_reserver: gas_reservation_map,
             } => handler.update_gas_reservation(message_id, program_id, gas_reservation_map),
         }
     }

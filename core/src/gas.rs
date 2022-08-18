@@ -51,8 +51,7 @@ pub enum ChargeResult {
 ///
 /// `Clone` and `Copy` traits aren't implemented for the type (however could be)
 /// in order to make the data only moveable, preventing implicit/explicit copying.
-// TODO: audit Clone with ISab
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub struct GasCounter {
     left: u64,
     burned: u64,
