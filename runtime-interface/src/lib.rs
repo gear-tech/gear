@@ -235,10 +235,12 @@ pub trait GearRI {
         lazy_pages::init(lazy_pages::LazyPagesVersion::Version2)
     }
 
+    #[deprecated]
     fn is_lazy_pages_enabled() -> bool {
         lazy_pages::is_enabled()
     }
 
+    #[deprecated]
     fn reset_lazy_pages_info() {
         lazy_pages::reset_context()
     }
@@ -317,7 +319,7 @@ pub trait GearRI {
     }
 
     fn get_released_pages() -> Vec<u32> {
-        lazy_pages::get_released_pages()
+        lazy_pages::get_released_pages_patched()
             .into_iter()
             .map(|p| p.0)
             .collect()
