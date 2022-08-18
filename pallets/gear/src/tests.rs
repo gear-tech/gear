@@ -3471,6 +3471,11 @@ fn locking_gas_for_waitlist() {
         });
 
         let expiration = expiration.unwrap();
+
+        // Expiration block may be really far from current one, so proper
+        // `run_to_block` takes a lot, so we use hack here by setting
+        // close block number to it to check that messages keeps in
+        // waitlist before and leaves it as expected.
         System::set_block_number(expiration - 2);
 
         run_to_next_block(None);
