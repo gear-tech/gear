@@ -38,9 +38,7 @@ use crate::{
     MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{
-    benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
-};
+use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
     PrepareResult, PreparedMessageExecutionContext,
@@ -52,6 +50,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
 };
+use gear_lazy_pages_common as lazy_pages;
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_aura::{Slot, AURA_ENGINE_ID};
 use sp_core::H256;
