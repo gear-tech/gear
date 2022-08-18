@@ -3574,6 +3574,60 @@ fn resume_program_works() {
 }
 
 #[test]
+fn calculate_init_gas() {
+    use demo_gas_burned::WASM_BINARY;
+
+    init_logger();
+    let gas_info_1 = new_test_ext().execute_with(|| {
+        Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap()
+    });
+
+    let gas_info_2 = new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_code(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec()
+        ));
+
+        let code_id = get_last_code_id();
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::InitByHash(code_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap();
+
+        assert_ok!(Gear::create_program(
+            Origin::signed(USER_1),
+            code_id,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            gas_info.min_limit,
+            0
+        ));
+
+        let init_message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(init_message_id);
+
+        gas_info
+    });
+
+    assert_eq!(gas_info_1, gas_info_2);
+}
+
+#[test]
 fn gas_spent_vs_balance() {
     use demo_btree::{Request, WASM_BINARY};
 
@@ -5154,6 +5208,27 @@ mod utils {
             destination
         } else {
             unreachable!("expect Event::InitMessageEnqueued")
+        }
+    }
+
+    pub(super) fn get_last_code_id() -> CodeId {
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        if let Event::CodeChanged {
+            change: CodeChangeKind::Active { .. },
+            id,
+            ..
+        } = event
+        {
+            id
+        } else {
+            unreachable!("expect Event::CodeChanged")
         }
     }
 
