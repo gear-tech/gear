@@ -1246,13 +1246,13 @@ fn lazy_pages() {
 
 #[test]
 fn initial_pages_cheaper_than_allocated_pages() {
-    // When contract some amount of the initial pages, then it is simpler
+    // When contract has some amount of the initial pages, then it is simpler
     // for core processor and executor than process the same contract
     // but with allocated pages.
 
     let wat_initial = r#"
     (module
-        (import "env" "memory" (memory 0x10))
+        (import "env" "memory" (memory 0x100))
         (export "init" (func $init))
         (func $init
             (local $i i32)
@@ -1268,7 +1268,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
                 local.set $i
 
                 local.get $i
-                i32.const 0x100000
+                i32.const 0x1000000
                 i32.ne
                 br_if 0
             )
@@ -1283,9 +1283,9 @@ fn initial_pages_cheaper_than_allocated_pages() {
         (func $init
             (local $i i32)
 
-            ;; alloc 0x10 pages, so mem pages are: 0..=0xf
+            ;; alloc 0x100 pages, so mem pages are: 0..=0xff
             (block
-                i32.const 0x10
+                i32.const 0x100
                 call $alloc
                 i32.eqz
                 br_if 0
@@ -1304,7 +1304,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
                 local.set $i
 
                 local.get $i
-                i32.const 0x100000
+                i32.const 0x1000000
                 i32.ne
                 br_if 0
             )
@@ -1320,7 +1320,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
-                10_000_000_000,
+                100_000_000_000,
                 0,
             );
             assert_ok!(res);
