@@ -323,14 +323,28 @@ where
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
-            unreachable!("Failed to figure out correct wait hold bound");
+            // TODO: Replace with unreachable call after:
+            // - `HoldBound` safety usage stabilized;
+            // - Issue #1173 solved.
+            log::error!("Failed to figure out correct wait hold bound");
+            return;
         }
+
+        // TODO: remove, once duration-control added inside programs (#1173).
+        //
+        // This need in async scenarios, while we send gasless message and it
+        // goes into waitlist: then all funds become locked for storing in
+        // waitlist, instead of distribute for execution and storing.
+        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist())
+            .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
+
+        // Locking funds for holding.
+        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
         let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: Lock funds for holding here (issue #1173).
 
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
@@ -372,6 +386,10 @@ where
     ) -> StoredDispatch {
         // Expected block number to finish task.
         let expected = hold_interval.finish;
+
+        // Unlocking all funds, that were locked for storing.
+        GasHandlerOf::<T>::unlock_all(waitlisted.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charging for holding.
         Self::charge_for_hold(

@@ -1377,6 +1377,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-gasless-wasting"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
@@ -5029,6 +5038,8 @@ dependencies = [
  "demo-distributor",
  "demo-exit-handle",
  "demo-exit-init",
+ "demo-gas-burned",
+ "demo-gasless-wasting",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-init-with-value",

@@ -16,6 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() {
-    gear_wasm_builder::build();
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use codec::{Decode, Encode};
+
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[derive(Decode, Encode)]
+pub struct InputArgs {
+    pub prog_to_wait: gstd::ActorId,
+    pub prog_to_waste: gstd::ActorId,
+}
+
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use crate::InputArgs;
+    use gstd::{msg, ActorId};
+
+    #[no_mangle]
+    unsafe extern "C" fn handle() {
+        let input: InputArgs = msg::load().unwrap();
+        msg::send_bytes(input.prog_to_wait, [], 0).unwrap();
+        msg::send_bytes(input.prog_to_waste, [], 0).unwrap();
+    }
 }
