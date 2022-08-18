@@ -3394,6 +3394,107 @@ fn program_messages_to_paused_program_skipped() {
 }
 
 #[test]
+fn locking_gas_for_waitlist() {
+    use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
+    use demo_gasless_wasting::{InputArgs, WASM_BINARY as GASLESS_WASTING_BINARY};
+
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_wait" (func $gr_wait))
+        (export "handle" (func $handle))
+        (func $handle call $gr_wait)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // This program just waits on each handle message.
+        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("submit result was asserted");
+
+        // This program just does some calculations (burns gas) on each handle message.
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            GAS_BURNED_BINARY.to_vec(),
+            Default::default(),
+            Default::default(),
+            100_000_000_000,
+            0
+        ));
+        let calculator = get_last_program_id();
+
+        // This program sends two empty gasless messages on each handle:
+        // for this test first message is waiter, seconds is calculator.
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            GASLESS_WASTING_BINARY.to_vec(),
+            Default::default(),
+            Default::default(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        let sender = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(waiter));
+        assert!(Gear::is_initialized(calculator));
+        assert!(Gear::is_initialized(sender));
+
+        let payload = InputArgs {
+            prog_to_wait: waiter.into_origin().into(),
+            prog_to_waste: calculator.into_origin().into(),
+        };
+
+        calculate_handle_and_send_with_extra(USER_1, sender, payload.encode(), None, 0);
+        let origin_msg_id = get_last_message_id();
+
+        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 0);
+
+        run_to_block(3, None);
+
+        assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
+
+        let mut expiration = None;
+
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessageWaited {
+                id,
+                expiration: exp,
+                ..
+            }) = e.event
+            {
+                if id == message_to_be_waited {
+                    expiration = Some(exp);
+                }
+            }
+        });
+
+        let expiration = expiration.unwrap();
+
+        // Expiration block may be really far from current one, so proper
+        // `run_to_block` takes a lot, so we use hack here by setting
+        // close block number to it to check that messages keeps in
+        // waitlist before and leaves it as expected.
+        System::set_block_number(expiration - 2);
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
+
+        run_to_next_block(None);
+
+        // And nothing panics here, because `message_to_be_waited`
+        // contains enough founds to pay rent.
+
+        assert!(!WaitlistOf::<Test>::contains(
+            &waiter,
+            &message_to_be_waited
+        ));
+    });
+}
+
+#[test]
 fn resume_program_works() {
     use demo_init_wait::WASM_BINARY;
 
