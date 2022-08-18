@@ -124,8 +124,14 @@ pub struct GasInfo {
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
-    /// The value may be returned if a program happens to be executed the second or next time in a block.
+    /// The value may be returned if a program happens to be executed
+    /// the second or next time in a block.
     pub may_be_returned: u64,
+    /// Was the message placed into waitlist at the end of calculating.
+    ///
+    /// This flag shows, that `min_limit` makes sense and have some guarantees
+    /// only before insertion into waitlist.
+    pub waited: bool,
 }
 
 #[frame_support::pallet]
@@ -632,7 +638,10 @@ pub mod pallet {
         ) -> Result<GasInfo, String> {
             log::debug!("\n===== CALCULATE GAS INFO =====\n");
             log::debug!("\n--- FIRST TRY ---\n");
-            let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
+
+            let GasInfo {
+                min_limit, waited, ..
+            } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -670,6 +679,7 @@ pub mod pallet {
                         reserved,
                         burned,
                         may_be_returned,
+                        waited,
                     },
                 )
                 .map_err(|e| {
@@ -926,11 +936,14 @@ pub mod pallet {
                 }
             }
 
+            let waited = WaitlistOf::<T>::contains(&main_program_id, &main_message_id);
+
             Ok(GasInfo {
                 min_limit,
                 reserved,
                 burned,
                 may_be_returned,
+                waited,
             })
         }
 

@@ -323,7 +323,11 @@ where
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
-            unreachable!("Failed to figure out correct wait hold bound");
+            // TODO: Replace with unreachable call after:
+            // - `HoldBound` safety usage stabilized;
+            // - Issue #1173 solved.
+            log::error!("Failed to figure out correct wait hold bound");
+            return;
         }
 
         // TODO: remove, once duration-control added inside programs (#1173).
