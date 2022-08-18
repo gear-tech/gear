@@ -23,6 +23,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
+/// Gas reserver.
 #[derive(Debug, Clone)]
 pub struct GasReserver {
     map: GasReservationMap,
@@ -30,6 +31,7 @@ pub struct GasReserver {
 }
 
 impl GasReserver {
+    /// Creates a new gas reserver.
     pub fn new(map: GasReservationMap) -> Self {
         Self {
             map,
@@ -37,6 +39,7 @@ impl GasReserver {
         }
     }
 
+    /// Reserves gas.
     pub fn reserve(&mut self, msg_id: MessageId, amount: u32, bn: u32) -> ReservationId {
         let idx = self.map.len();
         let id = ReservationId::generate(msg_id, idx as u64);
@@ -50,37 +53,50 @@ impl GasReserver {
         );
 
         self.tasks
-            .push(GasReservationTask::AddReservation { id, amount, bn });
+            .push(GasReservationTask::CreateReservation { id, amount, bn });
 
         id
     }
 
+    /// Unreserves gas.
     pub fn unreserve(&mut self, id: ReservationId) -> Option<u32> {
         let GasReservationSlot { amount, bn } = self.map.remove(&id)?;
-        self.tasks.push(GasReservationTask::RemoveNode { id, bn });
+        self.tasks
+            .push(GasReservationTask::RemoveReservation { id, bn });
         Some(amount)
     }
 
+    /// Split reserver into parts.
     pub fn into_parts(self) -> (GasReservationMap, Vec<GasReservationTask>) {
         (self.map, self.tasks)
     }
 }
 
+/// Gas reservation task.
 #[derive(Debug, Clone)]
 pub enum GasReservationTask {
-    AddReservation {
+    /// Create a new reservation.
+    CreateReservation {
+        /// Reservation ID.
         id: ReservationId,
+        /// Amount of reserved gas.
         amount: u32,
+        /// Block number which reservation will be removed to.
         bn: u32,
     },
-    RemoveNode {
+    /// Remove reservation.
+    RemoveReservation {
+        /// Reservation ID.
         id: ReservationId,
+        /// Block number which reservation will be removed to.
         bn: u32,
     },
 }
 
+/// Gas reservation map.
 pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 
+/// Gas reservation slot.
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub struct GasReservationSlot {
     amount: u32,

@@ -148,9 +148,9 @@ impl ExecutionContext for InMemoryExtManager {
             TestActor {
                 balance: 0,
                 executable_data: Some(ExecutableActorData {
-                    program,
+                    program: program.clone(),
                     pages_with_data: Default::default(),
-                    gas_reservation_map: todo!(),
+                    gas_reservation_map: Default::default(),
                 }),
                 memory_pages: Default::default(),
             },
@@ -373,10 +373,25 @@ impl JournalHandler for InMemoryExtManager {
 
     fn update_gas_reservation(
         &mut self,
-        message_id: MessageId,
+        _message_id: MessageId,
         program_id: ProgramId,
-        gas_reservation_map: GasReserver,
+        gas_reserver: GasReserver,
     ) {
-        todo!()
+        let actor = self
+            .actors
+            .get_mut(&program_id)
+            .expect("gas reservation update guaranteed to be called only on existing program");
+
+        let (gas_reservation_map, _) = gas_reserver.into_parts();
+
+        if let TestActor {
+            executable_data: Some(executable_data),
+            ..
+        } = actor
+        {
+            executable_data.gas_reservation_map = gas_reservation_map;
+        } else {
+            panic!("no gas reservation map found in program");
+        }
     }
 }

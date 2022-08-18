@@ -36,7 +36,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::Ext,
-    ids::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId, ReservationId},
     message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use gear_core_errors::MemoryError;
@@ -638,6 +638,45 @@ where
             ctx.ext.debug(&s).map_err(FuncError::Core)?;
             Ok(())
         };
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            FuncError::HostError
+        })
+    }
+
+    pub fn reserve_gas(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let mut args = args.iter();
+
+        let id_ptr: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let gas_amount: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let blocks: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+
+        let mut f = || {
+            let id = ctx
+                .ext
+                .reserve_gas(gas_amount, blocks)
+                .map_err(FuncError::Core)?;
+            ctx.write_output(id_ptr, id.as_ref())?;
+            Ok(())
+        };
+
+        f().map(|()| ReturnValue::Unit).map_err(|err| {
+            ctx.err = err;
+            FuncError::HostError
+        })
+    }
+
+    pub fn unreserve_gas(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let mut args = args.iter();
+
+        let id_ptr: u32 = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+
+        let mut f = || {
+            let id: ReservationId = ctx.read_memory_as(id_ptr)?;
+            ctx.ext.unreserve_gas(id).map_err(FuncError::Core)?;
+            Ok(())
+        };
+
         f().map(|()| ReturnValue::Unit).map_err(|err| {
             ctx.err = err;
             FuncError::HostError

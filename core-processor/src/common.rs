@@ -410,7 +410,7 @@ pub struct ExecutableActorData {
     pub program: Program,
     /// Numbers of allocated memory pages that have non-default data.
     pub pages_with_data: BTreeSet<PageNumber>,
-    /// Gas reservation map
+    /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
 
@@ -422,7 +422,7 @@ pub struct WasmExecutionContext {
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
     pub gas_allowance_counter: GasAllowanceCounter,
-    /// Gas reservation map
+    /// Gas reserver.
     pub gas_reserver: GasReserver,
     /// Program to be executed.
     pub program: Program,

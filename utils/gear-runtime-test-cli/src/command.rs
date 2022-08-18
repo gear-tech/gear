@@ -456,11 +456,23 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     let program = CoreProgram::from_parts(*pid, code, pages, true);
                     let memory =
                         vec_page_data_map_to_page_buf_map(info.persistent_pages.clone()).unwrap();
+                    let gas_reservation_map = {
+                        let prog = gear_common::get_program(pid.into_origin()).unwrap();
+                        if let gear_common::Program::Active(gear_common::ActiveProgram {
+                            gas_reservation_map,
+                            ..
+                        }) = prog
+                        {
+                            gas_reservation_map
+                        } else {
+                            panic!("no gas reservation map found in program")
+                        }
+                    };
                     Some((
                         ExecutableActorData {
                             program,
                             pages_with_data: memory.keys().cloned().collect(),
-                            gas_reservation_map: todo!(),
+                            gas_reservation_map,
                         },
                         memory,
                     ))
