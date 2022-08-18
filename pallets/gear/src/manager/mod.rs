@@ -70,6 +70,7 @@ use sp_std::{
 #[derive(Clone, Decode, Encode)]
 pub enum HandleKind {
     Init(Vec<u8>),
+    InitByHash(CodeId),
     Handle(ProgramId),
     Reply(MessageId, ExitCode),
 }
