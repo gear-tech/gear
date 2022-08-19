@@ -207,7 +207,7 @@ jobs:
 
       - name: "Test: Gear pallet tests with lazy pages"
         run: |
-          cargo test -p pallet-gear --features=lazy-pages --release --locked
+          RUST_LOG=debug cargo test -p pallet-gear --features=lazy-pages --release --locked
           cargo test -p pallet-gear-debug --features=lazy-pages --release --locked
           cargo test -p pallet-gear-payment --features=lazy-pages --release --locked
 
