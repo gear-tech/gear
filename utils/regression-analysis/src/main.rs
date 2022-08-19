@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod weights;
-
 use clap::{Parser, Subcommand};
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::weights::Weight;
 use junit_common::TestSuites;
 use pallet_gear::{HostFnWeights, InstructionWeights, MemoryWeights};
 use quick_xml::de::from_str;
@@ -27,7 +25,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs, iter,
-    ops::Deref,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -35,7 +32,6 @@ use tabled::{Style, Table};
 
 mod junit_tree;
 mod output;
-mod runtime;
 mod stats;
 
 const PALLET_NAMES: [&str; 7] = [
@@ -51,8 +47,6 @@ const PALLET_NAMES: [&str; 7] = [
 const PREALLOCATE: usize = 1_000;
 
 const TEST_SUITES_TEXT: &str = "Test suites";
-
-static WEIGHTS_JSON: WeightJson = WeightJson::new();
 
 #[derive(Parser)]
 struct Cli {
@@ -114,85 +108,13 @@ struct GithubActionBenchmark {
     extra: Option<String>,
 }
 
-struct WeightJson(once_cell::sync::OnceCell<HashMap<String, WeightBenchmark>>);
-
-impl WeightJson {
-    const fn new() -> Self {
-        Self(once_cell::sync::OnceCell::new())
-    }
-
-    fn init(&self, input_file: PathBuf) {
-        let file = fs::File::open(input_file).unwrap();
-        let map = serde_json::from_reader(file).unwrap();
-        self.0.get_or_init(move || map);
-    }
-}
-
-impl Deref for WeightJson {
-    type Target = HashMap<String, WeightBenchmark>;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.get().unwrap()
-    }
-}
-
-#[derive(Deserialize)]
-struct WeightBenchmark {
-    base_weight: Weight,
-    base_reads: Weight,
-    base_writes: Weight,
-    component_weight: Vec<WeightBenchmarkComponent>,
-    component_reads: Vec<WeightBenchmarkComponent>,
-    component_writes: Vec<WeightBenchmarkComponent>,
-}
-
-impl WeightBenchmark {
-    fn calc_weight<T: frame_system::Config>(&self, components: HashMap<&str, Weight>) -> Weight {
-        let mut weight = self.base_weight;
-
-        for cw in &self.component_weight {
-            weight = weight
-                .saturating_add(cw.slope)
-                .saturating_mul(cw.name.as_weight(&components));
-        }
-
-        if self.base_reads != 0 {
-            weight = weight.saturating_add(T::DbWeight::get().reads(self.base_reads));
-        }
-
-        for cr in &self.component_reads {
-            weight = weight.saturating_add(
-                T::DbWeight::get().reads(cr.slope.saturating_mul(cr.name.as_weight(&components))),
-            );
-        }
-
-        if self.base_writes != 0 {
-            weight = weight.saturating_add(T::DbWeight::get().writes(self.base_writes));
-        }
-
-        for cw in &self.component_writes {
-            weight = weight.saturating_add(
-                T::DbWeight::get().writes(cw.slope.saturating_mul(cw.name.as_weight(&components))),
-            );
-        }
-
-        weight
-    }
-}
-
-#[derive(Deserialize)]
-struct WeightBenchmarkComponent {
-    name: WeightBenchmarkComponentName,
-    slope: Weight,
-}
-
 #[derive(Deserialize)]
 #[serde(transparent)]
-struct WeightBenchmarkComponentName(String);
+struct WeightBenchmark(Vec<Weight>);
 
-impl WeightBenchmarkComponentName {
-    fn as_weight(&self, components: &HashMap<&str, Weight>) -> Weight {
-        components[self.0.as_str()]
+impl WeightBenchmark {
+    fn calc_weight(&self) -> Weight {
+        self.0.iter().sum()
     }
 }
 
@@ -323,43 +245,46 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
 fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
     macro_rules! add_weights {
         (
+            weights = $weights:ident;
             benches = $benches:ident;
-            let $name:ident {
+            $name:ident {
                 $( $field:ident $( : $underscore:tt )?, )+
-            } = $e:expr;
+            }
         ) => {{
-            let $name {
-                $( $field $( : $underscore )?, )+
-            } = $e;
+            // check field is exist
+            let $name::<gear_runtime::Runtime> {
+                $( $field: _, )+
+            } = Default::default();
 
             $(
-                let field = add_weights!(@field $field $( : $underscore )?);
+                let field = add_weights!(@field $weights $field $( : $underscore )?);
                 $benches.extend(field);
             )+
         }};
-        (@field $field:ident: _) => { None };
-        (@field _phantom) => { None };
-        (@field $field:ident) => {
+        (@field $weights:ident $field:ident: _) => { None };
+        (@field $weights:ident _phantom) => { None };
+        (@field $weights:ident $field:ident) => {
             Some(GithubActionBenchmark {
                 name: stringify!($field).to_string(),
                 unit: "ns".to_string(),
-                value: $field as u64 / 1_000,
+                value: $weights[dbg!(stringify!($field))].calc_weight(),
                 range: None,
                 extra: None,
             })
         };
     }
 
-    WEIGHTS_JSON.init(input_file);
+    let file = fs::File::open(input_file).unwrap();
+    let map: HashMap<String, WeightBenchmark> = serde_json::from_reader(file).unwrap();
 
-    let schedule = runtime::Schedule::get();
     let mut benches = vec![];
 
     match kind {
         WeightsKind::HostFn => {
             add_weights! {
+                weights = map;
                 benches = benches;
-                let HostFnWeights {
+                HostFnWeights {
                     _phantom,
                     alloc,
                     gr_gas_available,
@@ -393,13 +318,14 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_create_program_wgas,
                     gr_create_program_wgas_per_byte,
                     gas,
-                } = schedule.host_fn_weights;
+                }
             }
         }
         WeightsKind::Instruction => {
             add_weights! {
+                weights = map;
                 benches = benches;
-                let InstructionWeights {
+                InstructionWeights {
                     version: _,
                     i64const,
                     i64load,
@@ -452,19 +378,20 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     i64rotl,
                     i64rotr,
                     _phantom,
-                } = schedule.instruction_weights;
+                }
             }
         }
         WeightsKind::Memory => {
             add_weights! {
+                weights = map;
                 benches = benches;
-                let MemoryWeights {
+                MemoryWeights {
                     initial_cost,
                     allocation_cost,
                     grow_cost,
                     load_cost,
                     _phantom,
-                } = schedule.memory_weights;
+                }
             }
         }
     }
