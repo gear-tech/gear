@@ -28,9 +28,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: "Remote"
-        run: |
-          git remote add ci_origin https://github.com/gear-tech/gear.git
-          git diff ci_origin/master
+        run: git remote add ci_origin https://github.com/gear-tech/gear.git
+
+      - name: "Remote"
+        run: git diff ci_origin/master
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
