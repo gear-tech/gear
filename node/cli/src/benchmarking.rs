@@ -22,7 +22,7 @@
 
 use service::Client;
 
-use gear_node_primitives::{AccountId, Signature};
+use runtime_primitives::{AccountId, Signature};
 use sc_cli::Result;
 use sc_client_api::BlockBackend;
 use sp_core::{Encode, Pair};
@@ -118,7 +118,7 @@ macro_rules! signed_payload {
             ),
             frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
             frame_system::CheckWeight::<runtime::Runtime>::new(),
-            pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from($tip),
+            pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
         );
 
         let $raw_payload = runtime::SignedPayload::from_raw(
@@ -194,7 +194,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
                 let ext = runtime::UncheckedExtrinsic::new_signed(
                     call,
                     sp_runtime::AccountId32::from(bob.public()).into(),
-                    gear_node_primitives::Signature::Sr25519(signature),
+                    runtime_primitives::Signature::Sr25519(signature),
                     extra,
                 );
                 Ok(ext.into())

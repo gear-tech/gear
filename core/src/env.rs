@@ -128,13 +128,13 @@ pub trait Ext {
     fn gas(&mut self, amount: u32) -> Result<(), Self::Error>;
 
     /// Charge some extra gas.
-    fn charge_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
+    fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Charge gas by `RuntimeCosts` token.
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error>;
 
     /// Refund some gas.
-    fn refund_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
+    fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;
@@ -247,13 +247,13 @@ mod tests {
         fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn charge_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
+        fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
             Ok(())
         }
         fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn refund_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
+        fn refund_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
             Ok(())
         }
         fn gas_available(&mut self) -> Result<u64, Self::Error> {

@@ -27,7 +27,6 @@ use frame_support::{
 };
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
-use gear_node_primitives::AccountPublic;
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
     Aura, AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
@@ -35,8 +34,10 @@ use gear_runtime::{
     TransactionPaymentConfig, UncheckedExtrinsic,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
+use pallet_gear_gas::Error as GasError;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
+use runtime_primitives::AccountPublic;
 #[cfg(feature = "authoring-aura")]
 use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
 #[cfg(not(feature = "authoring-aura"))]
@@ -350,6 +351,8 @@ pub(crate) fn process_tx_pool(pool: &Arc<RwLock<PoolState>>) {
 }
 
 pub(crate) fn total_gas_in_wait_list() -> u64 {
+    let mut total_lock = 0;
+
     // Iterate through the wait list and record the respective gas nodes value limits
     // attributing the latter to the nearest `node_with_value` ID to avoid duplication
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
@@ -358,6 +361,17 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
                 let node_id = dispatch.id();
                 let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
                     .expect("There is always a value node for a valid dispatch ID");
+
+                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                    if e == GasError::<Runtime>::Forbidden.into() {
+                        0
+                    } else {
+                        panic!("GasTree error: {:?}", e)
+                    }
+                });
+
+                total_lock += lock;
+
                 (ancestor_id, value)
             })
             .collect();
@@ -365,9 +379,12 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
     gas_limit_by_node_id
         .into_iter()
         .fold(0_u64, |acc, (_, val)| acc + val)
+        .saturating_add(total_lock)
 }
 
 pub(crate) fn total_gas_in_mailbox() -> u64 {
+    let mut total_lock = 0;
+
     // Iterate through the mailbox and record the respective gas nodes value limits
     // attributing the latter to the nearest `node_with_value` ID to avoid duplication
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
@@ -376,6 +393,17 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
                 let node_id = dispatch.id();
                 let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
                     .expect("There is always a value node for a valid dispatch ID");
+
+                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                    if e == GasError::<Runtime>::Forbidden.into() {
+                        0
+                    } else {
+                        panic!("GasTree error: {:?}", e)
+                    }
+                });
+
+                total_lock += lock;
+
                 (ancestor_id, value)
             })
             .collect();
@@ -383,6 +411,7 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
     gas_limit_by_node_id
         .into_iter()
         .fold(0_u64, |acc, (_, val)| acc + val)
+        .saturating_add(total_lock)
 }
 
 pub(crate) fn total_gas_in_wl_mb() -> u64 {

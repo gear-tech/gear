@@ -48,7 +48,7 @@ mod tests;
 // TODO: issue #1147. Make this error for mprotection and for internal use only.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 pub enum RIError {
-    #[display(fmt = "Cannot mprotect interval: {:?}, mask = {}", interval, mask)]
+    #[display(fmt = "Cannot mprotect interval {:#x?}, mask = {}", interval, mask)]
     MprotectError {
         interval: RangeInclusive<u64>,
         mask: u64,
@@ -235,10 +235,12 @@ pub trait GearRI {
         lazy_pages::init(lazy_pages::LazyPagesVersion::Version2)
     }
 
+    #[deprecated]
     fn is_lazy_pages_enabled() -> bool {
         lazy_pages::is_enabled()
     }
 
+    #[deprecated]
     fn reset_lazy_pages_info() {
         lazy_pages::reset_context()
     }
@@ -303,7 +305,10 @@ pub trait GearRI {
         .expect("Cannot initialize lazy pages for current program");
 
         if let Some(addr) = wasm_mem_addr {
-            unsafe { sys_mprotect_interval(addr, wasm_mem_size.offset(), false, false, false) }
+            let stack_end = stack_end_page.map(|p| p.offset()).unwrap_or(0);
+            let size = wasm_mem_size.offset();
+            let except_pages = std::iter::empty::<PageNumber>();
+            mprotect_mem_interval_except_pages(addr, stack_end, size, except_pages, true)
         } else {
             Ok(())
         }
@@ -314,7 +319,7 @@ pub trait GearRI {
     }
 
     fn get_released_pages() -> Vec<u32> {
-        lazy_pages::get_released_pages()
+        lazy_pages::get_released_pages_patched()
             .into_iter()
             .map(|p| p.0)
             .collect()

@@ -13,9 +13,10 @@ clap = { version = "3.2", features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Gear
-gear-node-primitives = { path = "../primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli" }
 service = { package = "gear-service", path = "../service", default-features = false, optional = true }
+pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 
 # Gear Runtimes
 gear-runtime = { path = "../../runtime/gear", optional = true }
@@ -37,9 +38,6 @@ sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/subs
 sp-keyring = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-
-# Frame pallets
-pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # Substrate other (benchmarking etc)
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }

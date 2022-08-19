@@ -14,7 +14,7 @@ blake2-rfc = { version = "0.2.18", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"], default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
-anyhow = { version = "1.0.60", default-features = false }
+anyhow = { version = "1.0.62", default-features = false }
 derive_more = "0.99.17"
 
 [dev-dependencies]

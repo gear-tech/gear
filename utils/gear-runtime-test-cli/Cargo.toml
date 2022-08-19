@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.60"
+anyhow = "1.0.62"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 colored = "2.0.0"
 clap = { version = "3.2", features = ["derive"] }
@@ -31,7 +31,7 @@ sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tec
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 
 # Gear
-gear-node-primitives = { path = "../../node/primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime/gear", optional = true, features = ["debug-mode"] }

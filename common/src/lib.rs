@@ -22,7 +22,6 @@
 extern crate gear_common_codegen;
 
 pub mod event;
-pub mod lazy_pages;
 pub mod scheduler;
 pub mod storage;
 
