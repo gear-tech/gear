@@ -21,11 +21,11 @@ use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitia
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
-use gear_node_primitives::AccountPublic;
 #[cfg(feature = "gear-native")]
 use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
+use runtime_primitives::AccountPublic;
 #[cfg(feature = "authoring-aura")]
 use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
 #[cfg(not(feature = "authoring-aura"))]

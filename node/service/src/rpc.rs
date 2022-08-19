@@ -22,8 +22,8 @@
 
 use std::sync::Arc;
 
-use gear_node_primitives::{AccountId, Balance, Block, Index};
 use jsonrpsee::RpcModule;
+use runtime_primitives::{AccountId, Balance, Block, Index};
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;

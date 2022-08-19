@@ -18,7 +18,7 @@
 
 //! Gear chain configurations
 
-pub use gear_node_primitives::{AccountId, AccountPublic};
+pub use runtime_primitives::{AccountId, AccountPublic};
 use sp_core::{Pair, Public};
 use sp_runtime::traits::IdentifyAccount;
 
