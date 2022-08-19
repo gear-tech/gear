@@ -1245,6 +1245,105 @@ fn lazy_pages() {
 }
 
 #[test]
+fn initial_pages_cheaper_than_allocated_pages() {
+    // When contract has some amount of the initial pages, then it is simpler
+    // for core processor and executor than process the same contract
+    // but with allocated pages.
+
+    let wat_initial = r#"
+    (module
+        (import "env" "memory" (memory 0x100))
+        (export "init" (func $init))
+        (func $init
+            (local $i i32)
+            ;; make store, so pages are really used
+            (loop
+                local.get $i
+                local.get $i
+                i32.store
+
+                local.get $i
+                i32.const 0x1000
+                i32.add
+                local.set $i
+
+                local.get $i
+                i32.const 0x1000000
+                i32.ne
+                br_if 0
+            )
+        )
+    )"#;
+
+    let wat_alloc = r#"
+    (module
+        (import "env" "memory" (memory 0))
+        (import "env" "alloc" (func $alloc (param i32) (result i32)))
+        (export "init" (func $init))
+        (func $init
+            (local $i i32)
+
+            ;; alloc 0x100 pages, so mem pages are: 0..=0xff
+            (block
+                i32.const 0x100
+                call $alloc
+                i32.eqz
+                br_if 0
+                unreachable
+            )
+
+            ;; make store, so pages are really used
+            (loop
+                local.get $i
+                local.get $i
+                i32.store
+
+                local.get $i
+                i32.const 0x1000
+                i32.add
+                local.set $i
+
+                local.get $i
+                i32.const 0x1000000
+                i32.ne
+                br_if 0
+            )
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let mut block_number = 1;
+        let mut gas_spent = |wat| {
+            let res = GearPallet::<Test>::upload_program(
+                Origin::signed(USER_1),
+                ProgramCodeKind::Custom(wat).to_bytes(),
+                DEFAULT_SALT.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                100_000_000_000,
+                0,
+            );
+            assert_ok!(res);
+
+            block_number += 1;
+            run_to_block(block_number, None);
+            assert_last_dequeued(1);
+
+            GasPrice::gas_price(BlockGasLimitOf::<Test>::get() - GasAllowanceOf::<Test>::get())
+        };
+
+        let spent_for_initial_pages = gas_spent(wat_initial);
+        let spent_for_allocated_pages = gas_spent(wat_alloc);
+        assert!(
+            spent_for_initial_pages < spent_for_allocated_pages,
+            "spent {} gas for initial pages, spent {} gas for allocated pages",
+            spent_for_initial_pages,
+            spent_for_allocated_pages
+        );
+    });
+}
+
+#[test]
 fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
