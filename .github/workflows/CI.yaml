@@ -30,7 +30,7 @@ jobs:
       - name: "Remote"
         run: |
           git remote add ci_origin https://github.com/gear-tech/gear.git
-          git diff origin/master
+          git diff ci_origin/master
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
