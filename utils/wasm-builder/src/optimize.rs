@@ -70,10 +70,9 @@ impl Optimizer {
     /// Presently all custom sections are not required so they can be stripped safely.
     /// The name section is already stripped by `wasm-opt`.
     pub fn strip_custom_sections(&mut self) {
-        self.module.sections_mut().retain(|section| match section {
-            Section::Reloc(_) | Section::Custom(_) => false,
-            _ => true,
-        })
+        self.module
+            .sections_mut()
+            .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
     }
 
     /// Process optimization.

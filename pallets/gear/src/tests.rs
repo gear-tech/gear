@@ -1314,7 +1314,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
     new_test_ext().execute_with(|| {
         let mut block_number = 1;
         let mut gas_spent = |wat| {
-            let res = GearPallet::<Test>::upload_program(
+            let res = Gear::upload_program(
                 Origin::signed(USER_1),
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 DEFAULT_SALT.to_vec(),
