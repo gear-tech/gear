@@ -25,6 +25,7 @@ rand_pcg = { version = "0.3", optional = true }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
+gear-lazy-pages-common = { path = "../../common/lazy-pages", default-features = false, optional = true }
 core-processor = { package = "gear-core-processor", path = "../../core-processor", default-features = false }
 gear-core = { path = "../../core", default-features = false }
 gear-core-errors = { path = "../../core-errors", default-features = false }
@@ -63,6 +64,8 @@ demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
 demo-init-with-value = { path = "../../examples/binaries/init-with-value" }
+demo-gasless-wasting = { path = "../../examples/binaries/gasless-wasting" }
+demo-gas-burned = { path = "../../examples/binaries/gas-burned" }
 demo-waiting-proxy = { path = "../../examples/binaries/waiting-proxy" }
 demo-calc-hash = { path = "../../examples/binaries/calc-hash" }
 demo-calc-hash-over-blocks = { path = "../../examples/binaries/calc-hash/over-blocks" }
@@ -98,6 +101,7 @@ std = [
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
+	"gear-lazy-pages-common?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -110,4 +114,4 @@ runtime-benchmarks = [
 	"rand_pcg",
 ]
 try-runtime = ["frame-support/try-runtime"]
-lazy-pages = []
+lazy-pages = ["gear-lazy-pages-common"]

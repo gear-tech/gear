@@ -25,7 +25,7 @@ pub use frame_support::{
     traits::{Currency, OnUnbalanced},
     weights::constants::WEIGHT_PER_SECOND,
 };
-use gear_node_primitives::{AccountId, Balance, BlockNumber};
+use runtime_primitives::{AccountId, Balance, BlockNumber};
 use sp_runtime::{Perbill, Percent};
 
 // Extrinsics with DispatchClass::Normal only account for user messages

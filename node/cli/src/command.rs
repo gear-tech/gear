@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    cli::{Cli, Subcommand},
-};
+use crate::cli::{Cli, Subcommand};
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
-use gear_node_primitives::Block;
+use runtime_primitives::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use service::{chain_spec, IdentifyVariant};
 

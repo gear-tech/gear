@@ -22,7 +22,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 
 # Internal deps
-gear-node-primitives = { version = "1.0.0", default-features = false, path = "../../node/primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
 
 [features]
@@ -32,7 +32,7 @@ std = [
 	"frame-system/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
-	"gear-node-primitives/std",
+	"runtime-primitives/std",
 	"sp-runtime/std",
 	"sp-std/std",
 ]

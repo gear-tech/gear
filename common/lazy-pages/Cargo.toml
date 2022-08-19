@@ -1,0 +1,25 @@
+[package]
+name = "gear-lazy-pages-common"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+derive_more = "0.99.17"
+log = { version = "0.4.17", default-features = false }
+
+gear-core = { path = "../../core", default-features = false }
+gear-common = { path = "..", default-features = false }
+gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
+
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+    "gear-common/std",
+    "gear-runtime-interface/std",
+    "sp-std/std",
+    "log/std",
+]

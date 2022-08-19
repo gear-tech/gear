@@ -1963,6 +1963,47 @@ fn claim_value_works() {
 }
 
 #[test]
+fn uninitialized_program_zero_gas() {
+    use demo_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            vec![],
+            Vec::new(),
+            50_000_000_000u64,
+            0u128
+        ));
+
+        let init_message_id = utils::get_last_message_id();
+        let program_id = utils::get_last_program_id();
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+
+        run_to_block(2, None);
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+        assert!(WaitlistOf::<Test>::contains(&program_id, &init_message_id));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(1),
+            program_id,
+            vec![],
+            0, // that may trigger unreachable code
+            0,
+        ));
+
+        run_to_block(3, None);
+    })
+}
+
+#[test]
 fn distributor_initialize() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3394,6 +3435,107 @@ fn program_messages_to_paused_program_skipped() {
 }
 
 #[test]
+fn locking_gas_for_waitlist() {
+    use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
+    use demo_gasless_wasting::{InputArgs, WASM_BINARY as GASLESS_WASTING_BINARY};
+
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_wait" (func $gr_wait))
+        (export "handle" (func $handle))
+        (func $handle call $gr_wait)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // This program just waits on each handle message.
+        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("submit result was asserted");
+
+        // This program just does some calculations (burns gas) on each handle message.
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            GAS_BURNED_BINARY.to_vec(),
+            Default::default(),
+            Default::default(),
+            100_000_000_000,
+            0
+        ));
+        let calculator = get_last_program_id();
+
+        // This program sends two empty gasless messages on each handle:
+        // for this test first message is waiter, seconds is calculator.
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            GASLESS_WASTING_BINARY.to_vec(),
+            Default::default(),
+            Default::default(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        let sender = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(waiter));
+        assert!(Gear::is_initialized(calculator));
+        assert!(Gear::is_initialized(sender));
+
+        let payload = InputArgs {
+            prog_to_wait: waiter.into_origin().into(),
+            prog_to_waste: calculator.into_origin().into(),
+        };
+
+        calculate_handle_and_send_with_extra(USER_1, sender, payload.encode(), None, 0);
+        let origin_msg_id = get_last_message_id();
+
+        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 0);
+
+        run_to_block(3, None);
+
+        assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
+
+        let mut expiration = None;
+
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessageWaited {
+                id,
+                expiration: exp,
+                ..
+            }) = e.event
+            {
+                if id == message_to_be_waited {
+                    expiration = Some(exp);
+                }
+            }
+        });
+
+        let expiration = expiration.unwrap();
+
+        // Expiration block may be really far from current one, so proper
+        // `run_to_block` takes a lot, so we use hack here by setting
+        // close block number to it to check that messages keeps in
+        // waitlist before and leaves it as expected.
+        System::set_block_number(expiration - 2);
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::contains(&waiter, &message_to_be_waited));
+
+        run_to_next_block(None);
+
+        // And nothing panics here, because `message_to_be_waited`
+        // contains enough founds to pay rent.
+
+        assert!(!WaitlistOf::<Test>::contains(
+            &waiter,
+            &message_to_be_waited
+        ));
+    });
+}
+
+#[test]
 fn resume_program_works() {
     use demo_init_wait::WASM_BINARY;
 
@@ -3470,6 +3612,60 @@ fn resume_program_works() {
 
         assert_eq!(actual_n, 1);
     })
+}
+
+#[test]
+fn calculate_init_gas() {
+    use demo_gas_burned::WASM_BINARY;
+
+    init_logger();
+    let gas_info_1 = new_test_ext().execute_with(|| {
+        Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap()
+    });
+
+    let gas_info_2 = new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_code(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec()
+        ));
+
+        let code_id = get_last_code_id();
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::InitByHash(code_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap();
+
+        assert_ok!(Gear::create_program(
+            Origin::signed(USER_1),
+            code_id,
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            gas_info.min_limit,
+            0
+        ));
+
+        let init_message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(init_message_id);
+
+        gas_info
+    });
+
+    assert_eq!(gas_info_1, gas_info_2);
 }
 
 #[test]
@@ -3999,6 +4195,24 @@ fn test_reply_to_terminated_program() {
 }
 
 #[test]
+fn calculate_gas_info_for_wait_dispatch_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Test should still be valid once #1173 solved.
+        let GasInfo { waited, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(demo_init_wait::WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .unwrap();
+
+        assert!(waited);
+    });
+}
+
+#[test]
 fn cascading_messages_with_value_do_not_overcharge() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4104,6 +4318,102 @@ fn cascading_messages_with_value_do_not_overcharge() {
             BalancesPallet::<Test>::free_balance(USER_1),
             user_initial_balance - gas_to_spend - value - mailbox_threshold_reserved
         );
+    });
+}
+
+#[test]
+fn free_storage_hold_on_scheduler_overwhelm() {
+    use demo_value_sender::{TestData, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+        ));
+
+        let sender = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(sender));
+
+        let data = TestData::gasful(20_000, 0);
+
+        let mb_cost = CostsPerBlockOf::<Test>::mailbox();
+        let reserve_for = CostsPerBlockOf::<Test>::reserve_for();
+
+        let user_1_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::reserved_balance(USER_1), 0);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+        assert_eq!(Balances::reserved_balance(USER_2), 0);
+
+        let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
+        assert_eq!(
+            Balances::reserved_balance(AccountId::from_origin(sender.into_origin())),
+            0
+        );
+
+        let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
+            USER_1,
+            sender,
+            data.request(USER_2).encode(),
+            Some(data.extra_gas),
+            0,
+        );
+
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+            GasPrice::gas_price(gas_info.min_limit + data.extra_gas),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
+
+        run_to_next_block(None);
+
+        let hold_bound = HoldBound::<Test>::by(CostsPerBlockOf::<Test>::mailbox())
+            .maximum_for(data.gas_limit_to_send);
+
+        let expected_duration = data.gas_limit_to_send / mb_cost - reserve_for;
+
+        assert_eq!(
+            hold_bound.expected_duration(),
+            expected_duration.saturated_into::<BlockNumberFor<Test>>()
+        );
+
+        utils::assert_balance(
+            USER_1,
+            user_1_balance - GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send),
+            GasPrice::gas_price(data.gas_limit_to_send),
+        );
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance - data.value, data.value);
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Expected block.
+        run_to_block(hold_bound.expected(), Some(0));
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Deadline block (can pay till this one).
+        run_to_block(hold_bound.deadline(), Some(0));
+        assert!(!MailboxOf::<Test>::is_empty(&USER_2));
+
+        // Block which already can't be payed.
+        run_to_next_block(None);
+
+        let gas_totally_burned = GasPrice::gas_price(gas_info.burned + data.gas_limit_to_send);
+
+        utils::assert_balance(USER_1, user_1_balance - gas_totally_burned, 0u128);
+        utils::assert_balance(USER_2, user_2_balance, 0u128);
+        utils::assert_balance(sender, prog_balance, 0u128);
+        assert!(MailboxOf::<Test>::is_empty(&USER_2));
     });
 }
 
@@ -4957,6 +5267,27 @@ mod utils {
             destination
         } else {
             unreachable!("expect Event::InitMessageEnqueued")
+        }
+    }
+
+    pub(super) fn get_last_code_id() -> CodeId {
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        if let Event::CodeChanged {
+            change: CodeChangeKind::Active { .. },
+            id,
+            ..
+        } = event
+        {
+            id
+        } else {
+            unreachable!("expect Event::CodeChanged")
         }
     }
 

@@ -16,29 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
-use thiserror::Error;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-/// Errors than can occur when building.
-#[derive(Error, Debug)]
-pub enum BuilderError {
-    #[error("invalid manifest path `{0}`")]
-    InvalidManifestPath(PathBuf),
+use codec::{Decode, Encode};
 
-    #[error("please add \"rlib\" to [lib.crate-type]")]
-    InvalidCrateType,
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
 
-    #[error("cargo command run failed: {0}")]
-    CargoRunFailed(String),
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-    #[error("unable to find the root package in cargo metadata")]
-    RootPackageNotFound,
+#[derive(Decode, Encode)]
+pub struct InputArgs {
+    pub prog_to_wait: gstd::ActorId,
+    pub prog_to_waste: gstd::ActorId,
+}
 
-    #[error("WASM module does't contain export section `{0}`")]
-    ExportSectionNotFound(PathBuf),
+#[cfg(not(feature = "std"))]
+mod wasm {
+    use crate::InputArgs;
+    use gstd::{msg, ActorId};
 
-    #[error(
-        "WASM module doesn't contain required export funtions (init/handle) after optimized `{0}`"
-    )]
-    RequiredExportFnNotFound(PathBuf),
+    #[no_mangle]
+    unsafe extern "C" fn handle() {
+        let input: InputArgs = msg::load().unwrap();
+        msg::send_bytes(input.prog_to_wait, [], 0).unwrap();
+        msg::send_bytes(input.prog_to_waste, [], 0).unwrap();
+    }
 }

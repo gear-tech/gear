@@ -18,7 +18,7 @@ jsonrpsee = { version = "0.14.0", features = ["server"] }
 # Gear
 pallet-gear-rpc = { path = "../../pallets/gear/rpc" }
 pallet-gear-rpc-runtime-api = { path = "../../pallets/gear/rpc/runtime-api" }
-gear-node-primitives = { path = "../primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-runtime-interface = { path = "../../runtime-interface" }
 
 # Gear Runtimes

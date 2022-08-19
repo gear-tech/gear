@@ -10,25 +10,22 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 log = "0.4.17"
-gear-common-codegen = { path = "./codegen" }
+derive_more = "0.99.17"
+parity-wasm = { version = "0.45.0", default-features = false, optional = true }
 
 # Internal deps
 gear-core = { path = "../core" }
+gear-common-codegen = { path = "./codegen" }
 
 # Substrate deps
-
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true, branch = "polkadot-v0.9.26" }
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true, branch = "polkadot-v0.9.26" }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-
-gear-runtime-interface = { path = "../runtime-interface", default-features = false }
-parity-wasm = { version = "0.45.0", default-features = false, optional = true }
-derive_more = "0.99.17"
 
 [dev-dependencies]
 hex-literal = "0.3.3"
@@ -47,7 +44,6 @@ std = [
     "sp-arithmetic/std",
     "frame-support/std",
     "primitive-types/std",
-    "gear-runtime-interface/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking",
