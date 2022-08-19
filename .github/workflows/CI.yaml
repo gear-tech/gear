@@ -31,7 +31,13 @@ jobs:
         run: git branch | grep ""
 
       - name: "Remote"
-        run: git diff dn-fix-ci-check-spec origin/master
+        run: printenv | grep "CI"
+
+      - name: "Remote"
+        run: echo $CI
+
+      - name: "Remote"
+        run: git diff dn-fix-ci-check-spec origin/HEAD
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
