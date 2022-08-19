@@ -273,7 +273,7 @@ where
 
     let initial_gas = BlockGasLimitOf::<T>::get();
     let origin = <T::AccountId as Origin>::from_origin(source);
-    GasHandlerOf::<T>::create(origin, root_message_id, initial_gas)
+    GasHandlerOf::<T>::create(origin, root_message_id.into(), initial_gas)
         .map_err(|_| "Internal error: unable to create gas handler")?;
 
     let dispatch = dispatch.into_stored();
@@ -353,7 +353,7 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = 10000u32.into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
+        GasHandlerOf::<T>::create(program_id.clone(), original_message_id.into(), gas_limit).expect("Failed to create gas handler");
         <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
@@ -468,7 +468,7 @@ benchmarks! {
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
         let gas_limit = 50000;
         let value = (p % 2).into();
-        GasHandlerOf::<T>::create(program_id.clone(), original_message_id, gas_limit).expect("Failed to create gas handler");
+        GasHandlerOf::<T>::create(program_id.clone(), original_message_id.into(), gas_limit).expect("Failed to create gas handler");
         <T as pallet::Config>::Currency::reserve(&program_id, <T as pallet::Config>::GasPrice::gas_price(gas_limit) + value).expect("Failed to reserve");
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
