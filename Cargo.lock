@@ -1745,7 +1745,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.88.0",
+ "wasmparser 0.89.0",
  "wasmprinter",
  "wat",
 ]
