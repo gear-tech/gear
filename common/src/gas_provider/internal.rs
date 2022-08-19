@@ -775,7 +775,7 @@ where
         node.lock().ok_or_else(|| InternalError::forbidden().into())
     }
 
-    fn update_reservation(
+    fn reserve(
         key: Self::Key,
         new_key: Self::Key,
         amount: Self::Balance,
@@ -789,45 +789,23 @@ where
             return Err(InternalError::forbidden().into());
         }
 
-        // TODO: tests for logic below
+        // This also checks if key == new_node_key
+        if StorageMap::contains_key(&new_key) {
+            return Err(InternalError::node_already_exists().into());
+        }
 
         let node_value = node
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
-        let new_node = if let Some(mut reserved_node) = Self::get_node(new_key) {
-            let reserved_value = reserved_node
-                .value_mut()
-                .ok_or_else(InternalError::unexpected_node_type)?;
+        let id = Self::get_external(key)?;
+        let new_node = GasNode::Reserved { id, value: amount };
 
-            if *reserved_value <= amount {
-                let diff = amount - *reserved_value;
+        if *node_value < amount {
+            return Err(InternalError::insufficient_balance().into());
+        }
 
-                if *node_value < diff {
-                    return Err(InternalError::insufficient_balance().into());
-                }
-
-                *node_value -= diff;
-            } else {
-                let diff = *reserved_value - amount;
-                *node_value = node_value.saturating_add(diff);
-            }
-
-            *reserved_value = amount;
-
-            reserved_node
-        } else {
-            let id = Self::get_external(key)?;
-            let new_node = GasNode::Reserved { id, value: amount };
-
-            if *node_value < amount {
-                return Err(InternalError::insufficient_balance().into());
-            }
-
-            *node_value -= amount;
-
-            new_node
-        };
+        *node_value -= amount;
 
         StorageMap::insert(new_key, new_node);
         StorageMap::insert(node_id, node);

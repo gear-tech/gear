@@ -406,12 +406,12 @@ proptest! {
                         node_ids.push(child);
                     }
                 }
-                GasTreeAction::UpdateReservation(from, amount) => {
+                GasTreeAction::Reserve(from, amount) => {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = H256::random();
 
 
-                    if let Err(e) = Gas::update_reservation(from, child, amount) {
+                    if let Err(e) = Gas::reserve(from, child, amount) {
                         assertions::assert_not_invariant_error(e)
                     } else {
                         node_ids.push(child);
@@ -533,11 +533,11 @@ proptest! {
                         Gas::split(parent, child).expect("Failed to split without value");
                     }
                 }
-                GasTreeAction::UpdateReservation(parent_idx, amount) => {
+                GasTreeAction::Reserve(parent_idx, amount) => {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
                         let child = H256::random();
 
-                        Gas::update_reservation(parent, child, amount).expect("Failed to update gas reservation");
+                        Gas::reserve(parent, child, amount).expect("Failed to update gas reservation");
                     }
                 }
                 _ => {}
