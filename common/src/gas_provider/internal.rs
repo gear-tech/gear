@@ -775,7 +775,7 @@ where
         node.lock().ok_or_else(|| InternalError::forbidden().into())
     }
 
-    fn reserve(
+    fn update_reservation(
         key: Self::Key,
         new_key: Self::Key,
         amount: Self::Balance,
@@ -789,10 +789,7 @@ where
             return Err(InternalError::forbidden().into());
         }
 
-        // This also checks if key == new_node_key
-        if StorageMap::contains_key(&new_key) {
-            return Err(InternalError::node_already_exists().into());
-        }
+        // TODO: create or get existing instead of recreation each time
 
         let id = Self::get_external(key)?;
         let new_node = GasNode::Reserved { id, value: amount };
@@ -814,6 +811,7 @@ where
             .value_mut()
             .ok_or_else(InternalError::unexpected_node_type)?;
 
+        // TODO: don't subtract each call
         *node_value = node_value.saturating_sub(amount);
 
         StorageMap::insert(node_id, node);

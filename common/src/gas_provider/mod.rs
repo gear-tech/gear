@@ -210,7 +210,7 @@ pub trait Tree {
     /// Reserve some value from underlying balance.
     ///
     /// Used in gas reservation feature.
-    fn reserve(
+    fn update_reservation(
         key: Self::Key,
         new_key: Self::Key,
         amount: Self::Balance,
