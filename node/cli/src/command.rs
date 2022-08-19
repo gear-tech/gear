@@ -21,7 +21,7 @@ use crate::{
     inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder,
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
-use gear_node_primitives::Block;
+use runtime_primitives::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use service::{chain_spec, IdentifyVariant};
 use sp_keyring::Sr25519Keyring;

@@ -65,7 +65,7 @@ pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../../p
 pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../../pallets/payment" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
 gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
-gear-node-primitives = { version = "1.0.0", default-features = false, path = "../../node/primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 pallet-shift-session-manager = { version = "0.1.0", default-features = false, path = "../../pallets/shift-session-manager" }
 
 [build-dependencies]
@@ -81,7 +81,7 @@ std = [
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"gear-common/std",
-	"gear-node-primitives/std",
+	"runtime-primitives/std",
 	"pallet-authorship/std",
 	"pallet-babe/std",
 	"pallet-balances/std",

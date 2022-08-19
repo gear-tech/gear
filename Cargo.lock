@@ -1720,8 +1720,8 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-node-primitives",
  "gear-runtime",
+ "gear-runtime-primitives",
  "hex",
  "log",
  "pallet-aura",
@@ -2504,9 +2504,9 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
- "gear-node-primitives",
  "gear-runtime",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "gear-runtime-test-cli",
  "gear-service",
  "pallet-gear-payment",
@@ -2638,14 +2638,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node-primitives"
-version = "1.0.0"
-dependencies = [
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
@@ -2657,8 +2649,8 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
- "gear-node-primitives",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "hex-literal",
  "log",
  "pallet-aura",
@@ -2703,7 +2695,7 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "gear-common",
- "gear-node-primitives",
+ "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
  "sp-runtime",
@@ -2729,6 +2721,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-runtime-primitives"
+version = "0.1.0"
+dependencies = [
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
@@ -2740,8 +2740,8 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
- "gear-node-primitives",
  "gear-runtime",
+ "gear-runtime-primitives",
  "gear-test",
  "junit-common",
  "log",
@@ -2774,9 +2774,9 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-system",
  "frame-system-rpc-runtime-api",
- "gear-node-primitives",
  "gear-runtime",
  "gear-runtime-interface",
+ "gear-runtime-primitives",
  "hex-literal",
  "jsonrpsee",
  "pallet-gear-rpc",
@@ -9423,8 +9423,8 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
- "gear-node-primitives",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "hex-literal",
  "log",
  "pallet-authorship",
@@ -9979,15 +9979,6 @@ name = "wasmparser"
 version = "0.86.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4bcbfe95447da2aa7ff171857fc8427513eb57c75a729bb190e974dc695e8f5c"
-dependencies = [
- "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.88.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb8cf7dd82407fe68161bedcd57fde15596f32ebf6e9b3bdbf3ae1da20e38e5e"
 dependencies = [
  "indexmap",
 ]
