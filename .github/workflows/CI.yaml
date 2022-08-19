@@ -28,7 +28,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: "Remote"
-        run: git --version
+        run: git branch | grep ""
+
+      - name: "Remote"
+        run: git diff dn-fix-ci-check-spec origin/master
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
