@@ -575,13 +575,13 @@ fn mailbox_threshold_works() {
                 // * message has been inserted into the mailbox.
                 // * the ValueNode has been created.
                 assert!(MailboxOf::<Test>::contains(&mailbox_key, &message_id));
-                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id), rent);
+                assert_ok!(GasHandlerOf::<Test>::get_limit(message_id.into()), rent);
             } else {
                 // * message has not been inserted into the mailbox.
                 // * the ValueNode has not been created.
                 assert!(!MailboxOf::<Test>::contains(&mailbox_key, &message_id));
                 assert_noop!(
-                    GasHandlerOf::<Test>::get_limit(message_id),
+                    GasHandlerOf::<Test>::get_limit(message_id.into()),
                     pallet_gear_gas::Error::<Test>::NodeNotFound
                 );
             }
@@ -3135,7 +3135,7 @@ fn no_redundant_gas_value_after_exiting() {
             0,
         ));
 
-        let msg_id = get_last_message_id();
+        let msg_id = get_last_message_id().into();
         assert_ok!(GasHandlerOf::<Test>::get_limit(msg_id), gas_spent);
 
         // before execution

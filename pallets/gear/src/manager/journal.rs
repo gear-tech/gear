@@ -209,15 +209,19 @@ where
                 // 3. The `value` of the value node has been checked before.
                 // 4. The `dispatch.id()` is new genreated by system from a checked
                 //    ( inside message queue processing ) `message_id`.
-                GasHandlerOf::<T>::split_with_value(message_id, dispatch.id(), gas_limit)
-                    .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                GasHandlerOf::<T>::split_with_value(
+                    message_id.into(),
+                    dispatch.id().into(),
+                    gas_limit,
+                )
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             } else {
                 // # Safety
                 //
                 // 1. There is no logic spliting value from the reserved nodes.
                 // 2. The `dispatch.id()` is new genreated by system from a checked
                 //    ( inside message queue processing ) `message_id`.
-                GasHandlerOf::<T>::split(message_id, dispatch.id())
+                GasHandlerOf::<T>::split(message_id.into(), dispatch.id().into())
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
             }
 

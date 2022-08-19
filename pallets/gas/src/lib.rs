@@ -146,10 +146,9 @@ type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub mod pallet {
     use super::*;
     use common::gas_provider::{
-        Error as GasError, GasNode, NegativeImbalance, PositiveImbalance, TreeImpl,
+        Error as GasError, GasNode, GasNodeId, NegativeImbalance, PositiveImbalance, TreeImpl,
     };
     use frame_system::pallet_prelude::*;
-    use gear_core::ids::MessageId;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -269,7 +268,7 @@ pub mod pallet {
 
     // ----
 
-    pub type Key = MessageId;
+    pub type Key = GasNodeId;
     pub type NodeOf<T> = GasNode<AccountIdOf<T>, Key, Balance>;
 
     // Private storage for nodes of the gas tree.

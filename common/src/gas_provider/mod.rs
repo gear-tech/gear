@@ -36,7 +36,7 @@ mod property_tests;
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use negative_imbalance::NegativeImbalance;
-pub use node::GasNode;
+pub use node::{GasNode, GasNodeId};
 pub use positive_imbalance::PositiveImbalance;
 
 /// Simplified type for result of `GasTree::consume` call.

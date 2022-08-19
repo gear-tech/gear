@@ -359,10 +359,10 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
         WaitlistOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
                 let node_id = dispatch.id();
-                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
+                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id.into())
                     .expect("There is always a value node for a valid dispatch ID");
 
-                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                let lock = GasHandlerOf::<Runtime>::get_lock(node_id.into()).unwrap_or_else(|e| {
                     if e == GasError::<Runtime>::Forbidden.into() {
                         0
                     } else {
@@ -391,10 +391,10 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
         MailboxOf::<Runtime>::iter()
             .map(|(dispatch, _)| {
                 let node_id = dispatch.id();
-                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
+                let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id.into())
                     .expect("There is always a value node for a valid dispatch ID");
 
-                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                let lock = GasHandlerOf::<Runtime>::get_lock(node_id.into()).unwrap_or_else(|e| {
                     if e == GasError::<Runtime>::Forbidden.into() {
                         0
                     } else {

@@ -206,3 +206,19 @@ impl ProgramId {
         hash(&argument).into()
     }
 }
+
+declare_id!(ReservationId: "Reservation identifier");
+
+impl ReservationId {
+    /// Create a new reservation ID
+    pub fn generate(msg_id: MessageId, idx: u64) -> Self {
+        let argument = [msg_id.as_ref(), &idx.to_le_bytes(), b"reservation_id_salt"].concat();
+        hash(&argument).into()
+    }
+}
+
+impl From<ReservationId> for MessageId {
+    fn from(id: ReservationId) -> Self {
+        Self(id.0)
+    }
+}

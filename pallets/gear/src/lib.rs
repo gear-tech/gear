@@ -149,8 +149,8 @@ pub mod pallet {
     use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;
     use common::{
-        self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
-        Program, ProgramState,
+        self, event::*, gas_provider::GasNodeId, BlockLimiter, CodeMetadata, GasPrice, GasProvider,
+        GasTree, Origin, Program, ProgramState,
     };
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
@@ -226,7 +226,7 @@ pub mod pallet {
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
             ExternalOrigin = Self::AccountId,
-            Key = MessageId,
+            Key = GasNodeId,
             Balance = u64,
             Error = DispatchError,
         >;
@@ -815,7 +815,7 @@ pub mod pallet {
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
                 let dispatch_id = queued_dispatch.id();
-                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
+                let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id.into())
                     .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
 
                 let subsequent_execution = ext_manager.program_pages_loaded(&actor_id);
@@ -887,15 +887,15 @@ pub mod pallet {
                         }
                     };
 
-                let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
+                let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id.into()).ok();
 
-                let get_origin_msg_of = |msg_id| {
-                    GasHandlerOf::<T>::get_origin_key(msg_id)
+                let get_origin_msg_of = |msg_id: MessageId| {
+                    GasHandlerOf::<T>::get_origin_key(msg_id.into())
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
 
                 let from_main_chain =
-                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id);
+                    |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id.into());
 
                 // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
@@ -914,7 +914,9 @@ pub mod pallet {
                             {
                                 let gas_limit = dispatch
                                     .gas_limit()
-                                    .or_else(|| GasHandlerOf::<T>::get_limit(dispatch.id()).ok())
+                                    .or_else(|| {
+                                        GasHandlerOf::<T>::get_limit(dispatch.id().into()).ok()
+                                    })
                                     .ok_or_else(|| {
                                         b"Internal error: unable to get gas limit after execution"
                                             .to_vec()
@@ -1114,11 +1116,11 @@ pub mod pallet {
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
                 {
                     // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                    let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+                    let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id().into())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
+                    let external = GasHandlerOf::<T>::get_external(dispatch.id().into())
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     log::debug!(
@@ -1441,7 +1443,7 @@ pub mod pallet {
             // with `Self::next_message_id`.
             let _ = GasHandlerOf::<T>::create(
                 who.clone(),
-                message_id,
+                message_id.into(),
                 packet.gas_limit().expect("Can't fail"),
             );
 
@@ -1693,7 +1695,7 @@ pub mod pallet {
                 //
                 // This is unreachable since the `message_id` is new generated
                 // with `Self::next_message_id`.
-                GasHandlerOf::<T>::create(who.clone(), message.id(), gas_limit)
+                GasHandlerOf::<T>::create(who.clone(), message.id().into(), gas_limit)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
@@ -1789,7 +1791,7 @@ pub mod pallet {
             //
             //  The error is unreachable since the `message_id` is new generated
             //  from the checked `original_message`."
-            GasHandlerOf::<T>::create(origin.clone(), message.id(), gas_limit)
+            GasHandlerOf::<T>::create(origin.clone(), message.id().into(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Converting reply message into appropriate type for queueing.

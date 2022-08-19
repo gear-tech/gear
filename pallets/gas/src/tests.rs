@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use common::{
-    gas_provider::{NegativeImbalance, PositiveImbalance},
+    gas_provider::{GasNodeId, NegativeImbalance, PositiveImbalance},
     GasTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok, traits::Imbalance};
@@ -30,14 +30,14 @@ use sp_runtime::traits::Zero;
 type Gas = <Pallet<Test> as common::GasProvider>::GasTree;
 type GasTree = GasNodes<Test>;
 
-fn random_node_id() -> MessageId {
-    MessageId::from_origin(H256::random())
+fn random_node_id() -> GasNodeId {
+    MessageId::from_origin(H256::random()).into()
 }
 
 #[test]
 fn simple_value_tree() {
     new_test_ext().execute_with(|| {
-        let new_root = MessageId::from_origin(H256::random());
+        let new_root = random_node_id();
 
         {
             let pos = Gas::create(ALICE, new_root, 1000).unwrap();
@@ -379,9 +379,7 @@ fn all_keys_are_cleared() {
     new_test_ext().execute_with(|| {
         let root = random_node_id();
         let origin = ALICE;
-        let sub_keys = (0..5)
-            .map(|_| MessageId::from_origin(H256::random()))
-            .collect::<Vec<_>>();
+        let sub_keys = (0..5).map(|_| random_node_id()).collect::<Vec<_>>();
 
         Gas::create(origin, root, 2000).unwrap();
         for key in sub_keys.iter() {
