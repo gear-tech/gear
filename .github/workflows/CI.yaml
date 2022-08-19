@@ -27,10 +27,8 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
-      - name: "Add CI remote"
-        run: |
-          git remote add ci_origin https://github.com/gear-tech/gear.git
-          git fetch ci_origin
+      - name: "Fetch origin"
+        run: git fetch origin
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
