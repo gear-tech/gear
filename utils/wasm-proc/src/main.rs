@@ -22,8 +22,10 @@ use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
 const RT_ALLOWED_IMPORTS: [&str; 49] = [
+    // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
+    // From `Crypto` (substrate/primitives/io/src/lib.rs)
     "ext_crypto_ed25519_generate_version_1",
     "ext_crypto_ed25519_verify_version_1",
     "ext_crypto_finish_batch_verify_version_1",
@@ -31,6 +33,7 @@ const RT_ALLOWED_IMPORTS: [&str; 49] = [
     "ext_crypto_sr25519_generate_version_1",
     "ext_crypto_sr25519_verify_version_2",
     "ext_crypto_start_batch_verify_version_1",
+    // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_get_released_pages_version_1",
     "ext_gear_ri_init_lazy_pages_version_2",
     "ext_gear_ri_initialize_for_program_version_1",
@@ -38,15 +41,19 @@ const RT_ALLOWED_IMPORTS: [&str; 49] = [
     "ext_gear_ri_mprotect_lazy_pages_version_3",
     "ext_gear_ri_set_wasm_mem_begin_addr_version_2",
     "ext_gear_ri_set_wasm_mem_size_version_2",
+    // From `Hashing` (substrate/primitives/io/src/lib.rs)
     "ext_hashing_blake2_128_version_1",
     "ext_hashing_blake2_256_version_1",
     "ext_hashing_twox_128_version_1",
     "ext_hashing_twox_64_version_1",
+    // From `Logging` (substrate/primitives/io/src/lib.rs)
     "ext_logging_log_version_1",
     "ext_logging_max_level_version_1",
+    // From `Misc` (substrate/primitives/io/src/lib.rs)
     "ext_misc_print_hex_version_1",
     "ext_misc_print_utf8_version_1",
     "ext_misc_runtime_version_version_1",
+    // From `Sandbox` (substrate/primitives/io/src/lib.rs)
     "ext_sandbox_get_buff_version_1",
     "ext_sandbox_get_global_val_version_1",
     "ext_sandbox_instance_teardown_version_1",
@@ -58,6 +65,7 @@ const RT_ALLOWED_IMPORTS: [&str; 49] = [
     "ext_sandbox_memory_set_version_1",
     "ext_sandbox_memory_size_version_1",
     "ext_sandbox_memory_teardown_version_1",
+    // From `Storage` (substrate/primitives/io/src/lib.rs)
     "ext_storage_append_version_1",
     "ext_storage_clear_prefix_version_2",
     "ext_storage_clear_version_1",
@@ -70,6 +78,7 @@ const RT_ALLOWED_IMPORTS: [&str; 49] = [
     "ext_storage_root_version_2",
     "ext_storage_set_version_1",
     "ext_storage_start_transaction_version_1",
+    // From `Trie` (substrate/primitives/io/src/lib.rs)
     "ext_trie_blake2_256_ordered_root_version_2",
 ];
 

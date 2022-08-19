@@ -202,6 +202,9 @@ jobs:
         env:
           RUSTFLAGS: -Cinstrument-coverage
 
+      - name: Check runtime imports
+        run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
+
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
 
@@ -367,9 +370,6 @@ jobs:
           tar -cf /tmp/build_cache.tar /tmp/cachepot
           tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mkdir -p /root/cache/${{ github.event.pull_request.number }} && mv /tmp/*.tar /root/cache/${{ github.event.pull_request.number }}/
-
-      - name: Check runtime imports
-        run: ./target/release/wasm-proc --check-runtime-imports --path target/production/wbuild/gear-runtime/gear_runtime.wasm
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
