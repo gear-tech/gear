@@ -4,6 +4,9 @@ set -e
 
 SELF="$0"
 ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"
+SCRIPTS="$ROOT_DIR/scripts/src"
+
+. "$SCRIPTS"/common.sh
 
 check_spec() {
     # $1 is master version, $2 is actual one and $3 changes requirement
@@ -26,9 +29,9 @@ check_spec() {
 
     if [ -z "$version" ]
     then
-        printf "\n   Spec version is correct.\n\n"
+        printf "\n    Spec version is correct.\n"
     else
-        printf "\n   Spec version should $version.\n\n"
+        printf "\n    Spec version should $version.\n"
         exit 1
     fi
 }
@@ -49,8 +52,8 @@ for package in $(git diff --name-only origin/master | grep ".rs$" | cut -d "/" -
     fi
 done
 
-echo "Checking spec for Gear runtime:"
+header "Checking spec for Gear runtime"
 check_spec "$SPEC_ON_MASTER" "$ACTUAL_SPEC_GEAR" "$CHANGES"
 
-echo "Checking spec for Vara runtime:"
+header "Checking spec for Vara runtime"
 check_spec "$SPEC_ON_MASTER" "$ACTUAL_SPEC_VARA" "$CHANGES"
