@@ -27,8 +27,8 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
-      - name: "Adding remote"
-        run: git remote add origin https://github.com/gear-tech/gear.git
+      - name: "Remote"
+        run: git remote
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
