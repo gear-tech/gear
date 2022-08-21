@@ -31,11 +31,12 @@ use sp_std::collections::btree_map::BTreeMap;
 use utils::CreateProgramResult;
 use wasm_instrument::gas_metering::ConstantCostRules;
 
+const CODE: &[u8] = &hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b");
+
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
-        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
@@ -77,19 +78,25 @@ fn pause_program_works() {
         .expect("memory pages are not valid");
 
         let msg_id_1: MessageId = 1.into();
-        WaitlistOf::<Test>::insert(StoredDispatch::new(
-            DispatchKind::Handle,
-            StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
-            None,
-        ), u64::MAX)
+        WaitlistOf::<Test>::insert(
+            StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(msg_id_1, 3.into(), program_id, Default::default(), 0, None),
+                None,
+            ),
+            u64::MAX,
+        )
         .expect("Duplicate message is wl");
 
         let msg_id_2: MessageId = 2.into();
-        WaitlistOf::<Test>::insert(StoredDispatch::new(
-            DispatchKind::Handle,
-            StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
-            None,
-        ), u64::MAX)
+        WaitlistOf::<Test>::insert(
+            StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(msg_id_2, 4.into(), program_id, Default::default(), 0, None),
+                None,
+            ),
+            u64::MAX,
+        )
         .expect("Duplicate message is wl");
 
         run_to_block(2, None);
@@ -101,11 +108,12 @@ fn pause_program_works() {
         assert!(GearProgram::get_code(code_id).is_some());
 
         // although the memory pages should be removed
-        assert!(
-            common::get_program_data_for_pages_optional(program_id.into_origin(), memory_pages.keys().copied())
-                .unwrap()
-                .is_empty()
-        );
+        assert!(common::get_program_data_for_pages_optional(
+            program_id.into_origin(),
+            memory_pages.keys().copied()
+        )
+        .unwrap()
+        .is_empty());
 
         assert_noop!(
             WaitlistOf::<Test>::remove(program_id, msg_id_1),
@@ -121,8 +129,7 @@ fn pause_program_works() {
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
@@ -154,8 +161,7 @@ fn pause_program_twice_fails() {
 #[test]
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
-        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);
@@ -431,8 +437,7 @@ mod utils {
     pub fn create_uninitialized_program_messages(
         wasm_static_pages: WasmPageNumber,
     ) -> CreateProgramResult {
-        let raw_code = hex!("0061736d01000000010401600000020f0103656e76066d656d6f727902000103020100070a010668616e646c6500000a040102000b0019046e616d650203010000060d01000a656e762e6d656d6f7279").to_vec();
-        let code = Code::try_new(raw_code, 1, |_| ConstantCostRules::default())
+        let code = Code::try_new(CODE.to_vec(), 1, |_| ConstantCostRules::default())
             .expect("Error creating Code");
 
         let code_and_id = CodeAndId::new(code);

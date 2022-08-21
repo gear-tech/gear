@@ -1,10 +1,22 @@
-use parity_wasm::elements::{Module, Section};
+use parity_wasm::elements::{Module, Section, Serialize};
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
 /// Parse info of wasm binaries
 #[derive(Debug, StructOpt)]
 pub struct Info {
+    /// Show code hex
+    #[structopt(short, long)]
+    pub hex: bool,
+
+    /// Show code size
+    #[structopt(long)]
+    pub size: bool,
+
+    /// Strip custom sections
+    #[structopt(short, long)]
+    pub strip_custom_sections: bool,
+
     /// Path or hex encoding of wasm binary
     pub wasm: String,
 }
@@ -12,21 +24,38 @@ pub struct Info {
 impl Info {
     /// Parse wasm module from wasm code or path
     pub fn module(&self) -> Module {
+        let mut is_hex = false;
         let code = if PathBuf::from(&self.wasm).exists() {
             fs::read(&self.wasm).expect("File not exists")
         } else {
+            is_hex = true;
             let hex = self.wasm.trim_start_matches("0x");
             hex::decode(hex).expect("Decode hex failed")
         };
 
+        if self.size {
+            println!("Code size: {}", code.len());
+        }
+
+        if self.hex && !is_hex {
+            println!("Code hex: {}", hex::encode(&code));
+        }
+
         parity_wasm::deserialize_buffer(&code).expect("Parse wasm module failed")
+    }
+
+    /// Strip custom sections from wasm module
+    pub fn strip_custom_sections(module: &mut Module) {
+        module
+            .sections_mut()
+            .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
     }
 }
 
 fn main() {
     let info = Info::from_args();
 
-    let module = info.module();
+    let mut module = info.module();
     println!("Module sections: {}", module.sections().len());
 
     for section in module.sections() {
@@ -71,5 +100,15 @@ fn main() {
             }
             _ => {}
         }
+    }
+
+    if info.strip_custom_sections {
+        Info::strip_custom_sections(&mut module);
+        let mut code = vec![];
+        module.serialize(&mut code).expect("Serialize code failed");
+        println!(
+            "Code after stripping custom sections: {}",
+            hex::encode(code)
+        );
     }
 }
