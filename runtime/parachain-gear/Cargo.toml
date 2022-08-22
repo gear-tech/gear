@@ -73,6 +73,7 @@ parachain-info = { git = "https://github.com/paritytech/cumulus", default-featur
 
 # Internal deps
 runtime-common = { package = "gear-runtime-common", version = "0.1.0", default-features = false, path = "../common" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 pallet-gear-scheduler = { version = "1.0.0", default-features = false, path = "../../pallets/gear-scheduler" }
 pallet-gear-messenger = { version = "1.0.0", default-features = false, path = "../../pallets/gear-messenger" }
 pallet-gear-program = { version = "2.0.0", default-features = false, path = "../../pallets/gear-program" }
@@ -124,6 +125,8 @@ std = [
 	"parachain-info/std",
 	"polkadot-parachain/std",
 	"polkadot-runtime-common/std",
+	"runtime-common/std",
+	"runtime-primitives/std",
 	"sp-api/std",
 	"sp-block-builder/std",
 	"sp-consensus-aura/std",

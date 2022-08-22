@@ -6553,6 +6553,7 @@ dependencies = [
  "frame-try-runtime",
  "gear-common",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "hex-literal",
  "log",
  "pallet-aura",

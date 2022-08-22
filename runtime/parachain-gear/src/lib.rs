@@ -37,9 +37,9 @@ pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, Verify},
+    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
+    ApplyExtrinsicResult, Perbill, Percent,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -78,6 +78,8 @@ pub use frame_system::{
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier};
+pub use runtime_primitives::{AccountId, Signature};
+use runtime_primitives::{Balance, BlockNumber, Hash, Header, Index, Moment};
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -86,48 +88,6 @@ pub use pallet_gear;
 pub use pallet_gear_debug;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
-
-/// An index to a block.
-pub type BlockNumber = u32;
-
-/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-pub type Signature = MultiSignature;
-
-/// Some way of identifying an account on the chain. We intentionally make it equivalent
-/// to the public key of our transaction signing scheme.
-pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-
-/// Balance of an account.
-pub type Balance = u128;
-
-/// Index of a transaction in the chain.
-pub type Index = u32;
-
-/// A hash of some data used by the chain.
-pub type Hash = sp_core::H256;
-
-/// A Block signed with a Justification
-pub type SignedBlock = generic::SignedBlock<Block>;
-
-/// BlockId type as expected by this runtime.
-pub type BlockId = generic::BlockId<Block>;
-
-/// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
-/// the specifics of the runtime. They can then be made to be agnostic over specific formats
-/// of data like extrinsics, allowing for them to continue syncing the network through upgrades
-/// to even the core data structures.
-pub mod opaque {
-    use super::*;
-
-    pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
-
-    /// Opaque block header type.
-    pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-    /// Opaque block type.
-    pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-    /// Opaque block identifier type.
-    pub type BlockId = generic::BlockId<Block>;
-}
 
 impl_opaque_keys! {
     pub struct SessionKeys {
@@ -277,8 +237,7 @@ parameter_types! {
 }
 
 impl pallet_timestamp::Config for Runtime {
-    /// A timestamp: milliseconds since the unix epoch.
-    type Moment = u64;
+    type Moment = Moment;
     type OnTimestampSet = ();
     type MinimumPeriod = MinimumPeriod;
     type WeightInfo = weights::pallet_timestamp::WeightInfo<Self>;
@@ -520,7 +479,7 @@ where
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = opaque::Block,
+        NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system = 0,
@@ -561,7 +520,7 @@ construct_runtime!(
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = opaque::Block,
+        NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system = 0,
@@ -597,8 +556,6 @@ construct_runtime!(
 
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
-/// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
