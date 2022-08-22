@@ -877,9 +877,7 @@ mod test {
             wabt::Wat2Wasm::new()
                 .validate(false)
                 .convert(simple_wat)
-                .expect("failed to parse module")
-                .as_ref()
-                .to_vec(),
+                .expect("failed to parse module"),
         )
         .expect("module instantiation failed")
     }
