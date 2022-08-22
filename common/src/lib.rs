@@ -22,7 +22,6 @@
 extern crate gear_common_codegen;
 
 pub mod event;
-pub mod lazy_pages;
 pub mod scheduler;
 pub mod storage;
 
@@ -54,6 +53,7 @@ use sp_std::{
     prelude::*,
 };
 use storage::ValueStorage;
+extern crate alloc;
 
 pub use gas_provider::{Provider as GasProvider, Tree as GasTree};
 

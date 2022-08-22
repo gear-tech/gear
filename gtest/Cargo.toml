@@ -12,7 +12,7 @@ gear-backend-wasmi = { path = "../core-backend/wasmi" }
 core-processor = { package = "gear-core-processor", path = "../core-processor" }
 gear-wasm-builder = { path = "../utils/wasm-builder" }
 
-anyhow = "1.0.59"
+anyhow = "1.0.62"
 codec = { package = "parity-scale-codec", version = "3.1.2", features = ["derive"] }
 logger = { package = "log", version = "0.4.17" }
 hex = "0.4.3"

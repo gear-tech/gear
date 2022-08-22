@@ -55,7 +55,7 @@ pub trait Tree {
     type ExternalOrigin;
 
     /// Type that identifies a particular value item.
-    type Key;
+    type Key: Clone;
 
     /// Type representing a quantity of value.
     type Balance;
@@ -191,6 +191,14 @@ pub trait Tree {
     ///
     /// This can't create imbalance as no value is burned or created.
     fn unlock(key: Self::Key, amount: Self::Balance) -> Result<(), Self::Error>;
+
+    /// Unlocking all value from node's locked balance.
+    ///
+    /// See [`unlock`](Self::unlock) for details.
+    fn unlock_all(key: Self::Key) -> Result<(), Self::Error> {
+        let amount = Self::get_lock(key.clone())?;
+        Self::unlock(key, amount)
+    }
 
     /// Get locked value associated with given id.
     ///

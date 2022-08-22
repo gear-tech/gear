@@ -338,17 +338,13 @@ where
     }
 
     pub fn exit_code(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        let opt_details = ctx
-            .ext
-            .reply_details()
-            .map_err(FuncError::Core)
-            .map_err(|e| {
-                ctx.err = e;
-                HostError
-            })?;
+        let exit_code = ctx.ext.exit_code().map_err(FuncError::Core).map_err(|e| {
+            ctx.err = e;
+            HostError
+        })?;
 
-        if let Some(details) = opt_details {
-            return_i32(details.into_exit_code())
+        if let Some(exit_code) = exit_code {
+            return_i32(exit_code)
         } else {
             ctx.err = FuncError::NonReplyExitCode;
             Err(HostError)
@@ -569,21 +565,16 @@ where
 
         let dest = pop_i32(&mut args)?;
 
-        let opt_details = ctx
-            .ext
-            .reply_details()
-            .map_err(FuncError::Core)
-            .map_err(|err| {
-                ctx.err = err;
+        let message_id = ctx.ext.reply_to().map_err(FuncError::Core).map_err(|err| {
+            ctx.err = err;
+            HostError
+        })?;
+
+        if let Some(id) = message_id {
+            ctx.write_output(dest, id.as_ref()).map_err(|err| {
+                ctx.err = err.into();
                 HostError
             })?;
-
-        if let Some(details) = opt_details {
-            ctx.write_output(dest, details.into_reply_to().as_ref())
-                .map_err(|err| {
-                    ctx.err = err.into();
-                    HostError
-                })?;
 
             Ok(ReturnValue::Unit)
         } else {

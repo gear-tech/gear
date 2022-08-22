@@ -33,10 +33,8 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{
-        GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyDetails, ReplyPacket,
-    },
+    memory::{AllocationsContext, Memory, PageBuf, WasmPageNumber},
+    message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
 
@@ -78,28 +76,21 @@ pub struct ProcessorContext {
 pub trait ProcessorExt {
     /// An error issues in processor
     type Error: fmt::Display;
+    /// Whether this extension works with lazy pages.
+    const LAZY_PAGES_ENABLED: bool;
 
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
-    /// Returns whether this extension works with lazy pages
-    fn is_lazy_pages_enabled() -> bool;
-
-    /// If extension support lazy pages, then checks that
-    /// environment for lazy pages is initialized.
-    fn check_lazy_pages_consistent_state() -> bool;
-
     /// Protect and save storage keys for pages which has no data
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         mem: &impl Memory,
         prog_id: ProgramId,
+        stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error>;
 
     /// Lazy pages contract post execution actions
-    fn lazy_pages_post_execution_actions(
-        mem: &impl Memory,
-        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-    ) -> Result<(), Self::Error>;
+    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error>;
 }
 
 /// [`Ext`](Ext)'s error
@@ -184,6 +175,7 @@ pub struct Ext {
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExt for Ext {
     type Error = ExtError;
+    const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
         Self {
@@ -192,35 +184,21 @@ impl ProcessorExt for Ext {
         }
     }
 
-    fn is_lazy_pages_enabled() -> bool {
-        false
-    }
-
-    fn check_lazy_pages_consistent_state() -> bool {
-        true
-    }
-
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         _mem: &impl Memory,
         _prog_id: ProgramId,
+        _stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
         unreachable!()
     }
 
-    fn lazy_pages_post_execution_actions(
-        _mem: &impl Memory,
-        _memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-    ) -> Result<(), Self::Error> {
+    fn lazy_pages_post_execution_actions(_mem: &impl Memory) -> Result<(), Self::Error> {
         unreachable!()
     }
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-        stack_page_count: WasmPageNumber,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -235,7 +213,6 @@ impl IntoExtInfo for Ext {
         for page in (0..static_pages.0)
             .map(WasmPageNumber)
             .chain(wasm_pages.iter().copied())
-            .skip_while(|page| *page < stack_page_count)
             .flat_map(|p| p.to_gear_pages_iter())
         {
             let mut buf = PageBuf::new_zeroed();
@@ -347,17 +324,9 @@ impl EnvExt for Ext {
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
-        self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.context.config.alloc_cost as u32),
-        )?;
+        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.alloc_cost))?;
         // Greedily charge gas for grow
-        self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.context.config.mem_grow_cost as u32),
-        )?;
+        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.mem_grow_cost))?;
 
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
@@ -392,7 +361,7 @@ impl EnvExt for Ext {
                 .saturating_mul((pages_num.0 - new_allocated_pages_num) as u64),
         );
 
-        self.refund_gas(gas_to_return_back as u32)?;
+        self.refund_gas(gas_to_return_back)?;
 
         Ok(page_number)
     }
@@ -456,9 +425,14 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
+    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::ReplyTo)?;
-        Ok(self.context.message_context.current().reply())
+        Ok(self
+            .context
+            .message_context
+            .current()
+            .reply()
+            .map(|d| d.into_reply_to()))
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -469,6 +443,16 @@ impl EnvExt for Ext {
     fn exit(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Exit)?;
         Ok(())
+    }
+
+    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::ExitCode)?;
+        Ok(self
+            .context
+            .message_context
+            .current()
+            .reply()
+            .map(|d| d.into_exit_code()))
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -486,7 +470,7 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.config.alloc_cost as u32)?;
+            self.refund_gas(self.context.config.alloc_cost)?;
         }
 
         self.return_and_store_err(result)
@@ -511,11 +495,11 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
     }
 
-    fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         use ChargeResult::*;
 
-        let common_charge = self.context.gas_counter.charge(val as u64);
-        let allowance_charge = self.context.gas_allowance_counter.charge(val as u64);
+        let common_charge = self.context.gas_counter.charge(val);
+        let allowance_charge = self.context.gas_allowance_counter.charge(val);
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
@@ -539,9 +523,9 @@ impl EnvExt for Ext {
         self.return_and_store_err(res)
     }
 
-    fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        if self.context.gas_counter.refund(val as u64) == ChargeResult::Enough {
-            self.context.gas_allowance_counter.refund(val as u64);
+    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
+        if self.context.gas_counter.refund(val) == ChargeResult::Enough {
+            self.context.gas_allowance_counter.refund(val);
             Ok(())
         } else {
             self.return_and_store_err(Err(ExecutionError::TooManyGasAdded))

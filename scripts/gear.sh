@@ -12,24 +12,13 @@ CARGO_NEXTEST="nextest"
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
+. "$SCRIPTS"/common.sh
+. "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
 . "$SCRIPTS"/run.sh
 . "$SCRIPTS"/test.sh
-. "$SCRIPTS"/coverage.sh
-
-bold() {
-  tput bold
-}
-
-normal() {
-  tput sgr0
-}
-
-header() {
-  bold && printf "\n  >> $1\n" && normal
-}
 
 show() {
   rustup show

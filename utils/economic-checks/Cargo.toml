@@ -11,65 +11,54 @@ log = { version = "0.4.17" }
 parity-wasm = { version = "0.45.0" }
 parking_lot = "0.12.0"
 primitive-types = { version = "0.11.1", features = ["scale-info"] }
-rand = { version = "0.8.5", default-features = false, features = ["std_rng"] }
+rand = { version = "0.8.5", features = ["std_rng"] }
 serde = "1"
 env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
-wasm-mutate = "0.2.6"
-wasmparser = "0.88.0"
+wasm-mutate = "0.2.7"
+wasmparser = "0.89.1"
 
 # Internal deps
-common = { package = "gear-common", path = "../../common", default-features = false }
-gear-core = { path = "../../core", default-features = false }
-gear-runtime = { path = "../../runtime", default-features = false }
-pallet-gear-gas = { path = "../../pallets/gas", default-features = false }
-pallet-gear = { path = "../../pallets/gear", default-features = false }
-demo-contract-template = { path = "../../examples/binaries/contract-template", default-features = false }
-demo-mul-by-const = { path = "../../examples/binaries/mul-by-const", default-features = false }
-demo-ncompose = { path = "../../examples/binaries/ncompose", default-features = false }
+common = { package = "gear-common", path = "../../common" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
+gear-core = { path = "../../core" }
+gear-runtime = { path = "../../runtime/gear", optional = true }
+vara-runtime = { path = "../../runtime/vara", optional = true }
+pallet-gear-gas = { path = "../../pallets/gas" }
+pallet-gear = { path = "../../pallets/gear" }
+demo-contract-template = { path = "../../examples/binaries/contract-template" }
+demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
+demo-ncompose = { path = "../../examples/binaries/ncompose" }
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-pallet-aura = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-aura = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.38"
+wasmprinter = "0.2.39"
 demo-compose = { path = "../../examples/binaries/compose" }
 
 [features]
-default = ["std"]
-std = [
-    "codec/std",
-    "sp-core/std",
-    "sp-std/std",
-    "sp-io/std",
-    "sp-runtime/std",
-    "sp-consensus-aura/std",
-    "sp-finality-grandpa/std",
-    "frame-support/std",
-    "frame-system/std",
-    "primitive-types/std",
-    "common/std",
-    "gear-runtime/std",
-    "pallet-gear-gas/std",
-    "pallet-gear/std",
-    "demo-contract-template/std",
-    "demo-mul-by-const/std",
-    "demo-ncompose/std",
-]
+default = ["gear-native", "lazy-pages"]
 lazy-pages = [
-    "gear-runtime/lazy-pages",
+    "gear-runtime?/lazy-pages",
+    "vara-runtime?/lazy-pages",
     "pallet-gear/lazy-pages",
 ]
 debug-wasm-mutate = []
+gear-native = ["gear-runtime", "sp-consensus-aura", "authoring-aura"]
+vara-native = ["vara-runtime", "sp-consensus-babe"]
+authoring-aura = []

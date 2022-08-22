@@ -38,9 +38,7 @@ use crate::{
     MailboxOf, Pallet as Gear, QueueOf, *,
 };
 use codec::Encode;
-use common::{
-    benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
-};
+use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
     PrepareResult, PreparedMessageExecutionContext,
@@ -52,6 +50,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
 };
+use gear_lazy_pages_common as lazy_pages;
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_aura::{Slot, AURA_ENGINE_ID};
 use sp_core::H256;
@@ -197,12 +196,34 @@ where
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
-            .map_err(|_| "Code failed to load: {}")?;
+            .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
+
+            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+
+            Dispatch::new(
+                DispatchKind::Init,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    program_id,
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    None,
+                ),
+            )
+        }
+        HandleKind::InitByHash(code_id) => {
+            let program_id = ProgramId::generate(code_id, b"bench_salt");
+
+            if !T::CodeStorage::exists(code_id) {
+                return Err("Code not found in storage");
+            }
 
             ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 

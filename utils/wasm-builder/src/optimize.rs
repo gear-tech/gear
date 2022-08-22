@@ -12,6 +12,46 @@ use std::{
     process::Command,
 };
 
+const META_EXPORTS: [&str; 13] = [
+    "meta_init_input",
+    "meta_init_output",
+    "meta_async_init_input",
+    "meta_async_init_output",
+    "meta_handle_input",
+    "meta_handle_output",
+    "meta_async_handle_input",
+    "meta_async_handle_output",
+    "meta_registry",
+    "meta_title",
+    "meta_state",
+    "meta_state_input",
+    "meta_state_output",
+];
+const OPTIMIZED_EXPORTS: [&str; 5] = [
+    "handle",
+    "handle_reply",
+    "handle_signal",
+    "init",
+    "__gear_stack_end",
+];
+
+/// Type of the output wasm.
+#[derive(PartialEq, Eq)]
+pub enum OptType {
+    Meta,
+    Opt,
+}
+
+impl OptType {
+    /// WASM exports from `OptType`.
+    pub fn exports(&self) -> &[&str] {
+        match &self {
+            OptType::Meta => &META_EXPORTS,
+            OptType::Opt => &OPTIMIZED_EXPORTS,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("Optimizer failed: {0:?}")]
 pub struct OptimizerError(pwasm_utils::OptimizerError);
@@ -31,88 +71,26 @@ impl Optimizer {
         let _ = crate::insert_stack_end_export(&mut self.module).map_err(|s| log::debug!("{}", s));
     }
 
-    pub fn optimized_file_name(&self) -> PathBuf {
-        self.file.with_extension("opt.wasm")
-    }
+    /// Process optimization.
+    pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
+        let mut module = self.module.clone();
+        pwasm_utils::optimize(&mut module, ty.exports().into())
+            .map_err(OptimizerError)
+            .with_context(|| {
+                format!(
+                    "unable to optimize the WASM file `{0}`",
+                    self.file.display()
+                )
+            })?;
 
-    pub fn metadata_file_name(&self) -> PathBuf {
-        self.file.with_extension("meta.wasm")
-    }
-
-    /// Calls chain optimizer
-    pub fn optimize(&mut self) -> Result<Vec<u8>> {
-        log::debug!("*** Processing chain optimization: {}", self.file.display());
-
-        let mut binary_module = self.module.clone();
-        let binary_file_name = self.optimized_file_name();
-
-        pwasm_utils::optimize(
-            &mut binary_module,
-            vec![
-                "handle",
-                "handle_reply",
-                "handle_signal",
-                "init",
-                "__gear_stack_end",
-            ],
-        )
-        .map_err(OptimizerError)
-        .with_context(|| {
-            format!(
-                "unable to optimize the WASM file `{0}`",
-                self.file.display()
-            )
-        })?;
-
-        check_exports(&binary_module, &binary_file_name)?;
+        // Post check exports if optimizing program binary.
+        if ty == OptType::Opt {
+            check_exports(&module, &self.file)?;
+        }
 
         let mut code = vec![];
-        binary_module.clone().serialize(&mut code)?;
+        module.serialize(&mut code)?;
 
-        log::debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
-        Ok(code)
-    }
-
-    /// Calls metadata optimizer
-    pub fn metadata(&mut self) -> Result<Vec<u8>> {
-        log::debug!(
-            "*** Processing metadata optimization: {}",
-            self.file.display()
-        );
-
-        let mut metadata_module = self.module.clone();
-        let metadata_file_name = self.metadata_file_name();
-
-        pwasm_utils::optimize(
-            &mut metadata_module,
-            vec![
-                "meta_init_input",
-                "meta_init_output",
-                "meta_async_init_input",
-                "meta_async_init_output",
-                "meta_handle_input",
-                "meta_handle_output",
-                "meta_async_handle_input",
-                "meta_async_handle_output",
-                "meta_registry",
-                "meta_title",
-                "meta_state",
-                "meta_state_input",
-                "meta_state_output",
-            ],
-        )
-        .map_err(OptimizerError)
-        .with_context(|| {
-            format!(
-                "unable to generate the metadata WASM file from `{0}`",
-                self.file.display()
-            )
-        })?;
-
-        let mut code = vec![];
-        metadata_module.serialize(&mut code)?;
-
-        log::debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
         Ok(code)
     }
 }

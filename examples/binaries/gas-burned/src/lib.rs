@@ -1,4 +1,13 @@
+#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 #![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 extern crate alloc;
 
@@ -23,7 +32,6 @@ unsafe extern "C" fn handle() {
     for (i, item) in v.iter_mut().enumerate() {
         *item = i * i;
     }
-    msg::reply_bytes(&format!("handle: {}", v.into_iter().sum::<usize>()), 0).unwrap();
 }
 
 #[cfg(test)]

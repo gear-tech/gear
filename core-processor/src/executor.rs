@@ -131,24 +131,41 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
     program_id: ProgramId,
     pages_data: &mut BTreeMap<PageNumber, PageBuf>,
     static_pages: WasmPageNumber,
+    stack_end: Option<WasmPageNumber>,
     mem: &mut M,
 ) -> Result<(), ExecutionErrorReason> {
+    if let Some(stack_end) = stack_end {
+        if stack_end > static_pages {
+            return Err(ExecutionErrorReason::StackEndPageBiggerWasmMemSize(
+                stack_end,
+                static_pages,
+            ));
+        }
+    }
+
     // Set initial data for pages
     for (page, data) in pages_data.iter_mut() {
         mem.write(page.offset(), data.as_slice())
             .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
     }
 
-    if A::is_lazy_pages_enabled() {
+    if A::LAZY_PAGES_ENABLED {
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
-        A::lazy_pages_protect_and_init_info(mem, program_id)
+        A::lazy_pages_init_for_program(mem, program_id, stack_end)
             .map_err(|err| ExecutionErrorReason::LazyPagesInitFailed(err.to_string()))?;
     } else {
         // If we executes without lazy pages, then we have to save all initial data for static pages,
         // in order to be able to identify pages, which has been changed during execution.
-        for page in (0..static_pages.0)
+        // Skip stack page if they are specified.
+        let begin = stack_end.unwrap_or(WasmPageNumber(0));
+
+        if pages_data.keys().any(|&p| p < begin.to_gear_page()) {
+            return Err(ExecutionErrorReason::StackPagesHaveInitialData);
+        }
+
+        for page in (begin.0..static_pages.0)
             .map(WasmPageNumber)
             .flat_map(|p| p.to_gear_pages_iter())
         {
@@ -169,25 +186,25 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
 fn get_pages_to_be_updated<A: ProcessorExt>(
     mut old_pages_data: BTreeMap<PageNumber, PageBuf>,
     new_pages_data: BTreeMap<PageNumber, PageBuf>,
+    static_pages: WasmPageNumber,
 ) -> BTreeMap<PageNumber, PageBuf> {
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
-        if A::is_lazy_pages_enabled() {
-            if let Some(initial_data) = old_pages_data.remove(&page) {
-                if new_data != initial_data {
-                    page_update.insert(page, new_data);
-                    log::trace!(
-                        "Page {} has been changed - will be updated in storage",
-                        page.0
-                    );
-                } else {
-                    log::trace!("Page {} is accessed but has not been changed", page.0);
-                }
-            }
+        if A::LAZY_PAGES_ENABLED {
+            // In lazy pages mode we update some page data in storage,
+            // when it has been write accessed, so no need to compare old and new page data.
+            log::trace!("{:?} has been write accessed, update it in storage", page);
+            page_update.insert(page, new_data);
         } else {
             let initial_data = if let Some(initial_data) = old_pages_data.remove(&page) {
                 initial_data
             } else {
+                // If it's static page without initial data,
+                // then it's stack page and we skip this page update.
+                if page < static_pages.to_gear_page() {
+                    continue;
+                }
+
                 // If page has no data in `pages_initial_data` then data is zeros.
                 // Because it's default data for wasm pages which is not static,
                 // and for all static pages we save data in `pages_initial_data` in E::new.
@@ -214,14 +231,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    // Checks that lazy pages are enabled in case extension A uses them.
-    if !A::check_lazy_pages_consistent_state() {
-        // This is a gross violation of the terms of use ext with lazy pages,
-        // so we will panic here. This cannot happens unless somebody tries to
-        // use lazy-pages ext in executor without lazy-pages env enabled.
-        panic!("Cannot use ext with lazy pages without lazy pages env enabled");
-    }
-
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
@@ -289,17 +298,18 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut ext = A::new(context);
 
     // Execute program in backend env.
-    let (termination, memory, stack_end_page) = match E::execute(
+    let (termination, memory) = match E::execute(
         &mut ext,
         program.raw_code(),
         program.code().exports().clone(),
         memory_size,
         &kind,
-        |memory| {
+        |memory, stack_end| {
             prepare_memory::<A, E::Memory>(
                 program_id,
                 &mut pages_initial_data,
                 static_pages,
+                stack_end,
                 memory,
             )
         },
@@ -307,13 +317,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Ok(BackendReport {
             termination_reason: termination,
             memory_wrap: memory,
-            stack_end_page,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
-            if A::is_lazy_pages_enabled() {
-                if let Err(e) =
-                    A::lazy_pages_post_execution_actions(&memory, &mut pages_initial_data)
-                {
+            if A::LAZY_PAGES_ENABLED {
+                if let Err(e) = A::lazy_pages_post_execution_actions(&memory) {
                     return Err(ExecutionError {
                         program_id,
                         gas_amount: ext.into_gas_amount(),
@@ -321,7 +328,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                     });
                 }
             }
-            (termination, memory, stack_end_page)
+            (termination, memory)
         }
 
         Err(e) => {
@@ -333,18 +340,23 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    // Page which is right after stack last page
-    log::trace!("Stack end page = {stack_end_page:?}");
-
     log::debug!("Termination reason: {:?}", termination);
 
     let info = ext
-        .into_ext_info(&memory, stack_end_page.unwrap_or_default())
+        .into_ext_info(&memory)
         .map_err(|(err, gas_amount)| ExecutionError {
             program_id,
             gas_amount,
             reason: ExecutionErrorReason::Backend(err.to_string()),
         })?;
+
+    if A::LAZY_PAGES_ENABLED && !pages_initial_data.is_empty() {
+        return Err(ExecutionError {
+            program_id,
+            gas_amount: info.gas_amount,
+            reason: ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode,
+        });
+    }
 
     // Parsing outcome.
     let kind = match termination {
@@ -363,7 +375,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 
-    let page_update = get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data);
+    let page_update =
+        get_pages_to_be_updated::<A>(pages_initial_data, info.pages_data, static_pages);
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;

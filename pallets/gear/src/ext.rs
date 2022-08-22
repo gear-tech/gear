@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::collections::BTreeSet;
-use common::lazy_pages;
-use core::fmt;
 use core_processor::{Ext, ProcessorContext, ProcessorError, ProcessorExt};
 use gear_backend_common::{
     error_processor::IntoExtError, AsTerminationReason, ExtInfo, IntoExtInfo, TerminationReason,
@@ -28,15 +26,20 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId},
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
-    message::{HandlePacket, ReplyDetails, ReplyPacket},
+    memory::{Memory, PageBuf, WasmPageNumber},
+    message::{ExitCode, HandlePacket, ReplyPacket},
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
+use gear_lazy_pages_common as lazy_pages;
 use sp_std::collections::btree_map::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
 pub enum Error {
+    #[from]
+    #[display(fmt = "{}", _0)]
     Processor(ProcessorError),
+    #[from]
+    #[display(fmt = "{}", _0)]
     LazyPages(lazy_pages::Error),
 }
 
@@ -60,38 +63,13 @@ impl AsTerminationReason for Error {
     }
 }
 
-impl From<ProcessorError> for Error {
-    fn from(err: ProcessorError) -> Self {
-        Self::Processor(err)
-    }
-}
-
-impl From<lazy_pages::Error> for Error {
-    fn from(err: lazy_pages::Error) -> Self {
-        Self::LazyPages(err)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Processor(err) => fmt::Display::fmt(err, f),
-            Error::LazyPages(err) => fmt::Display::fmt(err, f),
-        }
-    }
-}
-
 /// Ext with lazy pages support.
 pub struct LazyPagesExt {
     inner: Ext,
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info(
-        self,
-        memory: &impl Memory,
-        stack_page_count: WasmPageNumber,
-    ) -> Result<ExtInfo, (MemoryError, GasAmount)> {
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, (MemoryError, GasAmount)> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -106,8 +84,7 @@ impl IntoExtInfo for LazyPagesExt {
         let mut accessed_pages = lazy_pages::get_released_pages();
         accessed_pages.retain(|p| {
             let wasm_page = p.to_wasm_page();
-            let not_stack_page = wasm_page >= stack_page_count;
-            not_stack_page && (wasm_page < static_pages || allocations.contains(&wasm_page))
+            wasm_page < static_pages || allocations.contains(&wasm_page)
         });
 
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
@@ -151,34 +128,24 @@ impl IntoExtInfo for LazyPagesExt {
 
 impl ProcessorExt for LazyPagesExt {
     type Error = Error;
+    const LAZY_PAGES_ENABLED: bool = true;
 
     fn new(context: ProcessorContext) -> Self {
-        assert!(cfg!(feature = "lazy-pages"));
         Self {
             inner: Ext::new(context),
         }
     }
 
-    fn is_lazy_pages_enabled() -> bool {
-        true
-    }
-
-    fn check_lazy_pages_consistent_state() -> bool {
-        lazy_pages::is_lazy_pages_enabled()
-    }
-
-    fn lazy_pages_protect_and_init_info(
+    fn lazy_pages_init_for_program(
         mem: &impl Memory,
         prog_id: ProgramId,
+        stack_end: Option<WasmPageNumber>,
     ) -> Result<(), Self::Error> {
-        lazy_pages::protect_pages_and_init_info(mem, prog_id).map_err(Error::LazyPages)
+        lazy_pages::init_for_program(mem, prog_id, stack_end).map_err(Into::into)
     }
 
-    fn lazy_pages_post_execution_actions(
-        mem: &impl Memory,
-        memory_pages: &mut BTreeMap<PageNumber, PageBuf>,
-    ) -> Result<(), Self::Error> {
-        lazy_pages::post_execution_actions(mem, memory_pages).map_err(Error::LazyPages)
+    fn lazy_pages_post_execution_actions(mem: &impl Memory) -> Result<(), Self::Error> {
+        lazy_pages::remove_lazy_pages_prot(mem).map_err(Into::into)
     }
 }
 
@@ -191,16 +158,10 @@ impl EnvExt for LazyPagesExt {
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
-        self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.inner.context.config.alloc_cost as u32),
-        )?;
+        self.charge_gas((pages_num.0 as u64).saturating_mul(self.inner.context.config.alloc_cost))?;
         // Greedily charge gas for grow
         self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.inner.context.config.mem_grow_cost as u32),
+            (pages_num.0 as u64).saturating_mul(self.inner.context.config.mem_grow_cost),
         )?;
 
         let old_mem_size = mem.size();
@@ -257,7 +218,7 @@ impl EnvExt for LazyPagesExt {
                 .saturating_mul((pages_num - new_allocated_pages_num).0 as u64),
         );
 
-        self.refund_gas(gas_to_return_back as u32)?;
+        self.refund_gas(gas_to_return_back)?;
 
         Ok(page_number)
     }
@@ -298,8 +259,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_commit(msg).map_err(Error::Processor)
     }
 
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
-        self.inner.reply_details().map_err(Error::Processor)
+    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
+        self.inner.reply_to().map_err(Error::Processor)
     }
 
     fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -308,6 +269,10 @@ impl EnvExt for LazyPagesExt {
 
     fn exit(&mut self) -> Result<(), Self::Error> {
         self.inner.exit().map_err(Error::Processor)
+    }
+
+    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+        self.inner.exit_code().map_err(Error::Processor)
     }
 
     fn message_id(&mut self) -> Result<MessageId, Self::Error> {
@@ -330,11 +295,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.msg()
     }
 
-    fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         self.inner.charge_gas(val).map_err(Error::Processor)
     }
 
-    fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         self.inner.refund_gas(val).map_err(Error::Processor)
     }
 

@@ -22,7 +22,7 @@ use crate::{
     costs::RuntimeCosts,
     ids::{MessageId, ProgramId},
     memory::{Memory, WasmPageNumber},
-    message::{HandlePacket, InitPacket, ReplyDetails, ReplyPacket},
+    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -89,14 +89,17 @@ pub trait Ext {
         self.reply_commit(msg)
     }
 
-    /// Read the message id, if current message is a reply.
-    fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error>;
+    /// Get the message id of the initial message.
+    fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> Result<ProgramId, Self::Error>;
 
     /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self) -> Result<(), Self::Error>;
+
+    /// Get the exit code of the message being processed.
+    fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> Result<MessageId, Self::Error>;
@@ -125,13 +128,13 @@ pub trait Ext {
     fn gas(&mut self, amount: u32) -> Result<(), Self::Error>;
 
     /// Charge some extra gas.
-    fn charge_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
+    fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Charge gas by `RuntimeCosts` token.
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error>;
 
     /// Refund some gas.
-    fn refund_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
+    fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;
@@ -214,7 +217,7 @@ mod tests {
         ) -> Result<MessageId, Self::Error> {
             Ok(MessageId::default())
         }
-        fn reply_details(&mut self) -> Result<Option<ReplyDetails>, Self::Error> {
+        fn reply_to(&mut self) -> Result<Option<MessageId>, Self::Error> {
             Ok(None)
         }
         fn source(&mut self) -> Result<ProgramId, Self::Error> {
@@ -222,6 +225,9 @@ mod tests {
         }
         fn exit(&mut self) -> Result<(), Self::Error> {
             Ok(())
+        }
+        fn exit_code(&mut self) -> Result<Option<ExitCode>, Self::Error> {
+            Ok(None)
         }
         fn message_id(&mut self) -> Result<MessageId, Self::Error> {
             Ok(0.into())
@@ -241,13 +247,13 @@ mod tests {
         fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn charge_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
+        fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
             Ok(())
         }
         fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn refund_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
+        fn refund_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
             Ok(())
         }
         fn gas_available(&mut self) -> Result<u64, Self::Error> {
