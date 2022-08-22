@@ -99,7 +99,7 @@ fn assert_removed_nodes_have_no_lock(removed_nodes: &RemovedNodes) {
     for node in removed_nodes.values() {
         let lock = node.lock();
 
-        if node.is_orphan() {
+        if node.is_independent() {
             assert!(lock.is_none());
         } else {
             assert_eq!(lock, Some(0));
@@ -143,7 +143,7 @@ pub(super) fn assert_root_removed_last(root_node: Key, remaining_nodes: Remainin
         assert_eq!(
             remaining_nodes
                 .iter()
-                .filter(|(_, node)| !node.is_orphan())
+                .filter(|(_, node)| !node.is_independent())
                 .count(),
             0
         );
