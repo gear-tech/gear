@@ -264,12 +264,14 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
         (@field $weights:ident $field:ident: _) => { None };
         (@field $weights:ident _phantom) => { None };
         (@field $weights:ident $field:ident) => {
-            Some(GithubActionBenchmark {
-                name: stringify!($field).to_string(),
-                unit: "ns".to_string(),
-                value: $weights[dbg!(stringify!($field))].calc_weight(),
-                range: None,
-                extra: None,
+            $weights.get(stringify!($field)).map(|weight| {
+                GithubActionBenchmark {
+                    name: stringify!($field).to_string(),
+                    unit: "ns".to_string(),
+                    value: weight.calc_weight(),
+                    range: None,
+                    extra: None,
+                }
             })
         };
     }
