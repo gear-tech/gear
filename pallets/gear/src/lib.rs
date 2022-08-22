@@ -384,7 +384,7 @@ pub mod pallet {
         /// Program is terminated.
         ///
         /// Program init ended up with failure, so such message destination is unavailable anymore.
-        ProgramIsTerminated,
+        InactiveProgram,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
@@ -962,11 +962,18 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if a program has terminated status
+        /// Returns true if id is a program and the program has active status.
+        pub fn is_active(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
+                .map(|p| p.is_active())
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has active status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             common::get_program(program_id.into_origin())
                 .map(|p| p.is_terminated())
-                .unwrap_or(false)
+                .unwrap_or_default()
         }
 
         /// Returns MessageId for newly created user message.
@@ -1672,10 +1679,7 @@ pub mod pallet {
             );
 
             if GearProgramPallet::<T>::program_exists(destination) {
-                ensure!(
-                    !Self::is_terminated(destination),
-                    Error::<T>::ProgramIsTerminated
-                );
+                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1763,8 +1767,8 @@ pub mod pallet {
 
             // Checking that program, origin replies to, is not terminated.
             ensure!(
-                !Self::is_terminated(mailboxed.source()),
-                Error::<T>::ProgramIsTerminated
+                Self::is_active(mailboxed.source()),
+                Error::<T>::InactiveProgram
             );
 
             // Converting applied gas limit into value to reserve.

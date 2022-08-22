@@ -168,13 +168,14 @@ pub trait BlockLimiter {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),
+    Exited(ProgramId),
     Terminated,
 }
 
 #[derive(Clone, Debug, derive_more::Display)]
 pub enum CommonError {
-    #[display(fmt = "Program is terminated")]
-    IsTerminated,
+    #[display(fmt = "Program is not active one")]
+    InactiveProgram,
     #[display(fmt = "Program does not exist for id = {}", _0)]
     DoesNotExist(H256),
     #[display(fmt = "Cannot find data for {:?}, program {}", page, program_id)]
@@ -194,6 +195,10 @@ impl From<MemoryError> for CommonError {
 impl Program {
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
+    }
+
+    pub fn is_exited(&self) -> bool {
+        matches!(self, Program::Exited(_))
     }
 
     pub fn is_terminated(&self) -> bool {
@@ -227,7 +232,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
-            Program::Terminated => Err(CommonError::IsTerminated),
+            _ => Err(CommonError::InactiveProgram),
         }
     }
 }
@@ -288,7 +293,6 @@ pub fn pages_prefix(program_id: H256) -> Vec<u8> {
 }
 
 fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
-    // try to avoid realloc
     let id_bytes = id.as_fixed_bytes();
     let mut key = Vec::with_capacity(
         STORAGE_PROGRAM_PAGES_PREFIX.len() + id_bytes.len() + 2 + mem::size_of::<u32>(),
@@ -312,8 +316,8 @@ pub fn set_program_initialized(id: H256) {
 
 pub fn set_program_terminated_status(id: H256) -> Result<(), CommonError> {
     if let Some(program) = get_program(id) {
-        if program.is_terminated() {
-            return Err(CommonError::IsTerminated);
+        if !program.is_active() {
+            return Err(CommonError::InactiveProgram);
         }
 
         sp_io::storage::clear_prefix(&pages_prefix(id), None);
