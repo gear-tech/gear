@@ -22,6 +22,7 @@ test_usage() {
     rtest          run node runtime testing tool
     pallet         run pallet-gear tests
     runtime-upgrade run runtime-upgrade test for queue processing
+    client-weights run client weight test for infinite loop demo execution
     fuzz           run fuzzer with a fuzz target
 
 EOF
@@ -87,9 +88,7 @@ pallet_test() {
 # $1 - ROOT DIR
 runtime_upgrade_test() {
   ROOT_DIR="$1"
-
   TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
-
   RUNTIME_PATH="$ROOT_DIR/scripts/test-utils/gear_runtime.compact.compressed.wasm"
   DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
 
@@ -101,7 +100,26 @@ runtime_upgrade_test() {
   cd "$TEST_SCRIPT_PATH"
 
   # Run test
-  npm test "$RUNTIME_PATH" "$DEMO_PING_PATH"
+  npm run upgrade "$RUNTIME_PATH" "$DEMO_PING_PATH"
+
+  # Killing node process added in js script
+}
+
+# $1 - ROOT DIR
+client_weights_test() {
+  ROOT_DIR="$1"
+  TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
+  DEMO_LOOP_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_loop.opt.wasm"
+
+  # Run node
+  RUST_LOG="gear=debug" $ROOT_DIR/target/release/gear-node \
+  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 7
+
+  # Change dir to the js script dir
+  cd "$TEST_SCRIPT_PATH"
+
+  # Run test
+  npm run weights "$DEMO_LOOP_PATH"
 
   # Killing node process added in js script
 }
