@@ -72,7 +72,7 @@ jobs:
           tar -xf /tmp/build_target.tar
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features runtime-benchmarks
+        run: ./scripts/gear.sh build gear --release --locked --features runtime-benchmarks,lazy-pages
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
