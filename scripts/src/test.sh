@@ -112,7 +112,7 @@ client_weights_test() {
   DEMO_LOOP_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_loop.opt.wasm"
 
   # Run node
-  RUST_LOG="gear=debug" $ROOT_DIR/target/release/gear-node \
+  RUST_LOG="gear=debug,gwasm=debug" $ROOT_DIR/target/release/gear-node \
   --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 7
 
   # Change dir to the js script dir
