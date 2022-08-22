@@ -4555,59 +4555,6 @@ fn missing_handle_is_not_executed() {
     });
 }
 
-#[test]
-fn check_signal_executed() {
-    let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (export "handle_signal" (func $handle_signal))
-        (func $init)
-        (func $handle_signal
-            unreachable
-        )
-    )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-
-        assert_ok!(GearPallet::<Test>::upload_program(
-            Origin::signed(USER_1),
-            code,
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-        ));
-
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        let trap = b"TEST".to_vec();
-        let message_id = get_last_message_id();
-        let signal_dispatch = SignalMessage::new(message_id, trap, core_processor::ERR_EXIT_CODE)
-            .into_dispatch(pid)
-            .into_stored();
-
-        assert_ok!(CurrencyOf::<Test>::reserve(&USER_1, 50_000_000_000));
-        assert_ok!(GasHandlerOf::<Test>::create(
-            USER_1,
-            signal_dispatch.id(),
-            50_000_000_000
-        ));
-        assert_ok!(QueueOf::<Test>::queue(signal_dispatch.clone()));
-
-        run_to_block(3, None);
-
-        assert_eq!(
-            dispatch_status(signal_dispatch.id()),
-            Some(DispatchStatus::Failed)
-        );
-    });
-}
-
 mod utils {
     #![allow(unused)]
 

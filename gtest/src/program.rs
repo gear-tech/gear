@@ -26,7 +26,7 @@ use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
 use gear_wasm_builder::optimize::Optimizer;
@@ -406,6 +406,35 @@ impl<'a> Program<'a> {
         };
 
         system.run_dispatch(Dispatch::new(kind, message))
+    }
+
+    pub fn send_signal<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
+        &self,
+        from: ID,
+        payload: T,
+    ) -> RunResult {
+        let mut system = self.manager.borrow_mut();
+
+        let source = from.into().0;
+
+        let message = SignalMessage::new(
+            MessageId::generate_from_user(
+                system.block_info.height,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            ),
+            payload.as_ref().to_vec(),
+            core_processor::ERR_EXIT_CODE,
+        );
+
+        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+
+        if let TestActor::Uninitialized(id @ None, _) = actor {
+            *id = Some(message.id());
+        };
+
+        let dispatch = message.into_dispatch(self.id);
+        system.run_dispatch(dispatch)
     }
 
     pub fn id(&self) -> ProgramId {
