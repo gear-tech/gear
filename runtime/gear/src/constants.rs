@@ -18,7 +18,7 @@
 
 /// Currency related constants
 pub mod currency {
-    use gear_node_primitives::Balance;
+    use runtime_primitives::Balance;
 
     /// The existential deposit.
     pub const EXISTENTIAL_DEPOSIT: Balance = 500;
@@ -26,7 +26,7 @@ pub mod currency {
 
 /// Time and block constants
 pub mod time {
-    use gear_node_primitives::{BlockNumber, Moment};
+    use runtime_primitives::{BlockNumber, Moment};
 
     /// This determines the average expected block time that we are targeting.
     /// Blocks will be produced at a minimum duration defined by `SLOT_DURATION`.

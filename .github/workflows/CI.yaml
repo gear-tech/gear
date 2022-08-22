@@ -27,6 +27,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
+      - name: "Fetch origin"
+        run: git fetch origin
+
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
         run: ./scripts/check-spec.sh
@@ -239,7 +242,10 @@ jobs:
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
-      # TODO: make also rtest run for node without lazy-pages feature (issue #1023)
+      - name: "Test: runtime spec tests no lazy pages"
+        run: |
+          cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
+          ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
       - name: "Test (performance): node runtime testsuite"
         if: ${{ github.ref != 'refs/heads/master' }}

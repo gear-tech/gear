@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::chain_spec::{get_account_id_from_seed, get_from_seed};
-use gear_node_primitives::AccountId;
+use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId};
 use gear_runtime::{
     AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SudoConfig, SystemConfig, WASM_BINARY,
 };

@@ -76,16 +76,11 @@ pub struct ProcessorContext {
 pub trait ProcessorExt {
     /// An error issues in processor
     type Error: fmt::Display;
+    /// Whether this extension works with lazy pages.
+    const LAZY_PAGES_ENABLED: bool;
 
     /// Create new
     fn new(context: ProcessorContext) -> Self;
-
-    /// Returns whether this extension works with lazy pages
-    fn is_lazy_pages_enabled() -> bool;
-
-    /// If extension support lazy pages, then checks that
-    /// environment for lazy pages is initialized.
-    fn check_lazy_pages_consistent_state() -> bool;
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
@@ -180,20 +175,13 @@ pub struct Ext {
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExt for Ext {
     type Error = ExtError;
+    const LAZY_PAGES_ENABLED: bool = false;
 
     fn new(context: ProcessorContext) -> Self {
         Self {
             context,
             error_explanation: None,
         }
-    }
-
-    fn is_lazy_pages_enabled() -> bool {
-        false
-    }
-
-    fn check_lazy_pages_consistent_state() -> bool {
-        true
     }
 
     fn lazy_pages_init_for_program(
@@ -336,17 +324,9 @@ impl EnvExt for Ext {
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
-        self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.context.config.alloc_cost as u32),
-        )?;
+        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.alloc_cost))?;
         // Greedily charge gas for grow
-        self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.context.config.mem_grow_cost as u32),
-        )?;
+        self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.mem_grow_cost))?;
 
         self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
@@ -381,7 +361,7 @@ impl EnvExt for Ext {
                 .saturating_mul((pages_num.0 - new_allocated_pages_num) as u64),
         );
 
-        self.refund_gas(gas_to_return_back as u32)?;
+        self.refund_gas(gas_to_return_back)?;
 
         Ok(page_number)
     }
@@ -490,7 +470,7 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if !self.context.allocations_context.is_init_page(page) {
-            self.refund_gas(self.context.config.alloc_cost as u32)?;
+            self.refund_gas(self.context.config.alloc_cost)?;
         }
 
         self.return_and_store_err(result)
@@ -515,11 +495,11 @@ impl EnvExt for Ext {
         self.charge_gas_runtime(RuntimeCosts::MeteringBlock(val))
     }
 
-    fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         use ChargeResult::*;
 
-        let common_charge = self.context.gas_counter.charge(val as u64);
-        let allowance_charge = self.context.gas_allowance_counter.charge(val as u64);
+        let common_charge = self.context.gas_counter.charge(val);
+        let allowance_charge = self.context.gas_allowance_counter.charge(val);
 
         let res: Result<(), ProcessorError> = match (common_charge, allowance_charge) {
             (NotEnough, _) => Err(ExecutionError::GasLimitExceeded.into()),
@@ -543,9 +523,9 @@ impl EnvExt for Ext {
         self.return_and_store_err(res)
     }
 
-    fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
-        if self.context.gas_counter.refund(val as u64) == ChargeResult::Enough {
-            self.context.gas_allowance_counter.refund(val as u64);
+    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
+        if self.context.gas_counter.refund(val) == ChargeResult::Enough {
+            self.context.gas_allowance_counter.refund(val);
             Ok(())
         } else {
             self.return_and_store_err(Err(ExecutionError::TooManyGasAdded))

@@ -1,8 +1,8 @@
 [package]
-name = "gear-node-primitives"
-version = "1.0.0"
+name = "gear-runtime-primitives"
+version = "0.1.0"
 authors = ["Gear Technologies"]
-description = "Gear Node primitives"
+description = "Gear Runtime primitives"
 edition = "2018"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"

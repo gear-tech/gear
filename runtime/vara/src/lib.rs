@@ -31,8 +31,6 @@ use frame_support::{
     traits::{ConstU128, ConstU32, Contains, KeyOwnerProofSystem},
     weights::{constants::RocksDbWeight, IdentityFee},
 };
-pub use gear_node_primitives::{AccountId, Signature};
-use gear_node_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -44,6 +42,8 @@ use runtime_common::{
     DealWithFees, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
     QueueLengthStep, ReserveThreshold, WaitlistCost,
 };
+pub use runtime_primitives::{AccountId, Signature};
+use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
@@ -86,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1550,
+    spec_version: 1600,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -387,7 +387,7 @@ where
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = gear_node_primitives::Block,
+        NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system,
@@ -417,7 +417,7 @@ construct_runtime!(
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = gear_node_primitives::Block,
+        NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system,

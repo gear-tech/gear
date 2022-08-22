@@ -32,8 +32,6 @@ pub use frame_support::{
     weights::{constants::RocksDbWeight, IdentityFee},
     StorageValue,
 };
-pub use gear_node_primitives::{AccountId, Signature};
-use gear_node_primitives::{Balance, BlockNumber, Hash, Index};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -44,6 +42,8 @@ use runtime_common::{
     DealWithFees, MailboxCost, MailboxThreshold, OperationalFeeMultiplier, OutgoingLimit,
     QueueLengthStep, ReserveThreshold, WaitlistCost,
 };
+pub use runtime_primitives::{AccountId, Signature};
+use runtime_primitives::{Balance, BlockNumber, Hash, Index};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
@@ -89,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear-node"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 1550,
+    spec_version: 1600,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
@@ -353,7 +353,7 @@ where
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = gear_node_primitives::Block,
+        NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system,
@@ -381,7 +381,7 @@ construct_runtime!(
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = gear_node_primitives::Block,
+        NodeBlock = runtime_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system,
