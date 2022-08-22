@@ -27,6 +27,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
+      - name: "Fetch origin"
+        run: git fetch origin
+
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
         run: ./scripts/check-spec.sh
