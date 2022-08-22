@@ -162,15 +162,22 @@ where
         });
 
         let _ = common::waiting_init_take_messages(id_exited);
-        common::set_program_terminated_status(id_exited.into_origin())
+
+        let id_exited = id_exited.into_origin();
+
+        common::set_program_exited_status(id_exited, value_destination)
             .expect("`exit` can be called only from active program; qed");
 
-        let program_account = &<T::AccountId as Origin>::from_origin(id_exited.into_origin());
+        let program_account = &<T::AccountId as Origin>::from_origin(id_exited);
         let balance = CurrencyOf::<T>::free_balance(program_account);
+
+        let destination = Pallet::<T>::inheritor_for(value_destination);
+        let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+
         if !balance.is_zero() {
             CurrencyOf::<T>::transfer(
                 program_account,
-                &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
+                &destination,
                 balance,
                 ExistenceRequirement::AllowDeath,
             )
@@ -302,11 +309,12 @@ where
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        let to = Pallet::<T>::inheritor_for(to.unwrap_or(from));
+        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
         let from = <T::AccountId as Origin>::from_origin(from.into_origin());
-        let to = to.map(|v| <T::AccountId as Origin>::from_origin(v.into_origin()));
         let value = value.unique_saturated_into();
 
-        Pallet::<T>::transfer_reserved(&from, to.as_ref().unwrap_or(&from), value);
+        Pallet::<T>::transfer_reserved(&from, &to, value);
     }
 
     fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {

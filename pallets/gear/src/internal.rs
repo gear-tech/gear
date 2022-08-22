@@ -22,6 +22,7 @@ use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
     MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
@@ -575,5 +576,21 @@ where
             message,
             expiration,
         });
+    }
+
+    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+        let mut inheritor = program_id;
+
+        let mut visited_ids: BTreeSet<_> = [program_id].into();
+
+        while let Some(id) = Self::exit_argument_of(inheritor) {
+            if !visited_ids.insert(id) {
+                break;
+            }
+
+            inheritor = id
+        }
+
+        inheritor
     }
 }

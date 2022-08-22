@@ -2539,7 +2539,6 @@ fn test_message_processing_for_non_existing_destination() {
 }
 
 #[test]
-#[should_panic] // to be deleted within the PR
 fn exit_locking_funds() {
     use demo_exit_handle_sender::{Input, WASM_BINARY as EXIT_HANDLE_SENDER_BINARY};
 

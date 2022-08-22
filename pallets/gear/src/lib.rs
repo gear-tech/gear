@@ -969,10 +969,30 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
-        /// Returns true if id is a program and the program has active status.
+        /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             common::get_program(program_id.into_origin())
                 .map(|p| p.is_terminated())
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has exited status.
+        pub fn is_exited(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
+                .map(|p| p.is_exited())
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has exited status.
+        pub fn exit_argument_of(program_id: ProgramId) -> Option<ProgramId> {
+            common::get_program(program_id.into_origin())
+                .map(|p| {
+                    if let Program::Exited(id) = p {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or_default()
         }
 

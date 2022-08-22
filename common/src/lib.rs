@@ -329,6 +329,21 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), CommonError> {
     }
 }
 
+pub fn set_program_exited_status(id: H256, inheritor: ProgramId) -> Result<(), CommonError> {
+    if let Some(program) = get_program(id) {
+        if !program.is_active() {
+            return Err(CommonError::InactiveProgram);
+        }
+
+        sp_io::storage::clear_prefix(&pages_prefix(id), None);
+        sp_io::storage::set(&program_key(id), &Program::Exited(inheritor).encode());
+
+        Ok(())
+    } else {
+        Err(CommonError::DoesNotExist(id))
+    }
+}
+
 pub fn get_program(id: H256) -> Option<Program> {
     sp_io::storage::get(&program_key(id))
         .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
