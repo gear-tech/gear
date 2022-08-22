@@ -2493,7 +2493,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
- "wasmi",
+ "wasmi 0.15.0",
 ]
 
 [[package]]
@@ -3027,7 +3027,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "wasm-instrument",
- "wasmi",
+ "wasmi 0.15.0",
 ]
 
 [[package]]
@@ -6384,7 +6384,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "web-sys",
  "winapi",
@@ -6927,7 +6927,7 @@ dependencies = [
  "sp-version",
  "sp-wasm-interface",
  "tracing",
- "wasmi",
+ "wasmi 0.13.0",
 ]
 
 [[package]]
@@ -6948,7 +6948,7 @@ dependencies = [
  "wasmer",
  "wasmer-cache",
  "wasmer-compiler",
- "wasmi",
+ "wasmi 0.13.0",
 ]
 
 [[package]]
@@ -6963,7 +6963,7 @@ dependencies = [
  "sp-runtime-interface",
  "sp-sandbox",
  "sp-wasm-interface",
- "wasmi",
+ "wasmi 0.13.0",
 ]
 
 [[package]]
@@ -8179,7 +8179,7 @@ dependencies = [
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
- "wasmi",
+ "wasmi 0.13.0",
  "zeroize",
 ]
 
@@ -8424,7 +8424,7 @@ dependencies = [
  "sp-io",
  "sp-std",
  "sp-wasm-interface",
- "wasmi",
+ "wasmi 0.13.0",
 ]
 
 [[package]]
@@ -8620,7 +8620,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-std",
- "wasmi",
+ "wasmi 0.13.0",
  "wasmtime",
 ]
 
@@ -8629,6 +8629,12 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "spin"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f6002a767bff9e83f8eeecf883ecb8011875a21ae8da43bffb817a57e78cc09"
 
 [[package]]
 name = "ss58-registry"
@@ -9942,7 +9948,18 @@ checksum = "fc13b3c219ca9aafeec59150d80d89851df02e0061bc357b4d66fc55a8d38787"
 dependencies = [
  "parity-wasm 0.45.0",
  "wasmi-validation",
- "wasmi_core",
+ "wasmi_core 0.2.0",
+]
+
+[[package]]
+name = "wasmi"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81a9c47f1785842298b082431a60d6c27bbceda84ff14558598ba44f5c609ccd"
+dependencies = [
+ "spin 0.9.4",
+ "wasmi_core 0.3.0",
+ "wasmparser-nostd",
 ]
 
 [[package]]
@@ -9969,6 +9986,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmi_core"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a53379aecfee3604c2423dddbbecf1d65e0327b0249812dcc2737e5a1db43b5"
+dependencies = [
+ "downcast-rs",
+ "libm",
+ "memory_units",
+ "num-rational 0.4.1",
+ "num-traits",
+]
+
+[[package]]
 name = "wasmparser"
 version = "0.83.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9991,6 +10021,12 @@ checksum = "ab5d3e08b13876f96dd55608d03cd4883a0545884932d5adf11925876c96daef"
 dependencies = [
  "indexmap",
 ]
+
+[[package]]
+name = "wasmparser-nostd"
+version = "0.83.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58a45f1058fed5ce7ff3da64153d0537a1ae664d09855fbb1402c6472f09571b"
 
 [[package]]
 name = "wasmprinter"
