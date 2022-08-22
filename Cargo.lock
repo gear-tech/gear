@@ -93,9 +93,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.61"
+version = "1.0.62"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "508b352bb5c066aac251f6daf6b36eccd03e8a88e8081cd44959ea277a3af9a8"
+checksum = "1485d4d2cc45e7b201ee3767015c96faa5904387c9d87c6efdd0fb511f12d305"
 
 [[package]]
 name = "approx"
@@ -1729,8 +1729,8 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-node-primitives",
  "gear-runtime",
+ "gear-runtime-primitives",
  "hex",
  "log",
  "pallet-aura",
@@ -1754,7 +1754,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.88.0",
+ "wasmparser 0.89.1",
  "wasmprinter",
  "wat",
 ]
@@ -2513,9 +2513,9 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
- "gear-node-primitives",
  "gear-runtime",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "gear-runtime-test-cli",
  "gear-service",
  "pallet-gear-payment",
@@ -2647,14 +2647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node-primitives"
-version = "1.0.0"
-dependencies = [
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
@@ -2666,8 +2658,8 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
- "gear-node-primitives",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "hex-literal",
  "log",
  "pallet-aura",
@@ -2712,7 +2704,7 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "gear-common",
- "gear-node-primitives",
+ "gear-runtime-primitives",
  "pallet-authorship",
  "pallet-balances",
  "sp-runtime",
@@ -2738,6 +2730,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-runtime-primitives"
+version = "0.1.0"
+dependencies = [
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
@@ -2749,8 +2749,8 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
- "gear-node-primitives",
  "gear-runtime",
+ "gear-runtime-primitives",
  "gear-test",
  "junit-common",
  "log",
@@ -2783,9 +2783,9 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-system",
  "frame-system-rpc-runtime-api",
- "gear-node-primitives",
  "gear-runtime",
  "gear-runtime-interface",
+ "gear-runtime-primitives",
  "hex-literal",
  "jsonrpsee",
  "pallet-gear-rpc",
@@ -9433,8 +9433,8 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
- "gear-node-primitives",
  "gear-runtime-common",
+ "gear-runtime-primitives",
  "hex-literal",
  "log",
  "pallet-authorship",
@@ -9636,15 +9636,6 @@ checksum = "6a89911bd99e5f3659ec4acf9c4d93b0a90fe4a2a11f15328472058edc5261be"
 
 [[package]]
 name = "wasm-encoder"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8905fd25fdadeb0e7e8bf43a9f46f9f972d6291ad0c7a32573b88dd13a6cfa6b"
-dependencies = [
- "leb128",
-]
-
-[[package]]
-name = "wasm-encoder"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d443c5a7daae71697d97ec12ad70b4fe8766d3a0f4db16158ac8b781365892f7"
@@ -9682,8 +9673,8 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder 0.16.0",
- "wasmparser 0.89.0",
+ "wasm-encoder",
+ "wasmparser 0.89.1",
 ]
 
 [[package]]
@@ -10004,30 +9995,21 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.88.0"
+version = "0.89.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb8cf7dd82407fe68161bedcd57fde15596f32ebf6e9b3bdbf3ae1da20e38e5e"
-dependencies = [
- "indexmap",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.89.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e93aca64a4778dde5c48d494a4a0c610ba0f06663798a2c70eaadb1d51460da"
+checksum = "ab5d3e08b13876f96dd55608d03cd4883a0545884932d5adf11925876c96daef"
 dependencies = [
  "indexmap",
 ]
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.38"
+version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04f2786f19a25211ddfa331e28b7579a6d6880f5f4b18d21253cd90274aa4c21"
+checksum = "aa9e5ee2f56cc8a5da489558114e8c118e5a8416d96aefe63dcf1b5b05b858c6"
 dependencies = [
  "anyhow",
- "wasmparser 0.88.0",
+ "wasmparser 0.89.1",
 ]
 
 [[package]]
@@ -10200,21 +10182,21 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "45.0.0"
+version = "46.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "186c474c4f9bb92756b566d592a16591b4526b1a4841171caa3f31d7fe330d96"
+checksum = "ea0ab19660e3ea6891bba69167b9be40fad00fb1fe3dd39c5eebcee15607131b"
 dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.15.0",
+ "wasm-encoder",
 ]
 
 [[package]]
 name = "wat"
-version = "1.0.47"
+version = "1.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2d4bc4724b4f02a482c8cab053dac5ef26410f264c06ce914958f9a42813556"
+checksum = "8f775282def4d5bffd94d60d6ecd57bfe6faa46171cdbf8d32bd5458842b1e3e"
 dependencies = [
  "wast",
 ]

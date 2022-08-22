@@ -25,7 +25,6 @@ use alloc::string::ToString;
 use common::{scheduler::*, storage::*, GasTree, Origin};
 use core_processor::common::ExecutionErrorReason;
 use frame_support::traits::ReservableCurrency;
-use frame_system::Pallet as SystemPallet;
 use gear_core::{ids::*, message::*};
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
 use sp_core::H256;
@@ -105,7 +104,7 @@ fn out_of_rent_reply_exists(
     let mid = mid.into();
     let pid = pid.into();
 
-    SystemPallet::<Test>::events().into_iter().any(|e| {
+    System::events().into_iter().any(|e| {
         if let mock::Event::Gear(pallet_gear::Event::UserMessageSent {
             message: msg,
             expiration: None,

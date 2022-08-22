@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use gear_node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
 use gear_runtime_interface as gear_ri;
+pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
 use sc_client_api::{
     Backend as BackendT, BlockBackend, BlockchainEvents, KeyIterator, UsageProvider,
 };

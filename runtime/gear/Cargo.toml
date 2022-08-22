@@ -61,7 +61,7 @@ pallet-gear-gas = { version = "2.0.0", default-features = false, path = "../../p
 pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../../pallets/payment" }
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
 gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
-gear-node-primitives = { version = "1.0.0", default-features = false, path = "../../node/primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -86,7 +86,7 @@ std = [
 	"pallet-gear-payment/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"gear-common/std",
-	"gear-node-primitives/std",
+	"runtime-primitives/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",

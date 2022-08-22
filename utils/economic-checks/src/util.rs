@@ -27,7 +27,6 @@ use frame_support::{
 };
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
-use gear_node_primitives::AccountPublic;
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
     Aura, AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
@@ -38,6 +37,7 @@ use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use pallet_gear_gas::Error as GasError;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
+use runtime_primitives::AccountPublic;
 #[cfg(feature = "authoring-aura")]
 use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
 #[cfg(not(feature = "authoring-aura"))]

@@ -158,16 +158,10 @@ impl EnvExt for LazyPagesExt {
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
         // Greedily charge gas for allocations
-        self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.inner.context.config.alloc_cost as u32),
-        )?;
+        self.charge_gas((pages_num.0 as u64).saturating_mul(self.inner.context.config.alloc_cost))?;
         // Greedily charge gas for grow
         self.charge_gas(
-            pages_num
-                .0
-                .saturating_mul(self.inner.context.config.mem_grow_cost as u32),
+            (pages_num.0 as u64).saturating_mul(self.inner.context.config.mem_grow_cost),
         )?;
 
         let old_mem_size = mem.size();
@@ -224,7 +218,7 @@ impl EnvExt for LazyPagesExt {
                 .saturating_mul((pages_num - new_allocated_pages_num).0 as u64),
         );
 
-        self.refund_gas(gas_to_return_back as u32)?;
+        self.refund_gas(gas_to_return_back)?;
 
         Ok(page_number)
     }
@@ -301,11 +295,11 @@ impl EnvExt for LazyPagesExt {
         self.inner.msg()
     }
 
-    fn charge_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+    fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         self.inner.charge_gas(val).map_err(Error::Processor)
     }
 
-    fn refund_gas(&mut self, val: u32) -> Result<(), Self::Error> {
+    fn refund_gas(&mut self, val: u64) -> Result<(), Self::Error> {
         self.inner.refund_gas(val).map_err(Error::Processor)
     }
 

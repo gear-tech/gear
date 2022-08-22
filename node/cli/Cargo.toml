@@ -13,7 +13,7 @@ clap = { version = "3.2", features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Gear
-gear-node-primitives = { path = "../primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-runtime-test-cli = { path = "../../utils/gear-runtime-test-cli" }
 service = { package = "gear-service", path = "../service", default-features = false, optional = true }
 pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
