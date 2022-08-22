@@ -29,7 +29,7 @@ use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
-    slice::Iter,
+    slice::Iter, ops::Range,
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
@@ -72,10 +72,11 @@ pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
         .map_err(|_| HostError)
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     Core(E),
+    #[from]
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "Cannot set u128: {}", _0)]
@@ -90,6 +91,8 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
+    #[display(fmt = "Cannot take {:?} from message with size {}", _0, _1)]
+    WrongReadMsgRange(Range<usize>, usize),
 }
 
 impl<E> FuncError<E>
@@ -108,12 +111,6 @@ where
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
-    }
-}
-
-impl<E> From<MemoryError> for FuncError<E> {
-    fn from(err: MemoryError) -> Self {
-        Self::Memory(err)
     }
 }
 
@@ -310,10 +307,14 @@ where
 
         let mut f = || {
             let msg = ctx.ext.msg().to_vec();
-            ctx.write_output(dest, &msg[at..(at + len)])
+            if at >= msg.len() || at + len > msg.len() {
+                return Err(FuncError::WrongReadMsgRange(at..at + len, msg.len()));
+            }
+            // `[..]` is safe, because we check borders above.
+            ctx.write_output(dest, &msg[at..(at + len)]).map_err(Into::into)
         };
         f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err.into();
+            ctx.err = err;
             HostError
         })
     }

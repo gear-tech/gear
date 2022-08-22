@@ -5,6 +5,11 @@
     (func $init
         (local $i i32)
 
+        memory.size
+        memory.size
+        i32.rem_s
+        drop
+
         ;; alloc 0x100 pages, so mem pages are: 0..=0xff
         (block
             i32.const 0x100
