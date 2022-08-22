@@ -3,9 +3,9 @@ const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert/strict');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, checkInit } = require('./util.js');
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
 
-const upload_program = (api, account, pathToDemoPing) => {
+function upload_program(api, account, pathToDemoPing) {
   const code = readFileSync(pathToDemoPing);
   const codeBytes = api.createType('Bytes', Array.from(code));
   const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
@@ -22,7 +22,7 @@ const upload_program = (api, account, pathToDemoPing) => {
   });
 };
 
-const getMessageEnqueuedBlock = (api, { events, status }) => {
+function getMessageEnqueuedBlock(api, { events, status }) {
   let blockHash = undefined;
   events.forEach(({ event }) => {
     if (api.events.gear.MessageEnqueued.is(event)) {
@@ -32,7 +32,7 @@ const getMessageEnqueuedBlock = (api, { events, status }) => {
   return blockHash;
 };
 
-const main = async (pathToRuntimeCode, pathToDemoPing) => {
+async function main(pathToRuntimeCode, pathToDemoPing) {
   // Create connection
   const provider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({ provider });
@@ -53,7 +53,6 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));
   const setCodeUncheckedWeight = api.tx.sudo.sudoUncheckedWeight(setCode, 0);
 
-  // const messages = new Array(54).fill(api.tx.gear.sendMessage(programId, 'PING', 100_000_000, 0));
   const message = api.tx.gear.sendMessage(programId, 'PING', 200_000_000_000, 0);
 
   let codeUpdatedBlock = undefined;
@@ -83,7 +82,7 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
   assert.notStrictEqual(codeUpdatedBlock, undefined, 'JS_TEST: setCode was not processed successfully');
   console.log(`JS_TEST: 2nd assert passed`);
   assert.notEqual(
-    await messageDispatchedIsOccurred(api, await getNextBlock(api, await getBlockNumber(codeUpdatedBlock))),
+    await messageDispatchedIsOccurred(api, await getNextBlock(api, await getBlockNumber(api, codeUpdatedBlock))),
     true,
     'JS_TEST: A message was processed in the next block after CodeUpdated event',
   );
@@ -91,8 +90,13 @@ const main = async (pathToRuntimeCode, pathToDemoPing) => {
 };
 
 const args = process.argv.slice(2);
+
 const pathToRuntimeCode = args[0];
+assert.notStrictEqual(pathToRuntimeCode, undefined, `Path to runtime code is not specified`);
+
 const pathToDemoPing = args[1];
+assert.notStrictEqual(pathToDemoPing, undefined, `Path to demo ping is not specified`);
+
 let exitCode = undefined;
 
 main(pathToRuntimeCode, pathToDemoPing)

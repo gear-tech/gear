@@ -30,7 +30,7 @@ function checkInit(api) {
           for (const [id, status] of event.data.statuses) {
             if (messages.has(id.toHex())) {
               if (status.isFailed) {
-                messages.set(id.toHex(), Promise.reject(`Program initializtion failed`));
+                messages.set(id.toHex(), Promise.reject(`Program initialization failed`));
                 break;
               }
               if (status.isSuccess) {

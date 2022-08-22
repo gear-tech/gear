@@ -2,6 +2,7 @@ const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert');
+const { exec } = require('child_process');
 const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
 
 function listenToUserMessageSent(api, programId) {
@@ -26,14 +27,14 @@ function listenToUserMessageSent(api, programId) {
   return () => message;
 }
 
-async function main(path) {
+async function main(pathToDemoLoop) {
   const provider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({ provider });
 
   // Create alice account
   const account = new Keyring({ type: 'sr25519' }).addFromUri('//Alice');
 
-  const code = readFileSync(path);
+  const code = readFileSync(pathToDemoLoop);
   const codeBytes = api.createType('Bytes', Array.from(code));
   const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x', 100_000_000_000, 0);
 
@@ -70,13 +71,13 @@ async function main(path) {
 
   const message = getMessage();
   assert.notStrictEqual(message, undefined, `Message not found`);
-  assert.notStrictEqual(message.exitCode, 0, `Message proccesed sucessfully`);
+  assert.notStrictEqual(message.exitCode, 0, `Message processed successfully`);
   assert.strictEqual(message.payload, 'Execution error: Not enough gas to continue execution', `Payload is wrong`);
   const usmBlockNumber = await getBlockNumber(api, message.blockHash);
   assert.equal(
     usmBlockNumber,
     meBlockNumber,
-    `UserMessageSent and MessageEnqueued occured in the different blocks ${usmBlockNumber}, ${meBlockNumber}`,
+    `UserMessageSent and MessageEnqueued occurred in the different blocks ${usmBlockNumber}, ${meBlockNumber}`,
   );
   const nextBlock = await getNextBlock(api, usmBlockNumber);
   assert.strictEqual(
@@ -86,19 +87,31 @@ async function main(path) {
   );
 }
 
-const path = process.argv[2];
-assert.notStrictEqual(path, undefined, `Path is not specified`);
+const pathToDemoLoop = process.argv[2];
+assert.notStrictEqual(pathToDemoLoop, undefined, `Path to demo loop is not specified`);
 
 let exitCode = undefined;
 
-main(path)
+main(pathToDemoLoop)
   .then(() => {
     exitCode = 0;
   })
   .catch((error) => {
-    console.error(error);
+    console.error(`JS_TEST: ${error}`);
     exitCode = 1;
   })
   .finally(() => {
-    process.exit(exitCode);
+    exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
+      if (err) {
+        console.log(`JS_TEST: Unable to execute kill command`);
+      }
+
+      if (exitCode == 0) {
+        console.log('JS_TEST: ✅ Test passed');
+      } else {
+        console.log('JS_TEST: ❌ Test failed');
+      }
+
+      process.exit(exitCode);
+    });
   });
