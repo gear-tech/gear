@@ -42,7 +42,7 @@ fn pause_program_works() {
         let code_id = code_and_id.code_id();
         let code_hash = code_id.into_origin();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
+        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let wasm_static_pages = WasmPageNumber(16);
         let memory_pages = {
@@ -98,7 +98,7 @@ fn pause_program_works() {
 
         assert!(GearProgram::program_paused(program_id));
 
-        assert!(Pallet::<Test>::get_code(code_id).is_some());
+        assert!(GearProgram::get_code(code_id).is_some());
 
         // although the memory pages should be removed
         assert!(
@@ -128,7 +128,7 @@ fn pause_program_twice_fails() {
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
+        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id: ProgramId = 1.into();
         common::set_program(
@@ -161,7 +161,7 @@ fn pause_terminated_program_fails() {
         let code_and_id = CodeAndId::new(code);
         let code_hash = code_and_id.code_id().into_origin();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
+        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let program_id: ProgramId = 1.into();
         common::set_program(
@@ -207,7 +207,7 @@ fn pause_uninitialized_program_works() {
         assert!(GearProgram::program_paused(program_id));
         assert!(common::get_program(program_id.into_origin()).is_none());
 
-        assert!(Pallet::<Test>::get_code(code_id).is_some());
+        assert!(GearProgram::get_code(code_id).is_some());
 
         // although the memory pages should be removed
         assert!(common::get_program_data_for_pages_optional(
@@ -438,7 +438,7 @@ mod utils {
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
 
-        Pallet::<Test>::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
+        GearProgram::add_code(code_and_id, CodeMetadata::new([0; 32].into(), 1)).unwrap();
 
         let memory_pages = {
             let mut pages = BTreeMap::new();
