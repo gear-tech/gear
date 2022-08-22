@@ -29,7 +29,8 @@ use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
-    slice::Iter, ops::Range,
+    ops::Range,
+    slice::Iter,
 };
 use gear_backend_common::{
     error_processor::{IntoExtError, ProcessError},
@@ -311,7 +312,8 @@ where
                 return Err(FuncError::WrongReadMsgRange(at..at + len, msg.len()));
             }
             // `[..]` is safe, because we check borders above.
-            ctx.write_output(dest, &msg[at..(at + len)]).map_err(Into::into)
+            ctx.write_output(dest, &msg[at..(at + len)])
+                .map_err(Into::into)
         };
         f().map(|()| ReturnValue::Unit).map_err(|err| {
             ctx.err = err;
