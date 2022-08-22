@@ -28,6 +28,7 @@ mod handle;
 mod incoming;
 mod init;
 mod reply;
+mod signal;
 mod stored;
 
 pub use common::{Dispatch, Message, ReplyDetails};
@@ -36,6 +37,7 @@ pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
+pub use signal::SignalMessage;
 pub use stored::{StoredDispatch, StoredMessage};
 
 /// Payload type for message.

@@ -24,8 +24,7 @@ use crate::{
         GearProgram, Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, Error, Event, GasAllowanceOf,
-    GasHandlerOf, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, QueueOf,
-    ReplyMessage, WaitlistOf,
+    GasHandlerOf, GasInfo, GearProgramPallet, MailboxOf, Pallet as GearPallet, QueueOf, WaitlistOf,
 };
 use codec::{Decode, Encode};
 use common::{
@@ -49,6 +48,7 @@ use gear_backend_common::TrapExplanation;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
+    message::SignalMessage,
 };
 use gear_core_errors::*;
 use pallet_balances::{self, Pallet as BalancesPallet};
@@ -4587,22 +4587,22 @@ fn check_signal_executed() {
 
         let trap = b"TEST".to_vec();
         let message_id = get_last_message_id();
-        let trap_reply = ReplyMessage::system(message_id, trap, core_processor::ERR_EXIT_CODE)
-            .into_signal_dispatch(pid, message_id)
+        let signal_dispatch = SignalMessage::new(message_id, trap, core_processor::ERR_EXIT_CODE)
+            .into_dispatch(pid)
             .into_stored();
 
         assert_ok!(CurrencyOf::<Test>::reserve(&USER_1, 50_000_000_000));
         assert_ok!(GasHandlerOf::<Test>::create(
             USER_1,
-            trap_reply.id(),
+            signal_dispatch.id(),
             50_000_000_000
         ));
-        assert_ok!(QueueOf::<Test>::queue(trap_reply.clone()));
+        assert_ok!(QueueOf::<Test>::queue(signal_dispatch.clone()));
 
         run_to_block(3, None);
 
         assert_eq!(
-            dispatch_status(trap_reply.id()),
+            dispatch_status(signal_dispatch.id()),
             Some(DispatchStatus::Failed)
         );
     });
