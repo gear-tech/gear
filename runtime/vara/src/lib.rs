@@ -411,6 +411,11 @@ impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
 }
 
+impl pallet_airdrop::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = ();
+}
+
 pub struct ExtraFeeFilter;
 impl Contains<Call> for ExtraFeeFilter {
     fn contains(call: &Call) -> bool {
@@ -464,6 +469,9 @@ construct_runtime!(
         GearPayment: pallet_gear_payment,
         ShiftSessionManager: pallet_shift_session_manager,
 
+        // TODO: remove from prodiction version
+        Airdrop: pallet_airdrop,
+
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug,
     }
@@ -493,6 +501,9 @@ construct_runtime!(
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
         ShiftSessionManager: pallet_shift_session_manager,
+
+        // TODO: remove from production version
+        Airdrop: pallet_airdrop,
     }
 );
 
