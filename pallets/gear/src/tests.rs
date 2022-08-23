@@ -5552,3 +5552,36 @@ fn check_gear_stack_end_fail() {
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 3);
     });
 }
+
+#[test]
+fn check_gr_read_error_works() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_read" (func $gr_read (param i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                i32.const 0
+                i32.const 10
+                i32.const 0
+                call $gr_read
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            Origin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+        )
+        .expect("Failed to upload program");
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 1);
+    });
+}

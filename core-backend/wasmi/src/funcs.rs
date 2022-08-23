@@ -28,6 +28,7 @@ use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
+    ops::Range,
     slice::Iter,
 };
 use gear_backend_common::{
@@ -100,6 +101,14 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
+    #[display(
+        fmt = "Cannot take data by indexes {:?} from message with size {}",
+        _0,
+        _1
+    )]
+    ReadWrongRange(Range<usize>, usize),
+    #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
+    ReadLenOverflow(usize, usize),
 }
 
 impl<E> FuncError<E>
@@ -317,16 +326,24 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let at = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let at: usize = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let len: usize = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let dest = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
         let mut f = || {
             let msg = ctx.ext.msg().to_vec();
-            ctx.write_output(dest, &msg[at..(at + len)])
+            let last_idx = at
+                .checked_add(len)
+                .ok_or(FuncError::ReadLenOverflow(at, len))?;
+            if last_idx > msg.len() {
+                return Err(FuncError::ReadWrongRange(at..last_idx, msg.len()));
+            }
+            // `[..]` is safe, because we check borders above.
+            ctx.write_output(dest, &msg[at..last_idx])
+                .map_err(Into::into)
         };
         f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err.into();
+            ctx.err = err;
             FuncError::HostError
         })
     }
