@@ -9675,6 +9675,7 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "log",
+ "parity-wasm 0.45.0",
  "thiserror",
 ]
 
