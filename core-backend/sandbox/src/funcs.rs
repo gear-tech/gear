@@ -308,7 +308,7 @@ where
 
         let mut f = || {
             let msg = ctx.ext.msg().to_vec();
-            if at >= msg.len() || at + len > msg.len() {
+            if at > msg.len() || at + len > msg.len() {
                 return Err(FuncError::WrongReadMsgRange(at..at + len, msg.len()));
             }
             // `[..]` is safe, because we check borders above.

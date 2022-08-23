@@ -28,6 +28,7 @@ use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
+    ops::Range,
     slice::Iter,
 };
 use gear_backend_common::{
@@ -100,6 +101,8 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
+    #[display(fmt = "Cannot take {:?} from message with size {}", _0, _1)]
+    WrongReadMsgRange(Range<usize>, usize),
 }
 
 impl<E> FuncError<E>
@@ -323,10 +326,15 @@ where
 
         let mut f = || {
             let msg = ctx.ext.msg().to_vec();
+            if at > msg.len() || at + len > msg.len() {
+                return Err(FuncError::WrongReadMsgRange(at..at + len, msg.len()));
+            }
+            // `[..]` is safe, because we check borders above.
             ctx.write_output(dest, &msg[at..(at + len)])
+                .map_err(Into::into)
         };
         f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err.into();
+            ctx.err = err;
             FuncError::HostError
         })
     }
