@@ -40,7 +40,7 @@ pub mod time {
     /// up by `pallet_aura` to implement `fn slot_duration()`.
     ///
     /// Change this to adjust the block time.
-    pub const MILLISECS_PER_BLOCK: Moment = 1000;
+    pub const MILLISECS_PER_BLOCK: Moment = 2400;
 
     // NOTE: Currently it is not possible to change the slot duration after the chain has started.
     //       Attempting to do so will brick block production.

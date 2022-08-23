@@ -1,5 +1,5 @@
 {
-  "name": "Vara Staging Testnet",
+  "name": "Vara Network",
   "id": "vara_staging_testnet",
   "chainType": "Live",
   "bootNodes": [
