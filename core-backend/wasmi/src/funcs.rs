@@ -101,7 +101,11 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
-    #[display(fmt = "Cannot take data by indexes {:?} from message with size {}", _0, _1)]
+    #[display(
+        fmt = "Cannot take data by indexes {:?} from message with size {}",
+        _0,
+        _1
+    )]
     ReadWrongRange(Range<usize>, usize),
     #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
     ReadLenOverflow(usize, usize),
@@ -328,7 +332,9 @@ where
 
         let mut f = || {
             let msg = ctx.ext.msg().to_vec();
-            let last_idx = at.checked_add(len).ok_or(FuncError::ReadLenOverflow(at, len))?;
+            let last_idx = at
+                .checked_add(len)
+                .ok_or(FuncError::ReadLenOverflow(at, len))?;
             if last_idx > msg.len() {
                 return Err(FuncError::ReadWrongRange(at..last_idx, msg.len()));
             }
