@@ -2575,6 +2575,101 @@ fn exit_locking_funds() {
 }
 
 #[test]
+fn terminated_locking_funds() {
+    use demo_init_fail_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let GasInfo {
+            min_limit: gas_spent_init,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            5_000,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_3.into_origin().encode(),
+            gas_spent_init,
+            5_000u128
+        ));
+
+        let program_id = get_last_program_id();
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(program_id));
+        let prog_free = 4000u128;
+        let prog_reserve = 1000u128;
+        assert_balance(program_id, prog_free, prog_reserve);
+
+        let (_message_with_value, interval) = MailboxOf::<Test>::iter_key(USER_3)
+            .next()
+            .map(|(msg, interval)| (msg.id(), interval))
+            .expect("Element should be");
+
+        let message_to_reply = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .map(|(msg, _)| msg.id())
+            .expect("Element should be");
+
+        let GasInfo {
+            min_limit: gas_spent_reply,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Reply(message_to_reply, 0),
+            EMPTY_PAYLOAD.to_vec(),
+            5_000,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::send_reply(
+            Origin::signed(USER_1),
+            message_to_reply,
+            vec![],
+            gas_spent_reply,
+            0
+        ));
+
+        let reply_id = get_last_message_id();
+
+        let user_1_balance = Balances::free_balance(USER_1);
+
+        run_to_next_block(None);
+
+        assert_succeed(reply_id);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
+            ))),
+        );
+        assert!(Gear::is_terminated(program_id));
+        assert_balance(program_id, 0u128, prog_reserve);
+
+        assert_eq!(Balances::free_balance(USER_1), user_1_balance + prog_free);
+
+        // Hack to fast spend blocks till expiration.
+        System::set_block_number(interval.finish - 1);
+        run_to_next_block(None);
+
+        let extra_gas_to_mb = <Test as Config>::GasPrice::gas_price(CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for());
+        assert_eq!(Balances::free_balance(USER_1), user_1_balance + prog_free + prog_reserve + extra_gas_to_mb);
+        assert_balance(program_id, 0u128, 0u128);
+    });
+}
+
+#[test]
 fn exit_init() {
     use demo_exit_init::WASM_BINARY;
 

@@ -1395,6 +1395,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-init-fail-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
@@ -5050,6 +5058,7 @@ dependencies = [
  "demo-exit-init",
  "demo-gas-burned",
  "demo-gasless-wasting",
+ "demo-init-fail-sender",
  "demo-init-wait",
  "demo-init-wait-reply-exit",
  "demo-init-with-value",
