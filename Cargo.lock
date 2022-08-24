@@ -3036,6 +3036,96 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-collator"
+version = "0.1.0"
+dependencies = [
+ "gear-collator-cli",
+ "gear-collator-service",
+]
+
+[[package]]
+name = "gear-collator-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "frame-benchmarking",
+ "frame-benchmarking-cli",
+ "frame-system",
+ "gear-collator-service",
+ "gear-runtime",
+ "gear-runtime-common",
+ "gear-runtime-primitives",
+ "gear-runtime-test-cli",
+ "pallet-gear-payment",
+ "sc-cli",
+ "sc-client-api",
+ "sc-service",
+ "scale-info",
+ "sp-core",
+ "sp-inherents",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-timestamp",
+ "substrate-build-script-utils",
+ "try-runtime-cli",
+ "vara-runtime",
+]
+
+[[package]]
+name = "gear-collator-service"
+version = "0.1.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-benchmarking-cli",
+ "frame-system",
+ "frame-system-rpc-runtime-api",
+ "gear-runtime",
+ "gear-runtime-interface",
+ "gear-runtime-primitives",
+ "hex-literal",
+ "jsonrpsee",
+ "pallet-gear-rpc",
+ "pallet-gear-rpc-runtime-api",
+ "pallet-transaction-payment",
+ "pallet-transaction-payment-rpc",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "sc-basic-authorship",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-consensus-aura",
+ "sc-consensus-babe",
+ "sc-consensus-babe-rpc",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-keystore",
+ "sc-rpc",
+ "sc-rpc-api",
+ "sc-service",
+ "sc-telemetry",
+ "sc-transaction-pool",
+ "sc-transaction-pool-api",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-aura",
+ "sp-consensus-babe",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-storage",
+ "sp-timestamp",
+ "sp-transaction-pool",
+ "sp-trie",
+ "substrate-build-script-utils",
+ "substrate-frame-rpc-system",
+ "try-runtime-cli",
+ "vara-runtime",
+]
+
+[[package]]
 name = "gear-common"
 version = "0.1.0"
 dependencies = [

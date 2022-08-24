@@ -4,6 +4,7 @@ resolver = "2"
 default-members = ["node"]
 
 members = [
+    "collator",
     "common",
     "common/codegen",
     "core",

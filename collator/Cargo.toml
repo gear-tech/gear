@@ -1,0 +1,43 @@
+[package]
+name = "gear-collator"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+description = "Gear Collator"
+edition = "2018"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[[bin]]
+name = "gear-collator"
+
+[dependencies]
+gear-cli = { package = "gear-collator-cli", path = "cli" }
+gear-service = { package = "gear-collator-service", path = "service", default-features = false }
+
+[features]
+default = ["gear-native", "lazy-pages"]
+gear-native = [
+	"gear-cli/gear-native",
+	"gear-service/gear-native",
+]
+vara-native = [
+	"gear-cli/vara-native",
+	"gear-service/vara-native",
+]
+lazy-pages = [
+	"gear-service/lazy-pages",
+]
+runtime-benchmarks = [
+	"gear-cli/runtime-benchmarks",
+	"gear-service/runtime-benchmarks",
+]
+debug-mode = [
+	"gear-service/debug-mode",
+]
+try-runtime = [
+	"gear-cli/try-runtime",
+]
