@@ -33,7 +33,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 
 [dev-dependencies]
-serde = "1.0.143"
+serde = "1.0.144"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
