@@ -99,15 +99,17 @@ macro_rules! declare_id {
         impl core::fmt::Display for $name {
             fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
                 let len = self.0.len();
-                let mut e1 = len / 2;
-                let mut s2 = len / 2;
+                let median = (len + 1) / 2;
+
+                let mut e1 = median;
+                let mut s2 = median;
 
                 if let Some(precision) = f.precision() {
-                    let precision = precision.min(len / 2);
-
-                    e1 = precision;
-                    s2 = len - precision;
-                };
+                    if precision < median {
+                        e1 = precision;
+                        s2 = len - precision;
+                    }
+                }
 
                 let p1 = hex::encode(&self.0[..e1]);
                 let p2 = hex::encode(&self.0[s2..]);
@@ -236,6 +238,11 @@ fn formatting_test() {
     assert_eq!(format!("{id:.2?}"), "0xc15d..fdef");
     // `Debug`/`Display` with precision 4.
     assert_eq!(format!("{id:.4?}"), "0xc15d1549..b936fdef");
+    // `Debug`/`Display` with precision 15 (the same for any case >= 16).
+    assert_eq!(
+        format!("{id:.15?}"),
+        "0xc15d1549fa3950c0aa61e14a3ba476..95b4bcc894b9fab09e7fe9b936fdef"
+    );
     // `Debug`/`Display` with precision 30 (the same for any case >= 16).
     assert_eq!(
         format!("{id:.30?}"),
