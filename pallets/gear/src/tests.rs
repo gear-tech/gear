@@ -3402,8 +3402,6 @@ fn replies_to_paused_program_skipped() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
-
         let code = WASM_BINARY.to_vec();
         assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
@@ -3433,19 +3431,18 @@ fn replies_to_paused_program_skipped() {
 
         let reply_id = get_last_message_id();
 
-        let actual_balance = Balances::free_balance(USER_1);
-
         assert_ok!(GearProgram::pause_program(program_id));
 
         run_to_next_block(None);
 
         assert_not_executed(reply_id);
 
+        let actual_balance = Balances::free_balance(USER_1);
+
         // On message read, USER_1 unlocks mailbox-related funds from initial message.
         let mb_threshold = <Test as Config>::MailboxThreshold::get() as u128;
-        let burned_in_mb = CostsPerBlockOf::<Test>::mailbox() as u128; // cost of one block holding
 
-        assert_eq!(before_balance + mb_threshold - burned_in_mb, actual_balance);
+        assert_eq!(before_balance + mb_threshold, actual_balance);
     })
 }
 
