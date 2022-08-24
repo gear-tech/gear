@@ -31,7 +31,7 @@ use common::{
     event::*, program_exists, scheduler::*, storage::*, CodeStorage, GasPrice as _, GasTree,
     Origin as _,
 };
-use core_processor::common::ExecutionErrorReason;
+use core_processor::{common::ExecutionErrorReason, ProcessorExt};
 use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
 use demo_distributor::{Request, WASM_BINARY};
 use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
@@ -45,6 +45,7 @@ use frame_support::{
 };
 use frame_system::{pallet_prelude::BlockNumberFor, Pallet as SystemPallet};
 use gear_backend_common::{StackEndError, TrapExplanation};
+use gear_backend_sandbox::funcs::FuncError;
 use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
@@ -5558,8 +5559,17 @@ fn check_gr_read_error_works() {
         )
         .expect("Failed to upload program");
 
+        let message_id = get_last_message_id();
+
         run_to_block(2, None);
         assert_last_dequeued(1);
-        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Other(
+                FuncError::<<crate::Ext as ProcessorExt>::Error>::ReadWrongRange(0..10, 0)
+                    .to_string()
+                    .into(),
+            )),
+        );
     });
 }
