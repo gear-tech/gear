@@ -455,18 +455,27 @@ where
         user_queries.then(|| Self::consume_message(mailboxed.id()));
 
         // Taking data for funds transfer.
-        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
-        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let user_id = mailboxed.destination();
+        let from = mailboxed.source();
         let value = mailboxed.value().unique_saturated_into();
 
         // Determining recipients id.
         //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = if user_queries { &user_id } else { &from };
+        let to = if user_queries {
+            user_id
+        } else {
+            Self::inheritor_for(from)
+        };
+
+        // Converting into `AccountId`.
+        let user_id = <T::AccountId as Origin>::from_origin(user_id.into_origin());
+        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
 
         // Transferring reserved funds, associated with the message.
-        Self::transfer_reserved(&from, to, value);
+        Self::transfer_reserved(&from, &to, value);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {

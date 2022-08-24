@@ -2583,6 +2583,7 @@ fn terminated_locking_funds() {
     new_test_ext().execute_with(|| {
         let GasInfo {
             min_limit: gas_spent_init,
+            waited: init_waited,
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -2592,6 +2593,8 @@ fn terminated_locking_funds() {
             true,
         )
         .expect("calculate_gas_info failed");
+
+        assert!(init_waited);
 
         assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
@@ -2658,20 +2661,28 @@ fn terminated_locking_funds() {
         assert!(Gear::is_terminated(program_id));
         assert_balance(program_id, 0u128, prog_reserve);
 
-        assert_eq!(Balances::free_balance(USER_1), user_1_balance + prog_free);
+        // Remove `+ 50_000` (#1173).
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + prog_free + 50_000
+        );
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
         run_to_next_block(None);
 
+        assert!(MailboxOf::<Test>::is_empty(&USER_3));
+
         let extra_gas_to_mb = <Test as Config>::GasPrice::gas_price(
             CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for(),
         );
+
+        assert_balance(program_id, 0u128, 0u128);
+        // Remove `+ 50_000` (#1173).
         assert_eq!(
             Balances::free_balance(USER_1),
-            user_1_balance + prog_free + prog_reserve + extra_gas_to_mb
+            user_1_balance + prog_free + prog_reserve + extra_gas_to_mb + 50_000
         );
-        assert_balance(program_id, 0u128, 0u128);
     });
 }
 
