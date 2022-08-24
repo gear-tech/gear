@@ -238,7 +238,7 @@ fn formatting_test() {
     assert_eq!(format!("{id:.2?}"), "0xc15d..fdef");
     // `Debug`/`Display` with precision 4.
     assert_eq!(format!("{id:.4?}"), "0xc15d1549..b936fdef");
-    // `Debug`/`Display` with precision 15 (the same for any case >= 16).
+    // `Debug`/`Display` with precision 15.
     assert_eq!(
         format!("{id:.15?}"),
         "0xc15d1549fa3950c0aa61e14a3ba476..95b4bcc894b9fab09e7fe9b936fdef"
