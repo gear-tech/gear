@@ -11,14 +11,16 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-    use gstd::{ActorId, exec, msg};
+    use gstd::{exec, msg, ActorId};
 
     #[gstd::async_init]
     async fn init() {
         let value_receiver: ActorId = msg::load().unwrap();
 
         msg::send_bytes_with_gas(value_receiver, [], 10_000, 1_000).unwrap();
-        msg::reply_bytes_with_gas_for_reply([], 10_000, 0).unwrap().await;
+        msg::reply_bytes_with_gas_for_reply([], 10_000, 0)
+            .unwrap()
+            .await;
         panic!();
     }
 }

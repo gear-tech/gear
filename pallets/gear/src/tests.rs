@@ -2586,7 +2586,7 @@ fn terminated_locking_funds() {
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
-            EMPTY_PAYLOAD.to_vec(),
+            USER_3.into_origin().encode(),
             5_000,
             true,
         )
@@ -2636,7 +2636,7 @@ fn terminated_locking_funds() {
         assert_ok!(Gear::send_reply(
             Origin::signed(USER_1),
             message_to_reply,
-            vec![],
+            EMPTY_PAYLOAD.to_vec(),
             gas_spent_reply,
             0
         ));
@@ -2663,8 +2663,13 @@ fn terminated_locking_funds() {
         System::set_block_number(interval.finish - 1);
         run_to_next_block(None);
 
-        let extra_gas_to_mb = <Test as Config>::GasPrice::gas_price(CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for());
-        assert_eq!(Balances::free_balance(USER_1), user_1_balance + prog_free + prog_reserve + extra_gas_to_mb);
+        let extra_gas_to_mb = <Test as Config>::GasPrice::gas_price(
+            CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for(),
+        );
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + prog_free + prog_reserve + extra_gas_to_mb
+        );
         assert_balance(program_id, 0u128, 0u128);
     });
 }
@@ -5346,8 +5351,7 @@ mod utils {
         System::events().into_iter().for_each(|e| {
             if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
-                    if details.reply_to() == message_id {
-                        assert_ne!(details.exit_code(), 0);
+                    if details.reply_to() == message_id && details.exit_code() != 0 {
                         actual_error = Some(
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
