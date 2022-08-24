@@ -98,17 +98,26 @@ macro_rules! declare_id {
 
         impl core::fmt::Display for $name {
             fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-                let mut end = self.0.len();
+                let len = self.0.len();
+                let mut e1 = len / 2;
+                let mut s2 = len / 2;
 
                 if let Some(precision) = f.precision() {
-                    if precision > end {
-                        return Err(core::fmt::Error);
-                    }
+                    let precision = precision.min(len / 2);
 
-                    end = precision;
+                    e1 = precision;
+                    s2 = len - precision;
                 };
 
-                write!(f, "0x{}", hex::encode(&self.0[..end]))
+                let p1 = hex::encode(&self.0[..e1]);
+                let p2 = hex::encode(&self.0[s2..]);
+                let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+                if f.alternate() {
+                    write!(f, "{}(0x{p1}{sep}{p2})", stringify!($name))
+                } else {
+                    write!(f, "0x{p1}{sep}{p2}")
+                }
             }
         }
 
