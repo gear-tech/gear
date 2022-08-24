@@ -23,6 +23,7 @@
 use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
+use sc_client_api::AuxStore;
 use runtime_primitives::{AccountId, Balance, Block, Index};
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
@@ -46,7 +47,8 @@ pub fn create_full<C, P>(
     deps: FullDeps<C, P>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
-    C: ProvideRuntimeApi<Block>
+    C: AuxStore
+        + ProvideRuntimeApi<Block>
         + HeaderBackend<Block>
         + HeaderMetadata<Block, Error = BlockChainError>
         + Send
@@ -56,7 +58,7 @@ where
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: pallet_gear_rpc::GearRuntimeApi<Block>,
     C::Api: BlockBuilder<Block>,
-    P: TransactionPool + 'static,
+    P: TransactionPool + Send + Sync + 'static,
 {
     use pallet_gear_rpc::{Gear, GearApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
