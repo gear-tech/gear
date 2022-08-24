@@ -215,3 +215,28 @@ impl ProgramId {
         hash(&argument).into()
     }
 }
+
+#[test]
+fn formatting_test() {
+    use alloc::format;
+
+    let code_id = CodeId::generate(&[0, 1, 2]);
+    let id = ProgramId::generate(code_id, &[2, 1, 0]);
+
+    // `Debug`/`Display`.
+    assert_eq!(format!("{id:?}"), "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef");
+    // `Debug`/`Display` with precision 0.
+    assert_eq!(format!("{id:.0?}"), "0x..");
+    // `Debug`/`Display` with precision 1.
+    assert_eq!(format!("{id:.1?}"), "0xc1..ef");
+    // `Debug`/`Display` with precision 2.
+    assert_eq!(format!("{id:.2?}"), "0xc15d..fdef");
+    // `Debug`/`Display` with precision 4.
+    assert_eq!(format!("{id:.4?}"), "0xc15d1549..b936fdef");
+    // `Debug`/`Display` with precision 30 (the same for any case >= 16).
+    assert_eq!(format!("{id:.30?}"), "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef");
+    // Alternate formatter.
+    assert_eq!(format!("{id:#}"), "ProgramId(0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef)");
+    // Alternate formatter with precision 2.
+    assert_eq!(format!("{id:#.2}"), "ProgramId(0xc15d..fdef)");
+}
