@@ -112,7 +112,9 @@ where
 
                 DispatchStatus::Success
             }
-            InitFailure { program_id, .. } => {
+            InitFailure {
+                program_id, origin, ..
+            } => {
                 log::trace!(
                     "Dispatch ({:?}) init failure for program {:?}",
                     message_id,
@@ -126,7 +128,7 @@ where
                 // dequeued. The other case is async init.
                 wake_waiting_init_msgs(program_id);
 
-                common::set_program_terminated_status(program_id.into_origin())
+                common::set_program_terminated_status(program_id.into_origin(), origin)
                     .expect("Only active program can cause init failure");
 
                 DispatchStatus::Failed

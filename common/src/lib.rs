@@ -169,7 +169,7 @@ pub trait BlockLimiter {
 pub enum Program {
     Active(ActiveProgram),
     Exited(ProgramId),
-    Terminated,
+    Terminated(ProgramId),
 }
 
 #[derive(Clone, Debug, derive_more::Display)]
@@ -202,7 +202,7 @@ impl Program {
     }
 
     pub fn is_terminated(&self) -> bool {
-        matches!(self, Program::Terminated)
+        matches!(self, Program::Terminated(_))
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -314,14 +314,14 @@ pub fn set_program_initialized(id: H256) {
     }
 }
 
-pub fn set_program_terminated_status(id: H256) -> Result<(), CommonError> {
+pub fn set_program_terminated_status(id: H256, inheritor: ProgramId) -> Result<(), CommonError> {
     if let Some(program) = get_program(id) {
         if !program.is_active() {
             return Err(CommonError::InactiveProgram);
         }
 
         sp_io::storage::clear_prefix(&pages_prefix(id), None);
-        sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
+        sp_io::storage::set(&program_key(id), &Program::Terminated(inheritor).encode());
 
         Ok(())
     } else {

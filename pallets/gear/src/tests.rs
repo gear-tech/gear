@@ -1859,8 +1859,9 @@ fn send_reply_failure_to_claim_from_mailbox() {
             res.expect("submit result was asserted")
         };
 
-        if let common::Program::Terminated =
-            common::get_program(prog_id.into_origin()).expect("Failed to get program from storage")
+        if common::get_program(prog_id.into_origin())
+            .expect("Failed to get program from storage")
+            .is_terminated()
         {
             panic!("Program is terminated!");
         };
@@ -2575,6 +2576,7 @@ fn exit_locking_funds() {
 }
 
 #[test]
+#[should_panic]
 fn terminated_locking_funds() {
     use demo_init_fail_sender::WASM_BINARY;
 
