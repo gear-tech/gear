@@ -5558,8 +5558,15 @@ fn check_gr_read_error_works() {
         )
         .expect("Failed to upload program");
 
+        let message_id = get_last_message_id();
+
         run_to_block(2, None);
         assert_last_dequeued(1);
-        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 1);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Backend(
+                "Cannot take data by indexes 0..10 from message with size 0".into(),
+            ),
+        );
     });
 }
