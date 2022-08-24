@@ -131,6 +131,22 @@ where
                 common::set_program_terminated_status(program_id.into_origin(), origin)
                     .expect("Only active program can cause init failure");
 
+                let program_id = <T::AccountId as Origin>::from_origin(program_id.into_origin());
+
+                let balance = CurrencyOf::<T>::free_balance(&program_id);
+                let destination = Pallet::<T>::inheritor_for(origin);
+                let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+
+                if !balance.is_zero() {
+                    CurrencyOf::<T>::transfer(
+                        &program_id,
+                        &destination,
+                        balance,
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
+                }
+
                 DispatchStatus::Failed
             }
             CoreDispatchOutcome::NoExecution => {

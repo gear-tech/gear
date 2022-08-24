@@ -2576,7 +2576,6 @@ fn exit_locking_funds() {
 }
 
 #[test]
-#[should_panic]
 fn terminated_locking_funds() {
     use demo_init_fail_sender::WASM_BINARY;
 
@@ -2630,7 +2629,7 @@ fn terminated_locking_funds() {
             USER_1.into_origin(),
             HandleKind::Reply(message_to_reply, 0),
             EMPTY_PAYLOAD.to_vec(),
-            5_000,
+            0,
             true,
         )
         .expect("calculate_gas_info failed");
