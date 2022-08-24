@@ -224,7 +224,10 @@ fn formatting_test() {
     let id = ProgramId::generate(code_id, &[2, 1, 0]);
 
     // `Debug`/`Display`.
-    assert_eq!(format!("{id:?}"), "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef");
+    assert_eq!(
+        format!("{id:?}"),
+        "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef"
+    );
     // `Debug`/`Display` with precision 0.
     assert_eq!(format!("{id:.0?}"), "0x..");
     // `Debug`/`Display` with precision 1.
@@ -234,9 +237,15 @@ fn formatting_test() {
     // `Debug`/`Display` with precision 4.
     assert_eq!(format!("{id:.4?}"), "0xc15d1549..b936fdef");
     // `Debug`/`Display` with precision 30 (the same for any case >= 16).
-    assert_eq!(format!("{id:.30?}"), "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef");
+    assert_eq!(
+        format!("{id:.30?}"),
+        "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef"
+    );
     // Alternate formatter.
-    assert_eq!(format!("{id:#}"), "ProgramId(0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef)");
+    assert_eq!(
+        format!("{id:#}"),
+        "ProgramId(0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef)"
+    );
     // Alternate formatter with precision 2.
     assert_eq!(format!("{id:#.2}"), "ProgramId(0xc15d..fdef)");
 }
