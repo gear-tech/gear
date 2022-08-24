@@ -31,7 +31,7 @@ use gear_core::ids::{CodeId, ProgramId};
 use gear_runtime::{
     Aura, AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
     Grandpa, GrandpaConfig, Runtime, SudoConfig, System, TransactionPayment,
-    TransactionPaymentConfig, UncheckedExtrinsic,
+    TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
 use pallet_gear_gas::Error as GasError;
@@ -62,7 +62,7 @@ use system::pallet_prelude::BlockNumberFor;
 use vara_runtime::{
     Authorship, Babe, BabeConfig, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
     Grandpa, GrandpaConfig, Runtime, Session, SessionConfig, SessionKeys, SudoConfig, System,
-    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic,
+    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
 
 type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
@@ -109,7 +109,7 @@ pub(crate) fn create_random_accounts(
     for _ in 1..initial_accounts_num {
         let mut acc_id = [0_u8; 32];
         rng.fill_bytes(&mut acc_id);
-        let balance = (rng.next_u64() >> 14) as u128; // approx. up to 10^15
+        let balance = EXISTENTIAL_DEPOSIT.saturating_add((rng.next_u64() >> 14).into()); // approx. up to 10^15
         accounts.push((acc_id.into(), balance));
     }
     accounts
@@ -202,7 +202,7 @@ pub(crate) fn new_test_ext(
                 initial_authorities
                     .iter()
                     .cloned()
-                    .map(|(acc, _, _)| (acc, 1000)),
+                    .map(|(acc, _, _)| (acc, EXISTENTIAL_DEPOSIT * 2)),
             )
             .collect(),
     }

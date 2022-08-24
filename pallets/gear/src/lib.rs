@@ -139,9 +139,9 @@ pub mod pallet {
     use super::*;
 
     #[cfg(feature = "lazy-pages")]
-    use crate::ext::LazyPagesExt as Ext;
+    pub(crate) use crate::ext::LazyPagesExt as Ext;
     #[cfg(not(feature = "lazy-pages"))]
-    use core_processor::Ext;
+    pub(crate) use core_processor::Ext;
 
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;

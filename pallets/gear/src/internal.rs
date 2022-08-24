@@ -532,7 +532,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if gas_limit >= threshold {
+        let expiration = if !message.is_error_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
 
