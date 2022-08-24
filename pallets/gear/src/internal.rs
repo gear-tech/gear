@@ -583,7 +583,15 @@ where
 
         let mut visited_ids: BTreeSet<_> = [program_id].into();
 
-        while let Some(id) = Self::exit_argument_of(inheritor) {
+        while let Some(id) = Self::exit_inheritor_of(inheritor) {
+            if !visited_ids.insert(id) {
+                break;
+            }
+
+            inheritor = id
+        }
+
+        while let Some(id) = Self::termination_inheritor_of(inheritor) {
             if !visited_ids.insert(id) {
                 break;
             }

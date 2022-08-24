@@ -983,11 +983,24 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
-        /// Returns true if id is a program and the program has exited status.
-        pub fn exit_argument_of(program_id: ProgramId) -> Option<ProgramId> {
+        /// Returns exit argument of an exited program.
+        pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
             common::get_program(program_id.into_origin())
                 .map(|p| {
                     if let Program::Exited(id) = p {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default()
+        }
+
+        /// Returns inheritor of terminated (failed it's init) program.
+        pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            common::get_program(program_id.into_origin())
+                .map(|p| {
+                    if let Program::Terminated(id) = p {
                         Some(id)
                     } else {
                         None
