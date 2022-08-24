@@ -57,13 +57,12 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 ]
-gear-native = [
-	"service/gear-native",
+rococo-gear-native = [
+	"service/rococo-gear-native",
 	"gear-runtime-test-cli/gear-native",
 	"gear-runtime",
 ]
 vara-native = [
-	"service/vara-native",
 	"gear-runtime-test-cli/vara-native",
 	"vara-runtime",
 ]

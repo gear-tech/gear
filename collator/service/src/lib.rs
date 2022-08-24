@@ -16,34 +16,42 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_client_api::{BlockBackend, ExecutorProvider};
-#[cfg(feature = "authoring-aura")]
-use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
-use sc_finality_grandpa::SharedVoterState;
-use sc_keystore::LocalKeystore;
-use sc_service::{
-    error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, TaskManager,
-};
-use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_api::ConstructRuntimeApi;
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use sp_runtime::traits::BlakeTwo256;
-use sp_trie::PrefixedMemoryDB;
-use std::{sync::Arc, time::Duration};
-
-pub use client::*;
-
-#[cfg(feature = "gear-native")]
-pub use gear_runtime;
-#[cfg(feature = "vara-native")]
-pub use vara_runtime;
-
 pub mod chain_spec;
 mod client;
 
 pub mod rpc;
+
+pub use client::*;
+
+use cumulus_client_cli::CollatorOptions;
+use cumulus_client_consensus_aura::{AuraConsensus, BuildAuraConsensusParams, SlotProportion};
+use cumulus_client_consensus_common::ParachainConsensus;
+use cumulus_client_network::BlockAnnounceValidator;
+use cumulus_client_service::{
+    prepare_node_config, start_collator, start_full_node, StartCollatorParams, StartFullNodeParams,
+};
+use cumulus_primitives_core::ParaId;
+use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
+use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface, RelayChainResult};
+use cumulus_relay_chain_rpc_interface::RelayChainRPCInterface;
+
+use jsonrpsee::RpcModule;
+
+use gear_runtime_interface as gear_ri;
+
+use polkadot_service::CollatorPair;
+
+use sc_client_api::ExecutorProvider;
+use sc_network::NetworkService;
+use sc_service::{error::Error as ServiceError, Configuration, ChainSpec, PartialComponents, Role, TaskManager};
+use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
+use sp_api::ConstructRuntimeApi;
+use sp_keystore::SyncCryptoStorePtr;
+use std::{sync::Arc, time::Duration};
+use substrate_prometheus_endpoint::Registry;
+
+#[cfg(feature = "rococo-gear-native")]
+pub use rococo_gear_runtime;
 
 pub trait IdentifyVariant {
     /// Returns `true` if this is a configuration for gear network.
@@ -69,115 +77,78 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
     }
 }
 
-type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> =
-    sc_finality_grandpa::GrandpaBlockImport<
-        FullBackend,
-        Block,
-        FullClient<RuntimeApi, ExecutorDispatch>,
-        ChainSelection,
-    >;
-#[cfg(not(feature = "authoring-aura"))]
-type FullBabeBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection> = (
-    sc_consensus_babe::BabeBlockImport<
-        Block,
-        FullClient<RuntimeApi, ExecutorDispatch>,
-        FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
-    >,
-    sc_consensus_babe::BabeLink<Block>,
+#[cfg(feature = "runtime-benchmarks")]
+type ExtendHostFunctions = (
+    frame_benchmarking::benchmarking::HostFunctions,
+    gear_ri::gear_ri::HostFunctions,
 );
 
-macro_rules! chain_ops {
-    ($config:expr, $scope:ident, $executor:ident, $variant:ident) => {{
-        let PartialComponents {
-            client,
-            backend,
-            import_queue,
-            task_manager,
-            ..
-        } = new_partial::<$scope::RuntimeApi, $executor>($config)?;
+#[cfg(not(feature = "runtime-benchmarks"))]
+type ExtendHostFunctions = gear_ri::gear_ri::HostFunctions;
 
-        Ok((
-            Arc::new(Client::$variant(client)),
-            backend,
-            import_queue,
-            task_manager,
-        ))
-    }};
-}
+/// Native executor instance.
+#[cfg(feature = "rococo-gear-native")]
+pub struct RococoGearRuntimeExecutor;
 
-/// Builds a new object suitable for chain operations.
-#[allow(clippy::type_complexity)]
-pub fn new_chain_ops(
-    config: &Configuration,
-) -> Result<
-    (
-        Arc<Client>,
-        Arc<FullBackend>,
-        sc_consensus::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
-        TaskManager,
-    ),
-    ServiceError,
-> {
-    match &config.chain_spec {
-        #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => {
-            chain_ops!(config, gear_runtime, GearExecutorDispatch, Gear)
-        }
-        #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
-        spec if spec.is_vara() => {
-            chain_ops!(config, vara_runtime, VaraExecutorDispatch, Vara)
-        }
-        _ => Err("invalid chain spec".into()),
+#[cfg(feature = "rococo-gear-native")]
+impl sc_executor::NativeExecutionDispatch for RococoGearRuntimeExecutor {
+    type ExtendHostFunctions = ExtendHostFunctions;
+
+    fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+        rococo_gear_runtime::api::dispatch(method, data)
+    }
+
+    fn native_version() -> sc_executor::NativeVersion {
+        rococo_gear_runtime::native_version()
     }
 }
 
-#[cfg(feature = "authoring-aura")]
-type OtherPartial<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> = (
-    FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
-    sc_finality_grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
-    Option<Telemetry>,
-);
-
-#[cfg(not(feature = "authoring-aura"))]
-type OtherPartial<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> = (
-    FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
-    sc_finality_grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
-    Option<Telemetry>,
-    FullBabeBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
-);
-
-/// Creates PartialComponents for a node.
-/// Enables chain operations for cases when full node is unnecessary.
+/// Starts a `ServiceBuilder` for a full service.
+///
+/// Use this macro if you don't actually need the full service, but just the builder in order to
+/// be able to perform chain operations.
 #[allow(clippy::type_complexity)]
-pub fn new_partial<RuntimeApi, ExecutorDispatch>(
+pub fn new_partial<RuntimeApi, Executor, BIQ>(
     config: &Configuration,
+    build_import_queue: BIQ,
 ) -> Result<
     PartialComponents<
-        FullClient<RuntimeApi, ExecutorDispatch>,
+        FullClient<RuntimeApi, Executor>,
         FullBackend,
-        FullSelectChain,
-        sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
-        sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
-        OtherPartial<RuntimeApi, ExecutorDispatch, FullSelectChain>,
+        (),
+        sc_consensus::DefaultImportQueue<
+            Block,
+            FullClient<RuntimeApi, Executor>,
+        >,
+        sc_transaction_pool::FullPool<
+            Block,
+            FullClient<RuntimeApi, Executor>,
+        >,
+        (Option<Telemetry>, Option<TelemetryWorkerHandle>),
     >,
     ServiceError,
 >
 where
-    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
+    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>
         + Send
         + Sync
         + 'static,
     RuntimeApi::RuntimeApi:
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-    ExecutorDispatch: NativeExecutionDispatch + 'static,
+    Executor: sc_executor::NativeExecutionDispatch + 'static,
+    BIQ: FnOnce(
+        Arc<FullClient<RuntimeApi,Executor>>,
+        &Configuration,
+        Option<TelemetryHandle>,
+        &TaskManager,
+    ) -> Result<
+        sc_consensus::DefaultImportQueue<
+            Block,
+            FullClient<RuntimeApi, Executor>,
+        >,
+        ServiceError,
+    >,
 {
-    if config.keystore_remote.is_some() {
-        return Err(ServiceError::Other(
-            "Remote Keystores are not supported.".into(),
-        ));
-    }
-
     let telemetry = config
         .telemetry_endpoints
         .clone()
@@ -189,7 +160,7 @@ where
         })
         .transpose()?;
 
-    let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
+    let executor = sc_executor::NativeElseWasmExecutor::<Executor>::new(
         config.wasm_method,
         config.default_heap_pages,
         config.max_runtime_instances,
@@ -204,14 +175,14 @@ where
         )?;
     let client = Arc::new(client);
 
+    let telemetry_worker_handle = telemetry.as_ref().map(|(worker, _)| worker.handle());
+
     let telemetry = telemetry.map(|(worker, telemetry)| {
         task_manager
             .spawn_handle()
             .spawn("telemetry", None, worker.run());
         telemetry
     });
-
-    let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
     let transaction_pool = sc_transaction_pool::BasicPool::new_full(
         config.transaction_pool.clone(),
@@ -221,390 +192,391 @@ where
         client.clone(),
     );
 
-    let (grandpa_block_import, grandpa_link) = sc_finality_grandpa::block_import(
+    let import_queue = build_import_queue(
         client.clone(),
-        &(client.clone() as Arc<_>),
-        select_chain.clone(),
-        telemetry.as_ref().map(|x| x.handle()),
+        config,
+        telemetry.as_ref().map(|telemetry| telemetry.handle()),
+        &task_manager,
     )?;
 
-    #[cfg(feature = "authoring-aura")]
-    let import_queue = {
-        let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-
-        sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _, _>(ImportQueueParams {
-            block_import: grandpa_block_import.clone(),
-            justification_import: Some(Box::new(grandpa_block_import.clone())),
-            client: client.clone(),
-            create_inherent_data_providers: move |_, ()| async move {
-                let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                let slot =
-					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-						*timestamp,
-						slot_duration,
-					);
-
-                Ok((timestamp, slot))
-            },
-            spawner: &task_manager.spawn_essential_handle(),
-            can_author_with: sp_consensus::CanAuthorWithNativeVersion::new(
-                client.executor().clone(),
-            ),
-            registry: config.prometheus_registry(),
-            check_for_equivocation: Default::default(),
-            telemetry: telemetry.as_ref().map(|x| x.handle()),
-        })?
-    };
-    #[cfg(not(feature = "authoring-aura"))]
-    let (import_queue, babe_block_import_setup) = {
-        let babe_config = sc_consensus_babe::Config::get(&*client)?;
-        let (babe_block_import, babe_link) = sc_consensus_babe::block_import(
-            babe_config,
-            grandpa_block_import.clone(),
-            client.clone(),
-        )?;
-        let slot_duration = babe_link.config().slot_duration();
-        (
-            sc_consensus_babe::import_queue(
-                babe_link.clone(),
-                babe_block_import.clone(),
-                Some(Box::new(grandpa_block_import.clone())),
-                client.clone(),
-                select_chain.clone(),
-                move |_, ()| async move {
-                    let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                    let slot =
-                    sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-                        *timestamp,
-                        slot_duration,
-                    );
-
-                    Ok((timestamp, slot))
-                },
-                &task_manager.spawn_essential_handle(),
-                config.prometheus_registry(),
-                sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone()),
-                telemetry.as_ref().map(|x| x.handle()),
-            )?,
-            (babe_block_import, babe_link),
-        )
-    };
-
-    #[cfg(feature = "authoring-aura")]
-    let partial = PartialComponents {
-        client,
+    let params = PartialComponents {
         backend,
-        task_manager,
+        client,
         import_queue,
         keystore_container,
-        select_chain,
+        task_manager,
         transaction_pool,
-        other: (grandpa_block_import, grandpa_link, telemetry),
+        select_chain: (),
+        other: (telemetry, telemetry_worker_handle),
     };
 
-    #[cfg(not(feature = "authoring-aura"))]
-    let partial = PartialComponents {
-        client,
-        backend,
-        task_manager,
-        import_queue,
-        keystore_container,
-        select_chain,
-        transaction_pool,
-        other: (
-            grandpa_block_import,
-            grandpa_link,
-            telemetry,
-            babe_block_import_setup,
+    Ok(params)
+}
+
+async fn build_relay_chain_interface(
+    polkadot_config: Configuration,
+    parachain_config: &Configuration,
+    telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+    task_manager: &mut TaskManager,
+    collator_options: CollatorOptions,
+    hwbench: Option<sc_sysinfo::HwBench>,
+) -> RelayChainResult<(
+    Arc<(dyn RelayChainInterface + 'static)>,
+    Option<CollatorPair>,
+)> {
+    match collator_options.relay_chain_rpc_url {
+        Some(relay_chain_url) => Ok((
+            Arc::new(RelayChainRPCInterface::new(relay_chain_url).await?) as Arc<_>,
+            None,
+        )),
+        None => build_inprocess_relay_chain(
+            polkadot_config,
+            parachain_config,
+            telemetry_worker_handle,
+            task_manager,
+            hwbench,
         ),
-    };
-
-    Ok(partial)
-}
-
-fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
-    // FIXME: here would the concrete keystore be built,
-    //        must return a concrete type (NOT `LocalKeystore`) that
-    //        implements `CryptoStore` and `SyncCryptoStore`
-    Err("Remote Keystore not supported.")
-}
-
-/// Build a full node for different chain "flavors".
-///
-/// The actual "flavor", aka if it will use `Gear`, `Vara` etc. is determined based on
-/// [`IdentifyVariant`] using the chain spec.
-pub fn build_full(config: Configuration) -> Result<TaskManager, ServiceError> {
-    match &config.chain_spec {
-        #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => {
-            new_full::<gear_runtime::RuntimeApi, GearExecutorDispatch>(config)
-        }
-        #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
-        spec if spec.is_vara() => {
-            new_full::<vara_runtime::RuntimeApi, VaraExecutorDispatch>(config)
-        }
-        _ => Err(ServiceError::Other("Invalid chain spec".into())),
     }
 }
 
-/// Builds a new service for a full client.
-pub fn new_full<RuntimeApi, ExecutorDispatch>(
-    mut config: Configuration,
-) -> Result<TaskManager, ServiceError>
+/// Start a node with the given parachain `Configuration` and relay chain `Configuration`.
+///
+/// This is the actual implementation that is abstract over the executor and the runtime api.
+#[sc_tracing::logging::prefix_logs_with("Parachain")]
+#[allow(clippy::too_many_arguments)]
+async fn start_node_impl<RuntimeApi, Executor, RB, BIQ, BIC>(
+    parachain_config: Configuration,
+    polkadot_config: Configuration,
+    collator_options: CollatorOptions,
+    id: ParaId,
+    _rpc_ext_builder: RB,
+    build_import_queue: BIQ,
+    build_consensus: BIC,
+    hwbench: Option<sc_sysinfo::HwBench>,
+) -> sc_service::error::Result<(
+    TaskManager,
+    Arc<FullClient<RuntimeApi, Executor>>,
+)>
 where
-    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
+    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi:
-        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-    ExecutorDispatch: NativeExecutionDispatch + 'static,
+    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+    Executor: sc_executor::NativeExecutionDispatch + 'static,
+    RB: Fn(
+            Arc<FullClient<RuntimeApi, Executor>>,
+        ) -> Result<RpcModule<()>, sc_service::Error>
+        + Send
+        + 'static,
+    BIQ: FnOnce(
+            Arc<FullClient<RuntimeApi, Executor>>,
+            &Configuration,
+            Option<TelemetryHandle>,
+            &TaskManager,
+        ) -> Result<
+            sc_consensus::DefaultImportQueue<
+                Block,
+                FullClient<RuntimeApi, Executor>,
+            >,
+            ServiceError,
+        > + 'static,
+    BIC: FnOnce(
+        Arc<FullClient<RuntimeApi, Executor>>,
+        Option<&Registry>,
+        Option<TelemetryHandle>,
+        &TaskManager,
+        Arc<dyn RelayChainInterface>,
+        Arc<
+            sc_transaction_pool::FullPool<
+                Block,
+                FullClient<RuntimeApi, Executor>,
+            >,
+        >,
+        Arc<NetworkService<Block, Hash>>,
+        SyncCryptoStorePtr,
+        bool,
+    ) -> Result<Box<dyn ParachainConsensus<Block>>, sc_service::Error>,
 {
-    let PartialComponents {
-        client,
-        backend,
-        mut task_manager,
-        import_queue,
-        mut keystore_container,
-        select_chain,
-        transaction_pool,
-        other,
-    } = new_partial::<RuntimeApi, ExecutorDispatch>(&config)?;
-
-    #[cfg(feature = "authoring-aura")]
-    let (block_import, grandpa_link, mut telemetry) = other;
-    #[cfg(not(feature = "authoring-aura"))]
-    let (_, grandpa_link, mut telemetry, (babe_block_import, babe_link)) = other;
-
-    if let Some(url) = &config.keystore_remote {
-        match remote_keystore(url) {
-            Ok(k) => keystore_container.set_remote_keystore(k),
-            Err(e) => {
-                return Err(ServiceError::Other(format!(
-                    "Error hooking up remote keystore for {}: {}",
-                    url, e
-                )))
-            }
-        };
+    if matches!(parachain_config.role, Role::Light) {
+        return Err("Light client not supported!".into());
     }
-    let grandpa_protocol_name = sc_finality_grandpa::protocol_standard_name(
-        &client
-            .block_hash(0)
-            .ok()
-            .flatten()
-            .expect("Genesis block exists; qed"),
-        &config.chain_spec,
-    );
 
-    config
-        .network
-        .extra_sets
-        .push(sc_finality_grandpa::grandpa_peers_set_config(
-            grandpa_protocol_name.clone(),
-        ));
-    let warp_sync = Arc::new(sc_finality_grandpa::warp_proof::NetworkProvider::new(
-        backend.clone(),
-        grandpa_link.shared_authority_set().clone(),
-        Vec::default(),
-    ));
+    let parachain_config = prepare_node_config(parachain_config);
 
-    let (network, system_rpc_tx, network_starter) =
+    let params = new_partial::<RuntimeApi, Executor, BIQ>(&parachain_config, build_import_queue)?;
+    let (mut telemetry, telemetry_worker_handle) = params.other;
+
+    let client = params.client.clone();
+    let backend = params.backend.clone();
+    let mut task_manager = params.task_manager;
+
+    let (relay_chain_interface, collator_key) = build_relay_chain_interface(
+        polkadot_config,
+        &parachain_config,
+        telemetry_worker_handle,
+        &mut task_manager,
+        collator_options.clone(),
+        hwbench.clone(),
+    )
+    .await
+    .map_err(|e| match e {
+        RelayChainError::ServiceError(polkadot_service::Error::Sub(x)) => x,
+        s => s.to_string().into(),
+    })?;
+
+    let block_announce_validator = BlockAnnounceValidator::new(relay_chain_interface.clone(), id);
+
+    let force_authoring = parachain_config.force_authoring;
+    let validator = parachain_config.role.is_authority();
+    let prometheus_registry = parachain_config.prometheus_registry().cloned();
+    let transaction_pool = params.transaction_pool.clone();
+    let import_queue = cumulus_client_service::SharedImportQueue::new(params.import_queue);
+    let (network, system_rpc_tx, start_network) =
         sc_service::build_network(sc_service::BuildNetworkParams {
-            config: &config,
+            config: &parachain_config,
             client: client.clone(),
             transaction_pool: transaction_pool.clone(),
             spawn_handle: task_manager.spawn_handle(),
-            import_queue,
-            block_announce_validator_builder: None,
-            warp_sync: Some(warp_sync),
+            import_queue: import_queue.clone(),
+            block_announce_validator_builder: Some(Box::new(|_| {
+                Box::new(block_announce_validator)
+            })),
+            warp_sync: None,
         })?;
 
-    if config.offchain_worker.enabled {
-        sc_service::build_offchain_workers(
-            &config,
-            task_manager.spawn_handle(),
-            client.clone(),
-            network.clone(),
-        );
-    }
-
-    let role = config.role.clone();
-    let force_authoring = config.force_authoring;
-    let backoff_authoring_blocks: Option<()> = None;
-    let name = config.network.node_name.clone();
-    let enable_grandpa = !config.disable_grandpa;
-    let prometheus_registry = config.prometheus_registry().cloned();
-
-    let rpc_extensions_builder = {
+    let rpc_builder = {
         let client = client.clone();
-        let pool = transaction_pool.clone();
+        let transaction_pool = transaction_pool.clone();
 
         Box::new(move |deny_unsafe, _| {
             let deps = crate::rpc::FullDeps {
                 client: client.clone(),
-                pool: pool.clone(),
+                pool: transaction_pool.clone(),
                 deny_unsafe,
             };
+
             crate::rpc::create_full(deps).map_err(Into::into)
         })
     };
 
-    let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
-        network: network.clone(),
+    sc_service::spawn_tasks(sc_service::SpawnTasksParams {
+        rpc_builder,
         client: client.clone(),
-        keystore: keystore_container.sync_keystore(),
-        task_manager: &mut task_manager,
         transaction_pool: transaction_pool.clone(),
-        rpc_builder: rpc_extensions_builder,
-        backend,
+        task_manager: &mut task_manager,
+        config: parachain_config,
+        keystore: params.keystore_container.sync_keystore(),
+        backend: backend.clone(),
+        network: network.clone(),
         system_rpc_tx,
-        config,
         telemetry: telemetry.as_mut(),
     })?;
 
-    if role.is_authority() {
-        let proposer_factory = sc_basic_authorship::ProposerFactory::new(
-            task_manager.spawn_handle(),
-            client.clone(),
-            transaction_pool,
-            prometheus_registry.as_ref(),
-            telemetry.as_ref().map(|x| x.handle()),
-        );
+    if let Some(hwbench) = hwbench {
+        sc_sysinfo::print_hwbench(&hwbench);
 
-        let can_author_with =
-            sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
-
-        #[cfg(feature = "authoring-aura")]
-        {
-            let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-
-            let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _, _>(
-                StartAuraParams {
-                    slot_duration,
-                    client,
-                    select_chain,
-                    block_import,
-                    proposer_factory,
-                    create_inherent_data_providers: move |_, ()| async move {
-                        let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                        let slot =
-						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
-
-                        Ok((timestamp, slot))
-                    },
-                    force_authoring,
-                    backoff_authoring_blocks,
-                    keystore: keystore_container.sync_keystore(),
-                    can_author_with,
-                    sync_oracle: network.clone(),
-                    justification_sync_link: network.clone(),
-                    block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
-                    max_block_proposal_slot_portion: None,
-                    telemetry: telemetry.as_ref().map(|x| x.handle()),
-                },
-            )?;
-
-            // the AURA authoring task is considered essential, i.e. if it
-            // fails we take down the service with it.
-            task_manager.spawn_essential_handle().spawn_blocking(
-                "aura",
-                Some("block-authoring"),
-                aura,
-            );
-        }
-        #[cfg(not(feature = "authoring-aura"))]
-        {
-            let slot_duration = babe_link.config().slot_duration();
-
-            let babe_config = sc_consensus_babe::BabeParams {
-                keystore: keystore_container.sync_keystore(),
-                client,
-                select_chain,
-                env: proposer_factory,
-                block_import: babe_block_import,
-                sync_oracle: network.clone(),
-                justification_sync_link: network.clone(),
-                create_inherent_data_providers: move |_, ()| async move {
-                    let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-                    let slot =
-                            sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-                                *timestamp,
-                                slot_duration,
-                            );
-
-                    Ok((timestamp, slot))
-                },
-                force_authoring,
-                backoff_authoring_blocks,
-                babe_link,
-                can_author_with,
-                block_proposal_slot_portion: sc_consensus_babe::SlotProportion::new(2f32 / 3f32), // Substrate suggests 0.5
-                max_block_proposal_slot_portion: None,
-                telemetry: telemetry.as_ref().map(|x| x.handle()),
-            };
-
-            let babe = sc_consensus_babe::start_babe(babe_config)?;
-            task_manager.spawn_essential_handle().spawn_blocking(
-                "babe",
-                Some("block-authoring"),
-                babe,
+        if let Some(ref mut telemetry) = telemetry {
+            let telemetry_handle = telemetry.handle();
+            task_manager.spawn_handle().spawn(
+                "telemetry_hwbench",
+                None,
+                sc_sysinfo::initialize_hwbench_telemetry(telemetry_handle, hwbench),
             );
         }
     }
 
-    // if the node isn't actively participating in consensus then it doesn't
-    // need a keystore, regardless of which protocol we use below.
-    let keystore = if role.is_authority() {
-        Some(keystore_container.sync_keystore())
-    } else {
-        None
+    let announce_block = {
+        let network = network.clone();
+        Arc::new(move |hash, data| network.announce_block(hash, data))
     };
 
-    let grandpa_config = sc_finality_grandpa::Config {
-        // FIXME #1578 make this available through chainspec
-        gossip_duration: Duration::from_millis(333),
-        justification_period: 512,
-        name: Some(name),
-        observer_enabled: false,
-        keystore,
-        local_role: role,
-        telemetry: telemetry.as_ref().map(|x| x.handle()),
-        protocol_name: grandpa_protocol_name,
-    };
+    let relay_chain_slot_duration = Duration::from_secs(6);
 
-    if enable_grandpa {
-        // start the full GRANDPA voter
-        // NOTE: non-authorities could run the GRANDPA observer protocol, but at
-        // this point the full voter should provide better guarantees of block
-        // and vote data availability than the observer. The observer has not
-        // been tested extensively yet and having most nodes in a network run it
-        // could lead to finality stalls.
-        let grandpa_config = sc_finality_grandpa::GrandpaParams {
-            config: grandpa_config,
-            link: grandpa_link,
+    if validator {
+        let parachain_consensus = build_consensus(
+            client.clone(),
+            prometheus_registry.as_ref(),
+            telemetry.as_ref().map(|t| t.handle()),
+            &task_manager,
+            relay_chain_interface.clone(),
+            transaction_pool,
             network,
-            voting_rule: sc_finality_grandpa::VotingRulesBuilder::default().build(),
-            prometheus_registry,
-            shared_voter_state: SharedVoterState::empty(),
-            telemetry: telemetry.as_ref().map(|x| x.handle()),
+            params.keystore_container.sync_keystore(),
+            force_authoring,
+        )?;
+
+        let spawner = task_manager.spawn_handle();
+
+        let params = StartCollatorParams {
+            para_id: id,
+            block_status: client.clone(),
+            announce_block,
+            client: client.clone(),
+            task_manager: &mut task_manager,
+            relay_chain_interface,
+            spawner,
+            parachain_consensus,
+            import_queue,
+            collator_key: collator_key.expect("Command line arguments do not allow this. qed"),
+            relay_chain_slot_duration,
         };
 
-        // the GRANDPA voter task is considered infallible, i.e.
-        // if it fails we take down the service with it.
-        task_manager.spawn_essential_handle().spawn_blocking(
-            "grandpa-voter",
-            None,
-            sc_finality_grandpa::run_grandpa_voter(grandpa_config)?,
-        );
+        start_collator(params).await?;
+    } else {
+        let params = StartFullNodeParams {
+            client: client.clone(),
+            announce_block,
+            task_manager: &mut task_manager,
+            para_id: id,
+            relay_chain_interface,
+            relay_chain_slot_duration,
+            import_queue,
+            collator_options,
+        };
+
+        start_full_node(params)?;
     }
 
-    network_starter.start_network();
-    Ok(task_manager)
+    start_network.start_network();
+
+    Ok((task_manager, client))
+}
+
+/// Build the import queue for the parachain runtime.
+#[allow(clippy::type_complexity)]
+pub fn rococo_gear_build_import_queue(
+    client: Arc<FullClient<rococo_gear_runtime::RuntimeApi, RococoGearRuntimeExecutor>>,
+    config: &Configuration,
+    telemetry: Option<TelemetryHandle>,
+    task_manager: &TaskManager,
+) -> Result<
+    sc_consensus::DefaultImportQueue<
+        Block,
+        FullClient<rococo_gear_runtime::RuntimeApi, RococoGearRuntimeExecutor>,
+    >,
+    sc_service::Error,
+> {
+    let slot_duration = cumulus_client_consensus_aura::slot_duration(&*client)?;
+
+    cumulus_client_consensus_aura::import_queue::<
+        sp_consensus_aura::sr25519::AuthorityPair,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+    >(cumulus_client_consensus_aura::ImportQueueParams {
+        block_import: client.clone(),
+        client: client.clone(),
+        create_inherent_data_providers: move |_, _| async move {
+            let time = sp_timestamp::InherentDataProvider::from_system_time();
+
+            let slot =
+                sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+                    *time,
+                    slot_duration,
+                );
+
+            Ok((time, slot))
+        },
+        registry: config.prometheus_registry(),
+        can_author_with: sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone()),
+        spawner: &task_manager.spawn_essential_handle(),
+        telemetry,
+    })
+    .map_err(Into::into)
+}
+
+/// Start a parachain node.
+pub async fn start_rococo_gear_node(
+    parachain_config: Configuration,
+    polkadot_config: Configuration,
+    collator_options: CollatorOptions,
+    id: ParaId,
+    hwbench: Option<sc_sysinfo::HwBench>,
+) -> sc_service::error::Result<(
+    TaskManager,
+    Arc<FullClient<rococo_gear_runtime::RuntimeApi, RococoGearRuntimeExecutor>>,
+)> {
+    start_node_impl::<rococo_gear_runtime::RuntimeApi, RococoGearRuntimeExecutor, _, _, _>(
+        parachain_config,
+        polkadot_config,
+        collator_options,
+        id,
+        |_| Ok(RpcModule::new(())),
+        rococo_gear_build_import_queue,
+        |client,
+         prometheus_registry,
+         telemetry,
+         task_manager,
+         relay_chain_interface,
+         transaction_pool,
+         sync_oracle,
+         keystore,
+         force_authoring| {
+            let slot_duration = cumulus_client_consensus_aura::slot_duration(&*client)?;
+
+            let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
+                task_manager.spawn_handle(),
+                client.clone(),
+                transaction_pool,
+                prometheus_registry,
+                telemetry.clone(),
+            );
+
+            Ok(AuraConsensus::build::<
+                sp_consensus_aura::sr25519::AuthorityPair,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+            >(BuildAuraConsensusParams {
+                proposer_factory,
+                create_inherent_data_providers: move |_, (relay_parent, validation_data)| {
+                    let relay_chain_interface = relay_chain_interface.clone();
+                    async move {
+                        let parachain_inherent =
+                            cumulus_primitives_parachain_inherent::ParachainInherentData::create_at(
+                                relay_parent,
+                                &relay_chain_interface,
+                                &validation_data,
+                                id,
+                            ).await;
+                        let time = sp_timestamp::InherentDataProvider::from_system_time();
+
+                        let slot =
+                        sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+                            *time,
+                            slot_duration,
+                        );
+
+                        let parachain_inherent = parachain_inherent.ok_or_else(|| {
+                            Box::<dyn std::error::Error + Send + Sync>::from(
+                                "Failed to create parachain inherent",
+                            )
+                        })?;
+                        Ok((time, slot, parachain_inherent))
+                    }
+                },
+                block_import: client.clone(),
+                para_client: client,
+                backoff_authoring_blocks: Option::<()>::None,
+                sync_oracle,
+                keystore,
+                force_authoring,
+                slot_duration,
+                // We got around 500ms for proposing
+                block_proposal_slot_portion: SlotProportion::new(1f32 / 24f32),
+                // And a maximum of 750ms if slots are skipped
+                max_block_proposal_slot_portion: Some(SlotProportion::new(1f32 / 16f32)),
+                telemetry,
+            }))
+        },
+        hwbench,
+    )
+    .await
 }
