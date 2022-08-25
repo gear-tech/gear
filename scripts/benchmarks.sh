@@ -19,7 +19,7 @@ pallets=(
 
 for p in ${pallets[@]}
 do
-    ./target/release/gear-node benchmark pallet \
+    ./target/release/gear-collator benchmark pallet \
         --chain=$chain \
         --execution=wasm \
         --wasm-execution=compiled \
