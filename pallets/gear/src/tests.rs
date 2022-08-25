@@ -4081,7 +4081,7 @@ fn test_two_contracts_composition_works() {
 // init message with value Y <= X < ED, no internal checks will occur, so such message sending will be passed further
 // to manager, although having value less than ED.
 //
-// Note: on manager level message will not be included to the [queue](https://github.com/gear-tech/gear/blob/master/pallets/gear/src/manager.rs#L351-L364)
+// Note: on manager level message will not be included to the queue.
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
