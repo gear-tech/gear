@@ -146,6 +146,9 @@ pub enum ExecutionError {
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
+    /// An error occurs in attempt to wait duration greater than could be payed.
+    #[display(fmt = "Not enough gas to cover holding in waitlist")]
+    NotEnoughGasToCoverWait,
 }
 
 /// An error occurred in API.

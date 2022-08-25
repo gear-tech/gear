@@ -182,16 +182,20 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
+        waitlist_cost,
+        reserve_for,
     } = block_config.clone();
 
-    let execution_settings = ExecutionSettings::new(
+    let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
         allocations_config,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
-    );
+        waitlist_cost,
+        reserve_for,
+    };
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;

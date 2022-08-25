@@ -289,6 +289,8 @@ where
 
     let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
+    let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
+    let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
 
     let block_config = BlockConfig {
         block_info,
@@ -304,6 +306,8 @@ where
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,
+        waitlist_cost,
+        reserve_for,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {

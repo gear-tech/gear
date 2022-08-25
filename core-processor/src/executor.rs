@@ -292,6 +292,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
         mailbox_threshold: settings.mailbox_threshold,
+        waitlist_cost: settings.waitlist_cost,
+        reserve_for: settings.reserve_for,
     };
 
     // Creating externalities.

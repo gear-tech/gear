@@ -67,8 +67,12 @@ pub struct ProcessorContext {
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<&'static str>,
-    /// Mailbox threshold
+    /// Mailbox threshold.
     pub mailbox_threshold: u64,
+    /// Cost for single block waitlist holding.
+    pub waitlist_cost: u64,
+    /// Reserve for parameter of scheduling.
+    pub reserve_for: u32,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -554,6 +558,20 @@ impl EnvExt for Ext {
 
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wait)?;
+        Ok(())
+    }
+
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
+        // TODO: Provide RuntimeCosts::WaitFor.
+        self.charge_gas_runtime(RuntimeCosts::Wait)?;
+
+        let deadline_duration: u64 = duration.saturating_add(self.context.reserve_for).into();
+        let reserve = deadline_duration.saturating_mul(self.context.waitlist_cost);
+
+        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(ExecutionError::NotEnoughGasToCoverWait));
+        }
+
         Ok(())
     }
 
