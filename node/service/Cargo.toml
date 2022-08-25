@@ -40,7 +40,6 @@ sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-te
 sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sc-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 sc-finality-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -52,7 +51,6 @@ sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.
 sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -84,9 +82,9 @@ substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/ge
 [features]
 gear-native = [
 	"gear-runtime",
-	"sc-consensus-aura",
-	"sp-consensus-aura",
-	"authoring-aura",
+	"sc-consensus-babe",
+	"sc-consensus-babe-rpc",
+	"sp-consensus-babe",
 ]
 vara-native = [
 	"vara-runtime",
@@ -112,4 +110,3 @@ try-runtime = [
 	"vara-runtime?/try-runtime",
 	"try-runtime-cli",
 ]
-authoring-aura = []

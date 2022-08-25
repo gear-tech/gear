@@ -43,15 +43,14 @@ use runtime_common::{
     QueueLengthStep, ReserveThreshold, WaitlistCost,
 };
 pub use runtime_primitives::{AccountId, Signature};
-use runtime_primitives::{Balance, BlockNumber, Hash, Index};
+use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor},
+    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult,
+    ApplyExtrinsicResult, Percent,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -89,11 +88,18 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_name: create_runtime_str!("gear-node"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
-    spec_version: 1640,
+    spec_version: 1650,
     impl_version: 1,
     transaction_version: 1,
     state_version: 1,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
+    sp_consensus_babe::BabeEpochConfiguration {
+        c: PRIMARY_PROBABILITY,
+        allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+    };
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -107,13 +113,6 @@ pub fn native_version() -> NativeVersion {
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
     pub const SS58Prefix: u8 = 42;
-}
-
-impl_opaque_keys! {
-    pub struct SessionKeys {
-        pub aura: Aura,
-        pub grandpa: Grandpa,
-    }
 }
 
 // Configure FRAME pallets to include in runtime.
@@ -171,12 +170,28 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
+    pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
+    pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
     pub const MaxAuthorities: u32 = 32;
 }
 
-impl pallet_aura::Config for Runtime {
-    type AuthorityId = AuraId;
+impl pallet_babe::Config for Runtime {
+    type EpochDuration = EpochDuration;
+    type ExpectedBlockTime = ExpectedBlockTime;
+    type EpochChangeTrigger = pallet_babe::ExternalTrigger;
     type DisabledValidators = ();
+    // Equivocation related configuration: in PoA setting we don't expect any equivocation
+    type KeyOwnerProofSystem = ();
+    type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+        KeyTypeId,
+        pallet_babe::AuthorityId,
+    )>>::Proof;
+    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+        KeyTypeId,
+        pallet_babe::AuthorityId,
+    )>>::IdentificationTuple;
+    type HandleEquivocation = ();
+    type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
 }
 
@@ -200,35 +215,27 @@ impl pallet_grandpa::Config for Runtime {
     type MaxAuthorities = MaxAuthorities;
 }
 
+parameter_types! {
+    pub const UncleGenerations: BlockNumber = 0;
+}
+
 impl pallet_authorship::Config for Runtime {
-    type FindAuthor = AuraAccountAdapter;
-    type UncleGenerations = ();
+    type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+    type UncleGenerations = UncleGenerations;
     type FilterUncle = ();
     type EventHandler = ();
 }
 
-pub struct AuraAccountAdapter;
-
-impl FindAuthor<AccountId> for AuraAccountAdapter {
-    fn find_author<'a, I>(digests: I) -> Option<AccountId>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        pallet_aura::AuraAuthorId::<Runtime>::find_author(digests)
-            .and_then(|k| AccountId::try_from(k.as_ref()).ok())
-    }
-}
-
 parameter_types! {
-    pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
+    pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
 }
 
 impl pallet_timestamp::Config for Runtime {
     /// A timestamp: milliseconds since the unix epoch.
-    type Moment = u64;
-    type OnTimestampSet = Aura;
+    type Moment = Moment;
+    type OnTimestampSet = Babe;
     type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
+    type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -252,6 +259,30 @@ impl pallet_transaction_payment::Config for Runtime {
     type WeightToFee = IdentityFee<Balance>;
     type LengthToFee = IdentityFee<Balance>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
+}
+
+impl_opaque_keys! {
+    pub struct SessionKeys {
+        pub babe: Babe,
+        pub grandpa: Grandpa,
+    }
+}
+parameter_types! {
+    pub const SelectedFraction: Percent = Percent::from_percent(25);
+}
+impl pallet_shift_session_manager::Config for Runtime {
+    type SelectedFraction = SelectedFraction;
+}
+impl pallet_session::Config for Runtime {
+    type Event = Event;
+    type ValidatorId = <Self as frame_system::Config>::AccountId;
+    type ValidatorIdOf = ();
+    type ShouldEndSession = Babe;
+    type NextSessionRotation = Babe;
+    type SessionManager = ShiftSessionManager;
+    type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+    type Keys = SessionKeys;
+    type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -358,19 +389,21 @@ construct_runtime!(
     {
         System: frame_system,
         Timestamp: pallet_timestamp,
-        Aura: pallet_aura,
+        Authorship: pallet_authorship,
+        Babe: pallet_babe,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
         TransactionPayment: pallet_transaction_payment,
+        Session: pallet_session,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
-        Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
+        ShiftSessionManager: pallet_shift_session_manager,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug,
@@ -386,19 +419,21 @@ construct_runtime!(
     {
         System: frame_system,
         Timestamp: pallet_timestamp,
-        Aura: pallet_aura,
+        Authorship: pallet_authorship,
+        Babe: pallet_babe,
         Grandpa: pallet_grandpa,
         Balances: pallet_balances,
         TransactionPayment: pallet_transaction_payment,
+        Session: pallet_session,
         Sudo: pallet_sudo,
         Utility: pallet_utility,
-        Authorship: pallet_authorship,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
         GearGas: pallet_gear_gas,
         Gear: pallet_gear,
         GearPayment: pallet_gear_payment,
+        ShiftSessionManager: pallet_shift_session_manager,
     }
 );
 
@@ -453,13 +488,52 @@ mod benches {
 }
 
 impl_runtime_apis_plus_common! {
-    impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
-        fn slot_duration() -> sp_consensus_aura::SlotDuration {
-            sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
+    impl sp_consensus_babe::BabeApi<Block> for Runtime {
+        fn configuration() -> sp_consensus_babe::BabeGenesisConfiguration {
+            // The choice of `c` parameter (where `1 - c` represents the
+            // probability of a slot being empty), is done in accordance to the
+            // slot duration and expected target block time, for safely
+            // resisting network delays of maximum two seconds.
+            // <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
+            sp_consensus_babe::BabeGenesisConfiguration {
+                slot_duration: Babe::slot_duration(),
+                epoch_length: EpochDuration::get(),
+                c: BABE_GENESIS_EPOCH_CONFIG.c,
+                genesis_authorities: Babe::authorities().to_vec(),
+                randomness: Babe::randomness(),
+                allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+            }
         }
 
-        fn authorities() -> Vec<AuraId> {
-            Aura::authorities().into_inner()
+        fn current_epoch_start() -> sp_consensus_babe::Slot {
+            Babe::current_epoch_start()
+        }
+
+        fn current_epoch() -> sp_consensus_babe::Epoch {
+            Babe::current_epoch()
+        }
+
+        fn next_epoch() -> sp_consensus_babe::Epoch {
+            Babe::next_epoch()
+        }
+
+        fn generate_key_ownership_proof(
+            _slot: sp_consensus_babe::Slot,
+            _authority_id: sp_consensus_babe::AuthorityId,
+        ) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
+            None
+        }
+
+        fn submit_report_equivocation_unsigned_extrinsic(
+            equivocation_proof: sp_consensus_babe::EquivocationProof<<Block as BlockT>::Header>,
+            key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
+        ) -> Option<()> {
+            let key_owner_proof = key_owner_proof.decode()?;
+
+            Babe::submit_unsigned_equivocation_report(
+                equivocation_proof,
+                key_owner_proof,
+            )
         }
     }
 }
