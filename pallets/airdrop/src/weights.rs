@@ -1,3 +1,4 @@
+
 // This file is part of Gear.
 
 // Copyright (C) 2021-2022 Gear Technologies Inc.
@@ -25,30 +26,38 @@
 // Executed Command:
 // ./target/release/gear-node
 // benchmark
-// --chain=local
-// --execution=wasm
-// --wasm-execution=compiled
-// --pallet=pallet_airdrop
-// --extrinsic=*
+// pallet
+// --pallet
+// pallet_airdrop
+// --extrinsic=transfer
 // --steps
 // 50
 // --repeat
 // 20
+// --chain=vara-dev
 // --output
 // .
 
+#![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{
-    traits::Get,
-    weights::{constants::RocksDbWeight, Weight},
-};
+use frame_support::{traits::Get, weights::{constants::RocksDbWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_airdrop.
 pub trait WeightInfo {
     fn transfer() -> Weight;
+}
+
+/// Weight functions for `pallet_airdrop`.
+pub struct AirdropWeight<T>(PhantomData<T>);
+impl<T: frame_system::Config> WeightInfo for AirdropWeight<T> {
+	fn transfer() -> Weight {
+		(18_000_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(2 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+	}
 }
 
 impl WeightInfo for () {

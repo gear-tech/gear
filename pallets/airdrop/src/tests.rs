@@ -24,7 +24,7 @@ use frame_support::{assert_noop, assert_ok};
 fn test_setup_works() {
     new_test_ext().execute_with(|| {
         assert_eq!(Sudo::key(), Some(ROOT));
-        assert_eq!(Balances::total_issuance(), 100_000);
+        assert_eq!(Balances::total_issuance(), 100_000_000);
     });
 }
 
@@ -34,12 +34,12 @@ fn sudo_call_works() {
         let call = Box::new(Call::Airdrop(AirdropCall::transfer {
             source: ROOT,
             dest: ALICE,
-            amount: 10_000,
+            amount: 10_000_000,
         }));
         assert_ok!(Sudo::sudo(Origin::signed(ROOT), call));
-        assert_eq!(Balances::total_balance(&ALICE), 10_000);
-        assert_eq!(Balances::total_balance(&ROOT), 90_000);
-        assert_eq!(Balances::total_issuance(), 100_000);
+        assert_eq!(Balances::total_balance(&ALICE), 10_000_000);
+        assert_eq!(Balances::total_balance(&ROOT), 90_000_000);
+        assert_eq!(Balances::total_issuance(), 100_000_000);
     });
 }
 
@@ -47,7 +47,7 @@ fn sudo_call_works() {
 fn signed_extrinsic_fails() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Airdrop::transfer(Origin::signed(ROOT), ROOT, ALICE, 10_000_u128,),
+            Airdrop::transfer(Origin::signed(ROOT), ROOT, ALICE, 10_000_000_u128),
             DispatchError::BadOrigin,
         );
     });

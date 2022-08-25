@@ -53,11 +53,11 @@ use gear_core::{
     memory::{PageBuf, PageNumber},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
-use sp_consensus_aura::{Slot, AURA_ENGINE_ID};
+use sp_consensus_slots::Slot;
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
-    Digest, DigestItem, Perbill,
+    ConsensusEngineId, Digest, DigestItem, Perbill,
 };
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
@@ -71,6 +71,8 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
+const ENGINE_ID: ConsensusEngineId = [b'a', b'u', b'r', b'a'];
+
 // Initializes new block.
 fn init_block<T: Config>()
 where
@@ -78,7 +80,7 @@ where
 {
     let slot = Slot::from(0);
     let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
+        logs: vec![DigestItem::PreRuntime(ENGINE_ID, slot.encode())],
     };
 
     let bn = One::one();

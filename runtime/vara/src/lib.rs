@@ -413,7 +413,7 @@ impl pallet_gear_messenger::Config for Runtime {
 
 impl pallet_airdrop::Config for Runtime {
     type Event = Event;
-    type WeightInfo = ();
+    type WeightInfo = pallet_airdrop::weights::AirdropWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -556,6 +556,7 @@ mod benches {
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_gear, Gear]
+        [pallet_airdrop, Airdrop]
     );
 }
 
