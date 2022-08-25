@@ -3284,18 +3284,26 @@ name = "gear-collator-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "cumulus-client-cli",
+ "cumulus-primitives-core",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
  "gear-collator-service",
- "gear-runtime",
  "gear-runtime-common",
  "gear-runtime-primitives",
  "gear-runtime-test-cli",
+ "log",
  "pallet-gear-payment",
+ "parachain-gear-runtime",
+ "parity-scale-codec",
+ "polkadot-cli",
+ "polkadot-primitives",
  "sc-cli",
  "sc-client-api",
  "sc-service",
+ "sc-sysinfo",
+ "sc-telemetry",
  "scale-info",
  "sp-core",
  "sp-inherents",
@@ -3304,7 +3312,6 @@ dependencies = [
  "sp-timestamp",
  "substrate-build-script-utils",
  "try-runtime-cli",
- "vara-runtime",
 ]
 
 [[package]]

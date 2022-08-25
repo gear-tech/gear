@@ -18,43 +18,11 @@
 
 use clap::Parser;
 
-#[allow(missing_docs)]
-#[derive(Debug, Parser)]
-pub struct RunCmd {
-    #[allow(missing_docs)]
-    #[clap(flatten)]
-    pub base: sc_cli::RunCmd,
-
-    /// Force using Vara native runtime.
-    #[clap(long = "force-vara")]
-    pub force_vara: bool,
-
-    /// Disable automatic hardware benchmarks.
-    ///
-    /// By default these benchmarks are automatically ran at startup and measure
-    /// the CPU speed, the memory bandwidth and the disk speed.
-    ///
-    /// The results are then printed out in the logs, and also sent as part of
-    /// telemetry, if telemetry is enabled.
-    #[clap(long)]
-    pub no_hardware_benchmarks: bool,
-}
-
-#[derive(Debug, Parser)]
-pub struct Cli {
-    #[clap(subcommand)]
-    pub subcommand: Option<Subcommand>,
-
-    #[clap(flatten)]
-    pub run: RunCmd,
-}
+use service::chain_spec;
+use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
-    /// Key management cli utilities
-    #[clap(subcommand)]
-    Key(sc_cli::KeySubcommand),
-
     /// Build a chain specification.
     BuildSpec(sc_cli::BuildSpecCmd),
 
@@ -71,29 +39,99 @@ pub enum Subcommand {
     ImportBlocks(sc_cli::ImportBlocksCmd),
 
     /// Remove the whole chain.
-    PurgeChain(sc_cli::PurgeChainCmd),
+    PurgeChain(cumulus_client_cli::PurgeChainCmd),
 
     /// Revert the chain to a previous state.
     Revert(sc_cli::RevertCmd),
 
+    /// Export the genesis state of the parachain.
+    ExportGenesisState(cumulus_client_cli::ExportGenesisStateCommand),
+
+    /// Export the genesis wasm of the parachain.
+    ExportGenesisWasm(cumulus_client_cli::ExportGenesisWasmCommand),
+
     /// Sub-commands concerned with benchmarking.
+    /// The pallet benchmarking moved to the `pallet` sub-command.
     #[clap(subcommand)]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-    /// Try some command against runtime state.
-    #[cfg(feature = "try-runtime")]
+    /// Try some testing command against a specified runtime state.
     TryRuntime(try_runtime_cli::TryRuntimeCmd),
-
-    /// Try some command against runtime state. Note: `try-runtime` feature must be enabled.
-    #[cfg(not(feature = "try-runtime"))]
-    TryRuntime,
-
-    /// Db meta columns information.
-    ChainInfo(sc_cli::ChainInfoCmd),
 
     #[clap(
         name = "runtime-spec-tests",
         about = "Run gear runtime tests with yaml."
     )]
     GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Parser)]
+pub struct RunCmd {
+    #[allow(missing_docs)]
+    #[clap(flatten)]
+    pub base: cumulus_client_cli::RunCmd,
+
+    /// Force using Rococo Gear native runtime.
+    #[clap(long = "force-rococo-gear")]
+    pub force_rococo_gear: bool,
+
+    /// Disable automatic hardware benchmarks.
+    ///
+    /// By default these benchmarks are automatically ran at startup and measure
+    /// the CPU speed, the memory bandwidth and the disk speed.
+    ///
+    /// The results are then printed out in the logs, and also sent as part of
+    /// telemetry, if telemetry is enabled.
+    #[clap(long)]
+    pub no_hardware_benchmarks: bool,
+}
+
+#[derive(Debug, Parser)]
+#[clap(
+    propagate_version = true,
+    args_conflicts_with_subcommands = true,
+    subcommand_negates_reqs = true
+)]
+pub struct Cli {
+    #[clap(subcommand)]
+    pub subcommand: Option<Subcommand>,
+
+    #[clap(flatten)]
+    pub run: RunCmd,
+
+    #[clap(raw = true)]
+    pub relaychain_args: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct RelayChainCli {
+    /// The actual relay chain cli object.
+    pub base: polkadot_cli::RunCmd,
+
+    /// Optional chain id that should be passed to the relay chain.
+    pub chain_id: Option<String>,
+
+    /// The base path that should be used by the relay chain.
+    pub base_path: Option<PathBuf>,
+}
+
+impl RelayChainCli {
+    /// Parse the relay chain CLI parameters using the para chain `Configuration`.
+    pub fn new<'a>(
+        para_config: &sc_service::Configuration,
+        relay_chain_args: impl Iterator<Item = &'a String>,
+    ) -> Self {
+        let extension = chain_spec::Extensions::try_get(&*para_config.chain_spec);
+        let chain_id = extension.map(|e| e.relay_chain.clone());
+        let base_path = para_config
+            .base_path
+            .as_ref()
+            .map(|x| x.path().join("polkadot"));
+        Self {
+            base_path,
+            chain_id,
+            base: clap::Parser::parse_from(relay_chain_args),
+        }
+    }
 }

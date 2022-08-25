@@ -10,6 +10,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
+log = "0.4.17"
+codec = { package = "parity-scale-codec", version = "3.0.0" }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 
 # Gear
@@ -19,18 +21,19 @@ service = { package = "gear-collator-service", path = "../service", default-feat
 pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 
 # Gear Runtimes
-gear-runtime = { path = "../../runtime/gear", optional = true }
-vara-runtime = { path = "../../runtime/vara", optional = true }
+rococo-gear-runtime = { package = "parachain-gear-runtime", path = "../../runtime/parachain-gear", optional = true }
 gear-runtime-common = { path = "../../runtime/common", default-features = false }
 
 # Substrate client
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", features = [
 	"wasmtime",
 ], optional = true }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", features = [
 	"wasmtime",
 ], optional = true }
-sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 
 # Substrate primitives
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
@@ -44,6 +47,14 @@ frame-system = { git = "https://github.com/paritytech/substrate", default-featur
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
+
+# Polkadot
+polkadot-cli = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.26" }
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.26" }
+
+# Cumulus
+cumulus-client-cli = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.26" }
+cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.26" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
@@ -60,11 +71,7 @@ cli = [
 rococo-gear-native = [
 	"service/rococo-gear-native",
 	"gear-runtime-test-cli/gear-native",
-	"gear-runtime",
-]
-vara-native = [
-	"gear-runtime-test-cli/vara-native",
-	"vara-runtime",
+	"rococo-gear-runtime",
 ]
 lazy-pages = ["service/lazy-pages"]
 runtime-benchmarks = ["service/runtime-benchmarks"]
