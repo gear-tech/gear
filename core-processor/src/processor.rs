@@ -44,7 +44,7 @@ use gear_core::{
 
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
-    Wait,
+    Wait(Option<u32>),
     Success,
 }
 
@@ -227,7 +227,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait => process_success(Wait, res),
+            DispatchResultKind::Wait(duration) => process_success(Wait(duration), res),
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
@@ -418,10 +418,11 @@ fn process_success(
     }
 
     let outcome = match kind {
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
+        Wait(duration) => {
+            journal.push(JournalNote::WaitDispatch {
+                dispatch: dispatch.into_stored(program_id, context_store),
+                duration,
+            });
 
             return journal;
         }

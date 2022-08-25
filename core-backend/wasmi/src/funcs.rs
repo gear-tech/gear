@@ -773,7 +773,7 @@ where
             .wait()
             .map_err(FuncError::Core)
             .err()
-            .unwrap_or(FuncError::Terminated(TerminationReason::Wait));
+            .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None)));
         ctx.err = err;
         Err(FuncError::HostError)
     }

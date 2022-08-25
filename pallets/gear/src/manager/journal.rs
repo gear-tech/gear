@@ -259,7 +259,7 @@ where
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
         Pallet::<T>::wait_dispatch(
             dispatch,
             MessageWaitedRuntimeReason::WaitCalled.into_reason(),

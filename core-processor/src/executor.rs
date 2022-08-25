@@ -371,7 +371,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait => DispatchResultKind::Wait,
+        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 

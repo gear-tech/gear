@@ -316,7 +316,7 @@ impl ExtManager {
                     .entry(dest)
                     .or_default()
                     .push(message_id);
-                self.wait_dispatch(dispatch);
+                self.wait_dispatch(dispatch, None);
 
                 continue;
             }
@@ -709,7 +709,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
