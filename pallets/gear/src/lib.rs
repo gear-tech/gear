@@ -1221,6 +1221,7 @@ pub mod pallet {
 
                                 Self::wait_dispatch(
                                     dispatch,
+                                    None,
                                     MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                 );
