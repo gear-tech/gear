@@ -122,6 +122,10 @@ case "$COMMAND" in
         header "Building gear node"
         node_build "$@"; ;;
 
+      collator)
+        header "Building gear collator node"
+        collator_build "$@"; ;;
+
       wat-examples)
         header "Build wat examples"
         wat_examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;

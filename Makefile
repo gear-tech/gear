@@ -79,6 +79,15 @@ vara:
 vara-release:
 	@ ./scripts/gear.sh build node --release --no-default-features --features=vara-native,lazy-pages
 
+# Collator
+.PHONY: collator
+collator:
+	@ ./scripts/gear.sh build collator
+
+.PHONY: collator-release
+collator-release:
+	@ ./scripts/gear.sh build collator --release
+
 # Check section
 .PHONY: check
 check: check-gear check-examples

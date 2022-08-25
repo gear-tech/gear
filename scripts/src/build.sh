@@ -23,6 +23,7 @@ build_usage() {
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
+    collator       build collator node
 
 EOF
 }
@@ -37,6 +38,10 @@ gear_test_build() {
 
 node_build() {
   cargo build -p gear-node "$@"
+}
+
+collator_build() {
+  cargo build -p gear-collator "$@"
 }
 
 wasm_proc_build() {
