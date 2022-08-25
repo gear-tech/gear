@@ -52,7 +52,7 @@ use gear_core::{
 };
 use gear_lazy_pages_common as lazy_pages;
 use pallet_authorship::Pallet as AuthorshipPallet;
-use sp_consensus_aura::{Slot, AURA_ENGINE_ID};
+use sp_consensus_babe::{Slot, BABE_ENGINE_ID};
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
@@ -77,7 +77,7 @@ where
 {
     let slot = Slot::from(0);
     let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
+        logs: vec![DigestItem::PreRuntime(BABE_ENGINE_ID, slot.encode())],
     };
 
     let bn = One::one();
