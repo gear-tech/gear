@@ -785,7 +785,7 @@ where
 
         let mut f = || {
             let duration: u32 = ctx.read_memory_as(duration_ptr)?;
-            ctx.ext.wait().map_err(FuncError::Core)?;
+            ctx.ext.wait_no_more(duration).map_err(FuncError::Core)?;
             Ok(Some(duration))
         };
 

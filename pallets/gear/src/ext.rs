@@ -323,6 +323,10 @@ impl EnvExt for LazyPagesExt {
         self.inner.wait().map_err(Error::Processor)
     }
 
+    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
+        self.inner.wait_no_more(duration).map_err(Error::Processor)
+    }
+
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
         self.inner.wait_for(duration).map_err(Error::Processor)
     }

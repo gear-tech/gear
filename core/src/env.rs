@@ -145,8 +145,12 @@ pub trait Ext {
     /// Tell how much value is left in running context.
     fn value_available(&mut self) -> Result<u128, Self::Error>;
 
-    /// Interrupt the program and reschedule execution.
+    /// Interrupt the program and reschedule execution for maximum.
     fn wait(&mut self) -> Result<(), Self::Error>;
+
+    /// Interrupt the program and reschedule execution for maximum,
+    /// but not more than duration.
+    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error>;
 
     /// Interrupt the program and reschedule execution in duration.
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error>;
@@ -272,6 +276,9 @@ mod tests {
             Ok(())
         }
         fn wait(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn wait_no_more(&mut self, _duration: u32) -> Result<(), Self::Error> {
             Ok(())
         }
         fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
