@@ -30,7 +30,7 @@ pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 /// Generate the session keys from individual elements.
 ///
 /// The input must be a tuple of individual keys (a single arg for now since we have just one key).
-pub fn template_session_keys(keys: AuraId) -> rococo_gear_runtime::SessionKeys {
+pub fn rococo_session_keys(keys: AuraId) -> rococo_gear_runtime::SessionKeys {
     rococo_gear_runtime::SessionKeys { aura: keys }
 }
 
@@ -43,9 +43,9 @@ pub fn development_config() -> ChainSpec {
 
     ChainSpec::from_genesis(
         // Name
-        "Development",
+        "Rococo Gear Development Testnet",
         // ID
-        "dev",
+        "rococo_gear_dev",
         ChainType::Development,
         move || {
             testnet_genesis(
@@ -183,7 +183,7 @@ fn testnet_genesis(
                         // validator id
                         acc,
                         // session keys
-                        template_session_keys(aura),
+                        rococo_session_keys(aura),
                     )
                 })
                 .collect(),

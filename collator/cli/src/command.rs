@@ -36,7 +36,34 @@ use sp_runtime::traits::{AccountIdConversion, Block as _};
 use std::net::SocketAddr;
 
 fn load_spec(id: &str) -> std::result::Result<Box<dyn ChainSpec>, String> {
-    todo!()
+    Ok(match id {
+        #[cfg(feature = "rococo-gear-native")]
+        "rococo_gear-dev" => Box::new(chain_spec::rococo_gear::development_config()),
+
+        #[cfg(feature = "rococo-gear-native")]
+        "rococo_gear-local" => Box::new(chain_spec::rococo_gear::local_testnet_config()),
+
+        path => {
+            let path = std::path::PathBuf::from(path);
+
+            let chain_spec = Box::new(sc_service::GenericChainSpec::<(), chain_spec::Extensions>::from_json_file(path.clone())?)
+                as Box<dyn ChainSpec>;
+
+            // when a new runtime is being added move this block to else-block.
+            // Check gear-node for details.
+            {
+                #[cfg(feature = "rococo-gear-native")]
+                {
+                    // TODO: remove this assert when there is another runtime
+                    assert!(chain_spec.is_rococo_gear() || chain_spec.is_dev());
+                    Box::new(chain_spec::rococo_gear::ChainSpec::from_json_file(path)?)
+                }
+
+                #[cfg(not(feature = "rococo-gear-native"))]
+                return Err("Rococo Gear runtime is not available. Please compile the node with default features to enable it.".into());
+            }
+        }
+    })
 }
 
 impl SubstrateCli for Cli {

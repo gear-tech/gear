@@ -54,24 +54,18 @@ use substrate_prometheus_endpoint::Registry;
 pub use rococo_gear_runtime;
 
 pub trait IdentifyVariant {
-    /// Returns `true` if this is a configuration for gear network.
-    fn is_gear(&self) -> bool;
-
-    /// Returns `true` if this is a configuration for the vara network.
-    fn is_vara(&self) -> bool;
+    /// Returns `true` if this is a configuration for the Rococo network.
+    fn is_rococo_gear(&self) -> bool;
 
     /// Returns true if this configuration is for a development network.
     fn is_dev(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
-    fn is_gear(&self) -> bool {
-        // TODO: remove the second condition upon chains renaming completion (issue #1303)
-        self.id().starts_with("gear") || self.id().eq("staging_testnet_v2")
+    fn is_rococo_gear(&self) -> bool {
+        self.id().starts_with("rococo_gear")
     }
-    fn is_vara(&self) -> bool {
-        self.id().starts_with("vara")
-    }
+
     fn is_dev(&self) -> bool {
         self.id().ends_with("dev")
     }
