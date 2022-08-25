@@ -68,7 +68,7 @@ impl PreparedMessageExecutionContext {
 
 /// Defines result variants of the function `prepare`.
 pub enum PrepareResult {
-    /// Successfully precharged for memory pages.
+    /// Successfully pre-charged for memory pages.
     Ok {
         /// A context for `process` function.
         context: Box<PreparedMessageExecutionContext>,
@@ -295,7 +295,7 @@ fn process_error(
         });
     }
 
-    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
+    if !dispatch.is_error_reply() {
         // # Safety
         //
         // 1. The dispatch.id() has already been checked
@@ -313,6 +313,7 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
+            origin,
             reason: err.to_string(),
         },
         _ => DispatchOutcome::MessageTrap {
@@ -489,7 +490,7 @@ fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
+    if !dispatch.is_error_reply() {
         // # Safety
         //
         // 1. The dispatch.id() has already been checked

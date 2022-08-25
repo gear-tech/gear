@@ -183,7 +183,8 @@ fn pause_terminated_program_fails() {
         run_to_block(2, None);
 
         assert_ok!(common::set_program_terminated_status(
-            program_id.into_origin()
+            program_id.into_origin(),
+            ProgramId::from_origin(2.into_origin()),
         ));
 
         assert_noop!(
