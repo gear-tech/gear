@@ -134,6 +134,8 @@ pub enum DispatchOutcome {
     InitFailure {
         /// Program that was failed initializing.
         program_id: ProgramId,
+        /// Source of the init message. Funds inheritor.
+        origin: ProgramId,
         /// Reason of the fail.
         reason: String,
     },

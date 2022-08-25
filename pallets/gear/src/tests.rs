@@ -646,7 +646,7 @@ fn send_message_expected_failure() {
 
         assert_noop!(
             call_default_message(program_id).dispatch(Origin::signed(LOW_BALANCE_USER)),
-            Error::<Test>::ProgramIsTerminated
+            Error::<Test>::InactiveProgram
         );
 
         // Submit valid program and test failing actions on it
@@ -1647,12 +1647,12 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         run_to_block(2, None);
 
         assert!(Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         // Submitting second program, which fails on initialization, therefore is deleted
         let program_id = {
@@ -1662,13 +1662,13 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         run_to_block(3, None);
 
         assert!(!Gear::is_initialized(program_id));
         // while at the same time is terminated
-        assert!(Gear::is_terminated(program_id));
+        assert!(!Gear::is_active(program_id));
     })
 }
 
@@ -1752,7 +1752,7 @@ fn events_logging_works() {
                 // Sending messages to failed-to-init programs shouldn't be allowed
                 assert_noop!(
                     call_default_message(program_id).dispatch(Origin::signed(USER_1)),
-                    Error::<Test>::ProgramIsTerminated
+                    Error::<Test>::InactiveProgram
                 );
 
                 continue;
@@ -1859,8 +1859,9 @@ fn send_reply_failure_to_claim_from_mailbox() {
             res.expect("submit result was asserted")
         };
 
-        if let common::Program::Terminated =
-            common::get_program(prog_id.into_origin()).expect("Failed to get program from storage")
+        if common::get_program(prog_id.into_origin())
+            .expect("Failed to get program from storage")
+            .is_terminated()
         {
             panic!("Program is terminated!");
         };
@@ -2046,19 +2047,19 @@ fn uninitialized_program_zero_gas() {
         let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         run_to_block(2, None);
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
         assert!(WaitlistOf::<Test>::contains(&program_id, &init_message_id));
 
         assert_ok!(Gear::send_message(
             Origin::signed(1),
             program_id,
             vec![],
-            0, // that may trigger unreachable code
+            0, // that triggers unreachable code atm
             0,
         ));
 
@@ -2296,12 +2297,12 @@ fn messages_to_uninitialized_program_wait() {
         let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         run_to_block(2, None);
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         assert_ok!(Gear::send_message(
             Origin::signed(1),
@@ -2337,7 +2338,7 @@ fn uninitialized_program_should_accept_replies() {
         let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         run_to_block(2, None);
 
@@ -2508,9 +2509,181 @@ fn test_message_processing_for_non_existing_destination() {
 
         assert_eq!(user_balance_before, Balances::free_balance(USER_1));
 
-        assert!(Gear::is_terminated(program_id));
+        assert!(!Gear::is_active(program_id));
         assert!(<Test as Config>::CodeStorage::exists(code_hash));
     })
+}
+
+#[test]
+fn exit_locking_funds() {
+    use demo_exit_handle_sender::{Input, WASM_BINARY as EXIT_HANDLE_SENDER_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            EXIT_HANDLE_SENDER_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            50_000_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+
+        assert!(Gear::is_initialized(program_id));
+
+        assert_balance(program_id, 0u128, 0u128);
+
+        let value = 1_000;
+
+        let payload = Input::SendMessage {
+            destination: program_id.into_origin().into(),
+            payload: vec![],
+            value,
+        };
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload.encode(),
+            1_000_000_000,
+            value
+        ));
+        let message_1 = utils::get_last_message_id();
+
+        let payload = Input::Exit(USER_2.into_origin().into());
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload.encode(),
+            1_000_000_000,
+            0
+        ));
+        let message_2 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_1);
+        assert_succeed(message_2);
+
+        assert_balance(USER_2, user_2_balance + value, 0u128);
+        assert_balance(program_id, 0u128, 0u128);
+    });
+}
+
+#[test]
+fn terminated_locking_funds() {
+    use demo_init_fail_sender::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let GasInfo {
+            min_limit: gas_spent_init,
+            waited: init_waited,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            USER_3.into_origin().encode(),
+            5_000,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(init_waited);
+
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            USER_3.into_origin().encode(),
+            gas_spent_init,
+            5_000u128
+        ));
+
+        let program_id = get_last_program_id();
+        let message_id = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(program_id));
+        let prog_free = 4000u128;
+        let prog_reserve = 1000u128;
+        assert_balance(program_id, prog_free, prog_reserve);
+
+        let (_message_with_value, interval) = MailboxOf::<Test>::iter_key(USER_3)
+            .next()
+            .map(|(msg, interval)| (msg.id(), interval))
+            .expect("Element should be");
+
+        let message_to_reply = MailboxOf::<Test>::iter_key(USER_1)
+            .next()
+            .map(|(msg, _)| msg.id())
+            .expect("Element should be");
+
+        let GasInfo {
+            min_limit: gas_spent_reply,
+            ..
+        } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Reply(message_to_reply, 0),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::send_reply(
+            Origin::signed(USER_1),
+            message_to_reply,
+            EMPTY_PAYLOAD.to_vec(),
+            gas_spent_reply,
+            0
+        ));
+
+        let reply_id = get_last_message_id();
+
+        let user_1_balance = Balances::free_balance(USER_1);
+
+        run_to_next_block(None);
+
+        assert_succeed(reply_id);
+        assert_failed(
+            message_id,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Execution(
+                ExecutionError::GasLimitExceeded,
+            ))),
+        );
+        assert!(Gear::is_terminated(program_id));
+        assert_balance(program_id, 0u128, prog_reserve);
+
+        // Remove `+ 50_000` (#1173).
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + prog_free + 50_000
+        );
+
+        // Hack to fast spend blocks till expiration.
+        System::set_block_number(interval.finish - 1);
+        run_to_next_block(None);
+
+        assert!(MailboxOf::<Test>::is_empty(&USER_3));
+
+        let extra_gas_to_mb = <Test as Config>::GasPrice::gas_price(
+            CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for(),
+        );
+
+        assert_balance(program_id, 0u128, 0u128);
+        // Remove `+ 50_000` (#1173).
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + prog_free + prog_reserve + extra_gas_to_mb + 50_000
+        );
+    });
 }
 
 #[test]
@@ -2536,7 +2709,7 @@ fn exit_init() {
 
         run_to_block(2, None);
 
-        assert!(Gear::is_terminated(program_id));
+        assert!(!Gear::is_active(program_id));
         assert!(!Gear::is_initialized(program_id));
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -2590,7 +2763,7 @@ fn test_create_program_works() {
         let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_terminated(program_id));
+        assert!(Gear::is_active(program_id));
 
         run_to_next_block(None);
 
@@ -3088,10 +3261,10 @@ fn exit_handle() {
 
         run_to_block(3, None);
 
-        assert!(Gear::is_terminated(program_id));
+        assert!(!Gear::is_active(program_id));
         assert!(MailboxOf::<Test>::is_empty(&USER_3));
         assert!(!Gear::is_initialized(program_id));
-        assert!(Gear::is_terminated(program_id));
+        assert!(!Gear::is_active(program_id));
 
         assert!(<Test as Config>::CodeStorage::exists(CodeId::from_origin(
             code_hash
@@ -3234,7 +3407,7 @@ fn init_wait_reply_exit_cleaned_storage() {
         ));
 
         assert!(!Gear::is_initialized(pid));
-        assert!(!Gear::is_terminated(pid));
+        assert!(Gear::is_active(pid));
 
         // block 4
         //
@@ -3243,7 +3416,7 @@ fn init_wait_reply_exit_cleaned_storage() {
         // - check wait list is empty
         run_to_block(4, None);
         assert!(!Gear::is_initialized(pid));
-        assert!(Gear::is_terminated(pid));
+        assert!(!Gear::is_active(pid));
         assert_eq!(waiting_init_messages(pid).len(), 0);
         assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 0);
     })
@@ -3311,9 +3484,7 @@ fn messages_to_paused_program_skipped() {
 
         let program_id = utils::get_last_program_id();
 
-        run_to_block(2, None);
-
-        assert_ok!(GearProgram::pause_program(program_id));
+        run_to_next_block(None);
 
         let before_balance = Balances::free_balance(USER_3);
 
@@ -3327,7 +3498,9 @@ fn messages_to_paused_program_skipped() {
 
         let message_id = get_last_message_id();
 
-        run_to_block(3, None);
+        assert_ok!(GearProgram::pause_program(program_id));
+
+        run_to_next_block(None);
 
         assert_not_executed(message_id);
 
@@ -3341,8 +3514,6 @@ fn replies_to_paused_program_skipped() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        System::reset_events();
-
         let code = WASM_BINARY.to_vec();
         assert_ok!(Gear::upload_program(
             Origin::signed(USER_1),
@@ -3355,14 +3526,10 @@ fn replies_to_paused_program_skipped() {
 
         let program_id = utils::get_last_program_id();
 
-        run_to_block(2, None);
+        run_to_next_block(None);
 
         // Program sends it in init function, going into waitlist afterward.
         let mailboxed_ping = get_last_message_id();
-
-        assert_ok!(GearProgram::pause_program(program_id));
-
-        run_to_block(3, None);
 
         let before_balance = Balances::free_balance(USER_1);
 
@@ -3374,18 +3541,20 @@ fn replies_to_paused_program_skipped() {
             1000u128,
         ));
 
-        let message_id = get_last_message_id();
+        let reply_id = get_last_message_id();
 
-        run_to_block(4, None);
-        assert_not_executed(message_id);
+        assert_ok!(GearProgram::pause_program(program_id));
+
+        run_to_next_block(None);
+
+        assert_not_executed(reply_id);
 
         let actual_balance = Balances::free_balance(USER_1);
 
         // On message read, USER_1 unlocks mailbox-related funds from initial message.
         let mb_threshold = <Test as Config>::MailboxThreshold::get() as u128;
-        let burned_in_mb = CostsPerBlockOf::<Test>::mailbox() as u128; // cost of one block holding
 
-        assert_eq!(before_balance + mb_threshold - burned_in_mb, actual_balance);
+        assert_eq!(before_balance + mb_threshold, actual_balance);
     })
 }
 
@@ -4171,7 +4340,7 @@ fn test_reply_to_terminated_program() {
         });
         assert_noop!(
             reply_call.dispatch(Origin::signed(USER_1)),
-            Error::<Test>::ProgramIsTerminated,
+            Error::<Test>::InactiveProgram,
         );
 
         // the only way to claim value from terminated destination is a corresponding extrinsic call
@@ -4738,7 +4907,7 @@ fn test_async_messages() {
             assert_ok!(Gear::claim_value(Origin::signed(USER_1), last_mail.id()));
         }
 
-        assert!(!Gear::is_terminated(pid));
+        assert!(Gear::is_active(pid));
     })
 }
 
@@ -5194,8 +5363,7 @@ mod utils {
         System::events().into_iter().for_each(|e| {
             if let MockEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
                 if let Some(details) = message.reply() {
-                    if details.reply_to() == message_id {
-                        assert_ne!(details.exit_code(), 0);
+                    if details.reply_to() == message_id && details.exit_code() != 0 {
                         actual_error = Some(
                             String::from_utf8(message.payload().to_vec())
                                 .expect("Unable to decode string from error reply"),
@@ -5208,7 +5376,8 @@ mod utils {
         let mut actual_error =
             actual_error.expect("Error message not found in any `Event::UserMessageSent`");
         let mut expectations = error.to_string();
-        log::debug!("{:?}", actual_error);
+
+        log::debug!("Actual error: {:?}", actual_error);
 
         // In many cases fallible syscall returns ExtError, which program unwraps afterwards.
         // This check handles display of the error inside.
