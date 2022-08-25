@@ -561,12 +561,6 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn wait_no_more(&mut self, _duration: u32) -> Result<(), Self::Error> {
-        // TODO: Provide RuntimeCosts::WaitNoMore.
-        self.charge_gas_runtime(RuntimeCosts::Wait)?;
-        Ok(())
-    }
-
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
         // TODO: Provide RuntimeCosts::WaitFor.
         self.charge_gas_runtime(RuntimeCosts::Wait)?;
@@ -578,6 +572,12 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(ExecutionError::NotEnoughGasToCoverWait));
         }
 
+        Ok(())
+    }
+
+    fn wait_no_more(&mut self, _duration: u32) -> Result<(), Self::Error> {
+        // TODO: Provide RuntimeCosts::WaitNoMore.
+        self.charge_gas_runtime(RuntimeCosts::Wait)?;
         Ok(())
     }
 
