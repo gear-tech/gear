@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index as Nonce};
+pub use runtime_primitives::{
+    AccountId, Balance, Block, BlockNumber, Hash, Header, Index as Nonce,
+};
 use sc_executor::NativeElseWasmExecutor;
 use sp_runtime::traits::BlakeTwo256;
 
@@ -33,7 +35,8 @@ compile_error!("at least one runtime feature must be enabled");
 /// This trait has no methods or associated type. It is a concise marker for all the trait bounds
 /// that it contains.
 #[cfg(feature = "rococo-gear-native")]
-pub trait RuntimeApiCollection: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
+pub trait RuntimeApiCollection:
+    sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
     + sp_api::ApiExt<Block>
     + sp_block_builder::BlockBuilder<Block>
     + sp_api::Metadata<Block>

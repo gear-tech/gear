@@ -18,11 +18,11 @@
 
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use super::*;
 use cumulus_primitives_core::ParaId;
-use rococo_gear_runtime::{AccountId, AuraId, EXISTENTIAL_DEPOSIT, GenesisConfig};
+use rococo_gear_runtime::{AccountId, AuraId, GenesisConfig, EXISTENTIAL_DEPOSIT};
 use sc_service::ChainType;
 use sp_core::sr25519;
-use super::*;
 
 /// Specialized `ChainSpec` for the normal parachain runtime.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;

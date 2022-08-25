@@ -23,8 +23,8 @@
 use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
-use sc_client_api::AuxStore;
 use runtime_primitives::{AccountId, Balance, Block, Index};
+use sc_client_api::AuxStore;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;

@@ -18,6 +18,9 @@
 
 //! Gear chain configurations
 
+// this is because of ChainSpecGroup
+#![allow(clippy::derive_partial_eq_without_eq)]
+
 pub use runtime_primitives::{AccountId, AccountPublic};
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use serde::{Deserialize, Serialize};

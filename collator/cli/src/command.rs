@@ -16,16 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::cli::{Cli, RelayChainCli, Subcommand};
 use codec::Encode;
-use crate::cli::{Cli, Subcommand, RelayChainCli};
 use cumulus_client_cli::generate_genesis_block;
 use cumulus_primitives_core::ParaId;
-use log::info;
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
+use log::info;
 #[cfg(feature = "rococo-gear-native")]
 use rococo_gear_runtime::RuntimeApi;
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, CliConfiguration, DefaultConfigurationValues, Result, RuntimeVersion, SubstrateCli, ImportParams, KeystoreParams, NetworkParams, SharedParams};
+use sc_cli::{
+    ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
+    NetworkParams, Result, RuntimeVersion, SharedParams, SubstrateCli,
+};
 use sc_service::{
     config::{BasePath, PrometheusConfig},
     TaskManager,
@@ -46,8 +49,11 @@ fn load_spec(id: &str) -> std::result::Result<Box<dyn ChainSpec>, String> {
         path => {
             let path = std::path::PathBuf::from(path);
 
-            let chain_spec = Box::new(sc_service::GenericChainSpec::<(), chain_spec::Extensions>::from_json_file(path.clone())?)
-                as Box<dyn ChainSpec>;
+            let chain_spec = Box::new(
+                sc_service::GenericChainSpec::<(), chain_spec::Extensions>::from_json_file(
+                    path.clone(),
+                )?,
+            ) as Box<dyn ChainSpec>;
 
             // when a new runtime is being added move this block to else-block.
             // Check gear-node for details.
@@ -246,7 +252,8 @@ pub fn run() -> sc_cli::Result<()> {
             match cmd {
                 BenchmarkCmd::Pallet(cmd) => {
                     if cfg!(feature = "runtime-benchmarks") {
-                        runner.sync_run(|config| cmd.run::<Block, RococoGearRuntimeExecutor>(config))
+                        runner
+                            .sync_run(|config| cmd.run::<Block, RococoGearRuntimeExecutor>(config))
                     } else {
                         Err("Benchmarking wasn't enabled when building the node. \
                             You can enable it with `--features runtime-benchmarks`."
@@ -292,11 +299,14 @@ pub fn run() -> sc_cli::Result<()> {
                     .as_ref()
                     .map(|cfg| &cfg.registry);
                 let task_manager =
-                        TaskManager::new(runner.config().tokio_handle.clone(), *registry)
+                    TaskManager::new(runner.config().tokio_handle.clone(), *registry)
                         .map_err(|e| format!("Error: {:?}", e))?;
 
                 runner.async_run(|config| {
-                    Ok((cmd.run::<Block, RococoGearRuntimeExecutor>(config), task_manager))
+                    Ok((
+                        cmd.run::<Block, RococoGearRuntimeExecutor>(config),
+                        task_manager,
+                    ))
                 })
             } else {
                 Err("Try-runtime must be enabled by `--features try-runtime`.".into())

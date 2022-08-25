@@ -43,7 +43,9 @@ use polkadot_service::CollatorPair;
 
 use sc_client_api::ExecutorProvider;
 use sc_network::NetworkService;
-use sc_service::{error::Error as ServiceError, Configuration, ChainSpec, PartialComponents, Role, TaskManager};
+use sc_service::{
+    error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, Role, TaskManager,
+};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sp_api::ConstructRuntimeApi;
 use sp_keystore::SyncCryptoStorePtr;
@@ -110,36 +112,25 @@ pub fn new_partial<RuntimeApi, Executor, BIQ>(
         FullClient<RuntimeApi, Executor>,
         FullBackend,
         (),
-        sc_consensus::DefaultImportQueue<
-            Block,
-            FullClient<RuntimeApi, Executor>,
-        >,
-        sc_transaction_pool::FullPool<
-            Block,
-            FullClient<RuntimeApi, Executor>,
-        >,
+        sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
+        sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
         (Option<Telemetry>, Option<TelemetryWorkerHandle>),
     >,
     ServiceError,
 >
 where
-    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>
-        + Send
-        + Sync
-        + 'static,
+    RuntimeApi:
+        ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
     RuntimeApi::RuntimeApi:
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     Executor: sc_executor::NativeExecutionDispatch + 'static,
     BIQ: FnOnce(
-        Arc<FullClient<RuntimeApi,Executor>>,
+        Arc<FullClient<RuntimeApi, Executor>>,
         &Configuration,
         Option<TelemetryHandle>,
         &TaskManager,
     ) -> Result<
-        sc_consensus::DefaultImportQueue<
-            Block,
-            FullClient<RuntimeApi, Executor>,
-        >,
+        sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
         ServiceError,
     >,
 {
@@ -247,20 +238,14 @@ async fn start_node_impl<RuntimeApi, Executor, RB, BIQ, BIC>(
     build_import_queue: BIQ,
     build_consensus: BIC,
     hwbench: Option<sc_sysinfo::HwBench>,
-) -> sc_service::error::Result<(
-    TaskManager,
-    Arc<FullClient<RuntimeApi, Executor>>,
-)>
+) -> sc_service::error::Result<(TaskManager, Arc<FullClient<RuntimeApi, Executor>>)>
 where
-    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>
-        + Send
-        + Sync
-        + 'static,
-    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+    RuntimeApi:
+        ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
+    RuntimeApi::RuntimeApi:
+        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     Executor: sc_executor::NativeExecutionDispatch + 'static,
-    RB: Fn(
-            Arc<FullClient<RuntimeApi, Executor>>,
-        ) -> Result<RpcModule<()>, sc_service::Error>
+    RB: Fn(Arc<FullClient<RuntimeApi, Executor>>) -> Result<RpcModule<()>, sc_service::Error>
         + Send
         + 'static,
     BIQ: FnOnce(
@@ -269,10 +254,7 @@ where
             Option<TelemetryHandle>,
             &TaskManager,
         ) -> Result<
-            sc_consensus::DefaultImportQueue<
-                Block,
-                FullClient<RuntimeApi, Executor>,
-            >,
+            sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
             ServiceError,
         > + 'static,
     BIC: FnOnce(
@@ -281,12 +263,7 @@ where
         Option<TelemetryHandle>,
         &TaskManager,
         Arc<dyn RelayChainInterface>,
-        Arc<
-            sc_transaction_pool::FullPool<
-                Block,
-                FullClient<RuntimeApi, Executor>,
-            >,
-        >,
+        Arc<sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>>,
         Arc<NetworkService<Block, Hash>>,
         SyncCryptoStorePtr,
         bool,
