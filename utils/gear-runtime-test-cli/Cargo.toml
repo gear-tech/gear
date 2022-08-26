@@ -36,6 +36,7 @@ gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime/gear", optional = true, features = ["debug-mode"] }
 vara-runtime = { path = "../../runtime/vara", optional = true, features = ["debug-mode"] }
+rococo-gear-runtime = { package = "parachain-gear-runtime", path = "../../runtime/parachain-gear", optional = true, features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }
 pallet-gear = { path = "../../pallets/gear" }
 pallet-gear-gas = { path = "../../pallets/gas" }
@@ -46,4 +47,5 @@ junit-common = { path = "../junit-common" }
 [features]
 gear-native = ["gear-runtime", "sp-consensus-aura", "authoring-aura"]
 vara-native = ["vara-runtime", "sp-consensus-babe", "sp-finality-grandpa"]
+rococo-gear-native = ["rococo-gear-runtime", "sp-consensus-aura", "authoring-aura"]
 authoring-aura = []

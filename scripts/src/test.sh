@@ -20,6 +20,7 @@ test_usage() {
     gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     rtest          run node runtime testing tool
+    collator_runtime run collator runtime testing tool
     pallet         run pallet-gear tests
     runtime-upgrade run runtime-upgrade test for queue processing
     fuzz           run fuzzer with a fuzz target
@@ -73,6 +74,23 @@ rtest() {
   fi
 
   $ROOT_DIR/target/release/gear-node runtime-spec-tests $YAMLS -l0 --generate-junit "$TARGET_DIR"/runtime-test-junit.xml
+}
+
+# $1 - ROOT DIR
+# $2 - TARGET DIR
+# $3 - yamls list (optional)
+collator_runtime() {
+  ROOT_DIR="$1"
+  TARGET_DIR="$2"
+
+  YAMLS=$(parse_yamls_list "$3")
+
+  if [ -z "$YAMLS" ]
+  then
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml"
+  fi
+
+  $ROOT_DIR/target/release/gear-collator runtime-spec-tests $YAMLS -l0
 }
 
 pallet_test() {

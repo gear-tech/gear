@@ -307,6 +307,10 @@ case "$COMMAND" in
         header "Running node runtime testsuite"
         rtest "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
+      collator_runtime)
+        header "Running collator runtime testsuite"
+        collator_runtime "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
+
       pallet)
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;

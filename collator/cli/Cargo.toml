@@ -70,7 +70,7 @@ cli = [
 ]
 rococo-gear-native = [
 	"service/rococo-gear-native",
-	"gear-runtime-test-cli/gear-native",
+	"gear-runtime-test-cli/rococo-gear-native",
 	"rococo-gear-runtime",
 ]
 lazy-pages = ["service/lazy-pages"]

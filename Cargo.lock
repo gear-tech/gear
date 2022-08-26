@@ -3611,6 +3611,7 @@ dependencies = [
  "pallet-gear",
  "pallet-gear-debug",
  "pallet-gear-gas",
+ "parachain-gear-runtime",
  "parity-scale-codec",
  "quick-xml",
  "rayon",

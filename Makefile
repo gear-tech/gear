@@ -246,6 +246,10 @@ rtest: init-js node-release examples
 rtest-vara: init-js vara-release examples
 	@ ./scripts/gear.sh test rtest yamls="$(yamls)"
 
+.PHONY: rtest-rococo
+rtest-rococo: init-js collator-release examples
+	@ ./scripts/gear.sh test collator_runtime yamls="$(yamls)"
+
 .PHONY: test-pallet
 test-pallet:
 	@ ./scripts/gear.sh test pallet

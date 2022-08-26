@@ -245,6 +245,9 @@ jobs:
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
+      - name: "Test: Process collator runtime testsuite"
+        run: ./scripts/gear.sh test collator_runtime
+
       - name: "Test: runtime spec tests no lazy pages"
         run: |
           cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options

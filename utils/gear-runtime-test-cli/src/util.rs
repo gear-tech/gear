@@ -46,6 +46,11 @@ use vara_runtime::{
     Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
 };
 
+#[cfg(all(feature = "rococo-gear-native", not(feature = "gear-native"), not(feature = "vara-native")))]
+use rococo_gear_runtime::{
+    AuraConfig, AuraExtConfig, Authorship, CollatorSelectionConfig, Event, Gear, GearGas, GearMessenger, ParachainSystemConfig, Runtime, SessionConfig, SessionKeys, System,
+};
+
 pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Mailbox;
 
@@ -181,12 +186,13 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "authoring-aura")]
+    #[cfg(all(feature = "authoring-aura", not(feature = "rococo-gear-native")))]
     AuraConfig {
         authorities: authorities.iter().cloned().map(|(_, x)| x).collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
+
     #[cfg(not(feature = "authoring-aura"))]
     SessionConfig {
         keys: authorities
@@ -205,6 +211,48 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     }
     .assimilate_storage(&mut t)
     .unwrap();
+
+    #[cfg(feature = "rococo-gear-native")]
+    CollatorSelectionConfig {
+        invulnerables: authorities.iter().cloned().map(|(acc, _)| acc).collect(),
+        candidacy_bond: <Runtime as Config>::Currency::minimum_balance() * 16,
+        ..Default::default()
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    #[cfg(feature = "rococo-gear-native")]
+    SessionConfig {
+        keys: authorities
+            .iter()
+            .map(|x| {
+                (
+                    x.0.clone(),
+                    x.0.clone(),
+                    SessionKeys {
+                        aura: x.1.clone(),
+                    },
+                )
+            })
+            .collect(),
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    #[cfg(feature = "rococo-gear-native")]
+    {
+        AuraConfig::default()
+        .assimilate_storage(&mut t)
+        .unwrap();
+
+        let config = AuraExtConfig::default();
+        <AuraExtConfig as GenesisBuild<Runtime>>::assimilate_storage(&config, &mut t)
+        .unwrap();
+
+        let config = ParachainSystemConfig::default();
+        <ParachainSystemConfig as GenesisBuild<Runtime>>::assimilate_storage(&config, &mut t)
+        .unwrap();
+    }
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
