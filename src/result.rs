@@ -40,6 +40,8 @@ impl From<TxStatus<'_>> for Error {
 pub enum Error {
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
+    #[error("Invalid node key")]
+    BadNodeKey,
     #[error(transparent)]
     Base64Decode(#[from] base64::DecodeError),
     #[error(transparent)]
@@ -50,12 +52,18 @@ pub enum Error {
     CouldNotFindDirectory(String),
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
-    #[error("InvalidSecret")]
-    InvalidSecret,
+    #[error("Unable to get the name of the current executable binary")]
+    InvalidExecutable,
     #[error("Password must be provided for logining with json file.")]
     InvalidPassword,
+    #[error("Invalid public key")]
+    InvalidPublic,
+    #[error("Invalid secret key")]
+    InvalidSecret,
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Keyring(#[from] keyring::Error),
     #[error(transparent)]
     Logger(#[from] log::SetLoggerError),
     #[error("No available account was found in keystore, please run `gear login` first.")]

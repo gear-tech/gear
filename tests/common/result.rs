@@ -3,6 +3,8 @@ pub enum Error {
     #[error("No stderr was found.")]
     EmptyStderr,
     #[error(transparent)]
+    Hex(#[from] hex::FromHexError),
+    #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error("Spwan process failed: {0}")]
     Spawn(String),

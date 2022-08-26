@@ -1,6 +1,6 @@
 mod api;
 mod cmd;
-mod keystore;
+pub mod keystore;
 mod metadata;
 mod registry;
 mod result;

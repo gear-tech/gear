@@ -32,7 +32,7 @@ impl Api {
     ) -> Result<types::GasInfo> {
         self.rpc()
             .request(
-                "gear_calculateInitGas",
+                "gear_calculateInitUploadGas",
                 rpc_params![self.source(), code, payload, value, true, at],
             )
             .await

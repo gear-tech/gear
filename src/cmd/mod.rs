@@ -5,6 +5,7 @@ use structopt::StructOpt;
 mod claim;
 mod deploy;
 mod info;
+mod key;
 mod login;
 mod meta;
 mod new;
@@ -20,6 +21,7 @@ pub enum Command {
     Claim(claim::Claim),
     Deploy(deploy::Deploy),
     Info(info::Info),
+    Key(key::Key),
     Login(login::Login),
     Meta(meta::Meta),
     New(new::New),
@@ -72,6 +74,7 @@ impl Opt {
             Command::Claim(claim) => claim.exec(self.api().await?).await?,
             Command::Deploy(deploy) => deploy.exec(self.api().await?).await?,
             Command::Info(info) => info.exec(self.api().await?).await?,
+            Command::Key(key) => key.exec(self.passwd.as_deref())?,
             Command::Login(login) => login.exec()?,
             Command::Meta(meta) => meta.exec()?,
             Command::New(new) => new.exec().await?,

@@ -5,6 +5,8 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  schedule:
+    - cron:  '0 0 1 * *'
 
 jobs:
   build_and_tests:
@@ -12,10 +14,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        
+      - uses: Swatinem/rust-cache@v2
+        
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions-rs/cargo@v1
+
+      - name: Run Tests
+        run: cargo test --all --all-features
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.10.0
         with:
-          command: test
-          args: --release --all --all-features
+          access_token: ${{ github.token }}
+
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        
+      - uses: Swatinem/rust-cache@v2
+        
+      - name: Run cargo clippy
+        run: cargo clippy --all --all-features

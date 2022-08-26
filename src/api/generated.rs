@@ -2,7 +2,7 @@
 //!
 //! subxt codegen | rustfmt --edition=2021
 //!
-//! spec_version: 1550
+//! spec_version: 1650
 #![allow(clippy::all)]
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 pub mod api {
@@ -1546,9 +1546,10 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            77u8, 82u8, 44u8, 142u8, 15u8, 176u8, 65u8, 151u8, 166u8, 82u8, 106u8,
-                            219u8, 35u8, 159u8, 223u8, 95u8, 206u8, 7u8, 11u8, 91u8, 92u8, 196u8,
-                            89u8, 55u8, 57u8, 127u8, 65u8, 241u8, 171u8, 223u8, 206u8, 150u8,
+                            119u8, 154u8, 36u8, 207u8, 172u8, 82u8, 134u8, 173u8, 165u8, 3u8,
+                            129u8, 15u8, 222u8, 193u8, 47u8, 247u8, 49u8, 200u8, 54u8, 171u8,
+                            182u8, 53u8, 164u8, 68u8, 117u8, 43u8, 4u8, 248u8, 0u8, 182u8, 90u8,
+                            42u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -8140,7 +8141,7 @@ pub mod api {
                     #[doc = "Program is terminated."]
                     #[doc = ""]
                     #[doc = "Program init ended up with failure, so such message destination is unavailable anymore."]
-                    ProgramIsTerminated,
+                    InactiveProgram,
                     #[codec(index = 5)]
                     #[doc = "Message gas tree is not found."]
                     #[doc = ""]
@@ -9927,9 +9928,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    123u8, 162u8, 94u8, 40u8, 139u8, 180u8, 241u8, 3u8, 25u8, 104u8, 252u8, 104u8,
-                    95u8, 74u8, 94u8, 227u8, 177u8, 165u8, 135u8, 120u8, 165u8, 7u8, 139u8, 184u8,
-                    156u8, 170u8, 236u8, 13u8, 168u8, 231u8, 180u8, 21u8,
+                    250u8, 126u8, 55u8, 185u8, 176u8, 61u8, 217u8, 172u8, 44u8, 28u8, 126u8, 96u8,
+                    62u8, 49u8, 198u8, 226u8, 66u8, 183u8, 1u8, 54u8, 21u8, 112u8, 93u8, 254u8,
+                    205u8, 123u8, 210u8, 198u8, 29u8, 23u8, 189u8, 157u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
