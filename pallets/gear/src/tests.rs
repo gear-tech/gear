@@ -2481,6 +2481,142 @@ fn wake_messages_after_program_inited() {
 }
 
 #[test]
+fn test_different_waits_success() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            0u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(program_id));
+
+        let reserve_gas = CostsPerBlockOf::<Test>::reserve_for()
+            .saturated_into::<u64>()
+            .saturating_mul(CostsPerBlockOf::<Test>::waitlist());
+
+        let duration_gas = |duration: u32| {
+            duration
+                .saturated_into::<u64>()
+                .saturating_mul(CostsPerBlockOf::<Test>::waitlist())
+        };
+
+        let expiration = |duration: u32| -> BlockNumberFor<Test> {
+            System::block_number().saturating_add(duration.unique_saturated_into())
+        };
+
+        // Command::Wait case.
+        let payload = Command::Wait.encode();
+        let duration = 5;
+        let wl_gas = duration_gas(duration) + reserve_gas;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_success = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_eq!(get_waitlist_expiration(wait_success), expiration(duration));
+
+        // Command::WaitFor case.
+        let duration = 5;
+        let payload = Command::WaitFor(duration).encode();
+        let wl_gas = duration_gas(duration) + reserve_gas + 100_000_000;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_for_success = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            get_waitlist_expiration(wait_for_success),
+            expiration(duration)
+        );
+
+        // Command::WaitNoMore case.
+        let duration = 5;
+        let payload = Command::WaitNoMore(duration).encode();
+        let wl_gas = duration_gas(duration) + reserve_gas + 100_000_000;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_no_more_success = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            get_waitlist_expiration(wait_no_more_success),
+            expiration(duration)
+        );
+    });
+}
+
+#[test]
 fn test_different_waits_fail() {
     use demo_waiter::{Command, WASM_BINARY};
 
