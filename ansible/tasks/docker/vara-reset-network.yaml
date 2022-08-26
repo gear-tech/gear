@@ -17,9 +17,8 @@
   become: yes
   
 - name: Download new spec file
-  ansible.builtin.get_url:
-    url: https://github.com/sergeyfilyanin/gear/blob/vara-stage-1/node/res/vara_staging.json
-    dest: /home/ec2-user/gear-data/vara_staging.json
+  shell: >
+    wget https://raw.githubusercontent.com/sergeyfilyanin/gear/vara-stage-1/node/res/vara_staging.json -O /home/ec2-user/gear-data/vara_staging.json
      
 - name: Pull docker images
   shell: >
