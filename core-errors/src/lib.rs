@@ -112,6 +112,18 @@ pub enum MessageError {
     },
 }
 
+/// Error using waiting syscalls.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+pub enum WaitError {
+    /// An error occurs in attempt to wait duration greater than could be payed.
+    #[display(fmt = "Not enough gas to cover holding in waitlist")]
+    NotEnoughGas,
+    /// An error occurs in attempt to wait duration greater than could be payed.
+    #[display(fmt = "Provided incorrect argument for wait (zero case)")]
+    InvalidArgument,
+}
+
 /// Memory error.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
@@ -146,9 +158,6 @@ pub enum ExecutionError {
     /// An error occurs in attempt to refund more gas than burned one.
     #[display(fmt = "Too many gas refunded")]
     TooManyGasAdded,
-    /// An error occurs in attempt to wait duration greater than could be payed.
-    #[display(fmt = "Not enough gas to cover holding in waitlist")]
-    NotEnoughGasToCoverWait,
 }
 
 /// An error occurred in API.
@@ -166,6 +175,9 @@ pub enum ExtError {
     /// Message error.
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
+    /// Waiting error.
+    #[display(fmt = "Waiting error: {}", _0)]
+    Wait(WaitError),
     /// Execution error.
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),
