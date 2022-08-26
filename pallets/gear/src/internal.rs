@@ -359,13 +359,13 @@ where
             return;
         }
 
-        // TODO: remove, once duration-control added inside programs (#1173).
-        //
-        // This need in async scenarios, while we send gasless message and it
-        // goes into waitlist: then all funds become locked for storing in
-        // waitlist, instead of distribute for execution and storing.
-        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist())
-            .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
+        // // TODO: remove, once duration-control added inside programs (#1173).
+        // //
+        // // This need in async scenarios, while we send gasless message and it
+        // // goes into waitlist: then all funds become locked for storing in
+        // // waitlist, instead of distribute for execution and storing.
+        // let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist())
+        //     .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
 
         // Locking funds for holding.
         GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
