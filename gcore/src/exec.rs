@@ -82,7 +82,7 @@ pub fn block_timestamp() -> u64 {
 }
 
 /// Terminate the execution of a program. The program and all corresponding data
-/// are removed from the storage. This is similiar to
+/// are removed from the storage. This is similar to
 /// `std::process::exit`. `value_destination` specifies the address where all
 /// available to the program value should be transferred to.
 /// Maybe called in `init` method as well.
