@@ -106,6 +106,10 @@ struct Args {
     #[clap(long)]
     skip_stack_end: bool,
 
+    /// Strip custom sections of wasm binarires
+    #[clap(long, default_value = "true")]
+    strip_custom_sections: bool,
+
     /// Check runtime imports against the whitelist
     #[clap(long)]
     check_runtime_imports: bool,
@@ -139,6 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         skip_meta,
         skip_opt,
         skip_stack_end,
+        strip_custom_sections,
         check_runtime_imports,
         verbose,
     } = Args::parse();
@@ -180,6 +185,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if !skip_stack_end {
             optimizer.insert_stack_and_export();
+        }
+
+        if strip_custom_sections {
+            optimizer.strip_custom_sections();
         }
 
         if !skip_opt {
