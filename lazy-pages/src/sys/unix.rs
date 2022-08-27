@@ -63,8 +63,6 @@ extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_vo
             };
             assert!(old_sig_handler_works, "Signal handler failed: {}", err);
         }
-        // .map_err(|err| err.to_string())
-        // .expect("Signal handler failed")
     }
 }
 
@@ -84,11 +82,6 @@ pub unsafe fn setup_signal_handler() -> io::Result<()> {
 
     let old_sigaction = signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
     OLD_SIG_HANDLER.with(|sh| *sh.borrow_mut() = old_sigaction.handler());
-    // log::info!("old sigaction: {:?}", old_sigaction);
-
-    // let x = old_sigaction.handler();
-    // x(1, 2, 3);
-
     Ok(())
 }
 
