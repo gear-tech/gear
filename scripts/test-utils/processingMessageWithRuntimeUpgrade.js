@@ -97,6 +97,7 @@ const pathToRuntimeCode = args[0];
 assert.notStrictEqual(pathToRuntimeCode, undefined, `Path to runtime code is not specified`);
 const pathToDemoPing = args[1];
 assert.notStrictEqual(pathToDemoPing, undefined, `Path to demo ping is not specified`);
+// TODO: tmp add demo wrong load here, make separate test (issue #1378).
 const pathToDemoWrongLoad = args[2];
 assert.notStrictEqual(pathToDemoWrongLoad, undefined, `Path to demo ping is not specified`);
 let exitCode = undefined;
