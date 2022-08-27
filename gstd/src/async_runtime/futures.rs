@@ -67,6 +67,7 @@ where
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&crate::msg::id());
     } else {
-        crate::exec::wait()
+        // TODO: make this call configurable.
+        crate::exec::wait_no_more(100)
     }
 }
