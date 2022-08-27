@@ -53,13 +53,10 @@ extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_vo
         };
 
         if let Err(err) = super::user_signal_handler(exc_info) {
-            let old_sig_handler_works = match err {
-                Error::SignalFromUnknownMemory {
-                    addr: _,
-                    wasm_mem_addr: _,
-                    wasm_mem_end_addr: _,
-                } => old_sig_handler(sig, info, ucontext),
-                _ => false,
+            let old_sig_handler_works = if let Error::SignalFromUnknownMemory { .. } = err {
+                old_sig_handler(sig, info, ucontext)
+            } else {
+                false
             };
             assert!(old_sig_handler_works, "Signal handler failed: {}", err);
         }
@@ -82,12 +79,12 @@ pub unsafe fn setup_signal_handler() -> io::Result<()> {
 
     let old_sigaction = signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
     OLD_SIG_HANDLER.with(|sh| *sh.borrow_mut() = old_sigaction.handler());
+
     Ok(())
 }
 
 unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
-    let sh = OLD_SIG_HANDLER.with(|sh| *sh.borrow());
-    match sh {
+    match OLD_SIG_HANDLER.with(|sh| *sh.borrow()) {
         SigHandler::SigDfl | SigHandler::SigIgn => false,
         SigHandler::Handler(func) => {
             func(sig);
