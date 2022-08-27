@@ -51,7 +51,6 @@ async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   // Check that demo_ping was initialized
   await isInitialized(messageId);
 
-
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
   const setCode = api.tx.system.setCode(api.createType('Bytes', Array.from(code)));

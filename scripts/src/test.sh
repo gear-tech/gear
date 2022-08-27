@@ -95,7 +95,7 @@ runtime_upgrade_test() {
 
   # Run node
   RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 7
+  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"
