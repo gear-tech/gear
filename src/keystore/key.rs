@@ -11,6 +11,8 @@ use subxt::{
     PairSigner,
 };
 
+type SignerAndSeed<P> = (PairSigner<GearConfig, P>, Option<Vec<u8>>);
+
 /// @WARNING: THIS WILL ONLY BE SECURE IF THE keystore IS SECURE.
 /// when you have NO PASSWORD, If it can be got by an attacker then
 /// they can also get your key.
@@ -60,10 +62,7 @@ impl Key {
     }
 
     /// Get keypair from key
-    pub fn pair<P>(
-        &self,
-        passwd: Option<&str>,
-    ) -> Result<(PairSigner<GearConfig, P>, Option<Vec<u8>>)>
+    pub fn pair<P>(&self, passwd: Option<&str>) -> Result<SignerAndSeed<P>>
     where
         P: Pair,
         MultiSignature: From<<P as Pair>::Signature>,
