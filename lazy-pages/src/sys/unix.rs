@@ -18,14 +18,18 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::sys::ExceptionInfo;
+use crate::{sys::ExceptionInfo, Error};
 use nix::{
     libc::{c_void, siginfo_t},
-    sys::signal,
+    sys::{signal, signal::SigHandler},
 };
-use std::io;
+use std::{cell::RefCell, io};
 
-extern "C" fn handle_sigsegv(_sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
+thread_local! {
+    static OLD_SIG_HANDLER: RefCell<SigHandler> = RefCell::new(SigHandler::SigDfl);
+}
+
+extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
     unsafe {
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let is_write = {
@@ -43,14 +47,24 @@ extern "C" fn handle_sigsegv(_sig: i32, info: *mut siginfo_t, ucontext: *mut c_v
         };
 
         let addr = (*info).si_addr();
-        let info = ExceptionInfo {
+        let exc_info = ExceptionInfo {
             fault_addr: addr as *mut _,
             is_write,
         };
 
-        super::user_signal_handler(info)
-            .map_err(|err| err.to_string())
-            .expect("Signal handler failed")
+        if let Err(err) = super::user_signal_handler(exc_info) {
+            let old_sig_handler_works = match err {
+                Error::SignalFromUnknownMemory {
+                    addr: _,
+                    wasm_mem_addr: _,
+                    wasm_mem_end_addr: _,
+                } => old_sig_handler(sig, info, ucontext),
+                _ => false,
+            };
+            assert!(old_sig_handler_works, "Signal handler failed: {}", err);
+        }
+        // .map_err(|err| err.to_string())
+        // .expect("Signal handler failed")
     }
 }
 
@@ -68,7 +82,27 @@ pub unsafe fn setup_signal_handler() -> io::Result<()> {
         signal::SIGSEGV
     };
 
-    signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
+    let old_sigaction = signal::sigaction(signal, &sig_action).map_err(io::Error::from)?;
+    OLD_SIG_HANDLER.with(|sh| *sh.borrow_mut() = old_sigaction.handler());
+    // log::info!("old sigaction: {:?}", old_sigaction);
+
+    // let x = old_sigaction.handler();
+    // x(1, 2, 3);
 
     Ok(())
+}
+
+unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) -> bool {
+    let sh = OLD_SIG_HANDLER.with(|sh| *sh.borrow());
+    match sh {
+        SigHandler::SigDfl | SigHandler::SigIgn => false,
+        SigHandler::Handler(func) => {
+            func(sig);
+            true
+        }
+        SigHandler::SigAction(func) => {
+            func(sig, info, ucontext);
+            true
+        }
+    }
 }

@@ -32,7 +32,7 @@ function getMessageEnqueuedBlock(api, { events, status }) {
   return blockHash;
 };
 
-async function main(pathToRuntimeCode, pathToDemoPing) {
+async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   // Create connection
   const provider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({ provider });
@@ -43,10 +43,14 @@ async function main(pathToRuntimeCode, pathToDemoPing) {
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
   const isInitialized = checkInit(api);
+  // Upload demo_wrong_load
+  await upload_program(api, account, pathToDemoWrongLoad);
+
   // Upload demo_ping
   const [programId, messageId] = await upload_program(api, account, pathToDemoPing);
   // Check that demo_ping was initialized
   await isInitialized(messageId);
+
 
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);
@@ -90,16 +94,15 @@ async function main(pathToRuntimeCode, pathToDemoPing) {
 };
 
 const args = process.argv.slice(2);
-
 const pathToRuntimeCode = args[0];
 assert.notStrictEqual(pathToRuntimeCode, undefined, `Path to runtime code is not specified`);
-
 const pathToDemoPing = args[1];
 assert.notStrictEqual(pathToDemoPing, undefined, `Path to demo ping is not specified`);
-
+const pathToDemoWrongLoad = args[2];
+assert.notStrictEqual(pathToDemoWrongLoad, undefined, `Path to demo ping is not specified`);
 let exitCode = undefined;
 
-main(pathToRuntimeCode, pathToDemoPing)
+main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad)
   .then(() => {
     exitCode = 0;
   })
