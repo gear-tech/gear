@@ -2997,11 +2997,16 @@ fn terminated_locking_funds() {
         assert!(Gear::is_terminated(program_id));
         assert_balance(program_id, 0u128, prog_reserve);
 
-        // Remove `+ 50_000` (#1173).
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_1_balance + prog_free + 50_000
-        );
+        let locked_gas_to_wl =
+            CostsPerBlockOf::<Test>::waitlist() * (100 + CostsPerBlockOf::<Test>::reserve_for());
+        let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
+
+        let expected_balance = user_1_balance
+            + prog_free
+            + <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl);
+        let user_1_balance = Balances::free_balance(USER_1);
+
+        assert_eq!(user_1_balance, expected_balance);
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
@@ -3013,12 +3018,10 @@ fn terminated_locking_funds() {
             CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for(),
         );
 
+        let expected_balance = user_1_balance + prog_reserve + extra_gas_to_mb;
+
         assert_balance(program_id, 0u128, 0u128);
-        // Remove `+ 50_000` (#1173).
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_1_balance + prog_free + prog_reserve + extra_gas_to_mb + 50_000
-        );
+        assert_eq!(Balances::free_balance(USER_1), expected_balance);
     });
 }
 
