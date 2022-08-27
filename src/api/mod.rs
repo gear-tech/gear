@@ -4,6 +4,7 @@ use crate::{
     keystore,
     result::Result,
 };
+use std::{cell::RefCell, sync::Arc};
 use subxt::{sp_core::sr25519::Pair, ClientBuilder, PairSigner, PolkadotExtrinsicParams};
 
 mod calls;
@@ -23,6 +24,8 @@ pub struct Api {
     runtime: RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>,
     /// Current signer.
     pub signer: PairSigner<GearConfig, Pair>,
+    /// Balance tracker
+    pub balance: Arc<RefCell<u128>>,
 }
 
 impl Api {
@@ -35,7 +38,13 @@ impl Api {
             .to_runtime_api::<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>>();
 
         let signer = keystore::cache(passwd.as_ref().copied())?;
+        let api = Self {
+            runtime,
+            signer,
+            balance: Default::default(),
+        };
 
-        Ok(Self { runtime, signer })
+        api.update_balance().await?;
+        Ok(api)
     }
 }

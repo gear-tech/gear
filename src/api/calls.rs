@@ -7,10 +7,7 @@ use crate::{
     },
     result::Result,
 };
-use subxt::{
-    sp_core::crypto::Ss58Codec, PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionInBlock,
-    TransactionStatus,
-};
+use subxt::{PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionInBlock, TransactionStatus};
 
 type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
 
@@ -89,6 +86,19 @@ mod gear {
 }
 
 impl Api {
+    /// Comparing the latest balance with the balance
+    /// recorded in the tracker and then log
+    pub async fn log_balance_spent(&self) -> Result<()> {
+        let balance_before = self.balance.borrow().clone();
+        let balance_after = self.update_balance().await?;
+
+        log::info!(
+            "\tBalance spent: {}",
+            balance_before.saturating_sub(balance_after)
+        );
+        Ok(())
+    }
+
     /// listen transaction process and print logs
     pub async fn ps<'client, Call>(
         &'client self,
@@ -104,39 +114,38 @@ impl Api {
     where
         Call: subxt::Call + Send + Sync,
     {
-        let signer_address = self.signer.account_id().to_ss58check();
-        let mut balance = self.get_balance(&signer_address).await?;
+        self.update_balance().await?;
         let mut process = tx.sign_and_submit_then_watch_default(&self.signer).await?;
-        println!("Submited extrinsic {}::{}", Call::PALLET, Call::FUNCTION);
+        log::info!("Submited extrinsic {}::{}", Call::PALLET, Call::FUNCTION);
 
         loop {
             if let Some(status) = process.next_item().await {
                 let status = status?;
                 match status {
-                    TransactionStatus::Future => println!("\tStatus: Future"),
-                    TransactionStatus::Ready => println!("\tStatus: Ready"),
-                    TransactionStatus::Broadcast(v) => println!("\tStatus: Broadcast( {:?} )", v),
-                    TransactionStatus::InBlock(b) => println!(
+                    TransactionStatus::Future => log::info!("\tStatus: Future"),
+                    TransactionStatus::Ready => log::info!("\tStatus: Ready"),
+                    TransactionStatus::Broadcast(v) => log::info!("\tStatus: Broadcast( {:?} )", v),
+                    TransactionStatus::InBlock(b) => log::info!(
                         "\tStatus: InBlock( block_hash: {}, extrinsic_hash: {} )",
                         b.block_hash(),
                         b.extrinsic_hash()
                     ),
                     TransactionStatus::Retracted(h) => {
-                        println!("\tStatus: Retracted( {} )", h);
+                        log::info!("\tStatus: Retracted( {} )", h);
                         break Err(status.into());
                     }
                     TransactionStatus::FinalityTimeout(h) => {
-                        println!("\tStatus: FinalityTimeout( {} )", h);
+                        log::info!("\tStatus: FinalityTimeout( {} )", h);
                         break Err(status.into());
                     }
                     TransactionStatus::Finalized(b) => {
-                        println!(
+                        log::info!(
                             "\tStatus: Finalized( block_hash: {}, extrinsic_hash: {} )",
                             b.block_hash(),
                             b.extrinsic_hash()
                         );
 
-                        println!(
+                        log::info!(
                             "Successfully submited call {}::{} {} at {}!",
                             Call::PALLET,
                             Call::FUNCTION,
@@ -145,21 +154,18 @@ impl Api {
                         );
 
                         self.capture_dispatch_info(&b).await?;
-                        balance = balance.saturating_sub(self.get_balance(&signer_address).await?);
-
-                        println!("\tBalance spent: {balance}");
                         return Ok(b);
                     }
                     TransactionStatus::Usurped(h) => {
-                        println!("\tStatus: Usurped( {} )", h);
+                        log::info!("\tStatus: Usurped( {} )", h);
                         break Err(status.into());
                     }
                     TransactionStatus::Dropped => {
-                        println!("\tStatus: Dropped");
+                        log::info!("\tStatus: Dropped");
                         break Err(status.into());
                     }
                     TransactionStatus::Invalid => {
-                        println!("\tStatus: Invalid");
+                        log::info!("\tStatus: Invalid");
                         break Err(status.into());
                     }
                 }

@@ -19,6 +19,16 @@ impl Api {
             .await?)
     }
 
+    /// Update the signer's balance
+    pub async fn update_balance(&self) -> Result<u128> {
+        let balance = self
+            .get_balance(&self.signer.account_id().to_ss58check())
+            .await?;
+        *self.balance.borrow_mut() = balance;
+
+        Ok(balance)
+    }
+
     /// Get balance by account address
     pub async fn get_balance(&self, address: &str) -> Result<u128> {
         Ok(self

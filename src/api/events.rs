@@ -45,6 +45,8 @@ impl Api {
             let ev = raw?;
             if &ev.pallet == "System" && &ev.variant == "ExtrinsicFailed" {
                 Self::capture_weight_info(event?.event);
+                self.log_balance_spent().await?;
+
                 let dispatch_error = DispatchError::decode(&mut &*ev.data)?;
                 if let Some(error_data) = dispatch_error.module_error_data() {
                     // Error index is utilized as the first byte from the error array.
@@ -64,6 +66,8 @@ impl Api {
                 }
             } else if &ev.pallet == "System" && &ev.variant == "ExtrinsicSuccess" {
                 Self::capture_weight_info(event?.event);
+                self.log_balance_spent().await?;
+
                 break;
             }
         }
@@ -76,7 +80,7 @@ impl Api {
         if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
         | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
         {
-            println!("\tWeight cost: {:?}", dispatch_info.weight);
+            log::info!("\tWeight cost: {:?}", dispatch_info.weight);
         }
     }
 
@@ -97,7 +101,7 @@ impl Api {
 
                 // Exit when success or failure.
                 if let Event::Gear(e) = event {
-                    println!("\t{e:?}");
+                    log::info!("\t{e:?}");
 
                     if wait(e) {
                         return Ok(());

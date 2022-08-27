@@ -1,5 +1,7 @@
 //! commands
 use crate::{api::Api, result::Result};
+use env_logger::{Builder, Env};
+use log::LevelFilter;
 use structopt::StructOpt;
 
 mod claim;
@@ -39,9 +41,9 @@ pub struct Opt {
     /// Commands.
     #[structopt(subcommand)]
     pub command: Command,
-    /// Enable debug logs.
+    /// Enable verbose logs.
     #[structopt(short, long)]
-    pub debug: bool,
+    pub verbose: bool,
     /// Gear node rpc endpoint.
     #[structopt(short, long)]
     pub endpoint: Option<String>,
@@ -51,10 +53,41 @@ pub struct Opt {
 }
 
 impl Opt {
+    /// setup logs
+    fn setup_logs(&self) -> Result<()> {
+        let mut builder = if self.verbose {
+            Builder::from_env(Env::default().default_filter_or("debug"))
+        } else {
+            match &self.command {
+                Command::Claim(_)
+                | Command::Deploy(_)
+                | Command::Reply(_)
+                | Command::Send(_)
+                | Command::Submit(_)
+                | Command::Transfer(_) => {
+                    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
+                    builder
+                        .format_target(false)
+                        .format_module_path(false)
+                        .format_timestamp(None)
+                        .filter_level(LevelFilter::Info);
+
+                    builder
+                }
+                _ => Builder::from_default_env(),
+            }
+        };
+
+        builder.try_init()?;
+        Ok(())
+    }
+
     /// run program
     pub async fn run() -> Result<()> {
-        Opt::from_args().exec().await?;
+        let opt = Opt::from_args();
 
+        opt.setup_logs()?;
+        opt.exec().await?;
         Ok(())
     }
 
@@ -65,8 +98,6 @@ impl Opt {
 
     /// Execute command.
     pub async fn exec(&self) -> Result<()> {
-        env_logger::builder().try_init()?;
-
         // # TODO
         //
         // Wrap `self.api` as closure into commands.

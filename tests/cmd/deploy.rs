@@ -15,7 +15,7 @@ async fn test_command_deploy_works() -> Result<()> {
     ])?;
 
     assert!(output
-        .stdout
+        .stderr
         .convert()
         .contains(logs::gear_program::EX_UPLOAD_PROGRAM));
     Ok(())
