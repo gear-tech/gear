@@ -5,8 +5,8 @@ const assert = require('assert/strict');
 const { exec } = require('child_process');
 const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
 
-function upload_program(api, account, pathToDemoPing) {
-  const code = readFileSync(pathToDemoPing);
+function upload_program(api, account, pathToDemo) {
+  const code = readFileSync(pathToDemo);
   const codeBytes = api.createType('Bytes', Array.from(code));
   const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
   return new Promise((resolve, reject) => {
@@ -43,7 +43,7 @@ async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
   const isInitialized = checkInit(api);
-  // Upload demo_wrong_load
+  // Upload demo_wrong_load, just check that node won't panic
   await upload_program(api, account, pathToDemoWrongLoad);
 
   // Upload demo_ping
