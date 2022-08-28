@@ -58,7 +58,9 @@ extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_vo
             } else {
                 false
             };
-            assert!(old_sig_handler_works, "Signal handler failed: {}", err);
+            if !old_sig_handler_works {
+                panic!("Signal handler failed: {}", err);
+            }
         }
     }
 }
