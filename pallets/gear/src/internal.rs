@@ -355,7 +355,6 @@ where
         if hold.expected_duration().is_zero() {
             // TODO: Replace with unreachable call after:
             // - `HoldBound` safety usage stabilized;
-            // - Issue #1173 solved.
             log::error!("Failed to figure out correct wait hold bound");
             return;
         }
