@@ -1324,29 +1324,29 @@ pub mod pallet {
             code_id: CodeId,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCode, DispatchError> {
-            if T::CodeStorage::get_code(code_id).is_some() {
-                // By the invariant set in CodeStorage trait, original code can't exist in storage
-                // without the instrumented code
-                let original_code = T::CodeStorage::get_original_code(code_id)
-                    .unwrap_or_else(|| unreachable!(
-                        "Code storage is corrupted: instrumented code with id {:?} exists while original not",
-                        code_id
-                    ));
-                let code = Code::try_new(
-                    original_code,
-                    schedule.instruction_weights.version,
-                    |module| schedule.rules(module),
-                )
-                .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
-
-                let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
-                let code_and_id = InstrumentedCodeAndId::from(code_and_id);
-                T::CodeStorage::update_code(code_and_id.clone());
-
-                Ok(code_and_id.into_parts().0)
-            } else {
-                Err(Error::<T>::CodeNotExists.into())
+            if T::CodeStorage::get_code(code_id).is_none() {
+                return Err(Error::<T>::CodeNotExists.into());
             }
+
+            // By the invariant set in CodeStorage trait, original code can't exist in storage
+            // without the instrumented code
+            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| unreachable!(
+                "Code storage is corrupted: instrumented code with id {:?} exists while original not",
+                code_id
+            ));
+
+            let code = Code::try_new(
+                original_code,
+                schedule.instruction_weights.version,
+                |module| schedule.rules(module),
+            )
+            .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
+
+            let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
+            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+            T::CodeStorage::update_code(code_and_id.clone());
+
+            Ok(code_and_id.into_parts().0)
         }
 
         pub(crate) fn check_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
