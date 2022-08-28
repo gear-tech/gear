@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node processingMessageWithRuntimeUpgrade.js"
+    "upgrade": "node processingMessageWithRuntimeUpgrade.js",
+    "weights": "node infiniteLoop.js"
   },
   "author": "",
   "license": "ISC",

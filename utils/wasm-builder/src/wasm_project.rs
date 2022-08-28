@@ -226,6 +226,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
     fn generate_wasm(from: PathBuf, to_opt: &Path, to_meta: &Path) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
         optimizer.insert_stack_and_export();
+        optimizer.strip_custom_sections();
 
         // Generate *.opt.wasm.
         let opt = optimizer.optimize(OptType::Opt)?;

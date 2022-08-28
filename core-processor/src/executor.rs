@@ -113,6 +113,7 @@ pub(crate) fn charge_gas_for_pages(
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.0 as u64;
+        log::trace!("Charge {} for initial pages", amount);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::InitialMemoryBlockGasExceeded);
