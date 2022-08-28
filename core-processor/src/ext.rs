@@ -576,8 +576,7 @@ impl EnvExt for Ext {
     }
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
-        // TODO: Provide RuntimeCosts::WaitFor.
-        self.charge_gas_runtime(RuntimeCosts::Wait)?;
+        self.charge_gas_runtime(RuntimeCosts::WaitFor)?;
 
         if duration == 0 {
             return self.return_and_store_err(Err(WaitError::InvalidArgument));
@@ -594,8 +593,7 @@ impl EnvExt for Ext {
     }
 
     fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
-        // TODO: Provide RuntimeCosts::WaitNoMore.
-        self.charge_gas_runtime(RuntimeCosts::Wait)?;
+        self.charge_gas_runtime(RuntimeCosts::WaitNoMore)?;
 
         if duration == 0 {
             return self.return_and_store_err(Err(WaitError::InvalidArgument));

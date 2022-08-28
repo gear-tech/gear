@@ -77,6 +77,8 @@ pub trait WeightInfo {
 	fn gr_exit(r: u32, ) -> Weight;
 	fn gr_leave(r: u32, ) -> Weight;
 	fn gr_wait(r: u32, ) -> Weight;
+	fn gr_wait_for(r: u32, ) -> Weight;
+	fn gr_wait_no_more(r: u32, ) -> Weight;
 	fn gr_wake(r: u32, ) -> Weight;
 	fn gr_create_program_wgas(r: u32, ) -> Weight;
 	fn gr_create_program_wgas_per_kb(n: u32, ) -> Weight;
@@ -365,6 +367,18 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 		(112_271_000 as Weight)
 			// Standard Error: 280_000
 			.saturating_add((23_250_000 as Weight).saturating_mul(r as Weight))
+	}
+	fn gr_wait_for(r: u32, ) -> Weight {
+		(72_800_000 as Weight)
+			// Standard Error: 851_000
+			.saturating_add((41_000_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads((4 as Weight).saturating_mul(r as Weight)))
+	}
+	fn gr_wait_no_more(r: u32, ) -> Weight {
+		(74_000_000 as Weight)
+			// Standard Error: 611_000
+			.saturating_add((43_200_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads((4 as Weight).saturating_mul(r as Weight)))
 	}
 	fn gr_wake(r: u32, ) -> Weight {
 		(170_137_000 as Weight)
@@ -867,6 +881,18 @@ impl WeightInfo for () {
 		(112_271_000 as Weight)
 			// Standard Error: 280_000
 			.saturating_add((23_250_000 as Weight).saturating_mul(r as Weight))
+	}
+	fn gr_wait_for(r: u32, ) -> Weight {
+		(72_800_000 as Weight)
+			// Standard Error: 851_000
+			.saturating_add((41_000_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(RocksDbWeight::get().reads((4 as Weight).saturating_mul(r as Weight)))
+	}
+	fn gr_wait_no_more(r: u32, ) -> Weight {
+		(74_000_000 as Weight)
+			// Standard Error: 611_000
+			.saturating_add((43_200_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(RocksDbWeight::get().reads((4 as Weight).saturating_mul(r as Weight)))
 	}
 	fn gr_wake(r: u32, ) -> Weight {
 		(170_137_000 as Weight)

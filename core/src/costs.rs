@@ -109,6 +109,12 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_wait`.
     pub gr_wait: u64,
 
+    /// Weight of calling `gr_wait_for`.
+    pub gr_wait_for: u64,
+
+    /// Weight of calling `gr_wait_no_more`.
+    pub gr_wait_no_more: u64,
+
     /// Weight of calling `gr_wake`.
     pub gr_wake: u64,
 
@@ -199,6 +205,10 @@ pub enum RuntimeCosts {
     Leave,
     /// Weight of calling `gr_wait`.
     Wait,
+    /// Weight of calling `gr_wait_for`.
+    WaitFor,
+    /// Weight of calling `gr_wait_no_more`.
+    WaitNoMore,
     /// Weight of calling `gr_wake`.
     Wake,
     /// Weight of calling `gr_create_program_wgas`.
@@ -244,6 +254,8 @@ impl RuntimeCosts {
             Exit => s.gr_exit,
             Leave => s.gr_leave,
             Wait => s.gr_wait,
+            WaitFor => s.gr_wait_for,
+            WaitNoMore => s.gr_wait_no_more,
             Wake => s.gr_wake,
             CreateProgram(len) => s
                 .gr_create_program_wgas
