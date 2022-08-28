@@ -91,16 +91,17 @@ runtime_upgrade_test() {
   TEST_SCRIPT_PATH="$ROOT_DIR/scripts/test-utils"
   RUNTIME_PATH="$ROOT_DIR/scripts/test-utils/gear_runtime.compact.compressed.wasm"
   DEMO_PING_PATH="$ROOT_DIR/target/wasm32-unknown-unknown/release/demo_ping.opt.wasm"
+  DEMO_WRONG_LOAD_PATH="$ROOT_DIR/target/wat-examples/wrong_load.wasm"
 
   # Run node
   RUST_LOG="pallet_gear=debug,runtime::gear=debug" $ROOT_DIR/target/release/gear-node \
-  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 7
+  --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
 
   # Change dir to the js script dir
   cd "$TEST_SCRIPT_PATH"
 
   # Run test
-  npm run upgrade "$RUNTIME_PATH" "$DEMO_PING_PATH"
+  npm run upgrade "$RUNTIME_PATH" "$DEMO_PING_PATH" "$DEMO_WRONG_LOAD_PATH"
 
   # Killing node process added in js script
 }

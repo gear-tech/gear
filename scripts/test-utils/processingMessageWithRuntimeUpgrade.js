@@ -5,8 +5,8 @@ const assert = require('assert/strict');
 const { exec } = require('child_process');
 const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
 
-function upload_program(api, account, pathToDemoPing) {
-  const code = readFileSync(pathToDemoPing);
+function upload_program(api, account, pathToDemo) {
+  const code = readFileSync(pathToDemo);
   const codeBytes = api.createType('Bytes', Array.from(code));
   const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
   return new Promise((resolve, reject) => {
@@ -32,7 +32,7 @@ function getMessageEnqueuedBlock(api, { events, status }) {
   return blockHash;
 };
 
-async function main(pathToRuntimeCode, pathToDemoPing) {
+async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   // Create connection
   const provider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({ provider });
@@ -43,6 +43,9 @@ async function main(pathToRuntimeCode, pathToDemoPing) {
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
   const isInitialized = checkInit(api);
+  // Upload demo_wrong_load, just check that node won't panic
+  await upload_program(api, account, pathToDemoWrongLoad);
+
   // Upload demo_ping
   const [programId, messageId] = await upload_program(api, account, pathToDemoPing);
   // Check that demo_ping was initialized
@@ -90,16 +93,16 @@ async function main(pathToRuntimeCode, pathToDemoPing) {
 };
 
 const args = process.argv.slice(2);
-
 const pathToRuntimeCode = args[0];
 assert.notStrictEqual(pathToRuntimeCode, undefined, `Path to runtime code is not specified`);
-
 const pathToDemoPing = args[1];
 assert.notStrictEqual(pathToDemoPing, undefined, `Path to demo ping is not specified`);
-
+// TODO: tmp add demo wrong load here, make separate test (issue #1378).
+const pathToDemoWrongLoad = args[2];
+assert.notStrictEqual(pathToDemoWrongLoad, undefined, `Path to demo ping is not specified`);
 let exitCode = undefined;
 
-main(pathToRuntimeCode, pathToDemoPing)
+main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad)
   .then(() => {
     exitCode = 0;
   })
