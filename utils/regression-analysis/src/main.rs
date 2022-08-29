@@ -19,7 +19,7 @@
 use clap::{Parser, Subcommand};
 use frame_support::weights::Weight;
 use junit_common::TestSuites;
-use pallet_gear::{HostFnWeights, InstructionWeights, MemoryWeights};
+use pallet_gear::{HostFnWeights, InstructionWeights};
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -94,7 +94,6 @@ enum Commands {
 enum WeightsKind {
     HostFn,
     Instruction,
-    Memory,
 }
 
 #[derive(Debug, Serialize)]
@@ -278,6 +277,18 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
 
     let file = fs::File::open(input_file).unwrap();
     let map: HashMap<String, WeightBenchmark> = serde_json::from_reader(file).unwrap();
+    let map: HashMap<String, WeightBenchmark> = map
+        .into_iter()
+        .map(|(name, bench)| {
+            (
+                // we strip prefix because WASM instruction benchmarks have it
+                name.strip_prefix("instr_")
+                    .map(|x| x.to_string())
+                    .unwrap_or(name),
+                bench,
+            )
+        })
+        .collect();
 
     let mut benches = vec![];
 
@@ -379,19 +390,6 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     i64shru,
                     i64rotl,
                     i64rotr,
-                    _phantom,
-                }
-            }
-        }
-        WeightsKind::Memory => {
-            add_weights! {
-                weights = map;
-                benches = benches;
-                MemoryWeights {
-                    initial_cost,
-                    allocation_cost,
-                    grow_cost,
-                    load_cost,
                     _phantom,
                 }
             }
