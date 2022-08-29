@@ -822,9 +822,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.17"
+version = "3.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29e724a68d9319343bb3328c9cc2dfde263f4b3142ee1059a9980580171c954b"
+checksum = "b15f2ea93df33549dbe2e8eecd1ca55269d63ae0b3ba1f55db030817d1c2867f"
 dependencies = [
  "atty",
  "bitflags",
@@ -839,9 +839,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.2.17"
+version = "3.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13547f7012c01ab4a0e8f8967730ada8f9fdf419e8b6c792788f39cf4e46eefa"
+checksum = "ea0c8bce528c4be4da13ea6fead8965e95b6073585a2f05204bd8f4119f82a65"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -2131,7 +2131,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc1
 dependencies = [
  "Inflector",
  "chrono",
- "clap 3.2.17",
+ "clap 3.2.18",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -2544,7 +2544,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.17",
+ "clap 3.2.18",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -2777,7 +2777,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.2.17",
+ "clap 3.2.18",
  "colored",
  "frame-support",
  "frame-system",
@@ -2869,7 +2869,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.2.17",
+ "clap 3.2.18",
  "colored",
  "derive_more",
  "env_logger",
@@ -6360,7 +6360,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.17",
+ "clap 3.2.18",
  "junit-common",
  "quick-xml",
  "serde_json",
@@ -6716,7 +6716,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
 dependencies = [
  "chrono",
- "clap 3.2.17",
+ "clap 3.2.18",
  "fdlimit",
  "futures",
  "hex",
@@ -9338,7 +9338,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
 dependencies = [
- "clap 3.2.17",
+ "clap 3.2.18",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
@@ -9779,7 +9779,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.17",
+ "clap 3.2.18",
  "env_logger",
  "gear-wasm-builder",
  "log",
