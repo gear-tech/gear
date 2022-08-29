@@ -174,7 +174,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -201,6 +201,9 @@ jobs:
         run: ./scripts/gear.sh build gear --locked --release
         env:
           RUSTFLAGS: -Cinstrument-coverage
+
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
 
       - name: Check runtime imports
         run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
@@ -264,6 +267,9 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Weight on client for loop"
+        run: ./scripts/gear.sh test client-weights
 
       - name: "Test: Runtime benchmarks work"
         run: |
