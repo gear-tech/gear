@@ -30,14 +30,14 @@ pub enum GasNodeId {
 }
 
 impl GasNodeId {
-    pub fn as_message_id(self) -> Option<MessageId> {
+    pub fn to_message_id(self) -> Option<MessageId> {
         match self {
             GasNodeId::Message(message_id) => Some(message_id),
             GasNodeId::Reservation(_) => None,
         }
     }
 
-    pub fn as_reservation_id(self) -> Option<ReservationId> {
+    pub fn to_reservation_id(self) -> Option<ReservationId> {
         match self {
             GasNodeId::Message(_) => None,
             GasNodeId::Reservation(reservation_id) => Some(reservation_id),
