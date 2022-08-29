@@ -29,6 +29,7 @@ use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
+    ops::Range,
     slice::Iter,
 };
 use gear_backend_common::{
@@ -72,10 +73,11 @@ pub(crate) fn return_i64<T: TryInto<i64>>(val: T) -> SyscallOutput {
         .map_err(|_| HostError)
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum FuncError<E> {
     #[display(fmt = "{}", _0)]
     Core(E),
+    #[from]
     #[display(fmt = "{}", _0)]
     Memory(MemoryError),
     #[display(fmt = "Cannot set u128: {}", _0)]
@@ -90,6 +92,14 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
+    #[display(
+        fmt = "Cannot take data by indexes {:?} from message with size {}",
+        _0,
+        _1
+    )]
+    ReadWrongRange(Range<usize>, usize),
+    #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
+    ReadLenOverflow(usize, usize),
 }
 
 impl<E> FuncError<E>
@@ -108,12 +118,6 @@ where
             Self::Terminated(reason) => reason,
             err => TerminationReason::Trap(TrapExplanation::Other(err.to_string().into())),
         }
-    }
-}
-
-impl<E> From<MemoryError> for FuncError<E> {
-    fn from(err: MemoryError) -> Self {
-        Self::Memory(err)
     }
 }
 
@@ -304,16 +308,24 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
         let mut args = args.iter();
 
-        let at = pop_i32(&mut args)?;
+        let at: usize = pop_i32(&mut args)?;
         let len: usize = pop_i32(&mut args)?;
         let dest = pop_i32(&mut args)?;
 
         let mut f = || {
             let msg = ctx.ext.msg().to_vec();
-            ctx.write_output(dest, &msg[at..(at + len)])
+            let last_idx = at
+                .checked_add(len)
+                .ok_or(FuncError::ReadLenOverflow(at, len))?;
+            if last_idx > msg.len() {
+                return Err(FuncError::ReadWrongRange(at..last_idx, msg.len()));
+            }
+            // `[..]` is safe, because we check borders above.
+            ctx.write_output(dest, &msg[at..last_idx])
+                .map_err(Into::into)
         };
         f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err.into();
+            ctx.err = err;
             HostError
         })
     }
