@@ -148,13 +148,13 @@ pub fn id() -> MessageId {
 /// ```
 pub fn load(buffer: &mut [u8]) {
     unsafe {
-        let size = sys::gr_size() as usize;
+        let size = size();
+
+        if size != buffer.len() {
+            panic!("Cannot load message - buffer length does not match");
+        }
 
         if size != 0 {
-            if size != buffer.len() {
-                panic!("Cannot load message - buffer length does not match");
-            }
-
             sys::gr_read(0, size as _, buffer.as_mut_ptr() as _);
         }
     }
@@ -350,7 +350,7 @@ pub fn reply_push(payload: &[u8]) -> Result<()> {
 ///
 /// unsafe extern "C" fn handle_reply() {
 ///     // ...
-///     let orginal_message_id = msg::reply_to();
+///     let original_message_id = msg::reply_to();
 /// }
 /// ```
 ///
