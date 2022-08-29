@@ -1,0 +1,53 @@
+const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
+const assert = require('assert/strict');
+const { exec } = require('child_process');
+const { checkInit, uploadProgram } = require('./util.js');
+
+async function main(demoPaths) {
+    // Create connection
+    const provider = new WsProvider('ws://127.0.0.1:9944');
+    const api = await ApiPromise.create({ provider });
+
+    // Create alice account
+    const account = new Keyring({ type: 'sr25519' }).addFromUri('//Alice');
+    // Check that it is root
+    assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
+
+    const isInitialized = checkInit(api);
+
+    for (const pathToDemo of demoPaths) {
+        console.log(`Uploading demo: ${pathToDemo}`);
+
+        const [_programId, messageId] = await uploadProgram(api, account, pathToDemo);
+        await isInitialized(messageId);
+    }
+  };
+
+  const args = process.argv.slice(2);
+  assert.notEqual(args.length, 0, "No demo paths passed");
+  let exitCode = undefined;
+
+  main(args)
+    .then(() => {
+      exitCode = 0;
+    })
+    .catch((error) => {
+      console.error(`JS_TEST: ${error}`);
+      exitCode = 1;
+    })
+    .finally(() => {
+      exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
+        if (err) {
+          console.log(`JS_TEST: Unable to execute kill command`);
+          exitCode = 2;
+        }
+
+        if (exitCode == 0) {
+          console.log('JS_TEST: ✅ Test passed');
+        } else {
+          console.log(`JS_TEST: ❌ Test failed (${exitCode})`);
+        }
+
+        process.exit(exitCode);
+      });
+    });
