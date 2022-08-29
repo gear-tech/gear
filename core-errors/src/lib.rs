@@ -110,6 +110,10 @@ pub enum MessageError {
         /// Amount of available value.
         value_left: u128,
     },
+
+    /// The error occurs when program receives too big payload.
+    #[display(fmt = "Received message with abnormal payload size")]
+    IncomingPayloadTooBig,
 }
 
 /// Memory error.
