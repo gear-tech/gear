@@ -373,6 +373,16 @@ where
             return Err(InternalError::node_already_exists().into());
         }
 
+        // A `node` is guaranteed to have inner_value here, because
+        // it was queried after `Self::node_with_value` call.
+        if node
+            .value()
+            .ok_or_else(InternalError::unexpected_node_type)?
+            < amount
+        {
+            return Err(InternalError::insufficient_balance().into());
+        }
+
         // Detect inner from `reserve`.
         let new_node = match kind {
             CreationNodeType::Cut => {
@@ -395,16 +405,6 @@ where
                 GasNode::Reserved { id, value: amount }
             }
         };
-
-        // A `node` is guaranteed to have inner_value here, because
-        // it was queried after `Self::node_with_value` call.
-        if node
-            .value()
-            .ok_or_else(InternalError::unexpected_node_type)?
-            < amount
-        {
-            return Err(InternalError::insufficient_balance().into());
-        }
 
         // Save new node
         StorageMap::insert(new_node_key, new_node);
