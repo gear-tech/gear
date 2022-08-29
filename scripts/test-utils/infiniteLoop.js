@@ -3,29 +3,7 @@ const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
-
-function listenToUserMessageSent(api, programId) {
-  let message;
-
-  unsub = api.query.system.events((events) => {
-    const blockHash = events.createdAtHash.toHex();
-    events.forEach((d) => {
-      const { event } = d;
-      if (event.method === 'UserMessageSent') {
-        if (event.data.message.source.eq(programId)) {
-          const data = event.data.toHuman();
-          message = {
-            exitCode: Number(data.message.reply.exitCode),
-            payload: data.message.payload,
-            blockHash,
-          };
-        }
-      }
-    });
-  });
-  return () => message;
-}
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit, listenToUserMessageSent } = require('./util.js');
 
 async function main(pathToDemoLoop) {
   const provider = new WsProvider('ws://127.0.0.1:9944');

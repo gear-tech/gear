@@ -1,36 +1,8 @@
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
-const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert/strict');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit } = require('./util.js');
-
-function upload_program(api, account, pathToDemo) {
-  const code = readFileSync(pathToDemo);
-  const codeBytes = api.createType('Bytes', Array.from(code));
-  const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
-  return new Promise((resolve, reject) => {
-    program.signAndSend(account, ({ events, status }) => {
-      events.forEach(({ event: { method, data } }) => {
-        if (method === 'ExtrinsicFailed') {
-          reject('SubmitProgram extrinsic failed');
-        } else if (method === 'MessageEnqueued' && status.isFinalized) {
-          resolve([data.destination.toHex(), data.id.toHex()]);
-        }
-      });
-    });
-  });
-};
-
-function getMessageEnqueuedBlock(api, { events, status }) {
-  let blockHash = undefined;
-  events.forEach(({ event }) => {
-    if (api.events.gear.MessageEnqueued.is(event)) {
-      blockHash = status.asInBlock.toHex();
-    }
-  });
-  return blockHash;
-};
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit, getMessageEnqueuedBlock, uploadProgram } = require('./util.js');
 
 async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   // Create connection
@@ -44,10 +16,10 @@ async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
 
   const isInitialized = checkInit(api);
   // Upload demo_wrong_load, just check that node won't panic
-  await upload_program(api, account, pathToDemoWrongLoad);
+  await uploadProgram(api, account, pathToDemoWrongLoad);
 
   // Upload demo_ping
-  const [programId, messageId] = await upload_program(api, account, pathToDemoPing);
+  const [programId, messageId] = await uploadProgram(api, account, pathToDemoPing);
   // Check that demo_ping was initialized
   await isInitialized(messageId);
 
