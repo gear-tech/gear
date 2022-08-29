@@ -181,15 +181,8 @@ pub fn id() -> MessageId {
 /// }
 /// ```
 pub fn load_bytes() -> Vec<u8> {
-    let size = gcore::msg::size();
-
-    if size == 0 {
-        return Vec::new();
-    }
-
-    let mut result = vec![0u8; size];
+    let mut result = vec![0u8; size()];
     gcore::msg::load(result.as_mut());
-
     result
 }
 
