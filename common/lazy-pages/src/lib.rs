@@ -29,7 +29,7 @@ use gear_core::{
 use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
 
-// TODO: remove this error and refactoring
+// TODO: remove this error and refactoring (issue #1390)
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
 pub enum Error {
     #[display(fmt = "Wasm memory buffer is undefined after wasm memory relocation")]

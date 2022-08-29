@@ -237,29 +237,6 @@ pub fn get_released_pages() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
 }
 
-/// TODO: remove this after current test-net chain will be dropped (issue #1317).
-/// This patch solves the problem for block `#866245`, see more in issue.
-pub fn get_released_pages_patched() -> Vec<PageNumber> {
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let ctx = ctx.borrow_mut();
-        if ctx.program_storage_prefix.as_ref().unwrap()
-            == &vec![
-                103, 58, 58, 112, 97, 103, 101, 115, 58, 58, 37, 234, 245, 189, 198, 95, 86, 8,
-                181, 243, 151, 188, 58, 173, 35, 83, 155, 213, 81, 68, 52, 30, 26, 95, 37, 155,
-                148, 43, 94, 120, 61, 188, 58, 58,
-            ]
-        {
-            ctx.released_pages
-                .iter()
-                .copied()
-                .filter(|&p| p.0 != 259)
-                .collect()
-        } else {
-            ctx.released_pages.iter().copied().collect()
-        }
-    })
-}
-
 #[derive(Debug, derive_more::Display)]
 pub enum InitError {
     #[display(fmt = "Initial context is not in default state before initialization")]

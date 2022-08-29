@@ -201,7 +201,7 @@ pub trait GearRI {
     }
 
     fn get_released_pages() -> Vec<u32> {
-        lazy_pages::get_released_pages_patched()
+        lazy_pages::get_released_pages()
             .into_iter()
             .map(|p| p.0)
             .collect()
