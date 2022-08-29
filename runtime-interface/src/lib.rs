@@ -110,7 +110,7 @@ fn mprotect_mem_interval_except_pages(
         unsafe { sys_mprotect_interval(addr, size, !protect, !protect, false) }
     };
 
-    if start_offset as usize <= mem_size {
+    if start_offset as usize > mem_size {
         return Err(MprotectError::OffsetOverflow(start_offset, mem_size));
     }
 
@@ -166,6 +166,7 @@ pub trait GearRI {
             let size = wasm_mem_size.offset();
             let except_pages = std::iter::empty::<PageNumber>();
             mprotect_mem_interval_except_pages(addr, stack_end, size, except_pages, true)
+                .map_err(|err| err.to_string())
                 .expect("Cannot set protection for wasm memory");
         }
     }
@@ -183,7 +184,7 @@ pub trait GearRI {
             lazy_pages::get_released_pages().iter().copied(),
             protect,
         )
-        .map_err(|e| e.to_string())
+        .map_err(|err| err.to_string())
         .expect("Cannot set mprotection for lazy pages");
     }
 

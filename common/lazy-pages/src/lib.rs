@@ -26,16 +26,12 @@ use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, PageNumber, WasmPageNumber},
 };
-use gear_runtime_interface::{gear_ri, RIError};
+use gear_runtime_interface::gear_ri;
 use sp_std::vec::Vec;
 
-extern crate alloc;
-use alloc::string::ToString;
-
+// TODO: remove this error and refactoring
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display, derive_more::From)]
 pub enum Error {
-    #[from]
-    RIError(RIError),
     #[display(fmt = "Wasm memory buffer is undefined after wasm memory relocation")]
     WasmMemBufferIsUndefined,
 }
@@ -46,7 +42,7 @@ fn mprotect_lazy_pages(mem: &impl Memory, protect: bool) -> Result<(), Error> {
     }
 
     // Cannot panic, unless OS has some problems with pages protection.
-    gear_ri::mprotect_lazy_pages(protect).expect("Cannot set/unset protection for wasm mem");
+    gear_ri::mprotect_lazy_pages(protect);
 
     Ok(())
 }
@@ -69,14 +65,12 @@ pub fn init_for_program(
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
     // something goes wrong with pages protection.
-    gear_ri::initialize_for_program(
+    gear_ri::init_lazy_pages_for_program(
         wasm_mem_addr,
         wasm_mem_size.0,
         stack_end_page,
         program_prefix,
-    )
-    .map_err(|err| err.to_string())
-    .expect("Cannot initialize lazy pages for current program");
+    );
 
     Ok(())
 }
@@ -112,7 +106,7 @@ pub fn update_lazy_pages_and_protect_again(
 
         // Cannot panic, unless OS allocates wasm mem buffer
         // in not aligned by native page addr.
-        gear_ri::set_wasm_mem_begin_addr(new_mem_addr).expect("Cannot set new wasm mem addr");
+        gear_ri::set_wasm_mem_begin_addr(new_mem_addr);
     }
 
     let new_mem_size = mem.size();
