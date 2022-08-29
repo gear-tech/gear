@@ -1,9 +1,9 @@
-mod api;
-mod cmd;
+pub mod api;
+pub mod cmd;
 pub mod keystore;
-mod metadata;
-mod result;
-mod template;
-mod utils;
+pub mod metadata;
+pub mod result;
+pub mod template;
+pub mod utils;
 
 pub use self::cmd::Opt;

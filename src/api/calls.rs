@@ -76,8 +76,8 @@ mod gear {
             self.ps(ex).await
         }
 
-        /// `pallet_gear::submit_code`
-        pub async fn submit_code(&self, params: calls::UploadCode) -> InBlock<'_> {
+        /// `pallet_gear::upload_code`
+        pub async fn upload_code(&self, params: calls::UploadCode) -> InBlock<'_> {
             let ex = self.runtime.tx().gear().upload_code(params.code)?;
 
             self.ps(ex).await
@@ -89,7 +89,7 @@ impl Api {
     /// Comparing the latest balance with the balance
     /// recorded in the tracker and then log
     pub async fn log_balance_spent(&self) -> Result<()> {
-        let balance_before = self.balance.borrow().clone();
+        let balance_before = *self.balance.borrow();
         let balance_after = self.update_balance().await?;
 
         log::info!(

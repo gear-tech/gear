@@ -523,6 +523,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
+name = "camino"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88ad0e1e3e88dd237a156ab9f571021b8a158caa0ae44b1968a241efb5144c1e"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "cargo-platform"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbdb825da8a5df079a43676dbe042702f1707b1109f713a01420fbb4cc71fa27"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "cargo_metadata"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3abb7553d5b9b8421c6de7cb02606ff15e0c6eea7d8eadd75ef013fd636bec36"
+dependencies = [
+ "camino",
+ "cargo-platform",
+ "semver",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -626,6 +657,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "colored"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3616f750b84d8f0de8a58bda93e08e2a81ad3f523089b05f1dffecab48c6cbd"
+dependencies = [
+ "atty",
+ "lazy_static",
+ "winapi",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -653,6 +695,12 @@ name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
+
+[[package]]
+name = "convert_case"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "core-foundation"
@@ -1010,8 +1058,10 @@ version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
+ "convert_case",
  "proc-macro2",
  "quote",
+ "rustc_version",
  "syn",
 ]
 
@@ -1094,6 +1144,18 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "dlmalloc"
+version = "0.1.4"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=e76ae98#e76ae9869ea4d386e758d7ed5d983ba2a25d7629"
+dependencies = [
+ "libc",
+ "libc_print",
+ "page_size",
+ "static_assertions",
+ "str-buf",
 ]
 
 [[package]]
@@ -1495,6 +1557,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "galloc"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/gear#d51697ce38daadf85942f1d11d8a9c95670f62f1"
+dependencies = [
+ "dlmalloc",
+]
+
+[[package]]
+name = "gcore"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/gear#d51697ce38daadf85942f1d11d8a9c95670f62f1"
+dependencies = [
+ "gear-core-errors",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-core-errors"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/gear#d51697ce38daadf85942f1d11d8a9c95670f62f1"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gear-program"
 version = "0.1.2"
 dependencies = [
@@ -1511,9 +1600,11 @@ dependencies = [
  "lazy_static",
  "libp2p",
  "log",
+ "messager",
  "nacl",
  "parity-scale-codec",
  "parity-wasm 0.45.0",
+ "rand 0.8.5",
  "scale-info",
  "schnorrkel",
  "serde",
@@ -1524,6 +1615,22 @@ dependencies = [
  "tokio",
  "wasmtime",
  "whoami",
+]
+
+[[package]]
+name = "gear-wasm-builder"
+version = "0.1.2"
+source = "git+https://github.com/gear-tech/gear#d51697ce38daadf85942f1d11d8a9c95670f62f1"
+dependencies = [
+ "anyhow",
+ "cargo_metadata",
+ "colored",
+ "log",
+ "pathdiff",
+ "pwasm-utils",
+ "thiserror",
+ "toml",
+ "which",
 ]
 
 [[package]]
@@ -1600,6 +1707,33 @@ dependencies = [
  "futures-core",
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "gstd"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/gear#d51697ce38daadf85942f1d11d8a9c95670f62f1"
+dependencies = [
+ "bs58",
+ "futures",
+ "galloc",
+ "gcore",
+ "gear-core-errors",
+ "gstd-codegen",
+ "hex",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+]
+
+[[package]]
+name = "gstd-codegen"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/gear#d51697ce38daadf85942f1d11d8a9c95670f62f1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -2051,6 +2185,14 @@ name = "libc"
 version = "0.2.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
+
+[[package]]
+name = "libc_print"
+version = "0.1.16"
+source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "libp2p"
@@ -2761,6 +2903,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "messager"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3141,6 +3291,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
 
 [[package]]
+name = "page_size"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebde548fbbf1ea81a99b128872779c437752fb99f217c45245e1a61dcd9edcd"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3269,6 +3429,12 @@ name = "paste"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9423e2b32f7a043629287a536f21951e8c6a82482d0acb1eeebfc90bc2225b22"
+
+[[package]]
+name = "pathdiff"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
 
 [[package]]
 name = "pbkdf2"
@@ -3553,6 +3719,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f446d0a6efba22928558c4fb4ce0b3fd6c89b0061343e390bf01a703742b8125"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "pwasm-utils"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ecdabd73c8beaf98c66e45aff3032b56260ee49eb5d0d1222ecce269bfafda7"
+dependencies = [
+ "byteorder",
+ "log",
+ "parity-wasm 0.42.2",
 ]
 
 [[package]]
@@ -4082,6 +4259,9 @@ name = "semver"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f6841e709003d68bb2deee8c343572bf446003ec20a583e76f7b15cebf3711"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "serde"
@@ -4624,6 +4804,12 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "str-buf"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0873cb29201126440dcc78d0b1f5a13d917e78831778429a7920ca9c7f3dae1e"
 
 [[package]]
 name = "strsim"

@@ -23,14 +23,14 @@ use structopt::StructOpt;
 /// Emits the following events:
 /// - `SavedCode(H256)` - when the code is saved in storage.
 #[derive(StructOpt, Debug)]
-pub struct Submit {
+pub struct Upload {
     /// gear program code <*.wasm>
     code: PathBuf,
 }
 
-impl Submit {
+impl Upload {
     pub async fn exec(&self, api: Api) -> Result<()> {
-        api.submit_code(UploadCode {
+        api.upload_code(UploadCode {
             code: fs::read(&self.code)?,
         })
         .await?;

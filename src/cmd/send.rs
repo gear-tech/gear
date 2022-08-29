@@ -33,10 +33,13 @@ pub struct Send {
     /// Send to
     pub destination: String,
     /// Send payload
+    #[structopt(default_value = "0x")]
     pub payload: String,
     /// Send gas limit
+    #[structopt(default_value = "0")]
     pub gas_limit: u64,
     /// Send value
+    #[structopt(default_value = "0")]
     pub value: u128,
 }
 

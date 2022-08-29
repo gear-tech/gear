@@ -8,7 +8,7 @@ mod common;
 fn check_spec_version() -> Result<()> {
     use common::spec_version::{self, GEAR_NODE_SPEC_VERSION_PATTERN};
 
-    let mut node = common::Node::dev(9999)?;
+    let mut node = common::Node::dev()?;
 
     for line in node.logs()? {
         if line.contains(GEAR_NODE_SPEC_VERSION_PATTERN) {

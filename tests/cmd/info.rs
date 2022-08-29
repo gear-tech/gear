@@ -19,10 +19,10 @@ AccountInfo {
 #[tokio::test]
 async fn test_command_info_works() -> Result<()> {
     common::login_as_alice().expect("login failed");
-    let mut node = common::Node::dev(9001)?;
+    let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let output = common::gear(&["-e", "ws://127.0.0.1:9001", "info", "//Alice"])?;
+    let output = common::gear(&["-e", &node.ws(), "info", "//Alice"])?;
     assert_eq!(EXPECTED.trim(), output.stdout.convert().trim());
     Ok(())
 }

@@ -5,7 +5,7 @@ use log::LevelFilter;
 use structopt::StructOpt;
 
 mod claim;
-mod deploy;
+mod create;
 mod info;
 mod key;
 mod login;
@@ -14,14 +14,14 @@ mod new;
 mod program;
 mod reply;
 mod send;
-mod submit;
 mod transfer;
 mod update;
+mod upload;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
     Claim(claim::Claim),
-    Deploy(deploy::Deploy),
+    Create(create::Create),
     Info(info::Info),
     Key(key::Key),
     Login(login::Login),
@@ -30,7 +30,7 @@ pub enum Command {
     Program(program::Program),
     Reply(reply::Reply),
     Send(send::Send),
-    Submit(submit::Submit),
+    Upload(upload::Upload),
     Transfer(transfer::Transfer),
     Update(update::Update),
 }
@@ -60,10 +60,10 @@ impl Opt {
         } else {
             match &self.command {
                 Command::Claim(_)
-                | Command::Deploy(_)
+                | Command::Create(_)
                 | Command::Reply(_)
                 | Command::Send(_)
-                | Command::Submit(_)
+                | Command::Upload(_)
                 | Command::Transfer(_) => {
                     let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
                     builder
@@ -103,7 +103,7 @@ impl Opt {
         // Wrap `self.api` as closure into commands.
         match &self.command {
             Command::Claim(claim) => claim.exec(self.api().await?).await?,
-            Command::Deploy(deploy) => deploy.exec(self.api().await?).await?,
+            Command::Create(deploy) => deploy.exec(self.api().await?).await?,
             Command::Info(info) => info.exec(self.api().await?).await?,
             Command::Key(key) => key.exec(self.passwd.as_deref())?,
             Command::Login(login) => login.exec()?,
@@ -112,7 +112,7 @@ impl Opt {
             Command::Program(program) => program.exec(self.api().await?).await?,
             Command::Reply(reply) => reply.exec(self.api().await?).await?,
             Command::Send(send) => send.exec(self.api().await?).await?,
-            Command::Submit(submit) => submit.exec(self.api().await?).await?,
+            Command::Upload(upload) => upload.exec(self.api().await?).await?,
             Command::Transfer(transfer) => transfer.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
         }

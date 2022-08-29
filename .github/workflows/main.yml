@@ -22,7 +22,8 @@ jobs:
         
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
+          target: wasm32-unknown-unknown
 
       - name: Run Tests
         run: cargo test --all --all-features
@@ -46,6 +47,9 @@ jobs:
         uses: arduino/setup-protoc@v1
         
       - uses: Swatinem/rust-cache@v2
+
+      - name: Check code format
+        run: cargo fmt --check
         
       - name: Run cargo clippy
         run: cargo clippy --all --all-features

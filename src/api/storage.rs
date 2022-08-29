@@ -45,9 +45,15 @@ impl Api {
 mod gear {
     use crate::{
         api::{
-            generated::api::runtime_types::{
-                gear_common::ActiveProgram,
-                gear_core::{code::InstrumentedCode, ids::CodeId, memory::PageNumber},
+            generated::api::{
+                gear_messenger,
+                runtime_types::{
+                    gear_common::{storage::primitives::Interval, ActiveProgram},
+                    gear_core::{
+                        code::InstrumentedCode, ids::CodeId, memory::PageNumber,
+                        message::stored::StoredMessage,
+                    },
+                },
             },
             types, utils, Api,
         },
@@ -56,9 +62,15 @@ mod gear {
     use hex::ToHex;
     use parity_scale_codec::Decode;
     use std::collections::HashMap;
-    use subxt::sp_core::{storage::StorageKey, H256};
+    use subxt::{
+        sp_core::{storage::StorageKey, H256},
+        sp_runtime::AccountId32,
+        storage::StorageKeyPrefix,
+        StorageEntryKey, StorageMapKey,
+    };
 
     impl Api {
+        /// Get `InstrumentedCode` by `code_hash`
         pub async fn code_storage(&self, code_hash: [u8; 32]) -> Result<Option<InstrumentedCode>> {
             Ok(self
                 .runtime
@@ -104,6 +116,42 @@ mod gear {
         /// Get program pages from program id.
         pub async fn program_pages(&self, pid: H256) -> Result<types::GearPages> {
             self.gpages(pid, self.gprog(pid).await?).await
+        }
+
+        /// Get mailbox of address
+        pub async fn mailbox(
+            &self,
+            address: AccountId32,
+            count: u32,
+        ) -> Result<Vec<(StoredMessage, Interval<u32>)>> {
+            let prefix = StorageKeyPrefix::new::<gear_messenger::storage::Mailbox>();
+            let entry_key = StorageEntryKey::Map(vec![StorageMapKey::new(
+                &address,
+                subxt::StorageHasher::Identity,
+            )]);
+
+            let query_key = entry_key.final_key(prefix);
+            let keys = self
+                .runtime
+                .client
+                .rpc()
+                .storage_keys_paged(Some(query_key), count, None, None)
+                .await?;
+
+            let mut mailbox: Vec<(StoredMessage, Interval<u32>)> = vec![];
+            for key in keys.into_iter() {
+                if let Some(storage_data) =
+                    self.runtime.client.storage().fetch_raw(key, None).await?
+                {
+                    if let Ok(value) =
+                        <(StoredMessage, Interval<u32>)>::decode(&mut &storage_data.0[..])
+                    {
+                        mailbox.push(value);
+                    }
+                }
+            }
+
+            Ok(mailbox)
         }
     }
 }

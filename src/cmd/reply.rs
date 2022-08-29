@@ -26,12 +26,15 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 pub struct Reply {
     /// Reply to
-    pub reply_to_id: String,
+    reply_to_id: String,
     /// Reply payload
+    #[structopt(default_value = "0x")]
     payload: String,
     /// Reply gas limit
+    #[structopt(default_value = "0")]
     gas_limit: u64,
     /// Reply value
+    #[structopt(default_value = "0")]
     value: u128,
 }
 

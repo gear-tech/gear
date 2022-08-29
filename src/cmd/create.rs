@@ -11,7 +11,7 @@ use structopt::StructOpt;
 
 /// Deploy program to gear node
 #[derive(StructOpt, Debug)]
-pub struct Deploy {
+pub struct Create {
     /// gear program code <*.wasm>
     code: PathBuf,
     /// gear program salt ( hex encoding )
@@ -30,7 +30,7 @@ pub struct Deploy {
     value: u128,
 }
 
-impl Deploy {
+impl Create {
     /// Exec command submit
     pub async fn exec(&self, api: Api) -> Result<()> {
         let events = api.events().await?;

@@ -43,6 +43,10 @@ tokio = { version = "1.18.2", features = [ "full" ] }
 wasmtime = "0.39"
 whoami = "1.2.1"
 
+[dev-dependencies]
+rand = "0.8.5"
+messager = { path = "./res/messager" }
+
 [features]
 default = []
 node-key = [ "libp2p" ]
