@@ -330,26 +330,36 @@ where
         let len: usize = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let dest = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
-        let mut f = || {
-            let msg = ctx.ext.msg().to_vec();
+        ctx.write_validated_output(dest, |ext| {
+            let msg = ext.read().map_err(FuncError::Core)?;
+
             let last_idx = at
                 .checked_add(len)
                 .ok_or(FuncError::ReadLenOverflow(at, len))?;
+
             if last_idx > msg.len() {
                 return Err(FuncError::ReadWrongRange(at..last_idx, msg.len()));
             }
-            // `[..]` is safe, because we check borders above.
-            ctx.write_output(dest, &msg[at..last_idx])
-                .map_err(Into::into)
-        };
-        f().map(|()| ReturnValue::Unit).map_err(|err| {
+
+            Ok(&msg[at..last_idx])
+        })
+        .map(|()| ReturnValue::Unit)
+        .map_err(|err| {
             ctx.err = err;
             FuncError::HostError
         })
     }
 
     pub fn size(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        return_i32(ctx.ext.msg().len()).map_err(|_| FuncError::HostError)
+        let size = ctx.ext.size().map_err(FuncError::Core);
+
+        match size {
+            Ok(size) => return_i32(size).map_err(|_| FuncError::HostError),
+            Err(err) => {
+                ctx.err = err;
+                Err(FuncError::HostError)
+            }
+        }
     }
 
     pub fn exit(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
@@ -394,7 +404,6 @@ where
                 if let Some(TerminationReason::GasAllowanceExceeded) = e
                     .as_core()
                     .and_then(AsTerminationReason::as_termination_reason)
-                    .cloned()
                 {
                     ctx.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
                 }
