@@ -137,6 +137,11 @@ impl StoredMessage {
             })
             .map_err(|_| self)
     }
+
+    /// Returns bool defining if message is error reply.
+    pub fn is_error_reply(&self) -> bool {
+        !matches!(self.exit_code(), Some(0) | None)
+    }
 }
 
 /// Stored message with entry point and previous execution context, if exists.

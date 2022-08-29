@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use pwasm_utils::{
     parity_wasm,
-    parity_wasm::elements::{Internal, Module, Serialize},
+    parity_wasm::elements::{Internal, Module, Section, Serialize},
 };
 use std::{
     ffi::OsStr,
@@ -69,6 +69,16 @@ impl Optimizer {
 
     pub fn insert_stack_and_export(&mut self) {
         let _ = crate::insert_stack_end_export(&mut self.module).map_err(|s| log::debug!("{}", s));
+    }
+
+    /// Strips all custom sections.
+    ///
+    /// Presently all custom sections are not required so they can be stripped safely.
+    /// The name section is already stripped by `wasm-opt`.
+    pub fn strip_custom_sections(&mut self) {
+        self.module
+            .sections_mut()
+            .retain(|section| !matches!(section, Section::Reloc(_) | Section::Custom(_)))
     }
 
     /// Process optimization.

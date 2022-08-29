@@ -22,6 +22,7 @@ use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
     MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
@@ -454,18 +455,27 @@ where
         user_queries.then(|| Self::consume_message(mailboxed.id()));
 
         // Taking data for funds transfer.
-        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
-        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let user_id = mailboxed.destination();
+        let from = mailboxed.source();
         let value = mailboxed.value().unique_saturated_into();
 
         // Determining recipients id.
         //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = if user_queries { &user_id } else { &from };
+        let to = if user_queries {
+            user_id
+        } else {
+            Self::inheritor_for(from)
+        };
+
+        // Converting into `AccountId`.
+        let user_id = <T::AccountId as Origin>::from_origin(user_id.into_origin());
+        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
 
         // Transferring reserved funds, associated with the message.
-        Self::transfer_reserved(&from, to, value);
+        Self::transfer_reserved(&from, &to, value);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {
@@ -531,7 +541,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if gas_limit >= threshold {
+        let expiration = if !message.is_error_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
 
@@ -575,5 +585,23 @@ where
             message,
             expiration,
         });
+    }
+
+    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+        let mut inheritor = program_id;
+
+        let mut visited_ids: BTreeSet<_> = [program_id].into();
+
+        while let Some(id) =
+            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
+        {
+            if !visited_ids.insert(id) {
+                break;
+            }
+
+            inheritor = id
+        }
+
+        inheritor
     }
 }

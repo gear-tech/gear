@@ -271,6 +271,7 @@ impl<'a> Program<'a> {
         let (opt_code, meta_code) = if !is_opt {
             let mut optimizer = Optimizer::new(path).expect("Failed to create optimizer");
             optimizer.insert_stack_and_export();
+            optimizer.strip_custom_sections();
             let opt_code = optimizer
                 .optimize(OptType::Opt)
                 .expect("Failed to produce optimized binary");

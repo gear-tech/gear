@@ -83,7 +83,9 @@ pub enum CodeError {
     /// The only possible reason for that might be OOM.
     Encode,
     /// We restrict start sections in smart contracts.
-    StartSectionIsFound,
+    StartSectionExists,
+    /// We restrict custom sections in smart contracts.
+    CustomSectionsExist,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -116,7 +118,12 @@ impl Code {
 
         if module.start_section().is_some() {
             log::debug!("Found start section in contract code, which is not allowed");
-            return Err(CodeError::StartSectionIsFound);
+            return Err(CodeError::StartSectionExists);
+        }
+
+        if module.custom_sections().count() != 0 {
+            log::debug!("Found custom sections in contract code, which is not allowed");
+            return Err(CodeError::CustomSectionsExist);
         }
 
         // get initial memory size from memory import.
