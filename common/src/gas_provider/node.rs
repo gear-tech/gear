@@ -267,7 +267,7 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         matches!(self, Self::UnspecifiedLocal { .. })
     }
 
-    /// Returns whether the node is of `ReservedLocal` type
+    /// Returns whether the node is of `Cut` type
     pub(crate) fn is_cut(&self) -> bool {
         matches!(self, Self::Cut { .. })
     }
