@@ -17,7 +17,7 @@ pub struct Runtime<'a, E: Ext> {
     pub err: FuncError<E::Error>,
 }
 
-impl<'a, E: Ext> Runtime<'a, E>
+impl<'a, E> Runtime<'a, E>
 where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
