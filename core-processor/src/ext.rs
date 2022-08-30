@@ -319,7 +319,7 @@ impl EnvExt for Ext {
     type Error = ProcessorError;
 
     // !!! Please changing this method do not forget to change `LazyPagesExt` in `pallet/gear/src/ext.rs`.
-    // TODO: make solution, which allows to reuse `alloc` logic in `LazyPagesExt`.
+    // TODO: make solution, which allows to reuse `alloc` logic in `LazyPagesExt` (issue #1395).
     fn alloc(
         &mut self,
         pages_num: WasmPageNumber,
