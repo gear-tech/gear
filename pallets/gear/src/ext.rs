@@ -28,6 +28,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     memory::{Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, HandlePacket, ReplyPacket},
+    costs::RuntimeCosts,
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -157,6 +158,8 @@ impl EnvExt for LazyPagesExt {
         pages_num: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
+
         // Greedily charge gas for allocations
         self.charge_gas((pages_num.0 as u64).saturating_mul(self.inner.context.config.alloc_cost))?;
         // Greedily charge gas for grow
@@ -340,7 +343,7 @@ impl EnvExt for LazyPagesExt {
 
     fn charge_gas_runtime(
         &mut self,
-        costs: gear_core::costs::RuntimeCosts,
+        costs: RuntimeCosts,
     ) -> Result<(), Self::Error> {
         self.inner
             .charge_gas_runtime(costs)

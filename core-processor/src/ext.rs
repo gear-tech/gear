@@ -318,17 +318,19 @@ impl Ext {
 impl EnvExt for Ext {
     type Error = ProcessorError;
 
+    // !!! Please changing this method do not forget to change `LazyPagesExt` in `pallet/gear/src/ext.rs`.
+    // TODO: make solution, which allows to reuse `alloc` logic in `LazyPagesExt`.
     fn alloc(
         &mut self,
         pages_num: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
+
         // Greedily charge gas for allocations
         self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.alloc_cost))?;
         // Greedily charge gas for grow
         self.charge_gas((pages_num.0 as u64).saturating_mul(self.context.config.mem_grow_cost))?;
-
-        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
 
         let old_mem_size = mem.size();
 
