@@ -1,4 +1,5 @@
 //! commands
+#![cfg(feature = "cli")]
 use crate::{api::Api, result::Result};
 use env_logger::{Builder, Env};
 use log::LevelFilter;

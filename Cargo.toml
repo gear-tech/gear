@@ -14,13 +14,13 @@ readme = './README.md'
 [[bin]]
 path = "bin/gear.rs"
 name = "gear"
+required-features = [ "cli" ]
 
 [dependencies]
 anyhow = "1.0.60"
 blake2-rfc = "0.2.18"
 base64 = "0.13.0"
-color-eyre = "0.6.2"
-dialoguer = "0.10.1"
+color-eyre = { version = "0.6.2", optional = true }
 dirs = "4.0.0"
 env_logger = "0.9.0"
 futures-util = "0.3.21"
@@ -36,7 +36,7 @@ scale-info = "2.1.2"
 schnorrkel = "0.9.1"
 serde = "^1"
 serde_json = "^1"
-structopt = "0.3.26"
+structopt = { version = "0.3.26", optional = true }
 subxt = "0.22.0"
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = [ "full" ] }
@@ -48,5 +48,6 @@ rand = "0.8.5"
 messager = { path = "./res/messager" }
 
 [features]
-default = []
+default = [ "cli" ]
+cli = [ "color-eyre", "structopt" ]
 node-key = [ "libp2p" ]

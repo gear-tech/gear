@@ -5,5 +5,3 @@ pub mod metadata;
 pub mod result;
 pub mod template;
 pub mod utils;
-
-pub use self::cmd::Opt;

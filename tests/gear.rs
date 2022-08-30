@@ -1,3 +1,4 @@
+#![cfg(feature = "cli")]
 use common::Result;
 use std::fs::File;
 
