@@ -23,12 +23,12 @@ use gear_backend_common::{
     TrapExplanation,
 };
 use gear_core::{
+    costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId},
     memory::{Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, HandlePacket, ReplyPacket},
-    costs::RuntimeCosts,
 };
 use gear_core_errors::{CoreError, ExtError, MemoryError};
 use gear_lazy_pages_common as lazy_pages;
@@ -341,10 +341,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.create_program(packet).map_err(Error::Processor)
     }
 
-    fn charge_gas_runtime(
-        &mut self,
-        costs: RuntimeCosts,
-    ) -> Result<(), Self::Error> {
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
         self.inner
             .charge_gas_runtime(costs)
             .map_err(Error::Processor)
