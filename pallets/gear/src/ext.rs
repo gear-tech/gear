@@ -291,8 +291,12 @@ impl EnvExt for LazyPagesExt {
         self.inner.debug(data).map_err(Error::Processor)
     }
 
-    fn msg(&mut self) -> &[u8] {
-        self.inner.msg()
+    fn read(&mut self) -> Result<&[u8], Self::Error> {
+        self.inner.read().map_err(Error::Processor)
+    }
+
+    fn size(&mut self) -> Result<usize, Self::Error> {
+        self.inner.size().map_err(Error::Processor)
     }
 
     fn charge_gas(&mut self, val: u64) -> Result<(), Self::Error> {

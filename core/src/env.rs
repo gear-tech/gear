@@ -122,7 +122,10 @@ pub trait Ext {
     fn leave(&mut self) -> Result<(), Self::Error>;
 
     /// Access currently handled message payload.
-    fn msg(&mut self) -> &[u8];
+    fn read(&mut self) -> Result<&[u8], Self::Error>;
+
+    /// Size of currently handled message payload.
+    fn size(&mut self) -> Result<usize, Self::Error>;
 
     /// Default gas host call.
     fn gas(&mut self, amount: u32) -> Result<(), Self::Error>;
@@ -241,8 +244,11 @@ mod tests {
         fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn msg(&mut self) -> &[u8] {
-            &[]
+        fn read(&mut self) -> Result<&[u8], Self::Error> {
+            Ok(&[])
+        }
+        fn size(&mut self) -> Result<usize, Self::Error> {
+            Ok(0)
         }
         fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())

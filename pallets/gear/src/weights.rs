@@ -260,19 +260,20 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 	}
 	fn gr_size(r: u32, ) -> Weight {
-		(116_813_000 as Weight)
-			// Standard Error: 200_000
-			.saturating_add((51_107_000 as Weight).saturating_mul(r as Weight))
+		(113_701_000 as Weight)
+			// Standard Error: 330_000
+			.saturating_add((51_210_000 as Weight).saturating_mul(r as Weight))
 	}
 	fn gr_read(r: u32, ) -> Weight {
-		(148_006_000 as Weight)
-			// Standard Error: 163_000
-			.saturating_add((71_441_000 as Weight).saturating_mul(r as Weight))
+		(140_564_000 as Weight)
+			// Standard Error: 305_000
+			.saturating_add((73_728_000 as Weight).saturating_mul(r as Weight))
 	}
 	fn gr_read_per_kb(n: u32, ) -> Weight {
-		(176_272_000 as Weight)
-			// Standard Error: 162_000
-			.saturating_add((33_383_000 as Weight).saturating_mul(n as Weight))
+		(207_021_000 as Weight)
+			// Standard Error: 75_000
+			.saturating_add((15_007_000 as Weight).saturating_mul(n as Weight))
+			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 	}
 	fn gr_block_height(r: u32, ) -> Weight {
 		(117_042_000 as Weight)
@@ -762,19 +763,20 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 	}
 	fn gr_size(r: u32, ) -> Weight {
-		(116_813_000 as Weight)
-			// Standard Error: 200_000
-			.saturating_add((51_107_000 as Weight).saturating_mul(r as Weight))
+		(113_701_000 as Weight)
+			// Standard Error: 330_000
+			.saturating_add((51_210_000 as Weight).saturating_mul(r as Weight))
 	}
 	fn gr_read(r: u32, ) -> Weight {
-		(148_006_000 as Weight)
-			// Standard Error: 163_000
-			.saturating_add((71_441_000 as Weight).saturating_mul(r as Weight))
+		(140_564_000 as Weight)
+			// Standard Error: 305_000
+			.saturating_add((73_728_000 as Weight).saturating_mul(r as Weight))
 	}
 	fn gr_read_per_kb(n: u32, ) -> Weight {
-		(176_272_000 as Weight)
-			// Standard Error: 162_000
-			.saturating_add((33_383_000 as Weight).saturating_mul(n as Weight))
+		(207_021_000 as Weight)
+			// Standard Error: 75_000
+			.saturating_add((15_007_000 as Weight).saturating_mul(n as Weight))
+			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 	}
 	fn gr_block_height(r: u32, ) -> Weight {
 		(117_042_000 as Weight)

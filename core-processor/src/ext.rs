@@ -487,8 +487,21 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn msg(&mut self) -> &[u8] {
-        self.context.message_context.current().payload()
+    fn read(&mut self) -> Result<&[u8], Self::Error> {
+        let size = self
+            .size()?
+            .try_into()
+            .map_err(|_| MessageError::IncomingPayloadTooBig)?;
+
+        self.charge_gas_runtime(RuntimeCosts::Read(size))?;
+
+        Ok(self.context.message_context.current().payload())
+    }
+
+    fn size(&mut self) -> Result<usize, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Size)?;
+
+        Ok(self.context.message_context.current().payload().len())
     }
 
     fn gas(&mut self, val: u32) -> Result<(), Self::Error> {
