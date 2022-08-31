@@ -267,7 +267,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                 GithubActionBenchmark {
                     name: stringify!($field).to_string(),
                     unit: "ns".to_string(),
-                    value: weight.calc_weight(),
+                    value: weight.calc_weight() / 1000,
                     range: None,
                     extra: None,
                 }
