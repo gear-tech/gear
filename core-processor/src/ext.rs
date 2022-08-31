@@ -36,7 +36,7 @@ use gear_core::{
     memory::{AllocationsContext, Memory, PageBuf, WasmPageNumber},
     message::{ExitCode, GasLimit, HandlePacket, InitPacket, MessageContext, Packet, ReplyPacket},
 };
-use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError};
+use gear_core_errors::{CoreError, ExecutionError, ExtError, MemoryError, MessageError, WaitError};
 
 /// Processor context.
 pub struct ProcessorContext {
@@ -67,8 +67,12 @@ pub struct ProcessorContext {
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<&'static str>,
-    /// Mailbox threshold
+    /// Mailbox threshold.
     pub mailbox_threshold: u64,
+    /// Cost for single block waitlist holding.
+    pub waitlist_cost: u64,
+    /// Reserve for parameter of scheduling.
+    pub reserve_for: u32,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -135,6 +139,12 @@ impl From<MessageError> for ProcessorError {
 impl From<MemoryError> for ProcessorError {
     fn from(err: MemoryError) -> Self {
         Self::Core(ExtError::Memory(err))
+    }
+}
+
+impl From<WaitError> for ProcessorError {
+    fn from(err: WaitError) -> Self {
+        Self::Core(ExtError::Wait(err))
     }
 }
 
@@ -569,6 +579,48 @@ impl EnvExt for Ext {
 
     fn wait(&mut self) -> Result<(), Self::Error> {
         self.charge_gas_runtime(RuntimeCosts::Wait)?;
+
+        let reserve = u64::from(self.context.reserve_for.saturating_add(1))
+            .saturating_mul(self.context.waitlist_cost);
+
+        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(WaitError::NotEnoughGas));
+        }
+
+        Ok(())
+    }
+
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::WaitFor)?;
+
+        if duration == 0 {
+            return self.return_and_store_err(Err(WaitError::InvalidArgument));
+        }
+
+        let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
+            .saturating_mul(self.context.waitlist_cost);
+
+        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(WaitError::NotEnoughGas));
+        }
+
+        Ok(())
+    }
+
+    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::WaitNoMore)?;
+
+        if duration == 0 {
+            return self.return_and_store_err(Err(WaitError::InvalidArgument));
+        }
+
+        let reserve = u64::from(self.context.reserve_for.saturating_add(1))
+            .saturating_mul(self.context.waitlist_cost);
+
+        if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            return self.return_and_store_err(Err(WaitError::NotEnoughGas));
+        }
+
         Ok(())
     }
 

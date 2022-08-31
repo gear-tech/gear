@@ -1552,6 +1552,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-waiter"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
@@ -5101,6 +5110,7 @@ dependencies = [
  "demo-proxy",
  "demo-proxy-with-gas",
  "demo-value-sender",
+ "demo-waiter",
  "demo-waiting-proxy",
  "derive_more",
  "env_logger",

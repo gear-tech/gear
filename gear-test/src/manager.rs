@@ -265,7 +265,7 @@ impl JournalHandler for InMemoryExtManager {
             self.log.push(dispatch.into_parts().1.into_stored());
         }
     }
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);

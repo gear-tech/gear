@@ -15,21 +15,26 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#![no_std]
 
-mod error;
-mod log;
-mod mailbox;
-mod manager;
-mod program;
-mod system;
-mod wasm_executor;
+use codec::{Decode, Encode};
 
-pub use error::{Result, TestError};
-pub use log::{CoreLog, Log, RunResult};
-pub use program::{calculate_program_id, Gas, Program, WasmProgram};
-pub use system::System;
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
 
-pub const EXISTENTIAL_DEPOSIT: u128 = 500;
-pub const MAILBOX_THRESHOLD: u64 = 3000;
-pub const WAITLIST_COST: u64 = 100;
-pub const RESERVE_FOR: u32 = 1;
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[cfg(not(feature = "std"))]
+mod wasm {
+    include! {"./code.rs"}
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum Command {
+    Wait,
+    WaitFor(u32),
+    WaitNoMore(u32),
+}

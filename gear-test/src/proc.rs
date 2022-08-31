@@ -40,6 +40,8 @@ use wasm_instrument::gas_metering::ConstantCostRules;
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub const OUTGOING_LIMIT: u32 = 1024;
 pub const MAILBOX_THRESHOLD: u64 = 3000;
+pub const WAITLIST_COST: u64 = 100;
+pub const RESERVE_FOR: u32 = 1;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -89,11 +91,11 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let code = Code::try_new(message.code.clone(), 1, |_| ConstantCostRules::default())
-        .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+        .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
     if code.static_pages() > AllocationsConfig::default().max_pages {
         return Err(anyhow::anyhow!(
-            "Error initialisation: memory limit exceeded"
+            "Error initialization: memory limit exceeded"
         ));
     }
 
@@ -146,7 +148,7 @@ where
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
             let code = Code::try_new(code_bytes.clone(), 1, |_| ConstantCostRules::default())
-                .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+                .map_err(|e| anyhow::anyhow!("Error initialization: {:?}", &e))?;
 
             let (code, code_id) = CodeAndId::new(code).into_parts();
 
@@ -383,5 +385,7 @@ fn test_block_config(block_info: BlockInfo) -> BlockConfig {
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: MAILBOX_THRESHOLD,
+        waitlist_cost: WAITLIST_COST,
+        reserve_for: RESERVE_FOR,
     }
 }
