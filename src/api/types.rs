@@ -1,4 +1,4 @@
-//! gear types
+//! Shared types
 use crate::{
     api::{
         config::GearConfig,
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use subxt::TransactionInBlock;
 
+/// Information of gas
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GasInfo {
     /// Represents minimum gas limit required for execution.

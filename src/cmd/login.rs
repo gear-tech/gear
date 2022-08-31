@@ -1,4 +1,4 @@
-//! command login
+//! command `login`
 use crate::{keystore, result::Result};
 use std::path::PathBuf;
 use structopt::StructOpt;

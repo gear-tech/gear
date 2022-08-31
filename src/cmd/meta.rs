@@ -1,4 +1,4 @@
-//! command login
+//! command `meta`
 use crate::{metadata::Metadata, result::Result};
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;

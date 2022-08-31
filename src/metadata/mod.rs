@@ -5,12 +5,12 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-mod env;
-mod executor;
-mod ext;
-mod funcs;
-mod registry;
-mod result;
+pub mod env;
+pub mod executor;
+pub mod ext;
+pub mod funcs;
+pub mod registry;
+pub mod result;
 mod tests;
 
 use crate::{
@@ -32,7 +32,7 @@ macro_rules! construct_metadata {
     ($($meta:ident),+) => {
         /// Gear program metadata
         ///
-        /// See https://github.com/gear-tech/gear/blob/master/gstd/src/macros/metadata.rs.
+        /// See <https://github.com/gear-tech/gear/blob/master/gstd/src/macros/metadata.rs.>
         #[derive(Debug, Eq)]
         pub struct Metadata {
             $(

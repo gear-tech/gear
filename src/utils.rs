@@ -1,7 +1,8 @@
-//! gear program utils
+//! Gear program utils
+#![cfg(feature = "cli")]
 use std::{fs, path::PathBuf};
 
-/// gear home
+/// home directory of cli `gear`
 pub fn home() -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| ".".into()).join(".gear");
 

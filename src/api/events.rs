@@ -1,4 +1,4 @@
-//! events api
+//! Events api
 use crate::{
     api::{
         config::GearConfig,

@@ -1,3 +1,5 @@
+//! Custom result
+
 use crate::api::{
     config::GearConfig,
     generated::api::{runtime_types::sp_runtime::DispatchError, Event},

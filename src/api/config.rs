@@ -1,8 +1,11 @@
+//! Gear config
+//!
+//! see <https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183>
 use subxt::{sp_core, sp_runtime, Config};
 
 /// gear config
 ///
-/// see https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183
+/// see <https://github.com/gear-tech/gear/blob/f48450dd9bad2efb9cb3fb13353464ca73e7b7f9/runtime/src/lib.rs#L183>
 #[derive(Clone, Debug)]
 pub struct GearConfig;
 

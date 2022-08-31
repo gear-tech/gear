@@ -5,20 +5,21 @@ use env_logger::{Builder, Env};
 use log::LevelFilter;
 use structopt::StructOpt;
 
-mod claim;
-mod create;
-mod info;
-mod key;
-mod login;
-mod meta;
-mod new;
-mod program;
-mod reply;
-mod send;
-mod transfer;
-mod update;
-mod upload;
+pub mod claim;
+pub mod create;
+pub mod info;
+pub mod key;
+pub mod login;
+pub mod meta;
+pub mod new;
+pub mod program;
+pub mod reply;
+pub mod send;
+pub mod transfer;
+pub mod update;
+pub mod upload;
 
+/// Commands of cli `gear`
 #[derive(Debug, StructOpt)]
 pub enum Command {
     Claim(claim::Claim),
@@ -36,6 +37,7 @@ pub enum Command {
     Update(update::Update),
 }
 
+/// Entrypoint of cli `gear`
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gear-program")]
 pub struct Opt {

@@ -33,7 +33,7 @@ $ cargo install gear-program
 Usages:
 
 ```sh
-$ gear 
+$ gear
 gear-program 0.1.3
 
 USAGE:
@@ -67,7 +67,7 @@ SUBCOMMANDS:
 
 Now, let's create a <kbd>new</kbd> gear program and upload it to the staging testnet!
 
-```
+```sh
 $ gear new hello-world
 Cloning into '/home/clearloop/.gear/apps'...
 remote: Enumerating objects: 156, done.
@@ -82,20 +82,20 @@ Successfully created hello-world!
 
 Compile you gear program via <kbd>cargo</kbd>
 
-```
+```sh
 $ cargo build --manifest-path hello-world/Cargo.toml --release
 ```
 
 <kbd>login</kbd> to your gear account
 
-```
+```sh
 $ gear login //Alice
 Successfully logged in as 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY!
 ```
 
 <kbd>upload</kbd> your gear program
 
-```
+```sh
 $ gear upload hello-world/target/wasm32-unknown-unknown/release/hello_world.wasm
 [INFO ] Submited extrinsic Gear::upload_code
 [INFO ]         Status: Ready

@@ -1,4 +1,4 @@
-//! command transfer
+//! command `info`
 use crate::{
     api::{
         generated::api::runtime_types::{

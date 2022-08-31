@@ -1,4 +1,4 @@
-//! key
+//! SURI manager
 use crate::{
     api::config::GearConfig,
     result::{Error, Result},

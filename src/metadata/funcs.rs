@@ -1,4 +1,4 @@
-//! host functions
+//! Host functions
 use crate::metadata::{result::Result, StoreData};
 use wasmtime::{
     AsContext, AsContextMut, Caller, Extern, Func, Linker, Memory, MemoryType, Store, Trap,

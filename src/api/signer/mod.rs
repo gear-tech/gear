@@ -1,4 +1,4 @@
-//! Api with signer
+//! Gear api with signer
 use crate::{
     api::{config::GearConfig, Api},
     keystore,

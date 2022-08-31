@@ -1,4 +1,4 @@
-//! command transfer
+//! command `transfer`
 use crate::{
     api::{generated::api::balances::calls::Transfer as TransferCall, signer::Signer},
     result::Result,

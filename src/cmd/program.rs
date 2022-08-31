@@ -1,4 +1,4 @@
-//! Command program.
+//! Command `program`.
 use crate::{
     api::Api,
     metadata::Metadata,

@@ -1,4 +1,4 @@
-//! gear api
+//! Gear api
 use crate::{
     api::{config::GearConfig, generated::api::RuntimeApi, signer::Signer},
     result::Result,

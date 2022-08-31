@@ -1,4 +1,4 @@
-//! command key
+//! command `key`
 use crate::{keystore::key::Key as KeyT, result::Result};
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
 use structopt::StructOpt;

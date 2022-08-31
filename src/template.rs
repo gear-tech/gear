@@ -1,10 +1,12 @@
+//! Gear program template
+
 use crate::result::Result;
 use std::{fs, process::Command};
 
 const NAME: &str = "$NAME";
 const USER: &str = "$USER";
 
-// cargo.toml
+/// cargo.toml
 pub const CARTO_TOML: &str = r#"
 [package]
 name = "$NAME"
@@ -23,14 +25,14 @@ gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git" }
 gtest = { git = "https://github.com/gear-tech/gear.git" }
 "#;
 
-// build.rs
+/// build.rs
 pub const BUILD_RS: &str = r#"
 fn main() {
     gear_wasm_builder::build();
 }
 "#;
 
-// lib.rs
+/// lib.rs
 pub const LIB_RS: &str = r#"
 #![no_std]
 
@@ -53,7 +55,7 @@ pub unsafe extern "C" fn handle() {
 }
 "#;
 
-/// create gear program
+/// create rust project for gear program in `PWD`
 pub fn create(name: &str) -> Result<()> {
     let user_bytes = Command::new("git")
         .args(&["config", "--global", "--get", "user.name"])

@@ -1,4 +1,4 @@
-//! command new
+//! command `new`
 use crate::result::Result;
 use std::process::{self, Command};
 use structopt::StructOpt;

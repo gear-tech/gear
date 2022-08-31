@@ -1,4 +1,4 @@
-//! command submit
+//! command `create`
 use crate::{
     api::{
         generated::api::gear::{calls::UploadProgram, Event as GearEvent},
