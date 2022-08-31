@@ -45,6 +45,9 @@ pub type ConsumeResultOf<T> = Result<
     <T as Tree>::Error,
 >;
 
+/// Simplified type for [`GasNodeId`] of [`Tree`].
+pub type GasNodeIdOf<T> = GasNodeId<<T as Tree>::Key, <T as Tree>::ReservationKey>;
+
 /// Abstraction for a chain of value items each piece of which has an attributed
 /// owner and can be traced up to some root origin.
 ///
@@ -101,30 +104,20 @@ pub trait Tree {
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     fn get_origin_node(
-        key: GasNodeId<Self::Key, Self::ReservationKey>,
-    ) -> Result<
-        (
-            Self::ExternalOrigin,
-            GasNodeId<Self::Key, Self::ReservationKey>,
-        ),
-        Self::Error,
-    >;
+        key: GasNodeIdOf<Self>,
+    ) -> Result<(Self::ExternalOrigin, GasNodeIdOf<Self>), Self::Error>;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_external(
-        key: GasNodeId<Self::Key, Self::ReservationKey>,
-    ) -> Result<Self::ExternalOrigin, Self::Error> {
+    fn get_external(key: GasNodeIdOf<Self>) -> Result<Self::ExternalOrigin, Self::Error> {
         Self::get_origin_node(key).map(|(external, _key)| external)
     }
 
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(
-        key: GasNodeId<Self::Key, Self::ReservationKey>,
-    ) -> Result<Self::Key, Self::Error> {
+    fn get_origin_key(key: GasNodeIdOf<Self>) -> Result<Self::Key, Self::Error> {
         Self::get_origin_node(key).and_then(|(_external, key)| {
             key.to_node_id()
                 .ok_or_else(|| Self::InternalError::forbidden().into())
@@ -156,7 +149,7 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn consume(key: GasNodeId<Self::Key, Self::ReservationKey>) -> ConsumeResultOf<Self>;
+    fn consume(key: GasNodeIdOf<Self>) -> ConsumeResultOf<Self>;
 
     /// Burn underlying value.
     ///

@@ -512,14 +512,8 @@ where
     }
 
     fn get_origin_node(
-        key: GasNodeId<Self::Key, Self::ReservationKey>,
-    ) -> Result<
-        (
-            Self::ExternalOrigin,
-            GasNodeId<Self::Key, Self::ReservationKey>,
-        ),
-        Self::Error,
-    > {
+        key: GasNodeIdOf<Self>,
+    ) -> Result<(Self::ExternalOrigin, GasNodeIdOf<Self>), Self::Error> {
         let node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         // key known, must return the origin, unless corrupted
@@ -575,7 +569,7 @@ where
     /// message went to wait list, so wasn't consumed but the one generated
     /// during the execution of the original message went to message queue
     /// and was successfully executed.
-    fn consume(key: GasNodeId<Self::Key, Self::ReservationKey>) -> ConsumeResultOf<Self> {
+    fn consume(key: GasNodeIdOf<Self>) -> ConsumeResultOf<Self> {
         let mut node = Self::get_node(key).ok_or_else(InternalError::node_not_found)?;
 
         if node.is_consumed() {
