@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use common::{
-    gas_provider::{GasNodeId, NegativeImbalance, PositiveImbalance},
+    gas_provider::{NegativeImbalance, PositiveImbalance},
     GasTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok, traits::Imbalance};
@@ -30,8 +30,8 @@ use sp_runtime::traits::Zero;
 type Gas = <Pallet<Test> as common::GasProvider>::GasTree;
 type GasTree = GasNodes<Test>;
 
-fn random_node_id() -> GasNodeId {
-    MessageId::from_origin(H256::random()).into()
+fn random_node_id() -> MessageId {
+    MessageId::from_origin(H256::random())
 }
 
 #[test]

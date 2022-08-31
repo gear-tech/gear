@@ -323,7 +323,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             //
             // This is unreachable since the `message_id` is new generated
             // with `GearPallet::next_message_id`.
-            GasHandlerOf::<Runtime>::create(origin, id.into(), gas_limit)
+            GasHandlerOf::<Runtime>::create(origin, id, gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             let msg = StoredMessage::new(

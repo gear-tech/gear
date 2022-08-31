@@ -86,7 +86,7 @@ impl<T: Config> HoldBoundCost<T> {
     /// by querying it's gas limit.
     pub fn maximum_for_message(self, message_id: MessageId) -> HoldBound<T> {
         // Querying gas limit. Fails in cases of `GasTree` invalidations.
-        let gas_limit = GasHandlerOf::<T>::get_limit(message_id.into())
+        let gas_limit = GasHandlerOf::<T>::get_limit(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         self.maximum_for(gas_limit)
@@ -218,8 +218,6 @@ where
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
     pub(crate) fn spend_gas(message_id: MessageId, amount: GasBalanceOf<T>) {
-        let message_id = message_id.into();
-
         // If amount is zero, nothing to do.
         if amount.is_zero() {
             return;
@@ -249,7 +247,7 @@ where
     /// Updates currency and balances data on imbalance creation.
     pub(crate) fn consume_message(message_id: MessageId) {
         // Consuming `GasNode`, returning optional outcome with imbalance.
-        let outcome = GasHandlerOf::<T>::consume(message_id.into())
+        let outcome = GasHandlerOf::<T>::consume(message_id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.
@@ -341,16 +339,12 @@ where
             .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
 
         // Locking funds for holding.
-        GasHandlerOf::<T>::lock(dispatch.id().into(), hold.lock())
+        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
-        let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id().into())
+        let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        let origin_msg = origin_msg
-            .as_message_id()
-            .expect("GasTree corrupted! Gas node ID is not message ID");
 
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
@@ -394,7 +388,7 @@ where
         let expected = hold_interval.finish;
 
         // Unlocking all funds, that were locked for storing.
-        GasHandlerOf::<T>::unlock_all(waitlisted.id().into())
+        GasHandlerOf::<T>::unlock_all(waitlisted.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Charging for holding.
@@ -504,7 +498,7 @@ where
             .gas_limit()
             .or_else(|| {
                 // Querying gas limit. Fails in cases of `GasTree` invalidations.
-                let gas_limit = GasHandlerOf::<T>::get_limit(origin_msg.into())
+                let gas_limit = GasHandlerOf::<T>::get_limit(origin_msg)
                     .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                 // If available gas is greater then threshold,
@@ -547,7 +541,7 @@ where
             }
 
             // Cutting gas for storing in mailbox.
-            GasHandlerOf::<T>::cut(origin_msg.into(), message.id().into(), gas_limit)
+            GasHandlerOf::<T>::cut(origin_msg, message.id(), gas_limit)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Reserving value from source for future transfer or unreserve.
