@@ -41,7 +41,7 @@ PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend core-processor node pallets
 SPEC_ON_MASTER="$(git diff origin/master | sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
 ACTUAL_SPEC_GEAR="$(cat $ROOT_DIR/runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
 ACTUAL_SPEC_VARA="$(cat $ROOT_DIR/runtime/vara/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
-ACTUAL_SPEC_ROCOCOGEAR="$(cat $ROOT_DIR/runtime/parachain-gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
+ACTUAL_SPEC_ROCOCOGEAR="$(cat $ROOT_DIR/runtime/rococo-gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
 
 if [ -z "$SPEC_ON_MASTER" ]; then
     SPEC_ON_MASTER=$ACTUAL_SPEC_GEAR

@@ -22,7 +22,7 @@ members = [
     "node",
     "pallets/*",
     "runtime/gear",
-    "runtime/parachain-gear",
+    "runtime/rococo-gear",
     "runtime/vara",
     "utils/gear-runtime-test-cli",
     "utils/regression-analysis",

@@ -58,7 +58,11 @@ use gear_runtime::{Origin, Runtime, System};
 #[cfg(all(feature = "vara-native", not(feature = "gear-native")))]
 use vara_runtime::{Origin, Runtime, System};
 
-#[cfg(all(feature = "rococo-gear-native", not(feature = "gear-native"), not(feature = "vara-native")))]
+#[cfg(all(
+    feature = "rococo-gear-native",
+    not(feature = "gear-native"),
+    not(feature = "vara-native")
+))]
 use rococo_gear_runtime::{Origin, Runtime, System};
 
 impl GearRuntimeTestCmd {

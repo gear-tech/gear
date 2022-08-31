@@ -48,9 +48,11 @@ fn load_spec(id: &str) -> std::result::Result<Box<dyn ChainSpec>, String> {
 
         // Fallback (generic chainspec)
         "" => {
-            log::warn!("No ChainSpec.id specified, so using default one, based on rococo-gear runtime");
+            log::warn!(
+                "No ChainSpec.id specified, so using default one, based on rococo-gear runtime"
+            );
             Box::new(chain_spec::rococo_gear::local_testnet_config())
-        },
+        }
 
         path => {
             let path = std::path::PathBuf::from(path);

@@ -3,7 +3,7 @@
 steps=50
 repeat=20
 
-output=./runtime/parachain-gear/src/weights
+output=./runtime/rococo-gear/src/weights
 
 chain=local
 

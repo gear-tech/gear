@@ -23,7 +23,7 @@ runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", d
 gear-runtime-interface = { path = "../../runtime-interface" }
 
 # Gear Runtimes
-rococo-gear-runtime = { package = "parachain-gear-runtime", path = "../../runtime/parachain-gear", optional = true }
+rococo-gear-runtime = { path = "../../runtime/rococo-gear", optional = true }
 
 # Substrate Client
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", features = [

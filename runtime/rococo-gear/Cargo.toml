@@ -1,5 +1,5 @@
 [package]
-name = "parachain-gear-runtime"
+name = "rococo-gear-runtime"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2021"

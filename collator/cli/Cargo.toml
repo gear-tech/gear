@@ -21,7 +21,7 @@ service = { package = "gear-collator-service", path = "../service", default-feat
 pallet-gear-payment = { version = "0.1.0", path = "../../pallets/payment" }
 
 # Gear Runtimes
-rococo-gear-runtime = { package = "parachain-gear-runtime", path = "../../runtime/parachain-gear", optional = true }
+rococo-gear-runtime = { path = "../../runtime/rococo-gear", optional = true }
 gear-runtime-common = { path = "../../runtime/common", default-features = false }
 
 # Substrate client

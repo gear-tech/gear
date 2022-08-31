@@ -36,7 +36,7 @@ gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime/gear", optional = true, features = ["debug-mode"] }
 vara-runtime = { path = "../../runtime/vara", optional = true, features = ["debug-mode"] }
-rococo-gear-runtime = { package = "parachain-gear-runtime", path = "../../runtime/parachain-gear", optional = true, features = ["debug-mode"] }
+rococo-gear-runtime = { path = "../../runtime/rococo-gear", optional = true, features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }
 pallet-gear = { path = "../../pallets/gear" }
 pallet-gear-gas = { path = "../../pallets/gas" }

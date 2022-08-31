@@ -17,12 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitialize};
+#[cfg(all(
+    feature = "rococo-gear-native",
+    not(feature = "gear-native"),
+    not(feature = "vara-native")
+))]
+use frame_support::traits::GenesisBuild;
+use frame_support::traits::{Currency, OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
-use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
+use gear_runtime::{Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use runtime_primitives::AccountPublic;
@@ -46,9 +52,14 @@ use vara_runtime::{
     Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
 };
 
-#[cfg(all(feature = "rococo-gear-native", not(feature = "gear-native"), not(feature = "vara-native")))]
+#[cfg(all(
+    feature = "rococo-gear-native",
+    not(feature = "gear-native"),
+    not(feature = "vara-native")
+))]
 use rococo_gear_runtime::{
-    AuraConfig, AuraExtConfig, Authorship, CollatorSelectionConfig, Event, Gear, GearGas, GearMessenger, ParachainSystemConfig, Runtime, SessionConfig, SessionKeys, System,
+    AuraConfig, AuraExtConfig, Authorship, CollatorSelectionConfig, Event, Gear, GearGas,
+    GearMessenger, ParachainSystemConfig, Runtime, SessionConfig, SessionKeys, System,
 };
 
 pub(crate) type QueueOf<T> = <<T as pallet_gear::Config>::Messenger as Messenger>::Queue;
@@ -193,7 +204,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(not(feature = "authoring-aura"))]
+    #[cfg(all(feature = "authoring-aura", not(feature = "rococo-gear-native")))]
     SessionConfig {
         keys: authorities
             .iter()
@@ -212,7 +223,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "rococo-gear-native")]
+    #[cfg(all(
+        feature = "rococo-gear-native",
+        not(feature = "gear-native"),
+        not(feature = "vara-native")
+    ))]
     CollatorSelectionConfig {
         invulnerables: authorities.iter().cloned().map(|(acc, _)| acc).collect(),
         candidacy_bond: <Runtime as Config>::Currency::minimum_balance() * 16,
@@ -221,37 +236,34 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "rococo-gear-native")]
+    #[cfg(all(
+        feature = "rococo-gear-native",
+        not(feature = "gear-native"),
+        not(feature = "vara-native")
+    ))]
     SessionConfig {
         keys: authorities
             .iter()
-            .map(|x| {
-                (
-                    x.0.clone(),
-                    x.0.clone(),
-                    SessionKeys {
-                        aura: x.1.clone(),
-                    },
-                )
-            })
+            .map(|x| (x.0.clone(), x.0.clone(), SessionKeys { aura: x.1.clone() }))
             .collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "rococo-gear-native")]
+    #[cfg(all(
+        feature = "rococo-gear-native",
+        not(feature = "gear-native"),
+        not(feature = "vara-native")
+    ))]
     {
-        AuraConfig::default()
-        .assimilate_storage(&mut t)
-        .unwrap();
+        AuraConfig::default().assimilate_storage(&mut t).unwrap();
 
         let config = AuraExtConfig::default();
-        <AuraExtConfig as GenesisBuild<Runtime>>::assimilate_storage(&config, &mut t)
-        .unwrap();
+        <AuraExtConfig as GenesisBuild<Runtime>>::assimilate_storage(&config, &mut t).unwrap();
 
         let config = ParachainSystemConfig::default();
         <ParachainSystemConfig as GenesisBuild<Runtime>>::assimilate_storage(&config, &mut t)
-        .unwrap();
+            .unwrap();
     }
 
     let mut ext = sp_io::TestExternalities::new(t);
