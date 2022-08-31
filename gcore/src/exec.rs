@@ -33,6 +33,8 @@ mod sys {
         pub fn gr_leave() -> !;
         pub fn gr_value_available(val: *mut u8);
         pub fn gr_wait() -> !;
+        pub fn gr_wait_no_more(duration: *const u8) -> !;
+        pub fn gr_wait_for(duration: *const u8) -> !;
         pub fn gr_wake(waker_id_ptr: *const u8);
     }
 }
@@ -80,7 +82,7 @@ pub fn block_timestamp() -> u64 {
 }
 
 /// Terminate the execution of a program. The program and all corresponding data
-/// are removed from the storage. This is similiar to
+/// are removed from the storage. This is similar to
 /// `std::process::exit`. `value_destination` specifies the address where all
 /// available to the program value should be transferred to.
 /// Maybe called in `init` method as well.
@@ -174,6 +176,9 @@ pub fn value_available() -> u128 {
 /// function later. All gas that hasn't yet been spent is attributed to the
 /// message in the *waiting queue*.
 ///
+/// This call delays message execution for maximal amount of blocks
+/// that could be payed.
+///
 /// # Examples
 ///
 /// ```
@@ -186,6 +191,19 @@ pub fn value_available() -> u128 {
 /// ```
 pub fn wait() -> ! {
     unsafe { sys::gr_wait() }
+}
+
+/// Same as [`wait`], but delays handling for given specific amount of blocks.
+///
+/// NOTE: It panics, if given duration couldn't be totally payed.
+pub fn wait_for(duration: u32) -> ! {
+    unsafe { sys::gr_wait_for(duration.to_le_bytes().as_ptr()) }
+}
+
+/// Same as [`wait`], but delays handling for maximal amount of blocks
+/// that could be payed, that doesn't exceed given duration.
+pub fn wait_no_more(duration: u32) -> ! {
+    unsafe { sys::gr_wait_no_more(duration.to_le_bytes().as_ptr()) }
 }
 
 /// Resume previously paused message handling.

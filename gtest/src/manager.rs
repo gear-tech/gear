@@ -20,7 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     wasm_executor::WasmExecutor,
-    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD,
+    Result, TestError, EXISTENTIAL_DEPOSIT, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
 };
 use core_processor::{
     common::*,
@@ -316,7 +316,7 @@ impl ExtManager {
                     .entry(dest)
                     .or_default()
                     .push(message_id);
-                self.wait_dispatch(dispatch);
+                self.wait_dispatch(dispatch, None);
 
                 continue;
             }
@@ -581,6 +581,8 @@ impl ExtManager {
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
+            waitlist_cost: WAITLIST_COST,
+            reserve_for: RESERVE_FOR,
         };
         let message_execution_context = MessageExecutionContext {
             actor: Actor {
@@ -709,7 +711,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch, _duration: Option<u32>) {
         self.message_consumed(dispatch.id());
         self.wait_list
             .insert((dispatch.destination(), dispatch.id()), dispatch);
