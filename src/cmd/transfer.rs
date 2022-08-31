@@ -1,6 +1,6 @@
 //! command transfer
 use crate::{
-    api::{generated::api::balances::calls::Transfer as TransferCall, Api},
+    api::{generated::api::balances::calls::Transfer as TransferCall, signer::Signer},
     result::Result,
 };
 use structopt::StructOpt;
@@ -24,17 +24,18 @@ pub struct Transfer {
 
 impl Transfer {
     /// Execute command transfer.
-    pub async fn exec(&self, api: Api) -> Result<()> {
-        let address = api.signer.account_id();
+    pub async fn exec(&self, signer: Signer) -> Result<()> {
+        let address = signer.signer.account_id();
 
         println!("From: {}", address.to_ss58check());
         println!("To: {}", self.destination);
         println!("Value: {}", self.value);
-        api.transfer(TransferCall {
-            dest: AccountId32::from_ss58check(&self.destination)?.into(),
-            value: self.value,
-        })
-        .await?;
+        signer
+            .transfer(TransferCall {
+                dest: AccountId32::from_ss58check(&self.destination)?.into(),
+                value: self.value,
+            })
+            .await?;
 
         Ok(())
     }

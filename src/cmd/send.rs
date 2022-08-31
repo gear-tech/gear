@@ -5,6 +5,7 @@ use crate::{
             gear::{calls::SendMessage, Event as GearEvent},
             runtime_types::gear_core::ids::ProgramId,
         },
+        signer::Signer,
         Api,
     },
     result::Result,
@@ -44,10 +45,10 @@ pub struct Send {
 }
 
 impl Send {
-    pub async fn exec(&self, api: Api) -> Result<()> {
-        let events = api.events().await?;
+    pub async fn exec(&self, signer: Signer) -> Result<()> {
+        let events = signer.events().await?;
         let r = tokio::try_join!(
-            self.send_message(&api),
+            self.send_message(&signer),
             Api::wait_for(events, |event| {
                 matches!(event, GearEvent::MessagesDispatched { .. })
             })
@@ -58,18 +59,19 @@ impl Send {
         Ok(())
     }
 
-    async fn send_message(&self, api: &Api) -> Result<()> {
+    async fn send_message(&self, signer: &Signer) -> Result<()> {
         let mut destination = [0; 32];
         destination
             .copy_from_slice(hex::decode(self.destination.trim_start_matches("0x"))?.as_ref());
 
-        api.send_message(SendMessage {
-            destination: ProgramId(destination),
-            payload: hex::decode(self.payload.trim_start_matches("0x"))?,
-            gas_limit: self.gas_limit,
-            value: self.value,
-        })
-        .await?;
+        signer
+            .send_message(SendMessage {
+                destination: ProgramId(destination),
+                payload: hex::decode(self.payload.trim_start_matches("0x"))?,
+                gas_limit: self.gas_limit,
+                value: self.value,
+            })
+            .await?;
 
         Ok(())
     }

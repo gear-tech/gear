@@ -12,27 +12,15 @@ impl Api {
     /// Get account info by address
     pub async fn info(&self, address: &str) -> Result<AccountInfo<u32, AccountData<u128>>> {
         Ok(self
-            .runtime
             .storage()
             .system()
             .account(&AccountId32::from_ss58check(address)?, None)
             .await?)
     }
 
-    /// Update the signer's balance
-    pub async fn update_balance(&self) -> Result<u128> {
-        let balance = self
-            .get_balance(&self.signer.account_id().to_ss58check())
-            .await?;
-        *self.balance.borrow_mut() = balance;
-
-        Ok(balance)
-    }
-
     /// Get balance by account address
     pub async fn get_balance(&self, address: &str) -> Result<u128> {
         Ok(self
-            .runtime
             .storage()
             .system()
             .account(&AccountId32::from_ss58check(address)?, None)
@@ -73,7 +61,6 @@ mod gear {
         /// Get `InstrumentedCode` by `code_hash`
         pub async fn code_storage(&self, code_hash: [u8; 32]) -> Result<Option<InstrumentedCode>> {
             Ok(self
-                .runtime
                 .storage()
                 .gear_program()
                 .code_storage(&CodeId(code_hash), None)
@@ -83,7 +70,6 @@ mod gear {
         /// Get active program from program id.
         pub async fn gprog(&self, pid: H256) -> Result<ActiveProgram> {
             let bytes = self
-                .runtime
                 .client
                 .storage()
                 .fetch_raw(StorageKey(utils::program_key(pid)), None)
@@ -101,7 +87,6 @@ mod gear {
             let mut pages = HashMap::new();
             for page in program.pages_with_data {
                 let value = self
-                    .runtime
                     .client
                     .storage()
                     .fetch_raw(StorageKey(utils::page_key(pid, PageNumber(page.0))), None)
@@ -132,7 +117,6 @@ mod gear {
 
             let query_key = entry_key.final_key(prefix);
             let keys = self
-                .runtime
                 .client
                 .rpc()
                 .storage_keys_paged(Some(query_key), count, None, None)
@@ -140,9 +124,7 @@ mod gear {
 
             let mut mailbox: Vec<(StoredMessage, Interval<u32>)> = vec![];
             for key in keys.into_iter() {
-                if let Some(storage_data) =
-                    self.runtime.client.storage().fetch_raw(key, None).await?
-                {
+                if let Some(storage_data) = self.client.storage().fetch_raw(key, None).await? {
                     if let Ok(value) =
                         <(StoredMessage, Interval<u32>)>::decode(&mut &storage_data.0[..])
                     {

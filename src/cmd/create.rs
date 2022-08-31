@@ -2,6 +2,7 @@
 use crate::{
     api::{
         generated::api::gear::{calls::UploadProgram, Event as GearEvent},
+        signer::Signer,
         Api,
     },
     result::Result,
@@ -32,11 +33,11 @@ pub struct Create {
 
 impl Create {
     /// Exec command submit
-    pub async fn exec(&self, api: Api) -> Result<()> {
-        let events = api.events().await?;
+    pub async fn exec(&self, signer: Signer) -> Result<()> {
+        let events = signer.events().await?;
 
         tokio::try_join!(
-            self.submit_program(&api),
+            self.submit_program(&signer),
             Api::wait_for(events, |event| {
                 matches!(event, GearEvent::MessageEnqueued { .. })
             })
@@ -45,7 +46,7 @@ impl Create {
         Ok(())
     }
 
-    async fn submit_program(&self, api: &Api) -> Result<()> {
+    async fn submit_program(&self, api: &Signer) -> Result<()> {
         let gas = if self.gas_limit == 0 {
             api.get_init_gas_spent(
                 fs::read(&self.code)?.into(),

@@ -1,27 +1,19 @@
 //! gear api calls
-use crate::{
-    api::{
-        config::GearConfig,
-        generated::api::{runtime_types::sp_runtime::DispatchError, Event},
-        Api,
-    },
-    result::Result,
+use crate::api::{
+    config::GearConfig,
+    generated::api::{runtime_types::sp_runtime::DispatchError, Event},
+    signer::Signer,
+    types::InBlock,
 };
-use subxt::{PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionInBlock, TransactionStatus};
-
-type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
+use subxt::{PolkadotExtrinsicParams, SubmittableExtrinsic, TransactionStatus};
 
 mod balances {
-    use crate::api::{calls::InBlock, generated::api::balances::calls, Api};
+    use crate::api::{generated::api::balances::calls, signer::Signer, types::InBlock};
 
-    impl Api {
+    impl Signer {
         /// `pallet_balances::transfer`
         pub async fn transfer(&self, params: calls::Transfer) -> InBlock<'_> {
-            let ex = self
-                .runtime
-                .tx()
-                .balances()
-                .transfer(params.dest, params.value)?;
+            let ex = self.tx().balances().transfer(params.dest, params.value)?;
 
             self.ps(ex).await
         }
@@ -29,19 +21,19 @@ mod balances {
 }
 
 mod gear {
-    use crate::api::{calls::InBlock, generated::api::gear::calls, Api};
+    use crate::api::{generated::api::gear::calls, signer::Signer, types::InBlock};
 
-    impl Api {
+    impl Signer {
         /// `pallet_gear::send_reply`
         pub async fn claim_value_from_mailbox(&self, params: calls::ClaimValue) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().claim_value(params.message_id)?;
+            let ex = self.api.tx().gear().claim_value(params.message_id)?;
 
             self.ps(ex).await
         }
 
         /// `pallet_gear::send_reply`
         pub async fn send_reply(&self, params: calls::SendReply) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().send_reply(
+            let ex = self.tx().gear().send_reply(
                 params.reply_to_id,
                 params.payload,
                 params.gas_limit,
@@ -53,7 +45,7 @@ mod gear {
 
         /// `pallet_gear::send_message`
         pub async fn send_message(&self, params: calls::SendMessage) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().send_message(
+            let ex = self.tx().gear().send_message(
                 params.destination,
                 params.payload,
                 params.gas_limit,
@@ -65,7 +57,7 @@ mod gear {
 
         /// `pallet_gear::submit_program`
         pub async fn submit_program(&self, params: calls::UploadProgram) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().upload_program(
+            let ex = self.tx().gear().upload_program(
                 params.code,
                 params.salt,
                 params.init_payload,
@@ -78,27 +70,14 @@ mod gear {
 
         /// `pallet_gear::upload_code`
         pub async fn upload_code(&self, params: calls::UploadCode) -> InBlock<'_> {
-            let ex = self.runtime.tx().gear().upload_code(params.code)?;
+            let ex = self.tx().gear().upload_code(params.code)?;
 
             self.ps(ex).await
         }
     }
 }
 
-impl Api {
-    /// Comparing the latest balance with the balance
-    /// recorded in the tracker and then log
-    pub async fn log_balance_spent(&self) -> Result<()> {
-        let balance_before = *self.balance.borrow();
-        let balance_after = self.update_balance().await?;
-
-        log::info!(
-            "\tBalance spent: {}",
-            balance_before.saturating_sub(balance_after)
-        );
-        Ok(())
-    }
-
+impl Signer {
     /// listen transaction process and print logs
     pub async fn ps<'client, Call>(
         &'client self,
@@ -114,7 +93,7 @@ impl Api {
     where
         Call: subxt::Call + Send + Sync,
     {
-        self.update_balance().await?;
+        let before = self.balance().await?;
         let mut process = tx.sign_and_submit_then_watch_default(&self.signer).await?;
         log::info!("Submited extrinsic {}::{}", Call::PALLET, Call::FUNCTION);
 
@@ -132,10 +111,12 @@ impl Api {
                     ),
                     TransactionStatus::Retracted(h) => {
                         log::info!("\tStatus: Retracted( {} )", h);
+                        self.log_balance_spent(before).await?;
                         break Err(status.into());
                     }
                     TransactionStatus::FinalityTimeout(h) => {
                         log::info!("\tStatus: FinalityTimeout( {} )", h);
+                        self.log_balance_spent(before).await?;
                         break Err(status.into());
                     }
                     TransactionStatus::Finalized(b) => {
@@ -153,19 +134,22 @@ impl Api {
                             b.block_hash()
                         );
 
-                        self.capture_dispatch_info(&b).await?;
+                        self.log_balance_spent(before).await?;
                         return Ok(b);
                     }
                     TransactionStatus::Usurped(h) => {
                         log::info!("\tStatus: Usurped( {} )", h);
+                        self.log_balance_spent(before).await?;
                         break Err(status.into());
                     }
                     TransactionStatus::Dropped => {
                         log::info!("\tStatus: Dropped");
+                        self.log_balance_spent(before).await?;
                         break Err(status.into());
                     }
                     TransactionStatus::Invalid => {
                         log::info!("\tStatus: Invalid");
+                        self.log_balance_spent(before).await?;
                         break Err(status.into());
                     }
                 }

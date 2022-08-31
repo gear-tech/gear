@@ -9,7 +9,7 @@ async fn test_command_upload_works() -> Result<()> {
     let mut node = common::Node::dev()?;
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
-    let api = Api::new(Some(&node.ws()), None).await?;
+    let api = Api::new(Some(&node.ws())).await?.try_signer(None)?;
     let code_hash = common::hash(include_bytes!("../../res/demo_meta.opt.wasm"));
     assert!(api.code_storage(code_hash).await?.is_none());
 

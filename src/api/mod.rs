@@ -1,21 +1,16 @@
 //! gear api
 use crate::{
-    api::{config::GearConfig, generated::api::RuntimeApi},
-    keystore,
-    result::{Error, Result},
+    api::{config::GearConfig, generated::api::RuntimeApi, signer::Signer},
+    result::Result,
 };
-use std::{cell::RefCell, sync::Arc};
-use subxt::{
-    sp_core::{sr25519::Pair, Pair as PairT},
-    ClientBuilder, PairSigner, PolkadotExtrinsicParams,
-};
+use core::ops::{Deref, DerefMut};
+use subxt::{ClientBuilder, PolkadotExtrinsicParams};
 
-mod calls;
 pub mod config;
 mod constants;
 pub mod events;
 pub mod generated;
-mod rpc;
+pub mod signer;
 mod storage;
 pub mod types;
 mod utils;
@@ -23,54 +18,42 @@ mod utils;
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
 
 /// gear api
-pub struct Api {
-    runtime: RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>,
-    /// Current signer.
-    pub signer: PairSigner<GearConfig, Pair>,
-    /// Balance tracker
-    pub balance: Arc<RefCell<u128>>,
-}
+#[derive(Clone)]
+pub struct Api(RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>);
 
 impl Api {
     /// Build runtime api
-    pub async fn build_runtime_api(
-        url: Option<&str>,
-    ) -> Result<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>> {
-        Ok(ClientBuilder::new()
-            .set_url(url.unwrap_or(DEFAULT_GEAR_ENDPOINT))
-            .build()
-            .await?
-            .to_runtime_api::<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>>())
+    pub async fn new(url: Option<&str>) -> Result<Self> {
+        Ok(Self(
+            ClientBuilder::new()
+                .set_url(url.unwrap_or(DEFAULT_GEAR_ENDPOINT))
+                .build()
+                .await?
+                .to_runtime_api::<RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>>(),
+        ))
     }
 
-    /// New gear api
-    pub async fn new(url: Option<&str>, passwd: Option<&str>) -> Result<Self> {
-        let runtime = Self::build_runtime_api(url).await?;
-        let signer = keystore::cache(passwd.as_ref().copied())?;
-        let api = Self {
-            runtime,
-            signer,
-            balance: Default::default(),
-        };
-
-        api.update_balance().await?;
-        Ok(api)
+    /// New signer from api
+    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
+        Signer::new(self, suri, passwd)
     }
 
-    /// New api with secret uri
-    pub async fn new_with_suri(
-        url: Option<&str>,
-        suri: &str,
-        passwd: Option<&str>,
-    ) -> Result<Self> {
-        let runtime = Self::build_runtime_api(url).await?;
-        let signer =
-            PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
+    /// Try new signer from api
+    pub fn try_signer(self, passwd: Option<&str>) -> Result<Signer> {
+        Signer::try_new(self, passwd)
+    }
+}
 
-        Ok(Self {
-            runtime,
-            signer,
-            balance: Default::default(),
-        })
+impl Deref for Api {
+    type Target = RuntimeApi<GearConfig, PolkadotExtrinsicParams<GearConfig>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Api {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }

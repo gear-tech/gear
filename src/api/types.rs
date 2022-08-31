@@ -1,8 +1,18 @@
 //! gear types
-use crate::api::generated::api::runtime_types::gear_common::ActiveProgram;
+use crate::{
+    api::{
+        config::GearConfig,
+        generated::api::{
+            runtime_types::{gear_common::ActiveProgram, sp_runtime::DispatchError},
+            Event,
+        },
+    },
+    result::Result,
+};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use subxt::TransactionInBlock;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GasInfo {
@@ -16,6 +26,9 @@ pub struct GasInfo {
 
 /// Gear pages.
 pub type GearPages = HashMap<u32, Vec<u8>>;
+
+/// Transaction in block
+pub type InBlock<'i> = Result<TransactionInBlock<'i, GearConfig, DispatchError, Event>>;
 
 /// Gear Program
 #[derive(Debug, Decode)]

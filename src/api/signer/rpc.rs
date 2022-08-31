@@ -1,6 +1,6 @@
 //! gear api rpc methods
 use crate::{
-    api::{types, Api},
+    api::{signer::Signer, types},
     result::Result,
 };
 
@@ -11,10 +11,10 @@ use subxt::{
     RpcClient,
 };
 
-impl Api {
+impl Signer {
     /// get rpc client
     pub fn rpc(&self) -> Arc<RpcClient> {
-        self.runtime.client.rpc().client.clone()
+        self.client.rpc().client.clone()
     }
 
     /// public key of the signer in H256

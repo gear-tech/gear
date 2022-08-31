@@ -71,6 +71,15 @@ pub fn cache(passwd: Option<&str>) -> Result<PairSigner<GearConfig, sr25519::Pai
     Ok(pair)
 }
 
+/// Get signer from keyring.
+///
+/// @WARNING: THIS WILL ONLY BE SECURE IF THE keyring IS SECURE.
+/// when you have NO PASSWORD, If it can be got by an attacker then
+/// they can also get your key.
+pub fn keyring(passwd: Option<&str>) -> Result<PairSigner<GearConfig, sr25519::Pair>> {
+    Ok(Key::from_keyring()?.pair::<sr25519::Pair>(passwd)?.0)
+}
+
 /// Decode pair from json file.
 ///
 /// @WARNING: THIS WILL ONLY BE SECURE IF THE keystore IS SECURE.

@@ -1,6 +1,6 @@
 //! Command `submit`
 use crate::{
-    api::{generated::api::gear::calls::UploadCode, Api},
+    api::{generated::api::gear::calls::UploadCode, signer::Signer},
     result::Result,
 };
 use std::{fs, path::PathBuf};
@@ -29,11 +29,12 @@ pub struct Upload {
 }
 
 impl Upload {
-    pub async fn exec(&self, api: Api) -> Result<()> {
-        api.upload_code(UploadCode {
-            code: fs::read(&self.code)?,
-        })
-        .await?;
+    pub async fn exec(&self, signer: Signer) -> Result<()> {
+        signer
+            .upload_code(UploadCode {
+                code: fs::read(&self.code)?,
+            })
+            .await?;
 
         Ok(())
     }

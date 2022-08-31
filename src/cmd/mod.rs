@@ -92,30 +92,36 @@ impl Opt {
         Ok(())
     }
 
-    /// Generate api from options.
-    pub async fn api(&self) -> Result<Api> {
-        Api::new(self.endpoint.as_deref(), self.passwd.as_deref()).await
+    /// Create api client from endpoint
+    async fn api(&self) -> Result<Api> {
+        Api::new(self.endpoint.as_deref()).await
     }
 
     /// Execute command.
     pub async fn exec(&self) -> Result<()> {
-        // # TODO
-        //
-        // Wrap `self.api` as closure into commands.
         match &self.command {
-            Command::Claim(claim) => claim.exec(self.api().await?).await?,
-            Command::Create(deploy) => deploy.exec(self.api().await?).await?,
-            Command::Info(info) => info.exec(self.api().await?).await?,
             Command::Key(key) => key.exec(self.passwd.as_deref())?,
             Command::Login(login) => login.exec()?,
             Command::Meta(meta) => meta.exec()?,
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(self.api().await?).await?,
-            Command::Reply(reply) => reply.exec(self.api().await?).await?,
-            Command::Send(send) => send.exec(self.api().await?).await?,
-            Command::Upload(upload) => upload.exec(self.api().await?).await?,
-            Command::Transfer(transfer) => transfer.exec(self.api().await?).await?,
             Command::Update(update) => update.exec().await?,
+            sub => {
+                let signer = Api::new(self.endpoint.as_deref())
+                    .await?
+                    .try_signer(self.passwd.as_deref())?;
+
+                match sub {
+                    Command::Claim(claim) => claim.exec(signer).await?,
+                    Command::Create(create) => create.exec(signer).await?,
+                    Command::Info(info) => info.exec(signer).await?,
+                    Command::Send(send) => send.exec(signer).await?,
+                    Command::Upload(upload) => upload.exec(signer).await?,
+                    Command::Transfer(transfer) => transfer.exec(signer).await?,
+                    Command::Reply(reply) => reply.exec(signer).await?,
+                    _ => unreachable!("Already matched"),
+                }
+            }
         }
 
         Ok(())

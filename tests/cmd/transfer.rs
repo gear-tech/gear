@@ -21,7 +21,7 @@ async fn test_command_transfer_works() -> Result<()> {
     node.wait(logs::gear_node::IMPORTING_BLOCKS)?;
 
     // Get balance of the testing address
-    let api = Api::new_with_suri(Some(&node.ws()), SURI, None).await?;
+    let api = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
     let before = api.get_balance(ADDRESS).await?;
 
     // Run command transfer

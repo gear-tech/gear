@@ -5,6 +5,7 @@ use crate::{
             gear::{calls::SendReply, Event as GearEvent},
             runtime_types::gear_core::ids::MessageId,
         },
+        signer::Signer,
         Api,
     },
     result::Result,
@@ -39,10 +40,10 @@ pub struct Reply {
 }
 
 impl Reply {
-    pub async fn exec(&self, api: Api) -> Result<()> {
-        let events = api.events().await?;
+    pub async fn exec(&self, signer: Signer) -> Result<()> {
+        let events = signer.events().await?;
         let r = tokio::try_join!(
-            self.send_reply(&api),
+            self.send_reply(&signer),
             Api::wait_for(events, |event| {
                 matches!(event, GearEvent::MessagesDispatched { .. })
             })
@@ -53,18 +54,19 @@ impl Reply {
         Ok(())
     }
 
-    async fn send_reply(&self, api: &Api) -> Result<()> {
+    async fn send_reply(&self, signer: &Signer) -> Result<()> {
         let mut reply_to_id = [0; 32];
         reply_to_id
             .copy_from_slice(hex::decode(self.reply_to_id.trim_start_matches("0x"))?.as_ref());
 
-        api.send_reply(SendReply {
-            reply_to_id: MessageId(reply_to_id),
-            payload: hex::decode(self.payload.trim_start_matches("0x"))?,
-            gas_limit: self.gas_limit,
-            value: self.value,
-        })
-        .await?;
+        signer
+            .send_reply(SendReply {
+                reply_to_id: MessageId(reply_to_id),
+                payload: hex::decode(self.payload.trim_start_matches("0x"))?,
+                gas_limit: self.gas_limit,
+                value: self.value,
+            })
+            .await?;
 
         Ok(())
     }
