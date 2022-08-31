@@ -57,6 +57,9 @@ pub trait Tree {
     /// Type that identifies a particular value item.
     type Key: Clone;
 
+    /// Type that identifies a particular value item for gas reservation.
+    type ReservationKey: Clone;
+
     /// Type representing a quantity of value.
     type Balance;
 
@@ -212,7 +215,7 @@ pub trait Tree {
     /// Used in gas reservation feature.
     fn reserve(
         key: Self::Key,
-        new_key: Self::Key,
+        new_key: Self::ReservationKey,
         amount: Self::Balance,
     ) -> Result<(), Self::Error>;
 

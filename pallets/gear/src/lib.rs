@@ -57,7 +57,7 @@ use frame_support::{
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     program::Program as NativeProgram,
 };
@@ -226,7 +226,7 @@ pub mod pallet {
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
             ExternalOrigin = Self::AccountId,
-            Key = GasNodeId,
+            Key = GasNodeId<MessageId, ReservationId>,
             Balance = u64,
             Error = DispatchError,
         >;

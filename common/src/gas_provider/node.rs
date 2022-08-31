@@ -18,28 +18,25 @@
 
 use super::*;
 use codec::MaxEncodedLen;
-use gear_core::ids::ReservationId;
 
 /// ID of the [`GasNode`].
-#[derive(
-    Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo, derive_more::From,
-)]
-pub enum GasNodeId {
-    Message(MessageId),
-    Reservation(ReservationId),
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
+pub enum GasNodeId<T, U> {
+    Node(T),
+    Reservation(U),
 }
 
-impl GasNodeId {
-    pub fn to_message_id(self) -> Option<MessageId> {
+impl<T, U> GasNodeId<T, U> {
+    pub fn to_node_id(self) -> Option<T> {
         match self {
-            GasNodeId::Message(message_id) => Some(message_id),
+            GasNodeId::Node(message_id) => Some(message_id),
             GasNodeId::Reservation(_) => None,
         }
     }
 
-    pub fn to_reservation_id(self) -> Option<ReservationId> {
+    pub fn to_reservation_id(self) -> Option<U> {
         match self {
-            GasNodeId::Message(_) => None,
+            GasNodeId::Node(_) => None,
             GasNodeId::Reservation(reservation_id) => Some(reservation_id),
         }
     }
