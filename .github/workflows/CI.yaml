@@ -4,9 +4,9 @@ on:
   schedule:
     - cron: "0 3 * * *"
   push:
-    branches: [master]
+    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   pull_request:
-    branches: [master]
+    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
   workflow_dispatch:
 
 env:
@@ -26,6 +26,9 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
+
+      - name: "Fetch origin"
+        run: git fetch origin
 
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
@@ -85,9 +88,9 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         run: |
-          tar -xf /root/cache/check_cache.tar -C /
-          tar -xf /root/cache/check_cargo_registry.tar -C /
-          tar -xf /root/cache/check_target.tar
+          tar -xf /root/cache/check_cache_${{ github.base_ref }}.tar -C /
+          tar -xf /root/cache/check_cargo_registry_${{ github.base_ref }}.tar -C /
+          tar -xf /root/cache/check_target_${{ github.base_ref }}.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -108,9 +111,9 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/check_target.tar ./target
-          tar -cf /tmp/check_cache.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_target_${{ github.base_ref }}.tar ./target
+          tar -cf /tmp/check_cache_${{ github.base_ref }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -171,7 +174,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -192,12 +195,18 @@ jobs:
         continue-on-error: true
         run: |
           [ -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cache.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_cargo_registry.tar -C /; tar -xf /root/cache/${{ github.event.pull_request.number }}/build_target.tar; }
-          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache.tar -C /; tar -xf /root/cache/build_cargo_registry.tar -C /; tar -xf /root/cache/build_target.tar; }
+          [ ! -d /root/cache/${{ github.event.pull_request.number }} ] && { tar -xf /root/cache/build_cache_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_cargo_registry_${{ github.base_ref }}.tar -C /; tar -xf /root/cache/build_target_${{ github.base_ref }}.tar; }
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked --release
         env:
           RUSTFLAGS: -Cinstrument-coverage
+
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
+
+      - name: Check runtime imports
+        run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -258,6 +267,9 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Weight on client for loop"
+        run: ./scripts/gear.sh test client-weights
 
       - name: "Test: Runtime benchmarks work"
         run: |
@@ -347,13 +359,13 @@ jobs:
         if: github.event_name == 'push'
         run: cargo build -p gear-node --profile production
 
-      - name: "Cache: Pack to master"
+      - name: "Cache: Pack"
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target.tar ./target
-          tar -cf /tmp/build_cache.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/build_target_${{ github.base_ref }}.tar ./target
+          tar -cf /tmp/build_cache_${{ github.base_ref }}.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mkdir -p /root/cache/
 
       - name: "Cache: Pack to temp"
@@ -448,7 +460,7 @@ jobs:
             --features=lazy-pages
 
   upload:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.base_ref == 'master'
     runs-on: self-hosted
     needs: build
     steps:

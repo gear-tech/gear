@@ -139,9 +139,9 @@ pub mod pallet {
     use super::*;
 
     #[cfg(feature = "lazy-pages")]
-    use crate::ext::LazyPagesExt as Ext;
+    pub(crate) use crate::ext::LazyPagesExt as Ext;
     #[cfg(not(feature = "lazy-pages"))]
-    use core_processor::Ext;
+    pub(crate) use core_processor::Ext;
 
     #[cfg(feature = "lazy-pages")]
     use gear_lazy_pages_common as lazy_pages;
@@ -385,7 +385,7 @@ pub mod pallet {
         /// Program is terminated.
         ///
         /// Program init ended up with failure, so such message destination is unavailable anymore.
-        ProgramIsTerminated,
+        InactiveProgram,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
@@ -797,6 +797,8 @@ pub mod pallet {
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: ["gr_gas_available"].into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
             let mut min_limit = 0;
@@ -963,11 +965,51 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if a program has terminated status
+        /// Returns true if id is a program and the program has active status.
+        pub fn is_active(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
+                .map(|p| p.is_active())
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             common::get_program(program_id.into_origin())
                 .map(|p| p.is_terminated())
-                .unwrap_or(false)
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has exited status.
+        pub fn is_exited(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
+                .map(|p| p.is_exited())
+                .unwrap_or_default()
+        }
+
+        /// Returns exit argument of an exited program.
+        pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            common::get_program(program_id.into_origin())
+                .map(|p| {
+                    if let Program::Exited(id) = p {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default()
+        }
+
+        /// Returns inheritor of terminated (failed it's init) program.
+        pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            common::get_program(program_id.into_origin())
+                .map(|p| {
+                    if let Program::Terminated(id) = p {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default()
         }
 
         /// Returns MessageId for newly created user message.
@@ -1104,6 +1146,8 @@ pub mod pallet {
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {
@@ -1182,6 +1226,7 @@ pub mod pallet {
 
                                 Self::wait_dispatch(
                                     dispatch,
+                                    None,
                                     MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                 );
@@ -1673,10 +1718,7 @@ pub mod pallet {
             );
 
             if GearProgramPallet::<T>::program_exists(destination) {
-                ensure!(
-                    !Self::is_terminated(destination),
-                    Error::<T>::ProgramIsTerminated
-                );
+                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1764,8 +1806,8 @@ pub mod pallet {
 
             // Checking that program, origin replies to, is not terminated.
             ensure!(
-                !Self::is_terminated(mailboxed.source()),
-                Error::<T>::ProgramIsTerminated
+                Self::is_active(mailboxed.source()),
+                Error::<T>::InactiveProgram
             );
 
             // Converting applied gas limit into value to reserve.

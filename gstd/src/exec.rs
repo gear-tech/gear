@@ -78,13 +78,19 @@
 //! }
 //! ```
 use crate::{ActorId, MessageId};
-pub use gcore::exec::{block_height, block_timestamp, gas_available, value_available};
+pub use gcore::exec::{
+    block_height, block_timestamp, gas_available, leave, value_available, wait, wait_for,
+    wait_no_more,
+};
 
-/// Terminate the execution of a program. The program and all corresponding data
-/// are removed from the storage. This is similiar to
-/// `std::process::exit`. `value_destination` specifies the address where all
-/// available to the program value should be transferred to.
-/// Maybe called in `init` method as well.
+/// Terminate the execution of a program.
+///
+/// The program and all corresponding data
+/// are removed from the storage. This is similar to `std::process::exit`.
+/// `value_destination` specifies the address where all associated with
+/// the program value should be transferred to.
+///
+/// May be called in `init` method as well.
 ///
 /// # Examples
 ///
@@ -98,48 +104,6 @@ pub use gcore::exec::{block_height, block_timestamp, gas_available, value_availa
 /// ```
 pub fn exit(value_destination: ActorId) -> ! {
     gcore::exec::exit(value_destination.into())
-}
-
-/// Terminate the current message handling.
-///
-/// For cases when the message handling needs to be terminated with state
-/// saving.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::exec;
-///
-/// unsafe extern "C" fn handle() {
-///     // ...
-///     exec::leave();
-/// }
-/// ```
-pub fn leave() -> ! {
-    gcore::exec::leave()
-}
-
-/// Pause the current message handling.
-///
-/// If the message handling needs to be paused, i.e. to wait for another
-/// execution to finish, this function should be used. [`wait`] finishes current
-/// message handle execution with a special result and puts the current message
-/// into the *waiting queue* to be awakened using the correspondent [`wake`]
-/// function later. All gas that hasn't yet been spent is attributed to the
-/// message in the *waiting queue*.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::exec;
-///
-/// unsafe extern "C" fn handle() {
-///     // ...
-///     exec::wait();
-/// }
-/// ```
-pub fn wait() -> ! {
-    gcore::exec::wait()
 }
 
 /// Resume previously paused message handling.

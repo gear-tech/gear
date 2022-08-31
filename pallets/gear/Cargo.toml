@@ -59,10 +59,12 @@ wabt = "0.10"
 demo-async-tester = { path = "../../examples/binaries/async-tester" }
 demo-btree = { path = "../../examples/binaries/btree" }
 demo-distributor = { path = "../../examples/binaries/distributor" }
+demo-init-fail-sender = { path = "../../examples/binaries/init-fail-sender" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
 demo-init-wait-reply-exit = { path = "../../examples/binaries/init-wait-reply-exit" }
 demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
+demo-exit-handle-sender = { path = "../../examples/binaries/exit-handle-sender" }
 demo-program-factory = { path = "../../examples/binaries/program-factory" }
 demo-proxy = { path = "../../examples/binaries/proxy" }
 demo-proxy-with-gas = { path = "../../examples/binaries/proxy-with-gas" }
@@ -76,6 +78,7 @@ demo-calc-hash-in-one-block = { path = "../../examples/binaries/calc-hash/in-one
 demo-compose = { path = "../../examples/binaries/compose" }
 demo-mul-by-const = { path = "../../examples/binaries/mul-by-const" }
 demo-value-sender = { path = "../../examples/binaries/value-sender" }
+demo-waiter = { path = "../../examples/binaries/waiter" }
 page_size = "0.4.2"
 pallet-gear-gas = { path = "../gas" }
 pallet-gear-messenger = { path = "../gear-messenger" }

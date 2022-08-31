@@ -211,7 +211,7 @@ purge-dev-chain-release:
 test: test-gear test-js gtest # There should be no release builds (e.g. `rtest`) for fast checking.
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest rtest test-runtime-upgrade
+test-release: test-gear-release test-js gtest rtest test-runtime-upgrade test-client-weights
 
 .PHONY: test-gear
 test-gear: init-js examples
@@ -248,6 +248,10 @@ test-pallet-release:
 .PHONY: test-runtime-upgrade
 test-runtime-upgrade: init-js examples node-release
 	@ ./scripts/gear.sh test runtime-upgrade
+
+.PHONY: test-client-weights
+test-client-weights: init-js examples node-release
+	@ ./scripts/gear.sh test client-weights
 
 # Misc section
 .PHONY: doc

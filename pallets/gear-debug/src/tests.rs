@@ -20,7 +20,6 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
 use frame_support::assert_ok;
-use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY as PSG},
@@ -101,7 +100,7 @@ fn debug_mode_works() {
 
         run_to_block(2, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         let static_pages = WasmPageNumber(16);
 
@@ -132,7 +131,7 @@ fn debug_mode_works() {
 
         run_to_block(3, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -183,7 +182,7 @@ fn debug_mode_works() {
 
         run_to_block(4, Some(0)); // no message will get processed
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
@@ -236,7 +235,7 @@ fn debug_mode_works() {
         );
 
         run_to_block(5, None); // no message will get processed
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         // only programs left!
         System::assert_last_event(
@@ -269,10 +268,7 @@ fn debug_mode_works() {
 fn get_last_message_id() -> MessageId {
     use pallet_gear::Event;
 
-    let event = match SystemPallet::<Test>::events()
-        .last()
-        .map(|r| r.event.clone())
-    {
+    let event = match System::events().last().map(|r| r.event.clone()) {
         Some(super::mock::Event::Gear(e)) => e,
         _ => unreachable!("Should be one Gear event"),
     };
@@ -434,7 +430,7 @@ fn check_not_allocated_pages() {
 
         run_to_block(2, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         let gear_page0 = PageNumber::new_from_addr(0);
         let mut page0_data = PageBuf::new_zeroed();
@@ -479,7 +475,7 @@ fn check_not_allocated_pages() {
 
         run_to_block(3, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         page0_data[0] = 0x1;
         persistent_pages.insert(gear_page0, page0_data.to_vec());
@@ -665,7 +661,7 @@ fn check_changed_pages_in_storage() {
 
         run_to_block(2, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         let mut persistent_pages = BTreeMap::new();
         let empty_data = PageBuf::new_zeroed();
@@ -717,7 +713,7 @@ fn check_changed_pages_in_storage() {
 
         run_to_block(3, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         let gear_page3 = PageNumber::new_from_addr(page3_accessed_addr);
         let mut page3_data = empty_data.to_vec();
@@ -803,7 +799,7 @@ fn check_gear_stack_end() {
 
         run_to_block(2, None);
 
-        Pallet::<Test>::do_snapshot();
+        GearDebug::do_snapshot();
 
         let mut persistent_pages = BTreeMap::new();
         let empty_data = PageBuf::new_zeroed();

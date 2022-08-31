@@ -22,6 +22,7 @@ use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
     MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
@@ -33,6 +34,7 @@ use common::{
     storage::*,
     GasPrice, GasTree, Origin,
 };
+use core::cmp::{Ord, Ordering};
 use core_processor::common::ExecutionErrorReason;
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
@@ -101,7 +103,7 @@ impl<T: Config> HoldBoundCost<T> {
 
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
 pub(crate) struct HoldBound<T: Config> {
     /// Cost of storing per block.
     cost: SchedulingCostOf<T>,
@@ -155,6 +157,21 @@ impl<T: Config> HoldBound<T> {
         self.deadline_duration()
             .saturated_into::<GasBalanceOf<T>>()
             .saturating_mul(self.cost())
+    }
+}
+
+impl<T: Config> PartialOrd for HoldBound<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.expected.partial_cmp(&other.expected)
+    }
+}
+
+impl<T: Config> Ord for HoldBound<T>
+where
+    BlockNumberFor<T>: PartialOrd,
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.expected.cmp(&other.expected)
     }
 }
 
@@ -317,27 +334,31 @@ where
     }
 
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
-    pub(crate) fn wait_dispatch(dispatch: StoredDispatch, reason: MessageWaitedReason) {
-        // Figuring out maximal deadline of holding.
-        let hold =
-            HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist()).maximum_for_message(dispatch.id());
+    pub(crate) fn wait_dispatch(
+        dispatch: StoredDispatch,
+        duration: Option<BlockNumberFor<T>>,
+        reason: MessageWaitedReason,
+    ) {
+        // `HoldBound` cost builder.
+        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist());
+
+        // Maximal hold bound for the message.
+        let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+
+        // Figuring out correct hold bound.
+        let hold = if let Some(duration) = duration {
+            hold_builder.duration(duration).min(maximal_hold)
+        } else {
+            maximal_hold
+        };
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
             // TODO: Replace with unreachable call after:
             // - `HoldBound` safety usage stabilized;
-            // - Issue #1173 solved.
             log::error!("Failed to figure out correct wait hold bound");
             return;
         }
-
-        // TODO: remove, once duration-control added inside programs (#1173).
-        //
-        // This need in async scenarios, while we send gasless message and it
-        // goes into waitlist: then all funds become locked for storing in
-        // waitlist, instead of distribute for execution and storing.
-        let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist())
-            .duration(hold.expected_duration().min(500u32.unique_saturated_into()));
 
         // Locking funds for holding.
         GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
@@ -455,18 +476,27 @@ where
         user_queries.then(|| Self::consume_message(mailboxed.id()));
 
         // Taking data for funds transfer.
-        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
-        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let user_id = mailboxed.destination();
+        let from = mailboxed.source();
         let value = mailboxed.value().unique_saturated_into();
 
         // Determining recipients id.
         //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = if user_queries { &user_id } else { &from };
+        let to = if user_queries {
+            user_id
+        } else {
+            Self::inheritor_for(from)
+        };
+
+        // Converting into `AccountId`.
+        let user_id = <T::AccountId as Origin>::from_origin(user_id.into_origin());
+        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
 
         // Transferring reserved funds, associated with the message.
-        Self::transfer_reserved(&from, to, value);
+        Self::transfer_reserved(&from, &to, value);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {
@@ -532,7 +562,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if gas_limit >= threshold {
+        let expiration = if !message.is_error_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
 
@@ -576,5 +606,23 @@ where
             message,
             expiration,
         });
+    }
+
+    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+        let mut inheritor = program_id;
+
+        let mut visited_ids: BTreeSet<_> = [program_id].into();
+
+        while let Some(id) =
+            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
+        {
+            if !visited_ids.insert(id) {
+                break;
+            }
+
+            inheritor = id
+        }
+
+        inheritor
     }
 }

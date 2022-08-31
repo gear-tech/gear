@@ -98,17 +98,28 @@ macro_rules! declare_id {
 
         impl core::fmt::Display for $name {
             fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-                let mut end = self.0.len();
+                let len = self.0.len();
+                let median = (len + 1) / 2;
+
+                let mut e1 = median;
+                let mut s2 = median;
 
                 if let Some(precision) = f.precision() {
-                    if precision > end {
-                        return Err(core::fmt::Error);
+                    if precision < median {
+                        e1 = precision;
+                        s2 = len - precision;
                     }
+                }
 
-                    end = precision;
-                };
+                let p1 = hex::encode(&self.0[..e1]);
+                let p2 = hex::encode(&self.0[s2..]);
+                let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
 
-                write!(f, "0x{}", hex::encode(&self.0[..end]))
+                if f.alternate() {
+                    write!(f, "{}(0x{p1}{sep}{p2})", stringify!($name))
+                } else {
+                    write!(f, "0x{p1}{sep}{p2}")
+                }
             }
         }
 
@@ -221,4 +232,43 @@ impl From<ReservationId> for MessageId {
     fn from(id: ReservationId) -> Self {
         Self(id.0)
     }
+}
+
+#[test]
+fn formatting_test() {
+    use alloc::format;
+
+    let code_id = CodeId::generate(&[0, 1, 2]);
+    let id = ProgramId::generate(code_id, &[2, 1, 0]);
+
+    // `Debug`/`Display`.
+    assert_eq!(
+        format!("{id:?}"),
+        "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef"
+    );
+    // `Debug`/`Display` with precision 0.
+    assert_eq!(format!("{id:.0?}"), "0x..");
+    // `Debug`/`Display` with precision 1.
+    assert_eq!(format!("{id:.1?}"), "0xc1..ef");
+    // `Debug`/`Display` with precision 2.
+    assert_eq!(format!("{id:.2?}"), "0xc15d..fdef");
+    // `Debug`/`Display` with precision 4.
+    assert_eq!(format!("{id:.4?}"), "0xc15d1549..b936fdef");
+    // `Debug`/`Display` with precision 15.
+    assert_eq!(
+        format!("{id:.15?}"),
+        "0xc15d1549fa3950c0aa61e14a3ba476..95b4bcc894b9fab09e7fe9b936fdef"
+    );
+    // `Debug`/`Display` with precision 30 (the same for any case >= 16).
+    assert_eq!(
+        format!("{id:.30?}"),
+        "0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef"
+    );
+    // Alternate formatter.
+    assert_eq!(
+        format!("{id:#}"),
+        "ProgramId(0xc15d1549fa3950c0aa61e14a3ba476e06c95b4bcc894b9fab09e7fe9b936fdef)"
+    );
+    // Alternate formatter with precision 2.
+    assert_eq!(format!("{id:#.2}"), "ProgramId(0xc15d..fdef)");
 }

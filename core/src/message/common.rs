@@ -146,6 +146,11 @@ impl Message {
             })
             .map_err(|_| self)
     }
+
+    /// Returns bool defining if message is error reply.
+    pub fn is_error_reply(&self) -> bool {
+        !matches!(self.exit_code(), Some(0) | None)
+    }
 }
 
 /// Reply details data.

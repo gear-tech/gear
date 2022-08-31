@@ -34,7 +34,9 @@ use gear_core::{
 use std::{collections::BTreeMap, mem};
 use wasmi::{memory_units::Pages, MemoryInstance, MemoryRef, ModuleInstance, RuntimeValue};
 
-use crate::{manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD};
+use crate::{
+    manager::ExtManager, Result, TestError, MAILBOX_THRESHOLD, RESERVE_FOR, WAITLIST_COST,
+};
 
 /// Binary meta-functions executor for testing purposes
 pub(crate) struct WasmExecutor;
@@ -171,6 +173,8 @@ impl WasmExecutor {
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
+            waitlist_cost: WAITLIST_COST,
+            reserve_for: RESERVE_FOR,
         })
     }
 
