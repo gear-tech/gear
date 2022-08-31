@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  release:
+    types: [ released ]
+
+jobs:
+  publish:
+    name: Publish new version on crate.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
+      - name: Publish
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          cargo login "$CRATES_IO_TOKEN"
+          cargo publish -v --all-features

@@ -14,12 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-        
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
-        
+
       - uses: Swatinem/rust-cache@v2
-        
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
@@ -42,14 +42,14 @@ jobs:
           profile: minimal
           toolchain: stable
           components: clippy
-          
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
-        
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Check code format
         run: cargo fmt --check
-        
+
       - name: Run cargo clippy
         run: cargo clippy --all --all-features
