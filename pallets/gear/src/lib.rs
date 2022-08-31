@@ -561,7 +561,7 @@ pub mod pallet {
             // with `Self::next_message_id`.
             GasHandlerOf::<T>::create(
                 who.clone(),
-                message_id.into(),
+                message_id,
                 packet.gas_limit().expect("Can't fail"),
             )
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
