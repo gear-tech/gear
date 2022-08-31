@@ -34,15 +34,15 @@ Usages:
 
 ```sh
 $ gear 
-gear-program 0.1.1
+gear-program 0.1.3
 
 USAGE:
     gear [FLAGS] [OPTIONS] <SUBCOMMAND>
 
 FLAGS:
-    -d, --debug      Enable debug logs
     -h, --help       Prints help information
     -V, --version    Prints version information
+    -v, --verbose    Enable verbose logs
 
 OPTIONS:
     -e, --endpoint <endpoint>    Gear node rpc endpoint
@@ -50,21 +50,22 @@ OPTIONS:
 
 SUBCOMMANDS:
     claim       Claim value from mailbox
-    deploy      Deploy program to gear node
+    create      Deploy program to gear node
     help        Prints this message or the help of the given subcommand(s)
     info        Get account info from ss58address
+    key         Keypair utils
     login       Log in to account
     meta        Show metadata structure, read types from registry, etc
     new         Create a new gear program
     program     Read program state, etc
     reply       Sends a reply message
     send        Sends a message to a program or to another account
-    submit      Saves program `code` in storage
     transfer    Transfer value
-    update      Update resources
+    update      Update self from crates.io or github
+    upload      Saves program `code` in storage
 ```
 
-Now, let's create a <kbd>new</kbd> gear program and deploy it to the staging testnet.
+Now, let's create a <kbd>new</kbd> gear program and upload it to the staging testnet!
 
 ```
 $ gear new hello-world
@@ -92,15 +93,17 @@ $ gear login //Alice
 Successfully logged in as 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY!
 ```
 
-<kbd>deploy</kbd> your gear program
+<kbd>upload</kbd> your gear program
 
 ```
-$ gear deploy hello-world/target/wasm32-unknown-unknown/release/hello_world.wasm
-Submited call Gear::submit_program
-        Status: Broadcast( ["12D3KooWRGfgDJMYJm6zZeQyhum1gdCjQNpx2KXiK7MMF68Q4dZY", "12D3KooWCrVbKnk9NbQJT8Frs8jen4WwN12bwFN13XfMVAw7PVpN", "12D3KooWESKNqBMzP5in5h211zxUdVBT1Yr2tfxD7wjpcfaR3BF8", "12D3KooWMaNVy5CcU8UBvTaaNYTqSRc2inrGVLnw9g4PQYiHUQAr", "12D3KooWQi1oRarMGEuXjWLLETErrowbHB4fPZn9HDk6rjeMa1ch", "12D3KooWAiHom6TQ7NYcQyd5gNyqsTgXGdfpKXorSxxcSyBGni17", "12D3KooWCszCnbfkZLFpwFmMpeSN383oMftdYrmcNyucXth99soB", "12D3KooWAdgN6TL7qeEKDdquonezGGg6EsRKofYuLqKfJV3dRWuc", "12D3KooWAL8TCjDAYuLqrowXDxHpbHvtERY43wJ3pJnUPNSJtPyW", "12D3KooWDa6MYSbgqwcypZzaWkpFU1VqLGb8xrZZdj68nYJnm1zr", "12D3KooWEcxU1S9TB7o5U85LeQbrQvwvT68AxKyiRHEU93EfEatU", "12D3KooWBF3qedMHwiP4XS2eRVV7g6ffsZpgXRc7L48ziRmexPoa", "12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW", "12D3KooWHWgttEPxZgap2HzRa4X5kcSxBdhXprA4LY5x6pdRKrXj", "12D3KooWNEd5b23pMndC9xK11v7CNoRquh1yeXAFKLYsix5D8gD3", "12D3KooWKEhJTAg9vP42QUGV81LAaYGmfMTiDxE7DiQivPXZ185R", "12D3KooWACXR3rAh6cmEw6aWaCi2o1bpT3NeRwf4jgRcbnhaMMQK", "12D3KooWAoCGLbzx8UCuSHm1xhF1bpJVJTftvKM3cr24yngcpW7B", "12D3KooWPhQWEavGFYhCGDTMR2NADmKp3fgNXQ9js6H5fpr8vYUb", "12D3KooWP7W7jDMWJyT7BAeajL9j21Hmn2M5vpp7YUsNAqkjJVZD", "12D3KooWBkMbLRBsCUGVpr3CVrrjB8AuFXkF32UbGKUqc5ejGuW1", "12D3KooWCfm5T1uRq3rCNzqjsq3eFwu8fjHkUo1XBZmZvo611BwA", "12D3KooWNsqtRGKLFWiNfLqddE1jzfc9nxD83YirDzVXyLwKgQqP", "12D3KooWJK2qCja1xWMhZAGUqTELoVqYGyJt5WL7eSdeZw7agTh3", "12D3KooWH7cbomg41DuVqFBbcj1Yx6dJL5wicFUGgkK4XBzCQpmh", "12D3KooWEhsupQWc43mRo9t2bA9rymhC3NuUwbgFDhmBGU867GBz", "12D3KooWMxTvswYJB4swSJxukkWM6orJGcRi21DMCuWYb4PVGD4R", "12D3KooWLiRcF7hZnL1aqXNeiZiSNa7KaC4xGwsijBwRUi23GwRv", "12D3KooWQKV4rRCkLJuMnq6aWnknhr2ybS6T5kGMsqho2kpJMqJ1", "12D3KooWFejqJdDE9p5A7BXnhACFuRZNvaFym68fghN6qE3k1MUv", "12D3KooWGBV5YKikNV7JErmcvMhESoJnE8oZK1SBzFnm2osQviXG", "12D3KooWBW6F949rHu7NHfbCWNHqaxmrsvPZPURbWewkJA1gvGqB", "12D3KooWJXseuSYHydHPNmRGMnwiXpCxPpZTyYJkcwjMQDpDFyVa", "12D3KooWE7E8e4JozpnnLFFF4XFDLSm4Ww8kt6VNSfFvr5oCP11y", "12D3KooWLqJhjqbjrvzUxTtGNMg61LbZgQ6a5E59xpBRagQyHYsw", "12D3KooWQV1CZAT28vPvMzEYUvbBB9kgj3UM12BgaBC51UnEpMpG", "12D3KooWGoBi8tH4CqYEmpEYP5iBSCfXFKC5fhnGB8WnCC524o9X", "12D3KooWKRfahWtJQ73AeAyFkjVYa1k35rFpmk9aR4XtsiMTjF4s", "12D3KooWRFJWri1m5n3nYgsLEwwq8mSmGDrcY5o68ksXx3KJWPKn", "12D3KooWKPvLRDRbphK3bwHDCKPMrrLoFKYBsSbrYb7LhAYow3cB", "12D3KooWHcnYy1nAAtE4iSDX23oJexCMYs5z4RRct3MMoJLuuitg", "12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ"] )
-        Status: InBlock( block_hash: 0xde8e…9411, extrinsic_hash: 0x919c…3f92 )
-        Status: Finalized( block_hash: 0xde8e…9411, extrinsic_hash: 0x919c…3f92 )
-Successfully submited call Gear::submit_program 0x919c…3f92 at 0xde8e…9411!
+$ gear upload hello-world/target/wasm32-unknown-unknown/release/hello_world.wasm
+[INFO ] Submited extrinsic Gear::upload_code
+[INFO ]         Status: Ready
+[INFO ]         Status: Broadcast( ["12D3KooWQbJXFeRDJqmLT6jqahsJpwKGL5xEJJ6F3tevR1R85Upz", "12D3KooWFwZEE7cVz7fPTUrekv2Xfv2sR5HMetpadw4W9fZnEBr5", "12D3KooWNmeoxqMTSc3CzeA5SLTQ6xYQo4yz3Az1zjnAqrhpmBSH", "12D3KooWLFN7AceaViuVDakKghwLVo9i91Bi8DLyf1BGg6ftVGnG", "12D3KooWJ9EASqU3T89z1EBYMnvfTh5WK4Rgw3RMensrx5STRvXR", "12D3KooWDuzvhmTAebZXGJG8SCurHkn9x6mmpiTSQygGoCvXmYmU", "12D3KooWH7QBPHh5Byc2ZBjGSiqBbGzBAr5E8mqLWueyPXQJrxWB", "12D3KooWRw1Yfdo86zpgN9TTLJ6J53iAM1y1PW9ogKHsTHvBPDg9", "12D3KooWJ15sMWcCgmSLBAfRD5TZgKoCCZ1xDzPRGzbR2YC5zKqS", "12D3KooWEMDPU47VnnZPLEMXeFJkphaG8kRdn9SuTqoJJEhrwC2w", "12D3KooWSfMsGDWG6hvTgfLoFETZrnxNC649bQwSa9FxTAPw4Cmy", "12D3KooWK7fw8MdENES5jAb8kjLw4b3eGMxuWBPR52v15FRkmYF3", "12D3KooWLP3AxJf1VfVJzbzcrHAkipXXa9bSvPcE1TowuRQZE8bz", "12D3KooWSf2d69w7RYKtj9mgYpLDs3rqLAz9GHNSHHoCQDLUjeiP", "12D3KooWSKMmTordwL3t6SkQaKXuXt1aYC2QZAXNyt8DxjpgFXYq", "12D3KooWEsvboSEFhf5utCZJ4gfUjb7S5i9Qec1TXB2DuYPJZVzB", "12D3KooWRf7vAr79yAyDxGvYAdSqhh2EoeWe35Lx4QH4N6XMv2gH", "12D3KooWPuaSwvwq2EGdasjJruUzR1wwTk1tDdVBZauKwG8ZPFi1", "12D3KooWHSepUMWdNVgKPhdquR12AzSZrkHwUsfXvVfFMPGXpyH5", "12D3KooWDC3qNpRz5LdSfPWi3XWfc7kG5GHyEDNR2NcgJMedfu5v", "12D3KooWRQ8oUwhrW84UuVpQNZ2QxS2kg3SyhLwVkwHHk9vJgf5q", "12D3KooWHZaCXaMgavJYoH925jiLrLhsbPpU14tt6M7ypenDyfPc", "12D3KooWAd4GWfAqNTqoqTNnjsKqJHWNRezgcHi742eGYKDdYsfC", "12D3KooWFWc6NFCiuTxd9iKq9mi1n3G7nBEZ5yDkzzHjkGBSceje", "12D3KooWQ8yjECbzLThEwzcTQ3gtVgZbb1XPBrPyHnRkmLJRGfEW", "12D3KooWFsZdJERxRrc5afrFDxvts4bDxSHHDgQxh8bTm4Kq9PV7", "12D3KooWGpxgFFTXij8gXzx6YgExaVczUN2fuohccrkA11tGFzDu", "12D3KooWND9qfwCVtfB17y9fcThBKoWvCSpXrCQCs6XsWvHE5om2", "12D3KooWLoCosNXv1HESuU76r7xmp5UU4pdCncnZXB1hYvcbCYgX", "12D3KooWEga7tssCYmywnRU492ANXV4vGYqX5AVJrrAAKQ1zhhGN", "12D3KooWDP1pb16iGikYc8fkkL8ZYmzPqsrVRzQHHBDKxjRpUMNA", "12D3KooWG26t3Z1NfeAPNWdwrdWYntSUj69LzHcnBdV4PcQMEuHA", "12D3KooWS5DUgYPSQVrexXbPksR4cVsexFhLXzXFgsY47ZPeFHd9", "12D3KooWBWFtZqigVTC8W2GRMwLeuTK2o4hDC4XHVPyNV6hW1T1D", "12D3KooWDCboxcE7VAB3v3UJf1hrNZiswyk5Eg1u2kaiSs4v6Sbi", "12D3KooWNx1mbmwKXSPS8vuHkyVrQrZnwp4HGjLczPxFCpAyRhNS", "12D3KooWJ3KhEHCm4roQw2LAUGu28fXJf5QqQHhG6EaACw6RCUjr", "12D3KooWFnr5yyEcNAfdjJjfuBAMaZ2iz3GLyFrJAs5AiRJ74vWS", "12D3KooWMNeo7UgreqFxQ6BstVgZrNAZMVyKt9EWnC6AD9J2M1rT", "12D3KooWEVvqVD2mrLfmgeX1EXZ2caFXXEWWEs4Taa4mWzFUoF34", "12D3KooWMadAihMmvZmGt1HpxGAqqjb7Q2q96VVev6rGA1GLuqjv", "12D3KooWARM6duzRRd64fMJZJY3VqWekeG1rmJqxxjNLRYaQVPRt", "12D3KooWSqCyNpmVwaAxS1mMms2GQvUcPzPdoWB2XjiWpXvGW3Jf", "12D3KooWH22kTRSvhRnMUtu7Eg8d96Ma68jzRKV7vtxVMwB96kvS", "12D3KooWN1LBk84vnJEsQ33WsPRvpSzfrNMUZ2iLhTkUYjsSfwR5", "12D3KooWMxtE2fWGZZsZjfjoRN5aH6ecSKj8YfTkufi2vtywoKLS", "12D3KooWGMpAqtwpGR4tcQ3tc2ZThkTUN2YYcgxQsuSbfdQ4h3E4", "12D3KooWSyBLw12Z8rHRx2NSAfmb3cpAP6nJ2qK5FkdEC38zNVKk", "12D3KooWH7sqE4cp9wyLt5Z7xzuqA2imNGMeUHnu2gPJ4hGnJqJv", "12D3KooWK896roWsGutzksP9cZc3oypVPjRB1o83uHzjxM72V7zb"] )
+[INFO ]         Status: InBlock( block_hash: 0x4409…fa04, extrinsic_hash: 0x2c54…e9d9 )
+[INFO ]         Status: Finalized( block_hash: 0x4409…fa04, extrinsic_hash: 0x2c54…e9d9 )
+[INFO ] Successfully submited call Gear::upload_code 0x2c54…e9d9 at 0x4409…fa04!
+[INFO ]         Balance spent: 3724868714
 ```
 
 ## LICENSE
