@@ -84,8 +84,8 @@ pub use constants::{currency::*, time::*};
 // on-chain WASM runtime unless all of `spec_name`, `spec_version`, and
 // `authoring_version` are the same between WASM and native.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("gear-node"),
-    impl_name: create_runtime_str!("gear-node"),
+    spec_name: create_runtime_str!("gear"),
+    impl_name: create_runtime_str!("gear"),
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
     spec_version: 1670,

@@ -80,8 +80,8 @@ pub mod constants;
 pub use constants::{currency::*, time::*};
 
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("gear-node"),
-    impl_name: create_runtime_str!("gear-node"),
+    spec_name: create_runtime_str!("vara"),
+    impl_name: create_runtime_str!("vara"),
     authoring_version: 1,
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,

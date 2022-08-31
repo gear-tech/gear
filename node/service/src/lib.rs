@@ -54,11 +54,10 @@ pub trait IdentifyVariant {
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
     fn is_gear(&self) -> bool {
-        // TODO: remove the second condition upon chains renaming completion (issue #1303)
-        self.id().starts_with("gear") || self.id().eq("staging_testnet_v2")
+        self.id().to_lowercase().starts_with("gear")
     }
     fn is_vara(&self) -> bool {
-        self.id().starts_with("vara")
+        self.id().to_lowercase().starts_with("vara")
     }
     fn is_dev(&self) -> bool {
         self.id().ends_with("dev")
