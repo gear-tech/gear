@@ -313,6 +313,7 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
+            origin,
             reason: err.to_string(),
         },
         _ => DispatchOutcome::MessageTrap {

@@ -199,6 +199,8 @@ mod tests {
 
     #[test]
     fn check_enum() {
+        let _ = env_logger::try_init();
+
         let yaml = r#"
         addMessage:
           author: Author

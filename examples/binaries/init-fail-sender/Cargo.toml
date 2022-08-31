@@ -1,5 +1,5 @@
 [package]
-name = "demo-calc-hash"
+name = "demo-init-fail-sender"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
@@ -7,8 +7,13 @@ license = "GPL-3.0"
 workspace = "../../../"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"]}
-sha2 = { version = "0.10.3", default-features = false }
+gstd = { path = "../../../gstd", features = ["debug"] }
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../../utils/wasm-builder" }
+
+[lib]
+
+[features]
+std = []
+default = ["std"]

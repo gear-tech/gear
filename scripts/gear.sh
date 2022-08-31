@@ -319,6 +319,10 @@ case "$COMMAND" in
         header "Running js test for runtime upgrade"
         runtime_upgrade_test "$ROOT_DIR"; ;;
 
+      client-weights)
+        header "Running js test for client weights"
+        client_weights_test "$ROOT_DIR"; ;;
+
       fuzz)
         header "Running fuzzer for system consistency check"
         run_fuzzer "$ROOT_DIR" "$@"; ;;

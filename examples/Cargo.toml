@@ -24,6 +24,7 @@ members = [
     "guestbook",
     "gui-test",
     "incomplete_async_payloads",
+    "loop",
     "meta",
     "minimal",
     "multiping",
