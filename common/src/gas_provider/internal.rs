@@ -396,8 +396,8 @@ where
         )?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the parent node is independent
-        if node.is_independent() {
+        // Check if the parent node is detached
+        if node.is_detached() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -681,8 +681,8 @@ where
         )?;
         let node_id = node_id.unwrap_or(key);
 
-        // Check if the value node is independent
-        if node.is_independent() {
+        // Check if the value node is detached
+        if node.is_detached() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -716,7 +716,7 @@ where
             Self::get_node(GasNodeId::Node(key)).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_independent() {
+        if node.is_detached() {
             return Err(InternalError::forbidden().into());
         }
 
@@ -784,7 +784,7 @@ where
             Self::get_node(GasNodeId::Node(key)).ok_or_else(InternalError::node_not_found)?;
 
         // Validating node type to be able to lock.
-        if node.is_independent() {
+        if node.is_detached() {
             return Err(InternalError::forbidden().into());
         }
 

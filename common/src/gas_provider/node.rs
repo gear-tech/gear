@@ -58,13 +58,13 @@ pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone> {
 
     /// A node created by "cutting" value from some other tree node.
     ///
-    /// Such node types are independent and aren't part of the tree structure
+    /// Such node types are detached and aren't part of the tree structure
     /// (not node's parent, not node's child).
     Cut { id: ExternalId, value: Balance },
 
     /// A node used for gas reservation feature.
     ///
-    /// Such node types are independent and aren't part of the tree structure
+    /// Such node types are detached and aren't part of the tree structure
     /// (not node's parent, not node's child).
     Reserved { id: ExternalId, value: Balance },
 
@@ -274,9 +274,9 @@ impl<ExternalId: Clone, Id: Clone + Copy, Balance: Zero + Clone + Copy>
         matches!(self, Self::Reserved { .. })
     }
 
-    /// Returns whether the node is independent and isn't part of the tree structure
+    /// Returns whether the node is detached and isn't part of the tree structure
     /// (not node's parent, not node's child).
-    pub(crate) fn is_independent(&self) -> bool {
+    pub(crate) fn is_detached(&self) -> bool {
         self.is_reserved() | self.is_cut()
     }
 

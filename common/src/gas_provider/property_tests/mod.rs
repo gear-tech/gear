@@ -506,7 +506,7 @@ proptest! {
             // (Actually, patron can have 0 inner value, when `spend` decreased it's balance to 0, but it's an edge case)
             // ReservedLocal node can be not consumed with non zero value, but is not a patron
             if let Some(value) = node.value() {
-                if value != 0 && !node.is_independent() {
+                if value != 0 && !node.is_detached() {
                     assert!(node.is_patron());
                 }
             }
