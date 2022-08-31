@@ -4,7 +4,7 @@ const assert = require('assert/strict');
 const { exec } = require('child_process');
 const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit, getMessageEnqueuedBlock, uploadProgram } = require('./util.js');
 
-async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
+async function main(pathToRuntimeCode, pathToDemoPing) {
   // Create connection
   const provider = new WsProvider('ws://127.0.0.1:9944');
   const api = await ApiPromise.create({ provider });
@@ -15,8 +15,6 @@ async function main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad) {
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
   const isInitialized = checkInit(api);
-  // Upload demo_wrong_load, just check that node won't panic
-  await uploadProgram(api, account, pathToDemoWrongLoad);
 
   // Upload demo_ping
   const [programId, messageId] = await uploadProgram(api, account, pathToDemoPing);
@@ -69,12 +67,9 @@ const pathToRuntimeCode = args[0];
 assert.notStrictEqual(pathToRuntimeCode, undefined, `Path to runtime code is not specified`);
 const pathToDemoPing = args[1];
 assert.notStrictEqual(pathToDemoPing, undefined, `Path to demo ping is not specified`);
-// TODO: tmp add demo wrong load here, make separate test (issue #1378).
-const pathToDemoWrongLoad = args[2];
-assert.notStrictEqual(pathToDemoWrongLoad, undefined, `Path to demo ping is not specified`);
 let exitCode = undefined;
 
-main(pathToRuntimeCode, pathToDemoPing, pathToDemoWrongLoad)
+main(pathToRuntimeCode, pathToDemoPing)
   .then(() => {
     exitCode = 0;
   })
