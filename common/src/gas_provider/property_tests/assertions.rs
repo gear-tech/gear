@@ -120,15 +120,17 @@ fn assert_removed_nodes_form_path(
 
     while not_checked_parents_count > 1 {
         if let Some(parent) = node.parent() {
-            assert!(!remaining_nodes.contains_key(&parent));
-            assert!(removed_nodes.contains_key(&parent));
+            assert!(!remaining_nodes.contains_key(&GasNodeId::Node(parent)));
+            assert!(removed_nodes.contains_key(&GasNodeId::Node(parent)));
 
             not_checked_parents_count -= 1;
-            node = removed_nodes.get(&parent).expect("checked");
+            node = removed_nodes
+                .get(&GasNodeId::Node(parent))
+                .expect("checked");
         }
     }
     if let Some(parent) = node.parent() {
-        assert!(remaining_nodes.contains_key(&parent));
+        assert!(remaining_nodes.contains_key(&GasNodeId::Node(parent)));
     }
 }
 

@@ -136,9 +136,18 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 }
 
-type Key = H256;
+type Key = GasNodeId<H256, ReservationKey>;
 type ExternalOrigin = H256;
-type GasNode = super::GasNode<ExternalOrigin, Key, Balance>;
+type GasNode = super::GasNode<ExternalOrigin, H256, Balance>;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct ReservationKey(H256);
+
+impl ReservationKey {
+    fn random() -> Self {
+        Self(H256::random())
+    }
+}
 
 std::thread_local! {
     static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = RefCell::new(BTreeMap::new());
@@ -258,7 +267,8 @@ struct GasProvider;
 
 impl super::Provider for GasProvider {
     type ExternalOrigin = ExternalOrigin;
-    type Key = Key;
+    type Key = H256;
+    type ReservationKey = ReservationKey;
     type Balance = Balance;
     type PositiveImbalance = PositiveImbalance<Self::Balance, TotalIssuanceWrap>;
     type NegativeImbalance = NegativeImbalance<Self::Balance, TotalIssuanceWrap>;
@@ -299,7 +309,7 @@ proptest! {
         // +1 for the root
         let mut node_ids = Vec::with_capacity(actions.len() + 1);
         let root_node = H256::random();
-        node_ids.push(root_node);
+        node_ids.push(GasNodeId::Node(root_node));
 
         // Only root has a max balance
         Gas::create(external, root_node, max_balance).expect("Failed to create gas tree");
@@ -323,35 +333,42 @@ proptest! {
                     let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = H256::random();
 
-                    if let Err(e) = Gas::split_with_value(parent, child, amount) {
-                        assertions::assert_not_invariant_error(e);
-                    } else {
-                        spec_ref_nodes.insert(child);
-                        node_ids.push(child)
+                    if let GasNodeId::Node(parent) = parent {
+                        if let Err(e) = Gas::split_with_value(parent, child, amount) {
+                            assertions::assert_not_invariant_error(e);
+                        } else {
+                            spec_ref_nodes.insert(child);
+                            node_ids.push(GasNodeId::Node(child))
+                        }
                     }
+
                 }
                 GasTreeAction::Split(parent_idx) => {
                     let parent = node_ids.ring_get(parent_idx).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = H256::random();
 
-                    if let Err(e) = Gas::split(parent, child) {
-                        assertions::assert_not_invariant_error(e);
-                    } else {
-                        unspec_ref_nodes.insert(child);
-                        node_ids.push(child);
+                    if let GasNodeId::Node(parent) = parent {
+                        if let Err(e) = Gas::split(parent, child) {
+                            assertions::assert_not_invariant_error(e);
+                        } else {
+                            unspec_ref_nodes.insert(child);
+                            node_ids.push(GasNodeId::Node(child));
+                        }
                     }
                 }
                 GasTreeAction::Spend(from, amount) => {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
-                    let res = Gas::spend(from, amount);
 
-                    if let Err(e) = &res {
-                        assertions::assert_not_invariant_error(*e);
-                        // The only one possible valid error, because other ones signal about invariant problems.
-                        assert_err!(res, Error::InsufficientBalance);
-                    } else {
-                        assert_ok!(res);
-                        spent += amount;
+                    if let GasNodeId::Node(from) = from {
+                        let res = Gas::spend(from, amount);
+                        if let Err(e) = &res {
+                            assertions::assert_not_invariant_error(*e);
+                            // The only one possible valid error, because other ones signal about invariant problems.
+                            assert_err!(res, Error::InsufficientBalance);
+                        } else {
+                            assert_ok!(res);
+                            spent += amount;
+                        }
                     }
                 }
                 GasTreeAction::Consume(id) => {
@@ -383,7 +400,7 @@ proptest! {
                                 &remaining_nodes,
                                 &marked_consumed,
                             );
-                            assertions::assert_root_removed_last(root_node, remaining_nodes);
+                            assertions::assert_root_removed_last(GasNodeId::Node(root_node), remaining_nodes);
 
                             caught += maybe_caught.unwrap_or_default();
                         }
@@ -400,21 +417,25 @@ proptest! {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
                     let child = H256::random();
 
-                    if let Err(e) = Gas::cut(from, child, amount) {
-                        assertions::assert_not_invariant_error(e)
-                    } else {
-                        node_ids.push(child);
+                    if let GasNodeId::Node(from) = from {
+                        if let Err(e) = Gas::cut(from, child, amount) {
+                            assertions::assert_not_invariant_error(e)
+                        } else {
+                            node_ids.push(GasNodeId::Node(child));
+                        }
                     }
                 }
                 GasTreeAction::Reserve(from, amount) => {
                     let from = node_ids.ring_get(from).copied().expect("before each iteration there is at least 1 element; qed");
-                    let child = H256::random();
+                    let child = ReservationKey::random();
 
 
-                    if let Err(e) = Gas::reserve(from, child, amount) {
-                        assertions::assert_not_invariant_error(e)
-                    } else {
-                        node_ids.push(child);
+                    if let GasNodeId::Node(from) = from {
+                        if let Err(e) = Gas::reserve(from, child, amount) {
+                            assertions::assert_not_invariant_error(e)
+                        } else {
+                            node_ids.push(GasNodeId::Reservation(child));
+                        }
                     }
                 }
             }
@@ -446,6 +467,7 @@ proptest! {
 
             // Check property: all existing specified and unspecified nodes have a parent in a tree
             if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent, .. } = node {
+                let parent = GasNodeId::Node(parent);
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
                 let parent_node = GasTreeNodesWrap::get(&parent).expect("checked");
@@ -454,10 +476,10 @@ proptest! {
 
             // Check property: specified local nodes are created only with `split_with_value` call
             if node.is_specified_local() {
-                assert!(spec_ref_nodes.contains(&node_id));
+                assert!(spec_ref_nodes.contains(&node_id.to_node_id().unwrap()));
             } else if node.is_unspecified_local() {
                 // Check property: unspecified local nodes are created only with `split` call
-                assert!(unspec_ref_nodes.contains(&node_id));
+                assert!(unspec_ref_nodes.contains(&node_id.to_node_id().unwrap()));
             }
 
             // Check property: for all the consumed nodes currently existing in the tree...
@@ -535,7 +557,7 @@ proptest! {
                 }
                 GasTreeAction::Reserve(parent_idx, amount) => {
                     if let Some(&parent) = nodes.ring_get(parent_idx) {
-                        let child = H256::random();
+                        let child = ReservationKey::random();
 
                         Gas::reserve(parent, child, amount).expect("Failed to update gas reservation");
                     }

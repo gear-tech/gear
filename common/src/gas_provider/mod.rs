@@ -100,20 +100,35 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn get_origin_node(key: Self::Key) -> Result<(Self::ExternalOrigin, Self::Key), Self::Error>;
+    fn get_origin_node(
+        key: GasNodeId<Self::Key, Self::ReservationKey>,
+    ) -> Result<
+        (
+            Self::ExternalOrigin,
+            GasNodeId<Self::Key, Self::ReservationKey>,
+        ),
+        Self::Error,
+    >;
 
     /// The external origin for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_external(key: Self::Key) -> Result<Self::ExternalOrigin, Self::Error> {
+    fn get_external(
+        key: GasNodeId<Self::Key, Self::ReservationKey>,
+    ) -> Result<Self::ExternalOrigin, Self::Error> {
         Self::get_origin_node(key).map(|(external, _key)| external)
     }
 
     /// The id of external node for a key.
     ///
     /// See [`get_origin_node`](Self::get_origin_node) for details.
-    fn get_origin_key(key: Self::Key) -> Result<Self::Key, Self::Error> {
-        Self::get_origin_node(key).map(|(_external, key)| key)
+    fn get_origin_key(
+        key: GasNodeId<Self::Key, Self::ReservationKey>,
+    ) -> Result<Self::Key, Self::Error> {
+        Self::get_origin_node(key).and_then(|(_external, key)| {
+            key.to_node_id()
+                .ok_or_else(|| Self::InternalError::forbidden().into())
+        })
     }
 
     /// Get value associated with given id and the key of an ancestor,
@@ -141,7 +156,7 @@ pub trait Tree {
     /// Error occurs if the tree is invalidated (has "orphan" nodes), and the
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
-    fn consume(key: Self::Key) -> ConsumeResultOf<Self>;
+    fn consume(key: GasNodeId<Self::Key, Self::ReservationKey>) -> ConsumeResultOf<Self>;
 
     /// Burn underlying value.
     ///
@@ -231,6 +246,9 @@ pub trait Provider {
     /// Type that identifies a particular value item.
     type Key;
 
+    /// Type that identifies a particular value item for gas reservation.
+    type ReservationKey;
+
     /// Type representing a quantity of value.
     type Balance;
 
@@ -256,6 +274,7 @@ pub trait Provider {
     type GasTree: Tree<
         ExternalOrigin = Self::ExternalOrigin,
         Key = Self::Key,
+        ReservationKey = Self::ReservationKey,
         Balance = Self::Balance,
         PositiveImbalance = Self::PositiveImbalance,
         NegativeImbalance = Self::NegativeImbalance,

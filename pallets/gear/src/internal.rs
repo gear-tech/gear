@@ -28,6 +28,7 @@ use common::{
         MessageWaitedReason, MessageWokenReason, Reason, UserMessageReadReason,
         UserMessageReadRuntimeReason,
     },
+    gas_provider::GasNodeId,
     scheduler::*,
     storage::*,
     GasPrice, GasTree, Origin,
@@ -228,7 +229,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying external id. Fails in cases of `GasTree` invalidations.
-        let external = GasHandlerOf::<T>::get_external(message_id)
+        let external = GasHandlerOf::<T>::get_external(GasNodeId::Node(message_id))
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying actual block author to reward.
@@ -247,7 +248,7 @@ where
     /// Updates currency and balances data on imbalance creation.
     pub(crate) fn consume_message(message_id: MessageId) {
         // Consuming `GasNode`, returning optional outcome with imbalance.
-        let outcome = GasHandlerOf::<T>::consume(message_id)
+        let outcome = GasHandlerOf::<T>::consume(GasNodeId::Node(message_id))
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Unreserving funds, if imbalance returned.
@@ -343,7 +344,7 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
-        let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
+        let origin_msg = GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(dispatch.id()))
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Depositing appropriate event.

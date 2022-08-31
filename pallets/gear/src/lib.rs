@@ -226,7 +226,8 @@ pub mod pallet {
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
             ExternalOrigin = Self::AccountId,
-            Key = GasNodeId<MessageId, ReservationId>,
+            Key = MessageId,
+            ReservationKey = ReservationId,
             Balance = u64,
             Error = DispatchError,
         >;
@@ -890,7 +891,7 @@ pub mod pallet {
                 let get_main_limit = || GasHandlerOf::<T>::get_limit(main_message_id).ok();
 
                 let get_origin_msg_of = |msg_id| {
-                    GasHandlerOf::<T>::get_origin_key(msg_id)
+                    GasHandlerOf::<T>::get_origin_key(GasNodeId::Node(msg_id))
                         .map_err(|_| b"Internal error: unable to get origin key".to_vec())
                 };
 
@@ -1118,7 +1119,7 @@ pub mod pallet {
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     // Querying external id. Fails in cases of `GasTree` invalidations.
-                    let external = GasHandlerOf::<T>::get_external(dispatch.id())
+                    let external = GasHandlerOf::<T>::get_external(GasNodeId::Node(dispatch.id()))
                         .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
                     log::debug!(
