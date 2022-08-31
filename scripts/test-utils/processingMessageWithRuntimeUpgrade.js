@@ -2,7 +2,7 @@ const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { readFileSync } = require('fs');
 const assert = require('assert/strict');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit, getMessageEnqueuedBlock, uploadProgram } = require('./util.js');
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkProcessed, getMessageEnqueuedBlock, uploadProgram } = require('./util.js');
 
 async function main(pathToRuntimeCode, pathToDemoPing) {
   // Create connection
@@ -14,12 +14,13 @@ async function main(pathToRuntimeCode, pathToDemoPing) {
   // Check that it is root
   assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
-  const isInitialized = checkInit(api);
+  const gotProcessed = checkProcessed(api);
 
   // Upload demo_ping
   const [programId, messageId] = await uploadProgram(api, account, pathToDemoPing);
-  // Check that demo_ping was initialized
-  await isInitialized(messageId);
+
+  // Check that demo_ping was successfully initialized.
+  await gotProcessed(messageId, true);
 
   // Take runtime code
   const code = readFileSync(pathToRuntimeCode);

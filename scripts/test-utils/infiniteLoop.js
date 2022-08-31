@@ -3,7 +3,7 @@ const { randomAsHex } = require('@polkadot/util-crypto');
 const { readFileSync } = require('fs');
 const assert = require('assert');
 const { exec } = require('child_process');
-const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit, listenToUserMessageSent } = require('./util.js');
+const { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkProcessed, listenToUserMessageSent } = require('./util.js');
 
 async function main(pathToDemoLoop) {
   const provider = new WsProvider('ws://127.0.0.1:9944');
@@ -16,7 +16,7 @@ async function main(pathToDemoLoop) {
   const codeBytes = api.createType('Bytes', Array.from(code));
   const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x', 100_000_000_000, 0);
 
-  const isInitialized = checkInit(api);
+  const gotProcessed = checkProcessed(api);
   const [programId, messageId] = await new Promise((resolve, reject) => {
     program.signAndSend(account, ({ events, status }) => {
       events.forEach(({ event: { method, data } }) => {
@@ -28,7 +28,7 @@ async function main(pathToDemoLoop) {
       });
     });
   });
-  await isInitialized(messageId);
+  await gotProcessed(messageId, true);
 
   const gasLimit = api.consts.gearGas.blockGasLimit;
 

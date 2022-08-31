@@ -1,7 +1,8 @@
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const assert = require('assert/strict');
 const { exec } = require('child_process');
-const { checkInit, uploadProgram } = require('./util.js');
+const { checkProcessed, uploadProgram, getLastBlockNumber } = require('./util.js');
+const { setTimeout } = require("timers/promises");
 
 async function main(demoPaths) {
     // Create connection
@@ -13,14 +14,21 @@ async function main(demoPaths) {
     // Check that it is root
     assert.ok((await api.query.sudo.key()).eq(account.addressRaw));
 
-    const isInitialized = checkInit(api);
+    const gotProcessed = checkProcessed(api);
 
     for (const pathToDemo of demoPaths) {
         console.log(`Uploading demo: ${pathToDemo}`);
 
         const [_programId, messageId] = await uploadProgram(api, account, pathToDemo);
-        await isInitialized(messageId);
+        await gotProcessed(messageId);
     }
+
+    const bn = await getLastBlockNumber(api);
+
+    // Waiting for 5 seconds.
+    await setTimeout(5000);
+
+    assert.ok(bn < await getLastBlockNumber(api), 'There is no produced blocks');
   };
 
   const args = process.argv.slice(2);

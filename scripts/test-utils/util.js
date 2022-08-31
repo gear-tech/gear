@@ -14,6 +14,11 @@ async function messageDispatchedIsOccurred(api, hash) {
   });
 }
 
+async function getLastBlockNumber(api) {
+  const block = await api.rpc.chain.getBlock();
+  return block.block.header.number.toNumber();
+}
+
 async function getBlockNumber(api, hash) {
   const block = await api.rpc.chain.getBlock(hash);
   return block.block.header.number.toNumber();
@@ -23,7 +28,7 @@ async function getNextBlock(api, blockNumber) {
   return api.rpc.chain.getBlockHash(blockNumber + 1);
 }
 
-function checkInit(api) {
+function checkProcessed(api) {
   let processedMessages = new Map();
 
   const unsubPromise = api.query.system.events((events) => {
@@ -101,9 +106,10 @@ function listenToUserMessageSent(api, programId) {
 
 module.exports = {
   messageDispatchedIsOccurred,
+  getLastBlockNumber,
   getBlockNumber,
   getNextBlock,
-  checkInit,
+  checkProcessed,
   getMessageEnqueuedBlock,
   uploadProgram,
   listenToUserMessageSent,
