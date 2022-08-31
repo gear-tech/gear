@@ -63,6 +63,10 @@ pub enum Subcommand {
         about = "Run gear runtime tests with yaml."
     )]
     GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
+
+    /// Key management cli utilities
+    #[clap(subcommand)]
+    Key(sc_cli::KeySubcommand),
 }
 
 #[allow(missing_docs)]
