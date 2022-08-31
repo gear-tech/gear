@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
-quick-xml = { version = "0.23", features = [ "serialize" ] }
+quick-xml = { version = "0.24", features = [ "serialize" ] }
 tabled = "0.8.0"
 junit-common = { path = "../junit-common" }
 serde = { version = "1.0.138", features = ["derive"] }
