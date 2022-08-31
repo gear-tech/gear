@@ -1,4 +1,5 @@
 const { randomAsHex } = require('@polkadot/util-crypto');
+const assert = require('assert');
 const { readFileSync } = require('fs');
 
 async function messageDispatchedIsOccurred(api, hash) {
@@ -23,33 +24,28 @@ async function getNextBlock(api, blockNumber) {
 }
 
 function checkInit(api) {
-  let unsub;
-  let messages = new Map();
+  let processedMessages = new Map();
 
-  unsub = api.query.system.events((events) => {
-    events.forEach(({ event }) => {
-      switch (event.method) {
-        case 'MessagesDispatched':
-          for (const [id, status] of event.data.statuses) {
-            if (messages.has(id.toHex())) {
-              if (status.isFailed) {
-                messages.set(id.toHex(), Promise.reject(`Program initialization failed`));
-                break;
-              }
-              if (status.isSuccess) {
-                messages.set(id.toHex(), Promise.resolve());
-                break;
-              }
-            }
-          }
-          break;
+  const unsubPromise = api.query.system.events((events) => {
+    events.forEach(({ event: { method, data } }) => {
+      if (method === 'MessagesDispatched') {
+        for (const [id, status] of data.statuses) {
+          processedMessages.set(id.toHex(), status.isSuccess);
+        }
       }
     });
   });
 
-  return async (messageId) => {
-    (await unsub)();
-    return messages.get(messageId);
+  return (messageId, status = null) => {
+    unsubPromise.then((unsub) => unsub());
+    assert(processedMessages.has(messageId) === true, 'Message was not processed');
+    if (status !== null) {
+      if (status) {
+        assert.strictEqual(processedMessages.get(messageId), true, 'Message failed');
+      } else {
+        assert.strictEqual(processedMessages.get(messageId), false, 'Message succeed');
+      }
+    }
   };
 }
 
@@ -62,7 +58,7 @@ function getMessageEnqueuedBlock(api, { events, status }) {
     }
   });
   return blockHash;
-};
+}
 
 function uploadProgram(api, account, pathToDemo) {
   const code = readFileSync(pathToDemo);
@@ -79,7 +75,7 @@ function uploadProgram(api, account, pathToDemo) {
       });
     });
   });
-};
+}
 
 function listenToUserMessageSent(api, programId) {
   let message;
@@ -110,5 +106,5 @@ module.exports = {
   checkInit,
   getMessageEnqueuedBlock,
   uploadProgram,
-  listenToUserMessageSent
+  listenToUserMessageSent,
 };
