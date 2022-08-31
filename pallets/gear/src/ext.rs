@@ -23,6 +23,7 @@ use gear_backend_common::{
     TrapExplanation,
 };
 use gear_core::{
+    costs::RuntimeCosts,
     env::Ext as EnvExt,
     gas::GasAmount,
     ids::{MessageId, ProgramId},
@@ -157,6 +158,8 @@ impl EnvExt for LazyPagesExt {
         pages_num: WasmPageNumber,
         mem: &mut impl Memory,
     ) -> Result<WasmPageNumber, Self::Error> {
+        self.charge_gas_runtime(RuntimeCosts::Alloc)?;
+
         // Greedily charge gas for allocations
         self.charge_gas((pages_num.0 as u64).saturating_mul(self.inner.context.config.alloc_cost))?;
         // Greedily charge gas for grow
@@ -342,10 +345,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.create_program(packet).map_err(Error::Processor)
     }
 
-    fn charge_gas_runtime(
-        &mut self,
-        costs: gear_core::costs::RuntimeCosts,
-    ) -> Result<(), Self::Error> {
+    fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error> {
         self.inner
             .charge_gas_runtime(costs)
             .map_err(Error::Processor)
