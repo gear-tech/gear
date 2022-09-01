@@ -34,7 +34,7 @@ Usages:
 
 ```sh
 $ gear
-gear-program 0.1.3
+gear-program 0.1.4
 
 USAGE:
     gear [FLAGS] [OPTIONS] <SUBCOMMAND>

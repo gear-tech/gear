@@ -19,6 +19,7 @@ function generate-header() {
 //!
 //! spec_version: $1
 #![allow(clippy::all)]
+#![allow(missing_docs)]
 EOF
 }
 
