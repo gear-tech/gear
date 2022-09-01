@@ -81,28 +81,13 @@ pub struct ExecutionSettings {
     pub forbidden_funcs: BTreeSet<&'static str>,
     /// Threshold for inserting into mailbox
     pub mailbox_threshold: u64,
+    /// Cost for single block waitlist holding.
+    pub waitlist_cost: u64,
+    /// Reserve for parameter of scheduling.
+    pub reserve_for: u32,
 }
 
 impl ExecutionSettings {
-    /// New execution settings with default allocation config.
-    pub fn new(
-        block_info: BlockInfo,
-        existential_deposit: u128,
-        allocations_config: AllocationsConfig,
-        host_fn_weights: HostFnWeights,
-        forbidden_funcs: BTreeSet<&'static str>,
-        mailbox_threshold: u64,
-    ) -> Self {
-        Self {
-            block_info,
-            existential_deposit,
-            allocations_config,
-            host_fn_weights,
-            forbidden_funcs,
-            mailbox_threshold,
-        }
-    }
-
     /// Max amount of pages.
     pub fn max_pages(&self) -> WasmPageNumber {
         self.allocations_config.max_pages
@@ -126,6 +111,10 @@ pub struct BlockConfig {
     pub forbidden_funcs: BTreeSet<&'static str>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
+    /// Cost for single block waitlist holding.
+    pub waitlist_cost: u64,
+    /// Reserve for parameter of scheduling.
+    pub reserve_for: u32,
 }
 
 /// Unstable parameters for message execution across processing runs.

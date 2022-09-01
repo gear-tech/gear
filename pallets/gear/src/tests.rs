@@ -51,7 +51,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
 };
 use gear_core_errors::*;
-use sp_runtime::SaturatedConversion;
+use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use utils::*;
 
 #[test]
@@ -2481,6 +2481,342 @@ fn wake_messages_after_program_inited() {
 }
 
 #[test]
+fn test_different_waits_success() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            0u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(program_id));
+
+        let reserve_gas = CostsPerBlockOf::<Test>::reserve_for()
+            .saturated_into::<u64>()
+            .saturating_mul(CostsPerBlockOf::<Test>::waitlist());
+
+        let duration_gas = |duration: u32| {
+            duration
+                .saturated_into::<u64>()
+                .saturating_mul(CostsPerBlockOf::<Test>::waitlist())
+        };
+
+        let expiration = |duration: u32| -> BlockNumberFor<Test> {
+            System::block_number().saturating_add(duration.unique_saturated_into())
+        };
+
+        // Command::Wait case.
+        let payload = Command::Wait.encode();
+        let duration = 5;
+        let wl_gas = duration_gas(duration) + reserve_gas;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_success = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_eq!(get_waitlist_expiration(wait_success), expiration(duration));
+
+        // Command::WaitFor case.
+        let duration = 5;
+        let payload = Command::WaitFor(duration).encode();
+        let wl_gas = duration_gas(duration) + reserve_gas + 100_000_000;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_for_success = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            get_waitlist_expiration(wait_for_success),
+            expiration(duration)
+        );
+
+        // Command::WaitNoMore case.
+        let duration = 5;
+        let payload = Command::WaitNoMore(duration).encode();
+        let wl_gas = duration_gas(duration) + reserve_gas + 100_000_000;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_no_more_success = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            get_waitlist_expiration(wait_no_more_success),
+            expiration(duration)
+        );
+    });
+}
+
+#[test]
+fn test_different_waits_fail() {
+    use demo_waiter::{Command, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            Origin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            0u64,
+            0u128
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(program_id));
+
+        // Command::Wait case no gas.
+        let payload = Command::Wait.encode();
+        let wl_gas = 0;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_gas = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            wait_gas,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+                WaitError::NotEnoughGas,
+            ))),
+        );
+
+        // Command::WaitFor case no gas.
+        let payload = Command::WaitFor(10).encode();
+        let wl_gas = 0;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_for_gas = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            wait_for_gas,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+                WaitError::NotEnoughGas,
+            ))),
+        );
+
+        // Command::WaitNoMore case no gas.
+        let payload = Command::WaitNoMore(10).encode();
+        let wl_gas = 0;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            payload.clone(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_no_more_gas = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            wait_no_more_gas,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+                WaitError::NotEnoughGas,
+            ))),
+        );
+
+        // Command::WaitFor case invalid argument.
+        let payload = Command::WaitFor(0).encode();
+        let wl_gas = 10_000;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            // Hack to avoid calculating gas info fail.
+            Command::WaitFor(1).encode(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_for_arg = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            wait_for_arg,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+                WaitError::InvalidArgument,
+            ))),
+        );
+
+        // Command::WaitNoMore case invalid argument.
+        let payload = Command::WaitNoMore(0).encode();
+        let wl_gas = 10_000;
+        let value = 0;
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            // Hack to avoid calculating gas info fail.
+            Command::WaitNoMore(1).encode(),
+            value,
+            false,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert!(gas_info.waited);
+
+        assert_ok!(Gear::send_message(
+            Origin::signed(USER_1),
+            program_id,
+            payload,
+            gas_info.burned + wl_gas,
+            value
+        ));
+
+        let wait_no_more_arg = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            wait_no_more_arg,
+            ExecutionErrorReason::Ext(TrapExplanation::Core(ExtError::Wait(
+                WaitError::InvalidArgument,
+            ))),
+        );
+    });
+}
+
+#[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2661,11 +2997,16 @@ fn terminated_locking_funds() {
         assert!(Gear::is_terminated(program_id));
         assert_balance(program_id, 0u128, prog_reserve);
 
-        // Remove `+ 50_000` (#1173).
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_1_balance + prog_free + 50_000
-        );
+        let locked_gas_to_wl =
+            CostsPerBlockOf::<Test>::waitlist() * (100 + CostsPerBlockOf::<Test>::reserve_for());
+        let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
+
+        let expected_balance = user_1_balance
+            + prog_free
+            + <Test as Config>::GasPrice::gas_price(locked_gas_to_wl - gas_spent_in_wl);
+        let user_1_balance = Balances::free_balance(USER_1);
+
+        assert_eq!(user_1_balance, expected_balance);
 
         // Hack to fast spend blocks till expiration.
         System::set_block_number(interval.finish - 1);
@@ -2677,12 +3018,10 @@ fn terminated_locking_funds() {
             CostsPerBlockOf::<Test>::mailbox() * CostsPerBlockOf::<Test>::reserve_for(),
         );
 
+        let expected_balance = user_1_balance + prog_reserve + extra_gas_to_mb;
+
         assert_balance(program_id, 0u128, 0u128);
-        // Remove `+ 50_000` (#1173).
-        assert_eq!(
-            Balances::free_balance(USER_1),
-            user_1_balance + prog_free + prog_reserve + extra_gas_to_mb + 50_000
-        );
+        assert_eq!(Balances::free_balance(USER_1), expected_balance);
     });
 }
 
@@ -5079,7 +5418,7 @@ mod utils {
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::{currency::Currency, Balance},
     };
-    use frame_system::pallet_prelude::OriginFor;
+    use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_backend_common::TrapExplanation;
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
@@ -5458,6 +5797,45 @@ mod utils {
                 _ => None,
             })
             .expect("can't find message send event")
+    }
+
+    pub(super) fn get_waitlist_expiration(message_id: MessageId) -> BlockNumberFor<Test> {
+        let mut exp = None;
+        System::events()
+            .into_iter()
+            .rfind(|e| match e.event {
+                MockEvent::Gear(Event::MessageWaited {
+                    id: message_id,
+                    expiration,
+                    ..
+                }) => {
+                    exp = Some(expiration);
+                    true
+                }
+                _ => false,
+            })
+            .expect("Failed to find appropriate MessageWaited event");
+
+        exp.unwrap()
+    }
+
+    pub(super) fn get_last_message_waited() -> (MessageId, BlockNumberFor<Test>) {
+        let mut message_id = None;
+        let mut exp = None;
+        System::events()
+            .into_iter()
+            .rfind(|e| {
+                if let MockEvent::Gear(Event::MessageWaited { id, expiration, .. }) = e.event {
+                    message_id = Some(id);
+                    exp = Some(expiration);
+                    true
+                } else {
+                    false
+                }
+            })
+            .expect("Failed to find appropriate MessageWaited event");
+
+        (message_id.unwrap(), exp.unwrap())
     }
 
     pub(super) fn maybe_last_message(account: AccountId) -> Option<StoredMessage> {

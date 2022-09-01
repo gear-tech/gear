@@ -17,16 +17,33 @@ pub struct Runtime<'a, E: Ext> {
     pub err: FuncError<E::Error>,
 }
 
+impl<'a, E> Runtime<'a, E>
+where
+    E: Ext + IntoExtInfo + 'static,
+    E::Error: AsTerminationReason + IntoExtError,
+{
+    pub(crate) fn write_validated_output(
+        &mut self,
+        out_ptr: u32,
+        f: impl FnOnce(&mut E) -> Result<&[u8], FuncError<E::Error>>,
+    ) -> Result<(), FuncError<E::Error>> {
+        let buf = f(self.ext)?;
+
+        self.memory
+            .set(out_ptr, buf)
+            .map_err(|_| MemoryError::OutOfBounds)?;
+
+        Ok(())
+    }
+}
+
 impl<'a, E> RuntimeCtx<E> for Runtime<'a, E>
 where
     E: Ext + IntoExtInfo + 'static,
     E::Error: AsTerminationReason + IntoExtError,
 {
-    fn alloc(
-        &mut self,
-        pages: u32,
-    ) -> Result<gear_core::memory::WasmPageNumber, <E as Ext>::Error> {
-        self.ext.alloc(pages.into(), self.memory_wrap)
+    fn alloc(&mut self, pages: u32) -> Result<gear_core::memory::WasmPageNumber, E::Error> {
+        (self.ext).alloc(pages.into(), self.memory_wrap)
     }
 
     fn read_memory(&self, ptr: u32, len: u32) -> Result<Vec<u8>, MemoryError> {

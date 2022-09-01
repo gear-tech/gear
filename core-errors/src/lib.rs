@@ -110,6 +110,22 @@ pub enum MessageError {
         /// Amount of available value.
         value_left: u128,
     },
+
+    /// The error occurs when program receives too big payload.
+    #[display(fmt = "Received message with abnormal payload size")]
+    IncomingPayloadTooBig,
+}
+
+/// Error using waiting syscalls.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, derive_more::Display)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+pub enum WaitError {
+    /// An error occurs in attempt to wait duration greater than could be payed.
+    #[display(fmt = "Not enough gas to cover holding in waitlist")]
+    NotEnoughGas,
+    /// An error occurs in attempt to wait duration greater than could be payed.
+    #[display(fmt = "Provided incorrect argument for wait (zero case)")]
+    InvalidArgument,
 }
 
 /// Memory error.
@@ -163,6 +179,9 @@ pub enum ExtError {
     /// Message error.
     #[display(fmt = "Message error: {}", _0)]
     Message(MessageError),
+    /// Waiting error.
+    #[display(fmt = "Waiting error: {}", _0)]
+    Wait(WaitError),
     /// Execution error.
     #[display(fmt = "Execution error: {}", _0)]
     Execution(ExecutionError),

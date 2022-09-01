@@ -16,20 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod error;
-mod log;
-mod mailbox;
-mod manager;
-mod program;
-mod system;
-mod wasm_executor;
-
-pub use error::{Result, TestError};
-pub use log::{CoreLog, Log, RunResult};
-pub use program::{calculate_program_id, Gas, Program, WasmProgram};
-pub use system::System;
-
-pub const EXISTENTIAL_DEPOSIT: u128 = 500;
-pub const MAILBOX_THRESHOLD: u64 = 3000;
-pub const WAITLIST_COST: u64 = 100;
-pub const RESERVE_FOR: u32 = 1;
+fn main() {
+    gear_wasm_builder::build();
+}
