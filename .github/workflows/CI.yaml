@@ -276,7 +276,7 @@ jobs:
 
       - name: "Test: Runtime benchmarks work"
         run: |
-          cargo build -p gear-node --release --features runtime-benchmarks
+          cargo build -p gear-node --release --no-default-features --features gear-native,runtime-benchmarks
           ./target/release/gear-node benchmark pallet --chain=dev --steps=1 --repeat=1 --pallet=pallet_gear --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
 
       - name: Find comment (performance)
