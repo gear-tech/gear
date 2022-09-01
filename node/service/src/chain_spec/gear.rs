@@ -247,14 +247,14 @@ fn testnet_genesis(
         },
         session: SessionConfig {
             keys: initial_authorities
-                .iter()
+                .into_iter()
                 .map(|x| {
                     (
                         x.0.clone(),
                         x.0.clone(),
                         SessionKeys {
                             babe: x.1.clone(),
-                            grandpa: x.2.clone(),
+                            grandpa: x.2,
                         },
                     )
                 })
