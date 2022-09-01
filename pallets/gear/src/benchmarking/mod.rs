@@ -36,12 +36,15 @@ use crate::{
     manager::{ExtManager, HandleKind},
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CurrencyOf, Ext as Externalities,
-    GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, QueueOf, SandboxEnvironment, Schedule,
-    WaitlistOf,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
+    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, QueueOf,
+    SandboxEnvironment, Schedule, WaitlistOf,
 };
 use codec::Encode;
-use common::{benchmarking, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin};
+use common::{
+    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeMetadata, CodeStorage,
+    GasPrice, GasTree, Origin,
+};
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
     PrepareResult, PreparedMessageExecutionContext,
@@ -1569,7 +1572,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1601,7 +1604,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
