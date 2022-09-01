@@ -291,6 +291,8 @@ where
 
     let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
+    let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
+    let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
 
     let block_config = BlockConfig {
         block_info,
@@ -306,6 +308,8 @@ where
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,
+        waitlist_cost,
+        reserve_for,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -1534,6 +1538,70 @@ benchmarks! {
     }: {
         core_processor::process::<
             Externalities,
+            SandboxEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    // We cannot call `gr_wait_for` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_wait_for {
+        let r in 0 .. 1;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_wait_for",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(100),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            ext::LazyPagesExt,
+            SandboxEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    // We cannot call `gr_wait_no_more` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_wait_no_more {
+        let r in 0 .. 1;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_wait_no_more",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(100),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            ext::LazyPagesExt,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
