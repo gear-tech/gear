@@ -150,6 +150,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                 // Initial PoA authorities
                 vec![
                     (
+                        // 5Gc7RXDUqWR7yupYFv6KMaak3fMbxYV1z6gEEGhQxeD4TBj9
                         hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
                             .into(),
                         // 5Gc7RXDUqWR7yupYFv6KMaak3fMbxYV1z6gEEGhQxeD4TBj9
@@ -160,6 +161,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // 5DRmQFTuJaMDuU6JMJgUhsCqrdURito3pUpTnDcFKRswdGXz
                         hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
                             .into(),
                         // 5DRmQFTuJaMDuU6JMJgUhsCqrdURito3pUpTnDcFKRswdGXz
@@ -170,6 +172,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // 5E4jfoWJHckHB7WyDGebTwD6yEg2pyjxbHwJvCGc9fVGZ3GN
                         hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
                             .into(),
                         // 5E4jfoWJHckHB7WyDGebTwD6yEg2pyjxbHwJvCGc9fVGZ3GN
@@ -180,6 +183,7 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
                             .unchecked_into(),
                     ),
                     (
+                        // 5HZJiwwz2sqoPMw8eGLD1d3fiWgZzTQwR5j8EnHBtjqTAUqq
                         hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
                             .into(),
                         // 5HZJiwwz2sqoPMw8eGLD1d3fiWgZzTQwR5j8EnHBtjqTAUqq
@@ -251,9 +255,9 @@ fn testnet_genesis(
                 .map(|x| {
                     (
                         x.0.clone(),
-                        x.0.clone(),
+                        x.0,
                         SessionKeys {
-                            babe: x.1.clone(),
+                            babe: x.1,
                             grandpa: x.2,
                         },
                     )
