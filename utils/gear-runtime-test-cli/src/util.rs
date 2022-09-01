@@ -17,18 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-#[cfg(all(
-    feature = "rococo-gear-native",
-    not(feature = "gear-native"),
-    not(feature = "vara-native")
-))]
-use frame_support::traits::GenesisBuild;
-use frame_support::traits::{Currency, OnFinalize, OnIdle, OnInitialize};
+use frame_support::traits::{Currency, GenesisBuild, OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
-use gear_runtime::{Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
+use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use runtime_primitives::AccountPublic;
@@ -197,14 +191,14 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(all(feature = "authoring-aura", not(feature = "rococo-gear-native")))]
+    #[cfg(feature = "gear-native")]
     AuraConfig {
         authorities: authorities.iter().cloned().map(|(_, x)| x).collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(all(feature = "authoring-aura", not(feature = "rococo-gear-native")))]
+    #[cfg(not(feature = "authoring-aura"))]
     SessionConfig {
         keys: authorities
             .iter()
@@ -228,34 +222,24 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         not(feature = "gear-native"),
         not(feature = "vara-native")
     ))]
-    CollatorSelectionConfig {
-        invulnerables: authorities.iter().cloned().map(|(acc, _)| acc).collect(),
-        candidacy_bond: <Runtime as Config>::Currency::minimum_balance() * 16,
-        ..Default::default()
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-
-    #[cfg(all(
-        feature = "rococo-gear-native",
-        not(feature = "gear-native"),
-        not(feature = "vara-native")
-    ))]
-    SessionConfig {
-        keys: authorities
-            .iter()
-            .map(|x| (x.0.clone(), x.0.clone(), SessionKeys { aura: x.1.clone() }))
-            .collect(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-
-    #[cfg(all(
-        feature = "rococo-gear-native",
-        not(feature = "gear-native"),
-        not(feature = "vara-native")
-    ))]
     {
+        CollatorSelectionConfig {
+            invulnerables: authorities.iter().cloned().map(|(acc, _)| acc).collect(),
+            candidacy_bond: <Runtime as Config>::Currency::minimum_balance() * 16,
+            ..Default::default()
+        }
+        .assimilate_storage(&mut t)
+        .unwrap();
+
+        SessionConfig {
+            keys: authorities
+                .iter()
+                .map(|x| (x.0.clone(), x.0.clone(), SessionKeys { aura: x.1.clone() }))
+                .collect(),
+        }
+        .assimilate_storage(&mut t)
+        .unwrap();
+
         AuraConfig::default().assimilate_storage(&mut t).unwrap();
 
         let config = AuraExtConfig::default();
