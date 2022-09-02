@@ -111,9 +111,9 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/check_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/check_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -363,9 +363,9 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mkdir -p /root/cache/
 
       - name: "Cache: Pack to temp"
