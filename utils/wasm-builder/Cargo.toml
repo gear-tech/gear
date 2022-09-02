@@ -16,5 +16,5 @@ toml = "0.5.9"
 thiserror = "1.0.33"
 log = "0.4.17"
 pathdiff = { version = "0.2.1", default-features = false }
-which = "4.2.5"
+which = "4.3.0"
 colored = "2.0.0"
