@@ -22,10 +22,7 @@ use cfg_if::cfg_if;
 use region::Protection;
 use std::cell::RefMut;
 
-use crate::{
-    deprecated::user_signal_handler_internal_v1, Error, LazyPagesExecutionContext,
-    LazyPagesVersion, WasmAddr, LAZY_PAGES_CONTEXT, LAZY_PAGES_VERSION,
-};
+use crate::{Error, LazyPagesExecutionContext, WasmAddr, LAZY_PAGES_CONTEXT};
 
 use gear_core::memory::{PageNumber, PAGE_STORAGE_GRANULARITY};
 
@@ -195,7 +192,7 @@ impl CheckedWasmAddr {
 /// After signal handler is done, OS returns execution to the same machine
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
-unsafe fn user_signal_handler_internal_v2(
+unsafe fn user_signal_handler_internal(
     mut ctx: RefMut<LazyPagesExecutionContext>,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
@@ -319,9 +316,5 @@ unsafe fn user_signal_handler_internal_v2(
 /// For the most recent logic see "self::user_signal_handler_internal_v2"
 pub unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
     log::debug!("Interrupted, exception info = {:?}", info);
-    let version = LAZY_PAGES_VERSION.with(|v| *v.borrow());
-    LAZY_PAGES_CONTEXT.with(|ctx| match version {
-        LazyPagesVersion::Version1 => user_signal_handler_internal_v1(ctx.borrow_mut(), info),
-        LazyPagesVersion::Version2 => user_signal_handler_internal_v2(ctx.borrow_mut(), info),
-    })
+    LAZY_PAGES_CONTEXT.with(|ctx| user_signal_handler_internal(ctx.borrow_mut(), info))
 }

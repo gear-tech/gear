@@ -102,8 +102,7 @@ impl SubstrateCli for Cli {
             #[cfg(feature = "gear-native")]
             spec if spec.is_gear() => &service::gear_runtime::VERSION,
             #[cfg(feature = "vara-native")]
-            _ => &service::vara_runtime::VERSION,
-            #[cfg(not(feature = "vara-native"))]
+            spec if spec.is_vara() => &service::vara_runtime::VERSION,
             _ => panic!("Invalid chain spec"),
         }
     }
@@ -118,7 +117,7 @@ macro_rules! unwrap_client {
         match $client.as_ref() {
             #[cfg(feature = "gear-native")]
             service::Client::Gear($client) => $code,
-            #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+            #[cfg(feature = "vara-native")]
             service::Client::Vara($client) => $code,
             #[allow(unreachable_patterns)]
             _ => Err("invalid chain spec".into()),
@@ -198,11 +197,10 @@ pub fn run() -> sc_cli::Result<()> {
                                     config,
                                 ),
                             #[cfg(feature = "vara-native")]
-                            _ => cmd
+                            spec if spec.is_vara() => cmd
                                 .run::<service::vara_runtime::Block, service::VaraExecutorDispatch>(
                                     config,
                                 ),
-                            #[cfg(not(feature = "vara-native"))]
                             _ => Err("invalid chain spec".into()),
                         }
                     }

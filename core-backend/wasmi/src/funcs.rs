@@ -28,6 +28,7 @@ use core::{
     convert::{TryFrom, TryInto},
     fmt,
     marker::PhantomData,
+    ops::Range,
     slice::Iter,
 };
 use gear_backend_common::{
@@ -100,6 +101,14 @@ pub enum FuncError<E> {
     SyscallErrorExpected,
     #[display(fmt = "Terminated: {:?}", _0)]
     Terminated(TerminationReason),
+    #[display(
+        fmt = "Cannot take data by indexes {:?} from message with size {}",
+        _0,
+        _1
+    )]
+    ReadWrongRange(Range<usize>, usize),
+    #[display(fmt = "Overflow at {} + len {} in `gr_read`", _0, _1)]
+    ReadLenOverflow(usize, usize),
 }
 
 impl<E> FuncError<E>
@@ -317,22 +326,40 @@ where
     pub fn read(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
         let mut args = args.iter();
 
-        let at = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+        let at: usize = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let len: usize = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
         let dest = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
 
-        let mut f = || {
-            let msg = ctx.ext.msg().to_vec();
-            ctx.write_output(dest, &msg[at..(at + len)])
-        };
-        f().map(|()| ReturnValue::Unit).map_err(|err| {
-            ctx.err = err.into();
+        ctx.write_validated_output(dest, |ext| {
+            let msg = ext.read().map_err(FuncError::Core)?;
+
+            let last_idx = at
+                .checked_add(len)
+                .ok_or(FuncError::ReadLenOverflow(at, len))?;
+
+            if last_idx > msg.len() {
+                return Err(FuncError::ReadWrongRange(at..last_idx, msg.len()));
+            }
+
+            Ok(&msg[at..last_idx])
+        })
+        .map(|()| ReturnValue::Unit)
+        .map_err(|err| {
+            ctx.err = err;
             FuncError::HostError
         })
     }
 
     pub fn size(ctx: &mut Runtime<E>, _args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
-        return_i32(ctx.ext.msg().len()).map_err(|_| FuncError::HostError)
+        let size = ctx.ext.size().map_err(FuncError::Core);
+
+        match size {
+            Ok(size) => return_i32(size).map_err(|_| FuncError::HostError),
+            Err(err) => {
+                ctx.err = err;
+                Err(FuncError::HostError)
+            }
+        }
     }
 
     pub fn exit(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
@@ -377,7 +404,6 @@ where
                 if let Some(TerminationReason::GasAllowanceExceeded) = e
                     .as_core()
                     .and_then(AsTerminationReason::as_termination_reason)
-                    .cloned()
                 {
                     ctx.err = FuncError::Terminated(TerminationReason::GasAllowanceExceeded);
                 }
@@ -756,8 +782,44 @@ where
             .wait()
             .map_err(FuncError::Core)
             .err()
-            .unwrap_or(FuncError::Terminated(TerminationReason::Wait));
+            .unwrap_or(FuncError::Terminated(TerminationReason::Wait(None)));
         ctx.err = err;
+        Err(FuncError::HostError)
+    }
+
+    pub fn wait_for(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let mut args = args.iter();
+
+        let duration_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+
+        let mut f = || {
+            let duration: u32 = ctx.read_memory_as(duration_ptr)?;
+            ctx.ext.wait_for(duration).map_err(FuncError::Core)?;
+            Ok(Some(duration))
+        };
+
+        ctx.err = match f() {
+            Ok(duration) => FuncError::Terminated(TerminationReason::Wait(duration)),
+            Err(e) => e,
+        };
+        Err(FuncError::HostError)
+    }
+
+    pub fn wait_no_more(ctx: &mut Runtime<E>, args: &[RuntimeValue]) -> SyscallOutput<E::Error> {
+        let mut args = args.iter();
+
+        let duration_ptr = pop_i32(&mut args).map_err(|_| FuncError::HostError)?;
+
+        let mut f = || {
+            let duration: u32 = ctx.read_memory_as(duration_ptr)?;
+            ctx.ext.wait_no_more(duration).map_err(FuncError::Core)?;
+            Ok(Some(duration))
+        };
+
+        ctx.err = match f() {
+            Ok(duration) => FuncError::Terminated(TerminationReason::Wait(duration)),
+            Err(e) => e,
+        };
         Err(FuncError::HostError)
     }
 

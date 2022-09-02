@@ -45,7 +45,9 @@ pub fn handle_journal(
                 message_id,
                 dispatch,
             } => handler.send_dispatch(message_id, dispatch),
-            JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
+            JournalNote::WaitDispatch { dispatch, duration } => {
+                handler.wait_dispatch(dispatch, duration)
+            }
             JournalNote::WakeMessage {
                 message_id,
                 program_id,

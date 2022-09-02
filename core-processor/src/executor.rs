@@ -113,6 +113,7 @@ pub(crate) fn charge_gas_for_pages(
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.0 as u64;
+        log::trace!("Charge {} for initial pages", amount);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::InitialMemoryBlockGasExceeded);
@@ -223,6 +224,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
     page_update
 }
 
+#[allow(clippy::result_large_err)]
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     balance: u128,
@@ -292,6 +294,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
         mailbox_threshold: settings.mailbox_threshold,
+        waitlist_cost: settings.waitlist_cost,
+        reserve_for: settings.reserve_for,
     };
 
     // Creating externalities.
@@ -371,7 +375,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait => DispatchResultKind::Wait,
+        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 

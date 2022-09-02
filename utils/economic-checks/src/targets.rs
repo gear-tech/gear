@@ -44,7 +44,7 @@ struct Seed([u8; 32]);
 
 impl fmt::Display for Seed {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(&self.0))
+        write!(f, "0x{}", hex::encode(self.0))
     }
 }
 
@@ -174,8 +174,7 @@ where
                 legit_error_1
                     if legit_error_1 == pallet_gear::Error::<Runtime>::GasLimitTooHigh.into() => {}
                 legit_error_2
-                    if legit_error_2
-                        == pallet_gear::Error::<Runtime>::ProgramIsTerminated.into() => {}
+                    if legit_error_2 == pallet_gear::Error::<Runtime>::InactiveProgram.into() => {}
                 legit_error_3
                     if legit_error_3
                         == pallet_gear::Error::<Runtime>::NotEnoughBalanceForReserve.into() => {}

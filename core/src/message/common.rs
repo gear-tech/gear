@@ -135,6 +135,7 @@ impl Message {
         self.reply.map(|v| v.exit_code())
     }
 
+    #[allow(clippy::result_large_err)]
     /// Consumes self in order to create new `StoredMessage`, which payload
     /// contains string representation of initial bytes,
     /// decoded into given type.
@@ -145,6 +146,11 @@ impl Message {
                 Self { payload, ..self }
             })
             .map_err(|_| self)
+    }
+
+    /// Returns bool defining if message is error reply.
+    pub fn is_error_reply(&self) -> bool {
+        !matches!(self.exit_code(), Some(0) | None)
     }
 }
 

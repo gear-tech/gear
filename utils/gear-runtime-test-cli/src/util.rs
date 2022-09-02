@@ -22,20 +22,18 @@ use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
-use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
+use gear_runtime::{
+    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
+};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use runtime_primitives::AccountPublic;
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
-#[cfg(not(feature = "authoring-aura"))]
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
 };
 use sp_consensus_slots::Slot;
 use sp_core::{sr25519, Pair, Public};
-#[cfg(not(feature = "authoring-aura"))]
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
     app_crypto::UncheckedFrom, traits::IdentifyAccount, AccountId32, Digest, DigestItem,
@@ -79,11 +77,6 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
-    #[cfg(feature = "authoring-aura")]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-    #[cfg(not(feature = "authoring-aura"))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(
             BABE_ENGINE_ID,
@@ -133,14 +126,6 @@ where
 }
 
 // Generate authority keys.
-#[cfg(feature = "authoring-aura")]
-pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId) {
-    (
-        get_account_id_from_seed::<sr25519::Public>(s),
-        get_from_seed::<AuraId>(s),
-    )
-}
-#[cfg(not(feature = "authoring-aura"))]
 pub fn authority_keys_from_seed(s: &str) -> (AccountId32, BabeId, GrandpaId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
@@ -181,13 +166,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "authoring-aura")]
-    AuraConfig {
-        authorities: authorities.iter().cloned().map(|(_, x)| x).collect(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-    #[cfg(not(feature = "authoring-aura"))]
     SessionConfig {
         keys: authorities
             .iter()

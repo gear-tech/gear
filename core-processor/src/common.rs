@@ -43,7 +43,7 @@ pub enum DispatchResultKind {
     /// Trap dispatch.
     Trap(TrapExplanation),
     /// Wait dispatch.
-    Wait,
+    Wait(Option<u32>),
     /// Exit dispatch.
     Exit(ProgramId),
     /// Gas allowance exceed.
@@ -134,6 +134,8 @@ pub enum DispatchOutcome {
     InitFailure {
         /// Program that was failed initializing.
         program_id: ProgramId,
+        /// Source of the init message. Funds inheritor.
+        origin: ProgramId,
         /// Reason of the fail.
         reason: String,
     },
@@ -189,7 +191,12 @@ pub enum JournalNote {
         dispatch: Dispatch,
     },
     /// Put this dispatch in the wait list.
-    WaitDispatch(StoredDispatch),
+    WaitDispatch {
+        /// Stored dispatch to be inserted into Waitlist.
+        dispatch: StoredDispatch,
+        /// Expected duration of holding.
+        duration: Option<u32>,
+    },
     /// Wake particular message.
     WakeMessage {
         /// Message which has initiated wake.
@@ -261,7 +268,7 @@ pub trait JournalHandler {
     /// Process send dispatch.
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
     /// Process send message.
-    fn wait_dispatch(&mut self, dispatch: StoredDispatch);
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch, duration: Option<u32>);
     /// Process send message.
     fn wake_message(
         &mut self,
