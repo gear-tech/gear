@@ -10,7 +10,7 @@ services:
     image: ghcr.io/gear-tech/node:latest
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
-    command: bash -c 'gear-node key insert -d /gear/ --key-type gran --scheme ed25519 --suri "{{ suri }}" && gear-node key insert -d /gear/ --key-type babe --scheme ed25519 --suri "{{ suri }}"'
+    command: bash -c 'gear-node key insert -d /gear/ --key-type gran --scheme ed25519 --suri "{{ suri }}" && gear-node key insert -d /gear/ --key-type babe --scheme sr25519 --suri "{{ suri }}"'
 
 volumes:
   gear-data:
