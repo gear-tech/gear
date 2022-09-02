@@ -5413,7 +5413,6 @@ fn test_mad_big_prog_instrumentation() {
         // huge wasm mustn't fail
         assert!(code_inst_res.is_ok());
     })
-
 }
 
 mod utils {
