@@ -366,7 +366,7 @@ jobs:
           tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
           tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
           tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/
+          mv /tmp/*.tar /root/cache/
 
       - name: "Cache: Pack to temp"
         if: ${{ github.event_name == 'pull_request' }}
