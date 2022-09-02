@@ -25,18 +25,10 @@
 //! Currently we restrict twice write signal from same page during one execution.
 //! It's not necessary behavior, but more simple and safe.
 
-// TODO: remove all deprecated code before release (issue #1147)
-#![allow(useless_deprecated, deprecated)]
-
-use gear_core::memory::{PageBuf, PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY};
+use gear_core::memory::{PageNumber, WasmPageNumber, PAGE_STORAGE_GRANULARITY};
 use sp_std::vec::Vec;
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
-    convert::TryFrom,
-};
+use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
 
-mod deprecated;
 mod sys;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -94,13 +86,6 @@ pub enum Error {
     #[display(fmt = "Protection error: {}", _0)]
     #[from]
     MemoryProtection(region::Error),
-
-    #[deprecated]
-    #[display(fmt = "Signal addr {:#x} is less then {:#x}", addr, wasm_mem_addr)]
-    SignalAddrIsLessThenWasmMemAddr { addr: usize, wasm_mem_addr: usize },
-    #[deprecated]
-    #[display(fmt = "Exception is from unknown memory: addr = {:?}, {:?}", _0, _1)]
-    LazyPageNotExistForSignalAddr(*const (), PageNumber),
 }
 
 pub(crate) type WasmAddr = u32;
@@ -108,7 +93,6 @@ pub(crate) type WasmAddr = u32;
 #[derive(Clone, Copy)]
 pub enum LazyPagesVersion {
     Version1,
-    Version2,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -131,13 +115,6 @@ pub(crate) struct LazyPagesExecutionContext {
     pub stack_end_wasm_addr: WasmAddr,
     /// Gear pages, which has been write accessed.
     pub released_pages: BTreeSet<PageNumber>,
-
-    #[deprecated]
-    /// Keys in storage for each lazy page.
-    pub lazy_pages_info: BTreeMap<PageNumber, Vec<u8>>,
-    #[deprecated]
-    /// Released lazy pages and their data before execution.
-    pub released_lazy_pages: BTreeMap<PageNumber, Option<PageBuf>>,
 }
 
 thread_local! {
@@ -150,11 +127,6 @@ thread_local! {
     static LAZY_PAGES_VERSION: RefCell<LazyPagesVersion> = RefCell::new(LazyPagesVersion::Version1);
     /// Lazy pages context for current execution.
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesExecutionContext> = RefCell::new(Default::default());
-}
-
-#[deprecated]
-pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().lazy_pages_info.keys().copied().collect())
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -230,108 +202,39 @@ pub fn get_wasm_mem_size() -> Option<u32> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().wasm_mem_size)
 }
 
+#[derive(derive_more::Display)]
+#[display(fmt = "Wasm mem addr {:#x} is not aligned by native page", _0)]
+pub struct WasmMemAddrError(usize);
+
 /// Set current wasm memory begin addr in global context
-pub fn set_wasm_mem_begin_addr(wasm_mem_addr: usize) {
+pub fn set_wasm_mem_begin_addr(wasm_mem_addr: usize) -> Result<(), WasmMemAddrError> {
+    if wasm_mem_addr % region::page::size() != 0 {
+        return Err(WasmMemAddrError(wasm_mem_addr));
+    }
+
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let _ = ctx.borrow_mut().wasm_mem_addr.insert(wasm_mem_addr);
     });
+
+    Ok(())
 }
+
+#[derive(derive_more::Display)]
+#[display(fmt = "Wasm mem size {:?} is bigger then u32::MAX bytes", _0)]
+pub struct WasmMemSizeError(WasmPageNumber);
 
 /// Set current wasm memory size in global context
-pub fn set_wasm_mem_size(wasm_mem_size: u32) {
+pub fn set_wasm_mem_size(size: WasmPageNumber) -> Result<(), WasmMemSizeError> {
+    let size_in_bytes = u32::try_from(size.offset()).map_err(|_| WasmMemSizeError(size))?;
     LAZY_PAGES_CONTEXT.with(|ctx| {
-        let _ = ctx.borrow_mut().wasm_mem_size.insert(wasm_mem_size);
+        let _ = ctx.borrow_mut().wasm_mem_size.insert(size_in_bytes);
     });
-}
-
-/// Reset lazy pages info
-pub fn reset_context() {
-    LAZY_PAGES_CONTEXT.with(|ctx| *ctx.borrow_mut() = Default::default());
+    Ok(())
 }
 
 /// Returns vec of lazy pages which has been accessed
 pub fn get_released_pages() -> Vec<PageNumber> {
     LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow().released_pages.iter().copied().collect())
-}
-
-/// TODO: remove this after current test-net chain will be dropped (issue #1317).
-/// This patch solves the problem for block `#866245`, see more in issue.
-pub fn get_released_pages_patched() -> Vec<PageNumber> {
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let ctx = ctx.borrow_mut();
-        if ctx.program_storage_prefix.as_ref().unwrap()
-            == &vec![
-                103, 58, 58, 112, 97, 103, 101, 115, 58, 58, 37, 234, 245, 189, 198, 95, 86, 8,
-                181, 243, 151, 188, 58, 173, 35, 83, 155, 213, 81, 68, 52, 30, 26, 95, 37, 155,
-                148, 43, 94, 120, 61, 188, 58, 58,
-            ]
-        {
-            ctx.released_pages
-                .iter()
-                .copied()
-                .filter(|&p| p.0 != 259)
-                .collect()
-        } else {
-            ctx.released_pages.iter().copied().collect()
-        }
-    })
-}
-
-/// Returns whether lazy pages env is enabled
-pub fn is_enabled() -> bool {
-    LAZY_PAGES_ENABLED.with(|x| *x.borrow())
-}
-
-#[deprecated]
-/// Set storage `key` for `page` in global context
-pub fn set_lazy_page_info(page: PageNumber, key: &[u8]) {
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let mut ctx = ctx.borrow_mut();
-        let page_end = (page.offset() + PageNumber::size()) as u32;
-        let need_replace_size = ctx
-            .wasm_mem_size
-            .map(|size| size < page_end)
-            .unwrap_or(true);
-        if need_replace_size {
-            let _ = ctx.wasm_mem_size.insert(page_end);
-        }
-        ctx.lazy_pages_info.insert(page, key.to_vec());
-    });
-}
-
-#[deprecated]
-/// Set lazy pages info and program `pages` `prefix` in global context
-pub fn append_lazy_pages_info(pages: Vec<u32>, prefix: Vec<u8>) {
-    let max_page = pages.iter().max().copied().unwrap_or(0);
-    let end_offset = ((max_page + 1) as usize * PageNumber::size()) as u32;
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let mut ctx = ctx.borrow_mut();
-
-        ctx.lazy_pages_info
-            .extend(pages.iter().map(|&p| (PageNumber(p), Vec::default())));
-
-        let need_replace_size = ctx
-            .wasm_mem_size
-            .map(|size| size < end_offset)
-            .unwrap_or(true);
-        if need_replace_size {
-            let _ = ctx.wasm_mem_size.insert(end_offset);
-        }
-        let _ = ctx.program_storage_prefix.insert(prefix);
-    });
-}
-
-/// Set program pages `prefix` in storage in global context
-pub fn set_program_prefix(prefix: Vec<u8>) {
-    LAZY_PAGES_CONTEXT.with(|ctx| {
-        let _ = ctx.borrow_mut().program_storage_prefix.insert(prefix);
-    });
-}
-
-/// Returns data for released `page`
-#[deprecated]
-pub fn get_released_page_data(page: PageNumber) -> Option<PageBuf> {
-    LAZY_PAGES_CONTEXT.with(|ctx| ctx.borrow_mut().released_lazy_pages.get_mut(&page)?.take())
 }
 
 #[derive(Debug, derive_more::Display)]
