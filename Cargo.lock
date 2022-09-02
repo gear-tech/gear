@@ -2597,7 +2597,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -2624,7 +2624,7 @@ dependencies = [
  "scale-info",
  "static_assertions",
  "wabt",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -2893,7 +2893,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -3075,7 +3075,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "path-clean",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
  "wasmi",
 ]
 
@@ -5129,7 +5129,7 @@ dependencies = [
  "sp-sandbox",
  "sp-std",
  "wabt",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -5273,7 +5273,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -6960,7 +6960,7 @@ dependencies = [
  "sp-serializer",
  "sp-wasm-interface",
  "thiserror",
- "wasm-instrument",
+ "wasm-instrument 0.2.0",
  "wasmer",
  "wasmer-cache",
  "wasmer-compiler",
@@ -9700,6 +9700,14 @@ name = "wasm-instrument"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bca81f5279342b38b17d9acbf007a46ddeb73144e2bd5f0a21bfa9fc5d4ab3e"
+dependencies = [
+ "parity-wasm 0.45.0",
+]
+
+[[package]]
+name = "wasm-instrument"
+version = "0.2.1"
+source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#7cceecba3c5904855cbb3930fba0a8349e2824f9"
 dependencies = [
  "parity-wasm 0.45.0",
 ]

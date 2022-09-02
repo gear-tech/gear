@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-
+use crate::storage::MapStorage;
 use gear_core::code::{CodeAndId, InstrumentedCode, InstrumentedCodeAndId};
 
 #[derive(Clone, Copy, Debug)]
@@ -28,16 +28,66 @@ pub enum Error {
 
 /// Trait to work with program binary codes in a storage.
 pub trait CodeStorage {
-    fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), Error>;
+    type InstrumentedCodeStorage: MapStorage<Key = CodeId, Value = InstrumentedCode>;
+    type OriginalCodeStorage: MapStorage<Key = CodeId, Value = Vec<u8>>;
+    type MetadataStorage: MapStorage<Key = CodeId, Value = CodeMetadata>;
+
+    fn add_code(code_and_id: CodeAndId, metadata: CodeMetadata) -> Result<(), Error> {
+        let (code, code_id) = code_and_id.into_parts();
+        let (code, original_code) = code.into_parts();
+
+        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
+            if maybe.is_some() {
+                return Err(CodeStorageError::DuplicateItem);
+            }
+
+            Self::OriginalCodeStorage::insert(code_id, original_code);
+            Self::MetadataStorage::insert(code_id, metadata);
+
+            *maybe = Some(code);
+            Ok(())
+        })
+    }
+
     /// Returns true if the corresponding code in the storage
     /// and it was updated successfully.
-    fn update_code(code_and_id: InstrumentedCodeAndId) -> bool;
-    fn exists(code_id: CodeId) -> bool;
+    fn update_code(code_and_id: InstrumentedCodeAndId) -> bool {
+        let (code, code_id) = code_and_id.into_parts();
+        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| match maybe.as_mut() {
+            None => false,
+            Some(c) => {
+                *c = code;
+                true
+            }
+        })
+    }
+
+    fn exists(code_id: CodeId) -> bool {
+        Self::InstrumentedCodeStorage::contains_key(&code_id)
+    }
     /// Returns true if the code associated with given id was removed.
     ///
     /// If there is no code for the given id then false is returned.
-    fn remove_code(code_id: CodeId) -> bool;
-    fn get_code(code_id: CodeId) -> Option<InstrumentedCode>;
-    fn get_original_code(code_id: CodeId) -> Option<Vec<u8>>;
-    fn get_metadata(code_id: CodeId) -> Option<CodeMetadata>;
+    fn remove_code(code_id: CodeId) -> bool {
+        Self::InstrumentedCodeStorage::mutate(code_id, |maybe| {
+            if maybe.is_none() {
+                return false;
+            }
+
+            *maybe = None;
+            true
+        })
+    }
+
+    fn get_code(code_id: CodeId) -> Option<InstrumentedCode> {
+        Self::InstrumentedCodeStorage::get(&code_id)
+    }
+
+    fn get_original_code(code_id: CodeId) -> Option<Vec<u8>> {
+        Self::OriginalCodeStorage::get(&code_id)
+    }
+
+    fn get_metadata(code_id: CodeId) -> Option<CodeMetadata> {
+        Self::MetadataStorage::get(&code_id)
+    }
 }
