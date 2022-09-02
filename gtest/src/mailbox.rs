@@ -255,7 +255,7 @@ mod tests {
         let message_replier = destination_user_mailbox.take_message(log);
 
         //Replying by bytes and extracting result log
-        let result = message_replier.reply_bytes(&reply_payload_array, 0);
+        let result = message_replier.reply_bytes(reply_payload_array, 0);
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
 
