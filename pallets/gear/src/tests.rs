@@ -4927,6 +4927,25 @@ fn missing_handle_is_not_executed() {
     });
 }
 
+#[test]
+fn test_mad_big_prog_instrumentation() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let path = "../../examples/big-wasm/big.wasm";
+        let code_bytes = std::fs::read(path).expect("can't read big wasm");
+        let schedule = <Test as Config>::Schedule::get();
+        let code_inst_res = gear_core::code::Code::try_new(
+            code_bytes,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+        );
+        // In any case of the defined weights on the platform, instrumentation of the valid
+        // huge wasm mustn't fail
+        assert!(code_inst_res.is_ok());
+    })
+
+}
+
 mod utils {
     #![allow(unused)]
 
