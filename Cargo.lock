@@ -1325,7 +1325,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "parity-scale-codec",
- "sha2 0.10.3",
+ "sha2 0.10.5",
 ]
 
 [[package]]
@@ -3863,7 +3863,7 @@ dependencies = [
  "rand 0.8.5",
  "ring",
  "rw-stream-sink",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "thiserror",
  "unsigned-varint",
@@ -3937,7 +3937,7 @@ dependencies = [
  "prost-build",
  "rand 0.7.3",
  "regex",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "unsigned-varint",
  "wasm-timer",
@@ -3984,7 +3984,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "thiserror",
  "uint",
@@ -4062,7 +4062,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "snow",
  "static_assertions",
  "x25519-dalek",
@@ -4159,7 +4159,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "thiserror",
  "unsigned-varint",
  "void",
@@ -4656,7 +4656,7 @@ dependencies = [
  "core2",
  "digest 0.10.3",
  "multihash-derive",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "sha3 0.10.2",
  "unsigned-varint",
 ]
@@ -7809,9 +7809,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.3"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "899bf02746a2c92bf1053d9327dadb252b01af1f81f90cdb902411f518bc7215"
+checksum = "cf9db03534dff993187064c4e0c05a5708d2a9728ace9a8959b77bedf415dac5"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -7936,7 +7936,7 @@ dependencies = [
  "rand_core 0.6.3",
  "ring",
  "rustc_version",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "subtle",
 ]
 
@@ -8188,7 +8188,7 @@ dependencies = [
  "blake2",
  "byteorder",
  "digest 0.10.3",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "sha3 0.10.2",
  "sp-std",
  "twox-hash",
@@ -10291,13 +10291,13 @@ dependencies = [
 
 [[package]]
 name = "which"
-version = "4.2.5"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4fb54e6113b6a8772ee41c3404fb0301ac79604489467e0a9ce1f3e97c24ae"
+checksum = "1c831fbbee9e129a8cf93e7747a82da9d95ba8e16621cae60ec2cdc849bacb7b"
 dependencies = [
  "either",
- "lazy_static",
  "libc",
+ "once_cell",
 ]
 
 [[package]]
