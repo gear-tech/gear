@@ -822,9 +822,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.19"
+version = "3.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68d43934757334b5c0519ff882e1ab9647ac0258b47c24c4f490d78e42697fd5"
+checksum = "23b71c3ce99b7611011217b366d923f1d0a7e07a92bb2dbf1e84508c673ca3bd"
 dependencies = [
  "atty",
  "bitflags",
@@ -2138,7 +2138,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc1
 dependencies = [
  "Inflector",
  "chrono",
- "clap 3.2.19",
+ "clap 3.2.20",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -2551,7 +2551,7 @@ dependencies = [
 name = "gear-cli"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.19",
+ "clap 3.2.20",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -2786,7 +2786,7 @@ name = "gear-runtime-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.2.19",
+ "clap 3.2.20",
  "colored",
  "frame-support",
  "frame-system",
@@ -2874,7 +2874,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.2.19",
+ "clap 3.2.20",
  "colored",
  "derive_more",
  "env_logger",
@@ -6350,7 +6350,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.19",
+ "clap 3.2.20",
  "junit-common",
  "quick-xml",
  "serde_json",
@@ -6706,7 +6706,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
 dependencies = [
  "chrono",
- "clap 3.2.19",
+ "clap 3.2.20",
  "fdlimit",
  "futures",
  "hex",
@@ -9281,7 +9281,7 @@ name = "try-runtime-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
 dependencies = [
- "clap 3.2.19",
+ "clap 3.2.20",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
@@ -9730,7 +9730,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.19",
+ "clap 3.2.20",
  "env_logger",
  "gear-wasm-builder",
  "log",
