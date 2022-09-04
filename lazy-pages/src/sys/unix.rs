@@ -19,6 +19,7 @@
  */
 
 use crate::{sys::ExceptionInfo, Error};
+use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
     sys::{signal, signal::SigHandler},
@@ -29,24 +30,41 @@ thread_local! {
     static OLD_SIG_HANDLER: RefCell<SigHandler> = RefCell::new(SigHandler::SigDfl);
 }
 
-extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
-    unsafe {
-        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let is_write = {
-            let ucontext = ucontext as *const nix::libc::ucontext_t;
+cfg_if! {
+    if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let error_reg = nix::libc::REG_ERR as usize;
             let error_code = (*ucontext).uc_mcontext.gregs[error_reg];
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
-        };
+        }
+    } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
+            const WNR_BIT_MASK: u32 = 0b100_0000; // Write not Read bit
+            const EXCEPTION_CLASS_SHIFT: u32 = u32::BITS - 6;
+            const EXCEPTION_CLASS: u32 = 0b100_100; // Data Abort from a lower Exception Level
 
-        #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
-        let is_write = {
-            let _unused_warning_resolver = ucontext;
+            let mcontext = (*ucontext).uc_mcontext;
+            let exception_state = (*mcontext).__es;
+            let esr = exception_state.__esr;
+
+            let exception_class = esr >> EXCEPTION_CLASS_SHIFT;
+            assert_eq!(exception_class, EXCEPTION_CLASS);
+
+            Some(esr & WNR_BIT_MASK == WNR_BIT_MASK)
+        }
+    } else {
+        fn ucontext_get_write(_ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             None
-        };
+        }
+    }
+}
 
+extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
+    unsafe {
         let addr = (*info).si_addr();
+        let is_write = ucontext_get_write(ucontext as *mut _);
         let exc_info = ExceptionInfo {
             fault_addr: addr as *mut _,
             is_write,
