@@ -48,7 +48,7 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         0 /* read */ => Some(false),
         1 /* write */ => Some(true),
         // we work with WASM memory which is handled by WASM executor 
-        // (e.g. it reads and writes, but don't execute as native code)
+        // (e.g. it reads and writes, but doesn't execute as native code)
         // that's why the case is impossible
         8 /* DEP */ => unreachable!("data execution prevention"),
         _ => None,
