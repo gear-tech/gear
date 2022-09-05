@@ -214,6 +214,12 @@ jobs:
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
+      - name: "Delete me"
+        run: |
+          RUST_LOG="gear=debug,gwasm=debug" ./target/release/gear-node --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
+          echo '$(pgrep -f "gear-node")'
+          echo '$(pgrep -f "gear-node" | xargs kill -9)'
+
       - name: "Test: Gear pallet tests with lazy pages"
         run: |
           cargo test -p pallet-gear --features=lazy-pages --release --locked
