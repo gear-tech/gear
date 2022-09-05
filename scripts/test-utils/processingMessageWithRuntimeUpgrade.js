@@ -88,7 +88,7 @@ main(pathToRuntimeCode, pathToDemoPing)
       if (exitCode == 0) {
         console.log('JS_TEST: ✅ Test passed');
       } else {
-        console.log('JS_TEST: ❌ Test failed');
+        console.log(`JS_TEST: ❌ Test failed (${exitCode})`);
       }
 
       process.exit(exitCode);
