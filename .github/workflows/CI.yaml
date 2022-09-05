@@ -27,6 +27,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v3
 
+      - name: "Fetch origin"
+        run: git fetch origin
+
       - name: "Check spec version"
         if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
         run: ./scripts/check-spec.sh
@@ -108,9 +111,9 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/check_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/check_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -171,7 +174,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
 
@@ -198,6 +201,12 @@ jobs:
         run: ./scripts/gear.sh build gear --locked --release
         env:
           RUSTFLAGS: -Cinstrument-coverage
+
+      - name: "Build: WAT examples"
+        run: ./scripts/gear.sh build wat-examples
+
+      - name: Check runtime imports
+        run: ./target/release/wasm-proc --check-runtime-imports --path target/release/wbuild/gear-runtime/gear_runtime.wasm
 
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
@@ -239,7 +248,10 @@ jobs:
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 
-      # TODO: make also rtest run for node without lazy-pages feature (issue #1023)
+      - name: "Test: runtime spec tests no lazy pages"
+        run: |
+          cargo build -p gear-node --release --no-default-features --features=gear-native --out-dir target-no-lazy -Z unstable-options
+          ./target-no-lazy/gear-node runtime-spec-tests ./gear-test/spec/*
 
       - name: "Test (performance): node runtime testsuite"
         if: ${{ github.ref != 'refs/heads/master' }}
@@ -255,6 +267,9 @@ jobs:
 
       - name: "Test: Runtime upgrade and queue processing"
         run: ./scripts/gear.sh test runtime-upgrade
+
+      - name: "Test: Weight on client for loop"
+        run: ./scripts/gear.sh test client-weights
 
       - name: "Test: Runtime benchmarks work"
         run: |
@@ -348,10 +363,10 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/
+          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
 
       - name: "Cache: Pack to temp"
         if: ${{ github.event_name == 'pull_request' }}
@@ -445,7 +460,7 @@ jobs:
             --features=lazy-pages
 
   upload:
-    if: github.event_name == 'push' && github.base_ref == 'master'
+    if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: self-hosted
     needs: build
     steps:

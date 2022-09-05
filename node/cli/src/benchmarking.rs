@@ -22,7 +22,7 @@
 
 use service::Client;
 
-use gear_node_primitives::{AccountId, Signature};
+use runtime_primitives::{AccountId, Signature};
 use sc_cli::Result;
 use sc_client_api::BlockBackend;
 use sp_core::{Encode, Pair};
@@ -77,7 +77,7 @@ macro_rules! with_signed_payload {
 
 				$( $usage )*
 			},
-			#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+			#[cfg(feature = "vara-native")]
 			Client::Vara($client) => {
 				use vara_runtime as runtime;
 
@@ -238,7 +238,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
                 let ext = runtime::UncheckedExtrinsic::new_signed(
                     call,
                     sp_runtime::AccountId32::from(bob.public()).into(),
-                    gear_node_primitives::Signature::Sr25519(signature),
+                    runtime_primitives::Signature::Sr25519(signature),
                     extra,
                 );
                 Ok(ext.into())

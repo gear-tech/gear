@@ -34,12 +34,16 @@ use self::{
 };
 use crate::{
     manager::{ExtManager, HandleKind},
+    pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    MailboxOf, Pallet as Gear, QueueOf, *,
+    BTreeMap, BalanceOf, BlockGasLimitOf, Call, Config, CostsPerBlockOf, CurrencyOf,
+    Ext as Externalities, GasHandlerOf, MailboxOf, Pallet as Gear, Pallet, QueueOf,
+    SandboxEnvironment, Schedule, WaitlistOf,
 };
 use codec::Encode;
 use common::{
-    benchmarking, lazy_pages, storage::*, CodeMetadata, CodeStorage, GasPrice, GasTree, Origin,
+    benchmarking, scheduler::SchedulingCostsPerBlock, storage::*, CodeMetadata, CodeStorage,
+    GasPrice, GasTree, Origin,
 };
 use core_processor::{
     configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
@@ -49,11 +53,20 @@ use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks, ReservableCurrency};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    code::{Code, CodeAndId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
+<<<<<<< HEAD
 use sp_consensus_slots::Slot;
+=======
+use sp_consensus_babe::{
+    digests::{PreDigest, SecondaryPlainPreDigest},
+    Slot, BABE_ENGINE_ID,
+};
+>>>>>>> origin/master
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
@@ -78,9 +91,21 @@ fn init_block<T: Config>()
 where
     T::AccountId: Origin,
 {
+    // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
     let pre_digest = Digest {
+<<<<<<< HEAD
         logs: vec![DigestItem::PreRuntime(ENGINE_ID, slot.encode())],
+=======
+        logs: vec![DigestItem::PreRuntime(
+            BABE_ENGINE_ID,
+            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+                slot,
+                authority_index: 0,
+            })
+            .encode(),
+        )],
+>>>>>>> origin/master
     };
 
     let bn = One::one();
@@ -180,10 +205,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    assert!(
-        cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages(),
-        "Suppose to run benches only with lazy pages"
-    );
+    #[cfg(feature = "lazy-pages")]
+    assert!(gear_lazy_pages_common::try_to_enable_lazy_pages());
 
     let ext_manager = ExtManager::<T>::default();
     let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
@@ -199,12 +222,34 @@ where
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
-            .map_err(|_| "Code failed to load: {}")?;
+            .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
             let code_id = code_and_id.code_id();
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
+
+            ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
+
+            Dispatch::new(
+                DispatchKind::Init,
+                Message::new(
+                    root_message_id,
+                    ProgramId::from_origin(source),
+                    program_id,
+                    payload,
+                    Some(u64::MAX),
+                    value,
+                    None,
+                ),
+            )
+        }
+        HandleKind::InitByHash(code_id) => {
+            let program_id = ProgramId::generate(code_id, b"bench_salt");
+
+            if !T::CodeStorage::exists(code_id) {
+                return Err("Code not found in storage");
+            }
 
             ExtManager::<T>::default().set_program(program_id, code_id, root_message_id);
 
@@ -270,6 +315,8 @@ where
 
     let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
     let mailbox_threshold = <T as Config>::MailboxThreshold::get();
+    let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
+    let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
 
     let block_config = BlockConfig {
         block_info,
@@ -285,6 +332,8 @@ where
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,
+        waitlist_cost,
+        reserve_for,
     };
 
     if let Some(queued_dispatch) = QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
@@ -546,7 +595,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -610,7 +659,7 @@ benchmarks! {
     }: {
 
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -640,7 +689,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -658,7 +707,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -676,7 +725,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -694,7 +743,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -713,7 +762,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -731,7 +780,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -749,7 +798,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -779,7 +828,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -820,7 +869,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -865,7 +914,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![0xff; (n * 1024) as usize], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -895,7 +944,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -925,7 +974,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -956,7 +1005,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -998,7 +1047,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1040,7 +1089,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1093,7 +1142,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1146,7 +1195,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1189,7 +1238,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1230,7 +1279,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1272,7 +1321,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1312,7 +1361,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 10000000u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1346,7 +1395,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1377,7 +1426,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1410,7 +1459,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Reply(msg_id, 0), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1450,7 +1499,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1481,7 +1530,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1512,7 +1561,71 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
+            SandboxEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    // We cannot call `gr_wait_for` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_wait_for {
+        let r in 0 .. 1;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_wait_for",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(100),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
+            SandboxEnvironment,
+        >(&block_config, context, memory_pages);
+    }
+
+    // We cannot call `gr_wait_no_more` multiple times. Therefore our weight determination is not
+    // as precise as with other APIs.
+    gr_wait_no_more {
+        let r in 0 .. 1;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_wait_no_more",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::I32Const(100),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let Exec {
+            ext_manager,
+            block_config,
+            context,
+            memory_pages,
+        } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
+    }: {
+        core_processor::process::<
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1558,7 +1671,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1622,7 +1735,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }
@@ -1686,7 +1799,7 @@ benchmarks! {
         } = prepare::<T>(instance.caller.into_origin(), HandleKind::Handle(ProgramId::from_origin(instance.addr)), vec![], 0u32.into())?;
     }: {
         core_processor::process::<
-            ext::LazyPagesExt,
+            Externalities,
             SandboxEnvironment,
         >(&block_config, context, memory_pages);
     }

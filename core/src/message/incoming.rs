@@ -122,6 +122,11 @@ impl IncomingMessage {
     pub fn exit_code(&self) -> Option<ExitCode> {
         self.reply.map(|v| v.exit_code())
     }
+
+    /// Returns bool defining if message is error reply.
+    pub fn is_error_reply(&self) -> bool {
+        !matches!(self.exit_code(), Some(0) | None)
+    }
 }
 
 /// Incoming message with entry point and previous execution context, if exists.

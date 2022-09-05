@@ -18,7 +18,7 @@ jsonrpsee = { version = "0.14.0", features = ["server"] }
 # Gear
 pallet-gear-rpc = { path = "../../pallets/gear/rpc" }
 pallet-gear-rpc-runtime-api = { path = "../../pallets/gear/rpc/runtime-api" }
-gear-node-primitives = { path = "../primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-runtime-interface = { path = "../../runtime-interface" }
 
 # Gear Runtimes
@@ -40,9 +40,8 @@ sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-te
 sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sc-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
-sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
-sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+sc-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-consensus-babe-rpc = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-finality-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -52,8 +51,7 @@ sc-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.
 sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
-sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -84,15 +82,9 @@ substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/ge
 [features]
 gear-native = [
 	"gear-runtime",
-	"sc-consensus-aura",
-	"sp-consensus-aura",
-	"authoring-aura",
 ]
 vara-native = [
 	"vara-runtime",
-	"sc-consensus-babe",
-	"sc-consensus-babe-rpc",
-	"sp-consensus-babe",
 ]
 lazy-pages = [
 	"gear-runtime?/lazy-pages",
@@ -112,4 +104,3 @@ try-runtime = [
 	"vara-runtime?/try-runtime",
 	"try-runtime-cli",
 ]
-authoring-aura = []

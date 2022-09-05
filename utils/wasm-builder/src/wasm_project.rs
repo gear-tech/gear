@@ -23,7 +23,10 @@ use std::{
 };
 use toml::value::Table;
 
-use crate::{crate_info::CrateInfo, optimize::Optimizer};
+use crate::{
+    crate_info::CrateInfo,
+    optimize::{OptType, Optimizer},
+};
 
 /// Temporary project generated to build a WASM output.
 ///
@@ -178,23 +181,15 @@ impl WasmProject {
         fs::create_dir_all(&self.target_dir)?;
         fs::create_dir_all(&self.wasm_target_dir)?;
 
-        let to_path = self
-            .wasm_target_dir
-            .join(format!("{}.wasm", &file_base_name));
+        let [to_path, to_opt_path, to_meta_path] = [".wasm", ".opt.wasm", ".meta.wasm"]
+            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
+
+        // Optimize source.
         fs::copy(&from_path, &to_path).context("unable to copy WASM file")?;
-
-        let to_opt_path = self
-            .wasm_target_dir
-            .join(format!("{}.opt.wasm", &file_base_name));
-
         let _ = crate::optimize::optimize_wasm(to_path.clone(), "s", false);
 
-        Self::generate_opt(from_path.clone(), &to_opt_path)?;
-
-        let to_meta_path = self
-            .wasm_target_dir
-            .join(format!("{}.meta.wasm", &file_base_name));
-        Self::generate_meta(from_path, &to_meta_path)?;
+        // Generate wasm binaries
+        Self::generate_wasm(from_path, &to_opt_path, &to_meta_path)?;
 
         let wasm_binary_path = self.original_dir.join(".binpath");
 
@@ -228,19 +223,19 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
         Ok(())
     }
 
-    fn generate_opt(from: PathBuf, to: &Path) -> Result<()> {
+    fn generate_wasm(from: PathBuf, to_opt: &Path, to_meta: &Path) -> Result<()> {
         let mut optimizer = Optimizer::new(from)?;
         optimizer.insert_stack_and_export();
-        let code = optimizer.optimize()?;
-        fs::write(to, code)?;
-        Ok(())
-    }
+        optimizer.strip_custom_sections();
 
-    fn generate_meta(from: PathBuf, to: &Path) -> Result<()> {
-        let mut optimizer = Optimizer::new(from)?;
-        optimizer.insert_stack_and_export();
-        let code = optimizer.metadata()?;
-        fs::write(to, code)?;
+        // Generate *.opt.wasm.
+        let opt = optimizer.optimize(OptType::Opt)?;
+        fs::write(to_opt, opt)?;
+
+        // Generate *.meta.wasm.
+        let meta = optimizer.optimize(OptType::Meta)?;
+        fs::write(to_meta, meta)?;
+
         Ok(())
     }
 }

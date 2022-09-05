@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use gear_node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
 use gear_runtime_interface as gear_ri;
+pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
 use sc_client_api::{
     Backend as BackendT, BlockBackend, BlockchainEvents, KeyIterator, UsageProvider,
 };
@@ -25,8 +25,6 @@ use sc_executor::NativeElseWasmExecutor;
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockStatus;
-#[cfg(feature = "gear-native")]
-use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{BlakeTwo256, Block as BlockT},
@@ -97,25 +95,6 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
 ///
 /// This trait has no methods or associated type. It is a concise marker for all the trait bounds
 /// that it contains.
-#[cfg(feature = "gear-native")]
-pub trait RuntimeApiCollection:
-    sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-    + sp_api::ApiExt<Block>
-    + sp_consensus_aura::AuraApi<Block, AuraId>
-    + sp_finality_grandpa::GrandpaApi<Block>
-    + sp_block_builder::BlockBuilder<Block>
-    + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>
-    + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-    + sp_api::Metadata<Block>
-    + sp_offchain::OffchainWorkerApi<Block>
-    + sp_session::SessionKeys<Block>
-    + pallet_gear_rpc_runtime_api::GearApi<Block>
-where
-    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{
-}
-
-#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
 pub trait RuntimeApiCollection:
     sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
     + sp_api::ApiExt<Block>
@@ -133,25 +112,6 @@ where
 {
 }
 
-#[cfg(feature = "gear-native")]
-impl<Api> RuntimeApiCollection for Api
-where
-    Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-        + sp_api::ApiExt<Block>
-        + sp_consensus_aura::AuraApi<Block, AuraId>
-        + sp_finality_grandpa::GrandpaApi<Block>
-        + sp_block_builder::BlockBuilder<Block>
-        + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>
-        + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-        + sp_api::Metadata<Block>
-        + sp_offchain::OffchainWorkerApi<Block>
-        + sp_session::SessionKeys<Block>
-        + pallet_gear_rpc_runtime_api::GearApi<Block>,
-    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{
-}
-
-#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
 impl<Api> RuntimeApiCollection for Api
 where
     Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
@@ -251,7 +211,7 @@ macro_rules! with_client {
 		match $self {
 			#[cfg(feature = "gear-native")]
 			Self::Gear($client) => { $( $code )* },
-			#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+			#[cfg(feature = "vara-native")]
 			Self::Vara($client) => { $( $code )* },
 		}
 	}
@@ -262,7 +222,7 @@ macro_rules! with_client {
 pub enum Client {
     #[cfg(feature = "gear-native")]
     Gear(Arc<crate::FullClient<gear_runtime::RuntimeApi, GearExecutorDispatch>>),
-    #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+    #[cfg(feature = "vara-native")]
     Vara(Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>),
 }
 
@@ -275,7 +235,7 @@ impl From<Arc<crate::FullClient<gear_runtime::RuntimeApi, GearExecutorDispatch>>
     }
 }
 
-#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+#[cfg(feature = "vara-native")]
 impl From<Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>> for Client {
     fn from(
         client: Arc<crate::FullClient<vara_runtime::RuntimeApi, VaraExecutorDispatch>>,

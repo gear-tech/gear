@@ -17,11 +17,11 @@ env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
 wasm-mutate = "0.2.7"
-wasmparser = "0.88.0"
+wasmparser = "0.90.0"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common" }
-gear-node-primitives = { path = "../../node/primitives" }
+runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../../runtime/primitives" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime/gear", optional = true }
 vara-runtime = { path = "../../runtime/vara", optional = true }
@@ -34,12 +34,10 @@ demo-ncompose = { path = "../../examples/binaries/ncompose" }
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-aura = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-balances = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
-sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
+sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -48,7 +46,7 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 
 [dev-dependencies]
 wat = "1.0"
-wasmprinter = "0.2.38"
+wasmprinter = "0.2.39"
 demo-compose = { path = "../../examples/binaries/compose" }
 
 [features]
@@ -59,6 +57,5 @@ lazy-pages = [
     "pallet-gear/lazy-pages",
 ]
 debug-wasm-mutate = []
-gear-native = ["gear-runtime", "sp-consensus-aura", "authoring-aura"]
-vara-native = ["vara-runtime", "sp-consensus-babe"]
-authoring-aura = []
+gear-native = ["gear-runtime"]
+vara-native = ["vara-runtime"]

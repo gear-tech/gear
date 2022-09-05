@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::chain_spec::{get_account_id_from_seed, get_from_seed};
-use gear_node_primitives::AccountId;
+use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId};
 use hex_literal::hex;
 use sc_service::ChainType;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -268,14 +267,14 @@ fn testnet_genesis(
         },
         session: SessionConfig {
             keys: initial_authorities
-                .iter()
+                .into_iter()
                 .map(|x| {
                     (
                         x.0.clone(),
-                        x.0.clone(),
+                        x.0,
                         SessionKeys {
-                            babe: x.1.clone(),
-                            grandpa: x.2.clone(),
+                            babe: x.1,
+                            grandpa: x.2,
                         },
                     )
                 })

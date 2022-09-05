@@ -122,19 +122,22 @@ pub trait Ext {
     fn leave(&mut self) -> Result<(), Self::Error>;
 
     /// Access currently handled message payload.
-    fn msg(&mut self) -> &[u8];
+    fn read(&mut self) -> Result<&[u8], Self::Error>;
+
+    /// Size of currently handled message payload.
+    fn size(&mut self) -> Result<usize, Self::Error>;
 
     /// Default gas host call.
     fn gas(&mut self, amount: u32) -> Result<(), Self::Error>;
 
     /// Charge some extra gas.
-    fn charge_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
+    fn charge_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Charge gas by `RuntimeCosts` token.
     fn charge_gas_runtime(&mut self, costs: RuntimeCosts) -> Result<(), Self::Error>;
 
     /// Refund some gas.
-    fn refund_gas(&mut self, amount: u32) -> Result<(), Self::Error>;
+    fn refund_gas(&mut self, amount: u64) -> Result<(), Self::Error>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> Result<u64, Self::Error>;
@@ -145,8 +148,15 @@ pub trait Ext {
     /// Tell how much value is left in running context.
     fn value_available(&mut self) -> Result<u128, Self::Error>;
 
-    /// Interrupt the program and reschedule execution.
+    /// Interrupt the program and reschedule execution for maximum.
     fn wait(&mut self) -> Result<(), Self::Error>;
+
+    /// Interrupt the program and reschedule execution in duration.
+    fn wait_for(&mut self, duration: u32) -> Result<(), Self::Error>;
+
+    /// Interrupt the program and reschedule execution for maximum,
+    /// but not more than duration.
+    fn wait_no_more(&mut self, duration: u32) -> Result<(), Self::Error>;
 
     /// Wake the waiting message and move it to the processing queue.
     fn wake(&mut self, waker_id: MessageId) -> Result<(), Self::Error>;
@@ -241,19 +251,22 @@ mod tests {
         fn debug(&mut self, _data: &str) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn msg(&mut self) -> &[u8] {
-            &[]
+        fn read(&mut self) -> Result<&[u8], Self::Error> {
+            Ok(&[])
+        }
+        fn size(&mut self) -> Result<usize, Self::Error> {
+            Ok(0)
         }
         fn gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn charge_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
+        fn charge_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
             Ok(())
         }
         fn charge_gas_runtime(&mut self, _costs: RuntimeCosts) -> Result<(), Self::Error> {
             Ok(())
         }
-        fn refund_gas(&mut self, _amount: u32) -> Result<(), Self::Error> {
+        fn refund_gas(&mut self, _amount: u64) -> Result<(), Self::Error> {
             Ok(())
         }
         fn gas_available(&mut self) -> Result<u64, Self::Error> {
@@ -269,6 +282,12 @@ mod tests {
             Ok(())
         }
         fn wait(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn wait_for(&mut self, _duration: u32) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn wait_no_more(&mut self, _duration: u32) -> Result<(), Self::Error> {
             Ok(())
         }
         fn wake(&mut self, _waker_id: MessageId) -> Result<(), Self::Error> {

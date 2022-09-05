@@ -113,6 +113,7 @@ pub(crate) fn charge_gas_for_pages(
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost * static_pages.0 as u64;
+        log::trace!("Charge {} for initial pages", amount);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionErrorReason::InitialMemoryBlockGasExceeded);
@@ -149,7 +150,7 @@ fn prepare_memory<A: ProcessorExt, M: Memory>(
             .map_err(|err| ExecutionErrorReason::InitialDataWriteFailed(*page, err))?;
     }
 
-    if A::is_lazy_pages_enabled() {
+    if A::LAZY_PAGES_ENABLED {
         if !pages_data.is_empty() {
             return Err(ExecutionErrorReason::InitialPagesContainsDataInLazyPagesMode);
         }
@@ -190,7 +191,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
 ) -> BTreeMap<PageNumber, PageBuf> {
     let mut page_update = BTreeMap::new();
     for (page, new_data) in new_pages_data {
-        if A::is_lazy_pages_enabled() {
+        if A::LAZY_PAGES_ENABLED {
             // In lazy pages mode we update some page data in storage,
             // when it has been write accessed, so no need to compare old and new page data.
             log::trace!("{:?} has been write accessed, update it in storage", page);
@@ -223,6 +224,7 @@ fn get_pages_to_be_updated<A: ProcessorExt>(
     page_update
 }
 
+#[allow(clippy::result_large_err)]
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     balance: u128,
@@ -231,14 +233,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    // Checks that lazy pages are enabled in case extension A uses them.
-    if !A::check_lazy_pages_consistent_state() {
-        // This is a gross violation of the terms of use ext with lazy pages,
-        // so we will panic here. This cannot happens unless somebody tries to
-        // use lazy-pages ext in executor without lazy-pages env enabled.
-        panic!("Cannot use ext with lazy pages without lazy pages env enabled");
-    }
-
     let WasmExecutionContext {
         gas_counter,
         gas_allowance_counter,
@@ -300,6 +294,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
         mailbox_threshold: settings.mailbox_threshold,
+        waitlist_cost: settings.waitlist_cost,
+        reserve_for: settings.reserve_for,
     };
 
     // Creating externalities.
@@ -327,7 +323,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             memory_wrap: memory,
         }) => {
             // released pages initial data will be added to `pages_initial_data` after execution.
-            if A::is_lazy_pages_enabled() {
+            if A::LAZY_PAGES_ENABLED {
                 if let Err(e) = A::lazy_pages_post_execution_actions(&memory) {
                     return Err(ExecutionError {
                         program_id,
@@ -358,7 +354,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             reason: ExecutionErrorReason::Backend(err.to_string()),
         })?;
 
-    if A::is_lazy_pages_enabled() && !pages_initial_data.is_empty() {
+    if A::LAZY_PAGES_ENABLED && !pages_initial_data.is_empty() {
         return Err(ExecutionError {
             program_id,
             gas_amount: info.gas_amount,
@@ -379,7 +375,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
             DispatchResultKind::Trap(explanation)
         }
-        TerminationReason::Wait => DispatchResultKind::Wait,
+        TerminationReason::Wait(duration) => DispatchResultKind::Wait(duration),
         TerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };
 

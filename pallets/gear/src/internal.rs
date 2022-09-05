@@ -22,6 +22,7 @@ use crate::{
     Authorship, BalanceOf, Config, CostsPerBlockOf, CurrencyOf, Event, GasBalanceOf, GasHandlerOf,
     MailboxOf, Pallet, SchedulingCostOf, SystemPallet, TaskPoolOf, WaitlistOf,
 };
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use common::{
     event::{
@@ -32,6 +33,7 @@ use common::{
     storage::*,
     GasPrice, GasTree, Origin,
 };
+use core::cmp::{Ord, Ordering};
 use core_processor::common::ExecutionErrorReason;
 use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency,
@@ -100,7 +102,7 @@ impl<T: Config> HoldBoundCost<T> {
 
 /// Hold bound, specifying cost of storing, expected block number for task to
 /// create on it, deadlines and durations of holding.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq)]
 pub(crate) struct HoldBound<T: Config> {
     /// Cost of storing per block.
     cost: SchedulingCostOf<T>,
@@ -154,6 +156,21 @@ impl<T: Config> HoldBound<T> {
         self.deadline_duration()
             .saturated_into::<GasBalanceOf<T>>()
             .saturating_mul(self.cost())
+    }
+}
+
+impl<T: Config> PartialOrd for HoldBound<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.expected.partial_cmp(&other.expected)
+    }
+}
+
+impl<T: Config> Ord for HoldBound<T>
+where
+    BlockNumberFor<T>: PartialOrd,
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.expected.cmp(&other.expected)
     }
 }
 
@@ -280,14 +297,30 @@ where
     /// Charges for holding in some storage.
     pub(crate) fn charge_for_hold(
         message_id: MessageId,
-        held_since: BlockNumberFor<T>,
+        hold_interval: Interval<BlockNumberFor<T>>,
         cost: SchedulingCostOf<T>,
     ) {
         // Current block number.
         let current = SystemPallet::<T>::block_number();
 
+        // Deadline of the task.
+        //
+        // NOTE: make sure to work around it, while doing db migrations,
+        // changing `ReserveFor` value.
+        let deadline = hold_interval
+            .finish
+            .saturating_add(CostsPerBlockOf::<T>::reserve_for());
+
+        // The block number, which was the last payed for hold.
+        //
+        // Outdated tasks can store for free, but this case is under
+        // control of correct `ReserveFor` constant set.
+        let payed_till = current.min(deadline);
+
         // Holding duration.
-        let duration: u64 = current.saturating_sub(held_since).unique_saturated_into();
+        let duration: u64 = payed_till
+            .saturating_sub(hold_interval.start)
+            .unique_saturated_into();
 
         // Amount of gas to charge for holding.
         let amount = duration.saturating_mul(cost);
@@ -300,21 +333,39 @@ where
     }
 
     /// Adds dispatch into waitlist, deposits event and adds task for waking it.
-    pub(crate) fn wait_dispatch(dispatch: StoredDispatch, reason: MessageWaitedReason) {
-        // Figuring out maximal deadline of holding.
-        let hold =
-            HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist()).maximum_for_message(dispatch.id());
+    pub(crate) fn wait_dispatch(
+        dispatch: StoredDispatch,
+        duration: Option<BlockNumberFor<T>>,
+        reason: MessageWaitedReason,
+    ) {
+        // `HoldBound` cost builder.
+        let hold_builder = HoldBound::<T>::by(CostsPerBlockOf::<T>::waitlist());
+
+        // Maximal hold bound for the message.
+        let maximal_hold = hold_builder.clone().maximum_for_message(dispatch.id());
+
+        // Figuring out correct hold bound.
+        let hold = if let Some(duration) = duration {
+            hold_builder.duration(duration).min(maximal_hold)
+        } else {
+            maximal_hold
+        };
 
         // Validating duration.
         if hold.expected_duration().is_zero() {
-            unreachable!("Failed to figure out correct wait hold bound");
+            // TODO: Replace with unreachable call after:
+            // - `HoldBound` safety usage stabilized;
+            log::error!("Failed to figure out correct wait hold bound");
+            return;
         }
+
+        // Locking funds for holding.
+        GasHandlerOf::<T>::lock(dispatch.id(), hold.lock())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Querying origin message id. Fails in cases of `GasTree` invalidations.
         let origin_msg = GasHandlerOf::<T>::get_origin_key(dispatch.id())
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-
-        // TODO: Lock funds for holding here (issue #1173).
 
         // Depositing appropriate event.
         Self::deposit_event(Event::MessageWaited {
@@ -354,10 +405,17 @@ where
         (waitlisted, hold_interval): (StoredDispatch, Interval<BlockNumberFor<T>>),
         reason: MessageWokenReason,
     ) -> StoredDispatch {
+        // Expected block number to finish task.
+        let expected = hold_interval.finish;
+
+        // Unlocking all funds, that were locked for storing.
+        GasHandlerOf::<T>::unlock_all(waitlisted.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         // Charging for holding.
         Self::charge_for_hold(
             waitlisted.id(),
-            hold_interval.start,
+            hold_interval,
             CostsPerBlockOf::<T>::waitlist(),
         );
 
@@ -369,7 +427,7 @@ where
 
         // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
-            hold_interval.finish,
+            expected,
             ScheduledTask::RemoveFromWaitlist(waitlisted.destination(), waitlisted.id()),
         );
 
@@ -400,10 +458,13 @@ where
     ) -> StoredMessage {
         use UserMessageReadRuntimeReason::{MessageClaimed, MessageReplied};
 
+        // Expected block number to finish task.
+        let expected = hold_interval.finish;
+
         // Charging for holding.
         Self::charge_for_hold(
             mailboxed.id(),
-            hold_interval.start,
+            hold_interval,
             CostsPerBlockOf::<T>::mailbox(),
         );
 
@@ -414,18 +475,27 @@ where
         user_queries.then(|| Self::consume_message(mailboxed.id()));
 
         // Taking data for funds transfer.
-        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
-        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let user_id = mailboxed.destination();
+        let from = mailboxed.source();
         let value = mailboxed.value().unique_saturated_into();
 
         // Determining recipients id.
         //
         // If message was claimed or replied, destination user takes value,
         // otherwise, it returns back (got unreserved).
-        let to = if user_queries { &user_id } else { &from };
+        let to = if user_queries {
+            user_id
+        } else {
+            Self::inheritor_for(from)
+        };
+
+        // Converting into `AccountId`.
+        let user_id = <T::AccountId as Origin>::from_origin(user_id.into_origin());
+        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
 
         // Transferring reserved funds, associated with the message.
-        Self::transfer_reserved(&from, to, value);
+        Self::transfer_reserved(&from, &to, value);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::UserMessageRead {
@@ -435,7 +505,7 @@ where
 
         // Delete task, if exists.
         let _ = TaskPoolOf::<T>::delete(
-            hold_interval.finish,
+            expected,
             ScheduledTask::RemoveFromMailbox(user_id, mailboxed.id()),
         );
 
@@ -491,7 +561,7 @@ where
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
-        let expiration = if gas_limit >= threshold {
+        let expiration = if !message.is_error_reply() && gas_limit >= threshold {
             // Figuring out hold bound for given gas limit.
             let hold = HoldBound::<T>::by(CostsPerBlockOf::<T>::mailbox()).maximum_for(gas_limit);
 
@@ -535,5 +605,23 @@ where
             message,
             expiration,
         });
+    }
+
+    pub(crate) fn inheritor_for(program_id: ProgramId) -> ProgramId {
+        let mut inheritor = program_id;
+
+        let mut visited_ids: BTreeSet<_> = [program_id].into();
+
+        while let Some(id) =
+            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
+        {
+            if !visited_ids.insert(id) {
+                break;
+            }
+
+            inheritor = id
+        }
+
+        inheritor
     }
 }

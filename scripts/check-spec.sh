@@ -4,6 +4,9 @@ set -e
 
 SELF="$0"
 ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"
+SCRIPTS="$ROOT_DIR/scripts/src"
+
+. "$SCRIPTS"/common.sh
 
 check_spec() {
     # $1 is master version, $2 is actual one and $3 changes requirement
@@ -26,14 +29,14 @@ check_spec() {
 
     if [ -z "$version" ]
     then
-        printf "\n   Spec version is correct.\n\n"
+        printf "\n    Spec version is correct.\n"
     else
-        printf "\n   Spec version should $version.\n\n"
-        exit 1
+        printf "\n    Spec version should $version.\n"
+        EXIT_CODE=1
     fi
 }
 
-PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend core-processor node pallets runtime-interface lazy-pages"
+PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend core-processor node pallets runtime-interface"
 
 SPEC_ON_MASTER="$(git diff origin/master | sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
 ACTUAL_SPEC_GEAR="$(cat $ROOT_DIR/runtime/gear/src/lib.rs | grep "spec_version: " | awk -F " " '{print substr($2, 1, length($2)-1)}')"
@@ -49,8 +52,12 @@ for package in $(git diff --name-only origin/master | grep ".rs$" | cut -d "/" -
     fi
 done
 
-echo "Checking spec for Gear runtime:"
+EXIT_CODE=0
+
+header "Checking spec for Gear runtime"
 check_spec "$SPEC_ON_MASTER" "$ACTUAL_SPEC_GEAR" "$CHANGES"
 
-echo "Checking spec for Vara runtime:"
+header "Checking spec for Vara runtime"
 check_spec "$SPEC_ON_MASTER" "$ACTUAL_SPEC_VARA" "$CHANGES"
+
+exit $EXIT_CODE

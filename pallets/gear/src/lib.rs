@@ -25,7 +25,10 @@ use codec::{Decode, Encode};
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+#[cfg(feature = "lazy-pages")]
 mod ext;
+
 mod internal;
 mod schedule;
 
@@ -121,27 +124,38 @@ pub struct GasInfo {
     pub reserved: u64,
     /// Contains number of gas burned during message processing.
     pub burned: u64,
-    /// The value may be returned if a program happens to be executed the second or next time in a block.
+    /// The value may be returned if a program happens to be executed
+    /// the second or next time in a block.
     pub may_be_returned: u64,
+    /// Was the message placed into waitlist at the end of calculating.
+    ///
+    /// This flag shows, that `min_limit` makes sense and have some guarantees
+    /// only before insertion into waitlist.
+    pub waited: bool,
 }
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
 
-    use crate::{
-        ext::LazyPagesExt,
-        manager::{ExtManager, HandleKind, QueuePostProcessingData},
-    };
+    #[cfg(feature = "lazy-pages")]
+    pub(crate) use crate::ext::LazyPagesExt as Ext;
+    #[cfg(not(feature = "lazy-pages"))]
+    pub(crate) use core_processor::Ext;
+
+    #[cfg(feature = "lazy-pages")]
+    use gear_lazy_pages_common as lazy_pages;
+
+    use crate::manager::{ExtManager, HandleKind, QueuePostProcessingData};
     use alloc::format;
     use common::{
-        self, event::*, lazy_pages, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree,
-        Origin, Program, ProgramState,
+        self, event::*, BlockLimiter, CodeMetadata, GasPrice, GasProvider, GasTree, Origin,
+        Program, ProgramState,
     };
     use core_processor::{
         common::{Actor, DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
         configs::{AllocationsConfig, BlockConfig, BlockInfo, MessageExecutionContext},
-        Ext, PrepareResult,
+        PrepareResult,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -370,7 +384,7 @@ pub mod pallet {
         /// Program is terminated.
         ///
         /// Program init ended up with failure, so such message destination is unavailable anymore.
-        ProgramIsTerminated,
+        InactiveProgram,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
@@ -390,10 +404,6 @@ pub mod pallet {
         FailedToConstructProgram,
         /// Value doesn't cover ExistentialDeposit.
         ValueLessThanMinimal,
-        /// Unable to instrument program code.
-        GasInstrumentationFailed,
-        /// No code could be found at the supplied code hash.
-        CodeNotFound,
         /// Messages storage corrupted.
         MessagesStorageCorrupted,
     }
@@ -622,7 +632,12 @@ pub mod pallet {
             value: u128,
             allow_other_panics: bool,
         ) -> Result<GasInfo, String> {
-            let GasInfo { min_limit, .. } = Self::run_with_ext_copy(|| {
+            log::debug!("\n===== CALCULATE GAS INFO =====\n");
+            log::debug!("\n--- FIRST TRY ---\n");
+
+            let GasInfo {
+                min_limit, waited, ..
+            } = Self::run_with_ext_copy(|| {
                 let initial_gas = BlockGasLimitOf::<T>::get();
                 Self::calculate_gas_info_impl(
                     source,
@@ -638,7 +653,9 @@ pub mod pallet {
                 })
             })?;
 
-            Self::run_with_ext_copy(|| {
+            log::debug!("\n--- SECOND TRY ---\n");
+
+            let res = Self::run_with_ext_copy(|| {
                 Self::calculate_gas_info_impl(
                     source,
                     kind,
@@ -658,13 +675,18 @@ pub mod pallet {
                         reserved,
                         burned,
                         may_be_returned,
+                        waited,
                     },
                 )
                 .map_err(|e| {
                     String::from_utf8(e)
                         .unwrap_or_else(|_| String::from("Failed to parse error to string"))
                 })
-            })
+            });
+
+            log::debug!("\n==============================\n");
+
+            res
         }
 
         pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
@@ -710,6 +732,14 @@ pub mod pallet {
                     Self::upload_program(who.into(), code, salt, payload, initial_gas, value)
                         .map_err(|e| {
                             format!("Internal error: upload_program failed with '{:?}'", e)
+                                .into_bytes()
+                        })?;
+                }
+                HandleKind::InitByHash(code_id) => {
+                    let salt = b"calculate_gas_salt".to_vec();
+                    Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
+                        .map_err(|e| {
+                            format!("Internal error: create_program failed with '{:?}'", e)
                                 .into_bytes()
                         })?;
                 }
@@ -762,6 +792,8 @@ pub mod pallet {
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: ["gr_gas_available"].into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
             let mut min_limit = 0;
@@ -775,9 +807,6 @@ pub mod pallet {
                 QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
             {
                 let actor_id = queued_dispatch.destination();
-
-                let lazy_pages_enabled =
-                    cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
                 let actor = ext_manager
                     .get_actor(actor_id)
@@ -809,21 +838,24 @@ pub mod pallet {
                             context,
                             pages_with_data,
                         } => {
-                            let memory_pages = if lazy_pages_enabled {
+                            #[cfg(feature = "lazy-pages")]
+                            let memory_pages = {
+                                let _ = pages_with_data;
+                                assert!(lazy_pages::try_to_enable_lazy_pages());
                                 Default::default()
-                            } else {
-                                match common::get_program_data_for_pages(
-                                    actor_id.into_origin(),
-                                    pages_with_data.iter(),
-                                ) {
-                                    Ok(data) => data,
-                                    Err(err) => {
-                                        log::error!(
-                                            "Page data in storage is in invalid state: {}",
-                                            err
-                                        );
-                                        continue;
-                                    }
+                            };
+                            #[cfg(not(feature = "lazy-pages"))]
+                            let memory_pages = match common::get_program_data_for_pages(
+                                actor_id.into_origin(),
+                                pages_with_data.iter(),
+                            ) {
+                                Ok(data) => data,
+                                Err(err) => {
+                                    log::error!(
+                                        "Page data in storage is in invalid state: {}",
+                                        err
+                                    );
+                                    continue;
                                 }
                             };
 
@@ -842,19 +874,11 @@ pub mod pallet {
                                 })
                                 .unwrap_or(0);
 
-                            if lazy_pages_enabled {
-                                core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                                    &block_config,
-                                    context,
-                                    memory_pages,
-                                )
-                            } else {
-                                core_processor::process::<Ext, SandboxEnvironment>(
-                                    &block_config,
-                                    context,
-                                    memory_pages,
-                                )
-                            }
+                            core_processor::process::<Ext, SandboxEnvironment>(
+                                &block_config,
+                                context,
+                                memory_pages,
+                            )
                         }
                         PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
                             journal
@@ -918,11 +942,14 @@ pub mod pallet {
                 }
             }
 
+            let waited = WaitlistOf::<T>::contains(&main_program_id, &main_message_id);
+
             Ok(GasInfo {
                 min_limit,
                 reserved,
                 burned,
                 may_be_returned,
+                waited,
             })
         }
 
@@ -933,11 +960,51 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if a program has terminated status
+        /// Returns true if id is a program and the program has active status.
+        pub fn is_active(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
+                .map(|p| p.is_active())
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has terminated status.
         pub fn is_terminated(program_id: ProgramId) -> bool {
             common::get_program(program_id.into_origin())
                 .map(|p| p.is_terminated())
-                .unwrap_or(false)
+                .unwrap_or_default()
+        }
+
+        /// Returns true if id is a program and the program has exited status.
+        pub fn is_exited(program_id: ProgramId) -> bool {
+            common::get_program(program_id.into_origin())
+                .map(|p| p.is_exited())
+                .unwrap_or_default()
+        }
+
+        /// Returns exit argument of an exited program.
+        pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            common::get_program(program_id.into_origin())
+                .map(|p| {
+                    if let Program::Exited(id) = p {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default()
+        }
+
+        /// Returns inheritor of terminated (failed it's init) program.
+        pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            common::get_program(program_id.into_origin())
+                .map(|p| {
+                    if let Program::Terminated(id) = p {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default()
         }
 
         /// Returns MessageId for newly created user message.
@@ -985,13 +1052,9 @@ pub mod pallet {
                 //
                 // Making sure we have gas to remove next task
                 // or update missed blocks.
-                if were_empty {
-                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
-                        stopped_at = Some(*bn);
-                        break;
-                    }
-                } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
                     stopped_at = Some(*bn);
+                    log::debug!("Stopping processing tasks at: {stopped_at:?}");
                     break;
                 }
 
@@ -1013,13 +1076,9 @@ pub mod pallet {
                     //
                     // Making sure we have gas to remove next task
                     // or update missed blocks.
-                    if were_empty {
-                        if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
-                            stopped_at = Some(*bn);
-                            break;
-                        }
-                    } else if GasAllowanceOf::<T>::get() < T::DbWeight::get().writes(2) {
+                    if GasAllowanceOf::<T>::get() <= T::DbWeight::get().writes(2) {
                         stopped_at = Some(*bn);
+                        log::debug!("Stopping processing tasks at: {stopped_at:?}");
                         break;
                     }
                 }
@@ -1082,14 +1141,13 @@ pub mod pallet {
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
             };
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
-
-            let lazy_pages_enabled =
-                cfg!(feature = "lazy-pages") && lazy_pages::try_to_enable_lazy_pages();
 
             while QueueProcessingOf::<T>::allowed() {
                 if let Some(dispatch) = QueueOf::<T>::dequeue()
@@ -1123,18 +1181,12 @@ pub mod pallet {
                                     == schedule.instruction_weights.version
                                 {
                                     code
-                                } else if let Ok(code) = Self::reinstrument_code(code_id, &schedule)
-                                {
-                                    // todo: charge for code instrumenting
-                                    code
                                 } else {
-                                    // todo: mark code as unable for instrument to skip next time
-                                    log::debug!(
-                                        "Can not instrument code '{:?}' for program '{:?}'",
-                                        code_id,
-                                        dispatch.destination()
-                                    );
-                                    continue;
+                                    // todo: charge for code instrumenting
+                                    // If instrumented code exists, re-instrumentation can't fail
+                                    Self::reinstrument_code(code_id, &schedule).unwrap_or_else(
+                                        |e| unreachable!("Code storage corrupted {:?}", e),
+                                    )
                                 }
                             } else {
                                 // This branch is considered unreachable,
@@ -1163,6 +1215,7 @@ pub mod pallet {
 
                                 Self::wait_dispatch(
                                     dispatch,
+                                    None,
                                     MessageWaitedSystemReason::ProgramIsNotInitialized
                                         .into_reason(),
                                 );
@@ -1221,36 +1274,31 @@ pub mod pallet {
                                 context,
                                 pages_with_data,
                             } => {
-                                let memory_pages = if lazy_pages_enabled {
+                                #[cfg(feature = "lazy-pages")]
+                                let memory_pages = {
+                                    let _ = pages_with_data;
+                                    assert!(lazy_pages::try_to_enable_lazy_pages());
                                     Default::default()
-                                } else {
-                                    match common::get_program_data_for_pages(
-                                        program_id.into_origin(),
-                                        pages_with_data.iter(),
-                                    ) {
-                                        Ok(data) => data,
-                                        Err(err) => {
-                                            log::error!("Cannot get data for program pages: {err}");
-                                            continue;
-                                        }
+                                };
+                                #[cfg(not(feature = "lazy-pages"))]
+                                let memory_pages = match common::get_program_data_for_pages(
+                                    program_id.into_origin(),
+                                    pages_with_data.iter(),
+                                ) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        log::error!("Cannot get data for program pages: {err}");
+                                        continue;
                                     }
                                 };
 
                                 ext_manager.insert_program_id_loaded_pages(program_id);
 
-                                if lazy_pages_enabled {
-                                    core_processor::process::<LazyPagesExt, SandboxEnvironment>(
-                                        &block_config,
-                                        context,
-                                        memory_pages,
-                                    )
-                                } else {
-                                    core_processor::process::<Ext, SandboxEnvironment>(
-                                        &block_config,
-                                        context,
-                                        memory_pages,
-                                    )
-                                }
+                                core_processor::process::<Ext, SandboxEnvironment>(
+                                    &block_config,
+                                    context,
+                                    memory_pages,
+                                )
                             }
                             PrepareResult::WontExecute(journal) | PrepareResult::Error(journal) => {
                                 journal
@@ -1308,21 +1356,36 @@ pub mod pallet {
             Ok(code_id)
         }
 
+        /// Re - instruments the code under `code_id` with new gas costs for instructions
+        ///
+        /// The procedure of re - instrumentation is considered infallible for several reasons:
+        /// 1. Once (de)serialized valid wasm module can't fail (de)serialization after inserting new gas costs.
+        /// 2. The checked (for expected exports and etc.) structure of the Wasm module remains unchanged.
+        /// 3. `gas` calls injection is considered infallible for once instrumented program.
+        /// One detail should be mentioned here. The injection can actually fail, if cost for some wasm instruction
+        /// is removed. But this case is prevented by the Gear node protocol and checked in backwards compatibility
+        /// test (`schedule::tests::instructions_backward_compatibility`)
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
         ) -> Result<InstrumentedCode, DispatchError> {
-            let original_code =
-                T::CodeStorage::get_original_code(code_id).ok_or(Error::<T>::CodeNotFound)?;
+            if T::CodeStorage::get_code(code_id).is_none() {
+                return Err(Error::<T>::CodeNotExists.into());
+            }
+
+            // By the invariant set in CodeStorage trait, original code can't exist in storage
+            // without the instrumented code
+            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| unreachable!(
+                "Code storage is corrupted: instrumented code with id {:?} exists while original not",
+                code_id
+            ));
+
             let code = Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
             )
-            .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
-                Error::<T>::FailedToConstructProgram
-            })?;
+            .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
@@ -1659,10 +1722,7 @@ pub mod pallet {
             );
 
             if GearProgramPallet::<T>::program_exists(destination) {
-                ensure!(
-                    !Self::is_terminated(destination),
-                    Error::<T>::ProgramIsTerminated
-                );
+                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1750,8 +1810,8 @@ pub mod pallet {
 
             // Checking that program, origin replies to, is not terminated.
             ensure!(
-                !Self::is_terminated(mailboxed.source()),
-                Error::<T>::ProgramIsTerminated
+                Self::is_active(mailboxed.source()),
+                Error::<T>::InactiveProgram
             );
 
             // Converting applied gas limit into value to reserve.

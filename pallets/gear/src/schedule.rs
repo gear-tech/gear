@@ -342,6 +342,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `gr_wait`.
     pub gr_wait: Weight,
 
+    /// Weight of calling `gr_wait_for`.
+    pub gr_wait_for: Weight,
+
+    /// Weight of calling `gr_wait_no_more`.
+    pub gr_wait_no_more: Weight,
+
     /// Weight of calling `gr_wake`.
     pub gr_wake: Weight,
 
@@ -572,6 +578,8 @@ impl<T: Config> HostFnWeights<T> {
             gr_exit: self.gr_exit,
             gr_leave: self.gr_leave,
             gr_wait: self.gr_wait,
+            gr_wait_for: self.gr_wait_for,
+            gr_wait_no_more: self.gr_wait_no_more,
             gr_wake: self.gr_wake,
             gr_create_program_wgas: self.gr_create_program_wgas,
             gr_create_program_wgas_per_byte: self.gr_create_program_wgas_per_byte,
@@ -611,6 +619,8 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_exit: cost!(gr_exit),
             gr_leave: cost!(gr_leave),
             gr_wait: cost!(gr_wait),
+            gr_wait_for: cost!(gr_wait_for),
+            gr_wait_no_more: cost!(gr_wait_no_more),
             gr_wake: cost_batched!(gr_wake),
             gr_create_program_wgas: cost!(gr_create_program_wgas),
             gr_create_program_wgas_per_byte: cost_byte_batched!(gr_create_program_wgas_per_kb),
@@ -746,10 +756,153 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
 mod test {
     use super::*;
     use crate::mock::Test;
+    use gas_metering::Rules;
 
+    fn all_measured_instructions() -> Vec<elements::Instruction> {
+        use elements::{BlockType, BrTableData, Instruction::*};
+        let default_table_data = BrTableData {
+            table: Default::default(),
+            default: 0,
+        };
+
+        // A set of instructions weights for which the Gear provides.
+        // Instruction must not be removed (!), but can be added.
+        vec![
+            End,
+            Unreachable,
+            Return,
+            Else,
+            I32Const(0),
+            I64Const(0),
+            Block(BlockType::NoResult),
+            Loop(BlockType::NoResult),
+            Nop,
+            Drop,
+            I32Load(0, 0),
+            I32Load8S(0, 0),
+            I32Load8U(0, 0),
+            I32Load16S(0, 0),
+            I32Load16U(0, 0),
+            I64Load(0, 0),
+            I64Load8S(0, 0),
+            I64Load8U(0, 0),
+            I64Load16S(0, 0),
+            I64Load16U(0, 0),
+            I64Load32S(0, 0),
+            I64Load32U(0, 0),
+            I32Store(0, 0),
+            I32Store8(0, 0),
+            I32Store16(0, 0),
+            I64Store(0, 0),
+            I64Store8(0, 0),
+            I64Store16(0, 0),
+            I64Store32(0, 0),
+            Select,
+            If(BlockType::NoResult),
+            Br(0),
+            BrIf(0),
+            Call(0),
+            GetLocal(0),
+            SetLocal(0),
+            TeeLocal(0),
+            GetGlobal(0),
+            SetGlobal(0),
+            CurrentMemory(0),
+            CallIndirect(0, 0),
+            BrTable(default_table_data.into()),
+            I32Clz,
+            I64Clz,
+            I32Ctz,
+            I64Ctz,
+            I32Popcnt,
+            I64Popcnt,
+            I32Eqz,
+            I64Eqz,
+            I64ExtendSI32,
+            I64ExtendUI32,
+            I32WrapI64,
+            I32Eq,
+            I64Eq,
+            I32Ne,
+            I64Ne,
+            I32LtS,
+            I64LtS,
+            I32LtU,
+            I64LtU,
+            I32GtS,
+            I64GtS,
+            I32GtU,
+            I64GtU,
+            I32LeS,
+            I64LeS,
+            I32LeU,
+            I64LeU,
+            I32GeS,
+            I64GeS,
+            I32GeU,
+            I64GeU,
+            I32Add,
+            I64Add,
+            I32Sub,
+            I64Sub,
+            I32Mul,
+            I64Mul,
+            I32DivS,
+            I64DivS,
+            I32DivU,
+            I64DivU,
+            I32RemS,
+            I64RemS,
+            I32RemU,
+            I64RemU,
+            I32And,
+            I64And,
+            I32Or,
+            I64Or,
+            I32Xor,
+            I64Xor,
+            I32Shl,
+            I64Shl,
+            I32ShrS,
+            I64ShrS,
+            I32ShrU,
+            I64ShrU,
+            I32Rotl,
+            I64Rotl,
+            I32Rotr,
+            I64Rotr,
+        ]
+    }
+
+    fn default_wasm_module() -> elements::Module {
+        let simple_wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle)
+            (func $init)
+        )"#;
+        elements::Module::from_bytes(
+            wabt::Wat2Wasm::new()
+                .validate(false)
+                .convert(simple_wat)
+                .expect("failed to parse module"),
+        )
+        .expect("module instantiation failed")
+    }
+
+    // This test must never fail during local development/release.
+    //
+    // The instruction set in the test mustn't be changed. Test checks
+    // whether no instruction weight was removed from Rules, so backward
+    // compatibility is reached.
     #[test]
-    fn print_test_schedule() {
+    fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
-        println!("{:#?}", schedule);
+        let rules = schedule.rules(&default_wasm_module());
+        all_measured_instructions()
+            .iter()
+            .for_each(|i| assert!(rules.instruction_cost(i).is_some()))
     }
 }

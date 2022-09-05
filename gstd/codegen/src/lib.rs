@@ -62,7 +62,7 @@ fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream
 
     if function.sig.asyncness.is_none() {
         return Err(compile_error(
-            &function.sig.fn_token,
+            function.sig.fn_token,
             "function must be async",
         ));
     }

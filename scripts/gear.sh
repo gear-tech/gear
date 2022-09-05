@@ -12,24 +12,13 @@ CARGO_NEXTEST="nextest"
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
+. "$SCRIPTS"/common.sh
+. "$SCRIPTS"/coverage.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
 . "$SCRIPTS"/run.sh
 . "$SCRIPTS"/test.sh
-. "$SCRIPTS"/coverage.sh
-
-bold() {
-  tput bold
-}
-
-normal() {
-  tput sgr0
-}
-
-header() {
-  bold && printf "\n  >> $1\n" && normal
-}
 
 show() {
   rustup show
@@ -321,6 +310,10 @@ case "$COMMAND" in
       runtime-upgrade)
         header "Running js test for runtime upgrade"
         runtime_upgrade_test "$ROOT_DIR"; ;;
+
+      client-weights)
+        header "Running js test for client weights"
+        client_weights_test "$ROOT_DIR"; ;;
 
       fuzz)
         header "Running fuzzer for system consistency check"

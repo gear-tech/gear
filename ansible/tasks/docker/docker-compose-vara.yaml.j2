@@ -13,7 +13,11 @@ services:
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
     command: >
+<<<<<<< HEAD
       gear-node --base-path /gear/ --chain gear/vara_staging.json --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' --prometheus-external
+=======
+      gear-node --base-path /gear/ --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0' --prometheus-external
+>>>>>>> origin/master
       {% if name is defined %} --name={{ name }} {% endif %}
       {% if rpc is not defined %} --validator {% endif %}
       {% if rpc is defined and unsafe == "yes" %} --unsafe-ws-external --ws-max-connections='1000' --unsafe-rpc-external {% endif %}

@@ -27,19 +27,17 @@ use frame_support::{
 };
 use frame_system as system;
 use gear_core::ids::{CodeId, ProgramId};
-use gear_node_primitives::AccountPublic;
 #[cfg(feature = "gear-native")]
 use gear_runtime::{
-    Aura, AuraConfig, Authorship, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
-    Grandpa, GrandpaConfig, Runtime, SudoConfig, System, TransactionPayment,
-    TransactionPaymentConfig, UncheckedExtrinsic,
+    Authorship, Babe, BabeConfig, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
+    Grandpa, GrandpaConfig, Runtime, Session, SessionConfig, SessionKeys, SudoConfig, System,
+    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
 use pallet_gear::{BlockGasLimitOf, GasHandlerOf};
+use pallet_gear_gas::Error as GasError;
 use parking_lot::RwLock;
 use rand::{rngs::StdRng, RngCore};
-#[cfg(feature = "authoring-aura")]
-use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
-#[cfg(not(feature = "authoring-aura"))]
+use runtime_primitives::AccountPublic;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
@@ -61,7 +59,7 @@ use system::pallet_prelude::BlockNumberFor;
 use vara_runtime::{
     Authorship, Babe, BabeConfig, Balances, Gear, GearGas, GearMessenger, GearPayment, GearProgram,
     Grandpa, GrandpaConfig, Runtime, Session, SessionConfig, SessionKeys, SudoConfig, System,
-    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic,
+    TransactionPayment, TransactionPaymentConfig, UncheckedExtrinsic, EXISTENTIAL_DEPOSIT,
 };
 
 type GasNodeKeyOf<T> = <GasHandlerOf<T> as GasTree>::Key;
@@ -85,9 +83,6 @@ where
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-#[cfg(feature = "authoring-aura")]
-type AuthorityId = AuraId;
-#[cfg(not(feature = "authoring-aura"))]
 type AuthorityId = BabeId;
 
 // Generate authority keys.
@@ -108,7 +103,7 @@ pub(crate) fn create_random_accounts(
     for _ in 1..initial_accounts_num {
         let mut acc_id = [0_u8; 32];
         rng.fill_bytes(&mut acc_id);
-        let balance = (rng.next_u64() >> 14) as u128; // approx. up to 10^15
+        let balance = EXISTENTIAL_DEPOSIT.saturating_add((rng.next_u64() >> 14).into()); // approx. up to 10^15
         accounts.push((acc_id.into(), balance));
     }
     accounts
@@ -119,11 +114,6 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(u64::from(new_blk));
-    #[cfg(feature = "authoring-aura")]
-    let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
-    };
-    #[cfg(not(feature = "authoring-aura"))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(
             BABE_ENGINE_ID,
@@ -142,9 +132,6 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     System::on_initialize(new_block_number);
-    #[cfg(feature = "authoring-aura")]
-    Aura::on_initialize(new_block_number);
-    #[cfg(not(feature = "authoring-aura"))]
     Babe::on_initialize(new_block_number);
     Balances::on_initialize(new_block_number);
     TransactionPayment::on_initialize(new_block_number);
@@ -153,7 +140,6 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
-    #[cfg(not(feature = "authoring-aura"))]
     Session::on_initialize(new_block_number);
 }
 
@@ -168,7 +154,6 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     TransactionPayment::on_finalize(current_blk);
     Balances::on_finalize(current_blk);
     Grandpa::on_finalize(current_blk);
-    #[cfg(not(feature = "authoring-aura"))]
     Babe::on_finalize(current_blk);
     System::on_finalize(current_blk);
 }
@@ -180,14 +165,8 @@ pub(crate) fn new_test_ext(
 ) -> sp_io::TestExternalities {
     assert!(!seeds.is_empty());
 
-    #[cfg(feature = "authoring-aura")]
-    let initial_authorities: Vec<(AccountId32, AuraId, GrandpaId)> =
+    let initial_authorities: Vec<(AccountId32, BabeId, GrandpaId)> =
         seeds.into_iter().map(authority_keys_from_seed).collect();
-    #[cfg(not(feature = "authoring-aura"))]
-    let initial_authorities: Vec<(AccountId32, BabeId, GrandpaId)> = seeds
-        .into_iter()
-        .map(|s| authority_keys_from_seed(s))
-        .collect();
 
     let mut t = system::GenesisConfig::default()
         .build_storage::<Runtime>()
@@ -201,46 +180,30 @@ pub(crate) fn new_test_ext(
                 initial_authorities
                     .iter()
                     .cloned()
-                    .map(|(acc, _, _)| (acc, 1000)),
+                    .map(|(acc, _, _)| (acc, EXISTENTIAL_DEPOSIT * 2)),
             )
             .collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(feature = "authoring-aura")]
-    AuraConfig {
-        authorities: initial_authorities
-            .iter()
-            .cloned()
-            .map(|(_, x, _)| x)
-            .collect(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-
+    #[allow(clippy::unnecessary_operation)]
     BasicExternalities::execute_with_storage(&mut t, || {
-        #[cfg(not(feature = "authoring-aura"))]
         BabeConfig {
             authorities: Default::default(),
+            #[cfg(feature = "gear-native")]
+            epoch_config: Some(gear_runtime::BABE_GENESIS_EPOCH_CONFIG),
+            #[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
         };
 
-        #[cfg(feature = "authoring-aura")]
-        <GrandpaConfig as GenesisBuild<Runtime>>::build(&GrandpaConfig {
-            authorities: initial_authorities.into_iter().map(|x| (x.2, 1)).collect(),
-        });
-        #[cfg(not(feature = "authoring-aura"))]
-        GrandpaConfig {
-            authorities: Default::default(),
-        };
+        GrandpaConfig::default();
 
         <TransactionPaymentConfig as GenesisBuild<Runtime>>::build(
             &TransactionPaymentConfig::default(),
         );
     });
 
-    #[cfg(not(feature = "authoring-aura"))]
     SessionConfig {
         keys: initial_authorities
             .iter()
@@ -350,6 +313,8 @@ pub(crate) fn process_tx_pool(pool: &Arc<RwLock<PoolState>>) {
 }
 
 pub(crate) fn total_gas_in_wait_list() -> u64 {
+    let mut total_lock = 0;
+
     // Iterate through the wait list and record the respective gas nodes value limits
     // attributing the latter to the nearest `node_with_value` ID to avoid duplication
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
@@ -358,6 +323,17 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
                 let node_id = dispatch.id();
                 let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
                     .expect("There is always a value node for a valid dispatch ID");
+
+                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                    if e == GasError::<Runtime>::Forbidden.into() {
+                        0
+                    } else {
+                        panic!("GasTree error: {:?}", e)
+                    }
+                });
+
+                total_lock += lock;
+
                 (ancestor_id, value)
             })
             .collect();
@@ -365,9 +341,12 @@ pub(crate) fn total_gas_in_wait_list() -> u64 {
     gas_limit_by_node_id
         .into_iter()
         .fold(0_u64, |acc, (_, val)| acc + val)
+        .saturating_add(total_lock)
 }
 
 pub(crate) fn total_gas_in_mailbox() -> u64 {
+    let mut total_lock = 0;
+
     // Iterate through the mailbox and record the respective gas nodes value limits
     // attributing the latter to the nearest `node_with_value` ID to avoid duplication
     let gas_limit_by_node_id: BTreeMap<GasNodeKeyOf<Runtime>, GasBalanceOf<Runtime>> =
@@ -376,6 +355,17 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
                 let node_id = dispatch.id();
                 let (value, ancestor_id) = GasHandlerOf::<Runtime>::get_limit_node(node_id)
                     .expect("There is always a value node for a valid dispatch ID");
+
+                let lock = GasHandlerOf::<Runtime>::get_lock(node_id).unwrap_or_else(|e| {
+                    if e == GasError::<Runtime>::Forbidden.into() {
+                        0
+                    } else {
+                        panic!("GasTree error: {:?}", e)
+                    }
+                });
+
+                total_lock += lock;
+
                 (ancestor_id, value)
             })
             .collect();
@@ -383,6 +373,7 @@ pub(crate) fn total_gas_in_mailbox() -> u64 {
     gas_limit_by_node_id
         .into_iter()
         .fold(0_u64, |acc, (_, val)| acc + val)
+        .saturating_add(total_lock)
 }
 
 pub(crate) fn total_gas_in_wl_mb() -> u64 {

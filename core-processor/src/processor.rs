@@ -44,7 +44,7 @@ use gear_core::{
 
 enum SuccessfulDispatchResultKind {
     Exit(ProgramId),
-    Wait,
+    Wait(Option<u32>),
     Success,
 }
 
@@ -68,7 +68,7 @@ impl PreparedMessageExecutionContext {
 
 /// Defines result variants of the function `prepare`.
 pub enum PrepareResult {
-    /// Successfully precharged for memory pages.
+    /// Successfully pre-charged for memory pages.
     Ok {
         /// A context for `process` function.
         context: Box<PreparedMessageExecutionContext>,
@@ -182,16 +182,20 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
+        waitlist_cost,
+        reserve_for,
     } = block_config.clone();
 
-    let execution_settings = ExecutionSettings::new(
+    let execution_settings = ExecutionSettings {
         block_info,
         existential_deposit,
         allocations_config,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
-    );
+        waitlist_cost,
+        reserve_for,
+    };
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
@@ -227,7 +231,7 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
                 ExecutionErrorReason::Ext(reason),
             ),
             DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait => process_success(Wait, res),
+            DispatchResultKind::Wait(duration) => process_success(Wait(duration), res),
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
@@ -295,7 +299,7 @@ fn process_error(
         });
     }
 
-    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
+    if !dispatch.is_error_reply() {
         // # Safety
         //
         // 1. The dispatch.id() has already been checked
@@ -313,6 +317,7 @@ fn process_error(
     let outcome = match dispatch.kind() {
         DispatchKind::Init => DispatchOutcome::InitFailure {
             program_id,
+            origin,
             reason: err.to_string(),
         },
         _ => DispatchOutcome::MessageTrap {
@@ -417,10 +422,11 @@ fn process_success(
     }
 
     let outcome = match kind {
-        Wait => {
-            journal.push(JournalNote::WaitDispatch(
-                dispatch.into_stored(program_id, context_store),
-            ));
+        Wait(duration) => {
+            journal.push(JournalNote::WaitDispatch {
+                dispatch: dispatch.into_stored(program_id, context_store),
+                duration,
+            });
 
             return journal;
         }
@@ -489,7 +495,7 @@ fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
+    if !dispatch.is_error_reply() {
         // # Safety
         //
         // 1. The dispatch.id() has already been checked
