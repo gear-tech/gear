@@ -48,9 +48,6 @@ pub trait WeightInfo {
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> {{pallet}}::WeightInfo for SubstrateWeight<T> {
     {{#each benchmarks as |benchmark|}}
-    {{#each benchmark.comments as |comment|}}
-    // {{comment}}
-    {{/each}}
     fn {{benchmark.name~}}
     (
         {{~#each benchmark.components as |c| ~}}
