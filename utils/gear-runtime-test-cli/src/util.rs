@@ -28,9 +28,12 @@ use gear_runtime::{
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use runtime_primitives::AccountPublic;
-#[cfg(feature = "authoring-aura")]
+#[cfg(all(
+    feature = "rococo-gear-native",
+    not(feature = "gear-native"),
+    not(feature = "vara-native")
+))]
 use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AURA_ENGINE_ID};
-#[cfg(not(feature = "authoring-aura"))]
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     AuthorityId as BabeId, BABE_ENGINE_ID,
@@ -92,12 +95,16 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
 
-    #[cfg(feature = "authoring-aura")]
+    #[cfg(all(
+        feature = "rococo-gear-native",
+        not(feature = "gear-native"),
+        not(feature = "vara-native")
+    ))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
     };
 
-    #[cfg(not(feature = "authoring-aura"))]
+    #[cfg(any(feature = "gear-native", feature = "vara-native"))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(
             BABE_ENGINE_ID,
@@ -147,7 +154,11 @@ where
 }
 
 // Generate authority keys.
-#[cfg(feature = "authoring-aura")]
+#[cfg(all(
+    feature = "rococo-gear-native",
+    not(feature = "gear-native"),
+    not(feature = "vara-native")
+))]
 pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
@@ -155,7 +166,7 @@ pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId) {
     )
 }
 
-#[cfg(not(feature = "authoring-aura"))]
+#[cfg(any(feature = "gear-native", feature = "vara-native"))]
 pub fn authority_keys_from_seed(s: &str) -> (AccountId32, BabeId, GrandpaId) {
     (
         get_account_id_from_seed::<sr25519::Public>(s),
@@ -196,7 +207,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .assimilate_storage(&mut t)
     .unwrap();
 
-    #[cfg(not(feature = "authoring-aura"))]
+    #[cfg(any(feature = "gear-native", feature = "vara-native"))]
     SessionConfig {
         keys: authorities
             .iter()
