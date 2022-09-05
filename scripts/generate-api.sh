@@ -4,9 +4,10 @@
 
 readonly ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 readonly GEAR_NODE_DOCKER_IMAGE='ghcr.io/gear-tech/node:latest'
-readonly GEAR_NODE_BIN='/usr/local/bin/gear-node'
+readonly GEAR_NODE_BIN="${ROOT_DIR}/res/gear-node"
 readonly GENERATED_RS="${ROOT_DIR}/src/api/generated.rs"
 readonly RPC_PORT='9933'
+readonly SCRIPTS="${ROOT_DIR}/scripts"
 
 #################
 # Generated header
@@ -40,18 +41,19 @@ EOF
 # Check if the required binaries are installed in the machine.
 ###############################################################
 function pre-check() {
-    if ! [ -x "$(command -v docker)" ]; then
-        echo 'command docker not found.';
-        exit 1
-    fi
-
-    if ! [ -x "$(command -v cargo)" ]; then
-        echo 'cargo not found, installing rust...';
-        curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
+    if ! [ -f "${GEAR_NODE_BIN}" ]; then
+        echo 'gear-node not found, downloading...';
+        "${SCRIPTS}/download-gear.sh ${ROOT_DIR}/res"
     fi
 
     if ! [ -x "$(command -v subxt)" ]; then
         echo 'subxt not found, installing subxt...';
+
+        if ! [ -x "$(command -v cargo)" ]; then
+            echo 'cargo not found, installing rust...';
+            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
+        fi
+
         cargo install subxt-cli
     fi
 
@@ -62,13 +64,29 @@ function pre-check() {
 }
 
 
-##########################
-# Run gear-node with docker.
-############################
-function gear-node() {
-    docker run -p ${RPC_PORT}:${RPC_PORT} -d \
-           ${GEAR_NODE_DOCKER_IMAGE} ${GEAR_NODE_BIN} \
-           --tmp --dev --rpc-port ${RPC_PORT} --unsafe-rpc-external
+################
+# Run gear-node.
+##################
+function spec-version() {
+    spec_version=''
+
+    # Pipe the stderr to read line in sub-shell
+    ${GEAR_NODE_BIN} --tmp --dev --rpc-port ${RPC_PORT} 2>&1 > /dev/null |
+        while [ "${spec_version}" == '' ] ; do
+            read -r line
+            if [[ "$line" == *"gear-"* ]]; then
+                spec_version="$(echo ${line} | grep -Eo 'gear-[0-9]{3}' | sed 's/.*-//')"
+                echo ${spec_version}
+                break
+            fi
+        done &
+
+    # TODO
+    #
+    # Optimize this double-while-loop if possible.
+    while ! [ "${spec_version}" == '' ]; do
+        kill -- -$!
+    done
 }
 
 #########################################
@@ -83,21 +101,12 @@ function main() {
     # 0. Check if the required commands exist.
     pre-check
 
-    # 1. Run gear-node with docker.
-    docker pull "${GEAR_NODE_DOCKER_IMAGE}" >&2
-    pid=$(gear-node)
+    # 1. Run gear-node and capture stderr line by line
+    spec_version="$(spec-version)"
 
-    # 2. Get spec version from node logs.
-    spec_version=''
-    while [ ${#spec_version} -eq 0 ]; do
-        sleep 1
-        spec_version="$(docker logs ${pid} 2>&1 | grep -Eo 'gear-node-[0-9]{4}' | sed 's/.*-//')"
-    done
-
+    # 2. generate header and code
     generate-header "${spec_version}" > "${GENERATED_RS}"
     subxt codegen --url "http://0.0.0.0:${RPC_PORT}" | rustfmt --edition=2021 >> "${GENERATED_RS}"
-
-    docker kill "${pid}" &> /dev/null
 
     echo "Updated gear-node api in ${GENERATED_RS}." >&2
     exit 0

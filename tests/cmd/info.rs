@@ -4,7 +4,7 @@ use crate::common::{self, logs, traits::Convert, Result, ALICE_SS58_ADDRESS};
 const EXPECTED_BALANCE: &str = r#"
 AccountInfo {
     nonce: 0,
-    consumers: 0,
+    consumers: 1,
     providers: 1,
     sufficients: 0,
     data: AccountData {

@@ -26,7 +26,9 @@ jobs:
           target: wasm32-unknown-unknown
 
       - name: Run Tests
-        run: cargo test --all --all-features
+        run: |
+          ./scripts/download-gear.sh res
+          cargo test --all --all-features
 
   clippy:
     runs-on: ubuntu-latest

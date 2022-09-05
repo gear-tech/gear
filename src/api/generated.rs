@@ -2,49 +2,53 @@
 //!
 //! subxt codegen | rustfmt --edition=2021
 //!
-//! spec_version: 1670
+//! spec_version: 110
 #![allow(clippy::all)]
 #![allow(missing_docs)]
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 pub mod api {
     use super::api as root_mod;
-    pub static PALLETS: [&str; 16usize] = [
+    pub static PALLETS: [&str; 18usize] = [
         "System",
         "Timestamp",
-        "Aura",
+        "Authorship",
+        "Babe",
         "Grandpa",
         "Balances",
         "TransactionPayment",
+        "Session",
         "Sudo",
         "Utility",
-        "Authorship",
         "GearProgram",
         "GearMessenger",
         "GearScheduler",
         "GearGas",
         "Gear",
         "GearPayment",
+        "ShiftSessionManager",
         "GearDebug",
     ];
     #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
     pub enum Event {
         #[codec(index = 0)]
         System(system::Event),
-        #[codec(index = 3)]
-        Grandpa(grandpa::Event),
         #[codec(index = 4)]
-        Balances(balances::Event),
+        Grandpa(grandpa::Event),
         #[codec(index = 5)]
-        TransactionPayment(transaction_payment::Event),
+        Balances(balances::Event),
         #[codec(index = 6)]
-        Sudo(sudo::Event),
+        TransactionPayment(transaction_payment::Event),
         #[codec(index = 7)]
-        Utility(utility::Event),
+        Session(session::Event),
+        #[codec(index = 8)]
+        Sudo(sudo::Event),
         #[codec(index = 9)]
+        Utility(utility::Event),
+        #[codec(index = 10)]
         GearProgram(gear_program::Event),
-        #[codec(index = 13)]
+        #[codec(index = 14)]
         Gear(gear::Event),
-        #[codec(index = 15)]
+        #[codec(index = 17)]
         GearDebug(gear_debug::Event),
     }
     pub mod system {
@@ -1161,10 +1165,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                197u8, 125u8, 223u8, 167u8, 230u8, 186u8, 234u8, 62u8, 56u8, 80u8,
-                                0u8, 144u8, 174u8, 9u8, 221u8, 19u8, 213u8, 124u8, 164u8, 220u8,
-                                240u8, 100u8, 159u8, 85u8, 213u8, 176u8, 8u8, 193u8, 170u8, 71u8,
-                                73u8, 54u8,
+                                197u8, 249u8, 76u8, 180u8, 105u8, 84u8, 33u8, 75u8, 254u8, 86u8,
+                                235u8, 80u8, 238u8, 43u8, 77u8, 253u8, 80u8, 58u8, 111u8, 106u8,
+                                60u8, 72u8, 244u8, 213u8, 92u8, 237u8, 49u8, 174u8, 201u8, 90u8,
+                                27u8, 196u8,
                             ]
                         {
                             let entry = Events;
@@ -1547,10 +1551,9 @@ pub mod api {
                     let metadata = locked_metadata.read();
                     if metadata.constant_hash("System", "Version")?
                         == [
-                            37u8, 234u8, 115u8, 55u8, 127u8, 10u8, 225u8, 183u8, 75u8, 142u8,
-                            202u8, 133u8, 138u8, 142u8, 181u8, 12u8, 177u8, 63u8, 115u8, 157u8,
-                            159u8, 28u8, 231u8, 217u8, 115u8, 205u8, 154u8, 22u8, 59u8, 143u8,
-                            54u8, 106u8,
+                            182u8, 198u8, 97u8, 147u8, 77u8, 87u8, 141u8, 92u8, 136u8, 20u8, 178u8,
+                            27u8, 96u8, 59u8, 126u8, 69u8, 191u8, 72u8, 17u8, 214u8, 108u8, 106u8,
+                            80u8, 47u8, 67u8, 173u8, 95u8, 242u8, 131u8, 81u8, 215u8, 218u8,
                         ]
                     {
                         let pallet = metadata.pallet("System")?;
@@ -1796,27 +1799,113 @@ pub mod api {
             }
         }
     }
-    pub mod aura {
+    pub mod authorship {
         use super::root_mod;
         use super::runtime_types;
+        #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+        pub mod calls {
+            use super::root_mod;
+            use super::runtime_types;
+            type DispatchError = runtime_types::sp_runtime::DispatchError;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct SetUncles {
+                pub new_uncles: ::std::vec::Vec<
+                    runtime_types::sp_runtime::generic::header::Header<
+                        ::core::primitive::u32,
+                        runtime_types::sp_runtime::traits::BlakeTwo256,
+                    >,
+                >,
+            }
+            impl ::subxt::Call for SetUncles {
+                const PALLET: &'static str = "Authorship";
+                const FUNCTION: &'static str = "set_uncles";
+            }
+            pub struct TransactionApi<'a, T: ::subxt::Config, X> {
+                client: &'a ::subxt::Client<T>,
+                marker: ::core::marker::PhantomData<X>,
+            }
+            impl<'a, T, X> TransactionApi<'a, T, X>
+            where
+                T: ::subxt::Config,
+                X: ::subxt::extrinsic::ExtrinsicParams<T>,
+            {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self {
+                        client,
+                        marker: ::core::marker::PhantomData,
+                    }
+                }
+                #[doc = "Provide a set of uncles."]
+                pub fn set_uncles(
+                    &self,
+                    new_uncles: ::std::vec::Vec<
+                        runtime_types::sp_runtime::generic::header::Header<
+                            ::core::primitive::u32,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
+                        >,
+                    >,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        SetUncles,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<SetUncles>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            5u8, 56u8, 71u8, 152u8, 103u8, 232u8, 101u8, 171u8, 200u8, 2u8, 177u8,
+                            102u8, 0u8, 93u8, 210u8, 90u8, 56u8, 151u8, 5u8, 235u8, 227u8, 197u8,
+                            189u8, 248u8, 2u8, 71u8, 49u8, 220u8, 212u8, 253u8, 235u8, 67u8,
+                        ]
+                    {
+                        let call = SetUncles { new_uncles };
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+            }
+        }
         pub mod storage {
             use super::runtime_types;
-            pub struct Authorities;
-            impl ::subxt::StorageEntry for Authorities {
-                const PALLET: &'static str = "Aura";
-                const STORAGE: &'static str = "Authorities";
+            pub struct Uncles;
+            impl ::subxt::StorageEntry for Uncles {
+                const PALLET: &'static str = "Authorship";
+                const STORAGE: &'static str = "Uncles";
                 type Value = runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<
-                    runtime_types::sp_consensus_aura::sr25519::app_sr25519::Public,
+                    runtime_types::pallet_authorship::UncleEntryItem<
+                        ::core::primitive::u32,
+                        ::subxt::sp_core::H256,
+                        ::subxt::sp_core::crypto::AccountId32,
+                    >,
                 >;
                 fn key(&self) -> ::subxt::StorageEntryKey {
                     ::subxt::StorageEntryKey::Plain
                 }
             }
-            pub struct CurrentSlot;
-            impl ::subxt::StorageEntry for CurrentSlot {
-                const PALLET: &'static str = "Aura";
-                const STORAGE: &'static str = "CurrentSlot";
-                type Value = runtime_types::sp_consensus_slots::Slot;
+            pub struct Author;
+            impl ::subxt::StorageEntry for Author {
+                const PALLET: &'static str = "Authorship";
+                const STORAGE: &'static str = "Author";
+                type Value = ::subxt::sp_core::crypto::AccountId32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct DidSetUncles;
+            impl ::subxt::StorageEntry for DidSetUncles {
+                const PALLET: &'static str = "Authorship";
+                const STORAGE: &'static str = "DidSetUncles";
+                type Value = ::core::primitive::bool;
                 fn key(&self) -> ::subxt::StorageEntryKey {
                     ::subxt::StorageEntryKey::Plain
                 }
@@ -1828,15 +1917,561 @@ pub mod api {
                 pub fn new(client: &'a ::subxt::Client<T>) -> Self {
                     Self { client }
                 }
-                #[doc = " The current authority set."]
-                pub fn authorities(
+                #[doc = " Uncles"]
+                pub fn uncles(
                     &self,
                     block_hash: ::core::option::Option<T::Hash>,
                 ) -> impl ::core::future::Future<
                     Output = ::core::result::Result<
                         runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<
-                            runtime_types::sp_consensus_aura::sr25519::app_sr25519::Public,
+                            runtime_types::pallet_authorship::UncleEntryItem<
+                                ::core::primitive::u32,
+                                ::subxt::sp_core::H256,
+                                ::subxt::sp_core::crypto::AccountId32,
+                            >,
                         >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<Uncles>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                104u8, 166u8, 142u8, 139u8, 46u8, 63u8, 163u8, 183u8, 45u8, 77u8,
+                                156u8, 44u8, 228u8, 57u8, 253u8, 230u8, 103u8, 119u8, 145u8, 135u8,
+                                251u8, 182u8, 144u8, 165u8, 127u8, 150u8, 127u8, 185u8, 146u8,
+                                228u8, 91u8, 163u8,
+                            ]
+                        {
+                            let entry = Uncles;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Author of current block."]
+                pub fn author(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<::subxt::sp_core::crypto::AccountId32>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<Author>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                191u8, 57u8, 3u8, 242u8, 220u8, 123u8, 103u8, 215u8, 149u8, 120u8,
+                                20u8, 139u8, 146u8, 234u8, 180u8, 105u8, 129u8, 128u8, 114u8,
+                                147u8, 114u8, 236u8, 23u8, 21u8, 15u8, 250u8, 180u8, 19u8, 177u8,
+                                145u8, 77u8, 228u8,
+                            ]
+                        {
+                            let entry = Author;
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Whether uncles were already set in this block."]
+                pub fn did_set_uncles(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::bool, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<DidSetUncles>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                64u8, 3u8, 208u8, 187u8, 50u8, 45u8, 37u8, 88u8, 163u8, 226u8,
+                                37u8, 126u8, 232u8, 107u8, 156u8, 187u8, 29u8, 15u8, 53u8, 46u8,
+                                28u8, 73u8, 83u8, 123u8, 14u8, 244u8, 243u8, 43u8, 245u8, 143u8,
+                                15u8, 115u8,
+                            ]
+                        {
+                            let entry = DidSetUncles;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+            }
+        }
+        pub mod constants {
+            use super::runtime_types;
+            pub struct ConstantsApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> ConstantsApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                #[doc = " The number of blocks back we should accept uncles."]
+                #[doc = " This means that we will deal with uncle-parents that are"]
+                #[doc = " `UncleGenerations + 1` before `now`."]
+                pub fn uncle_generations(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("Authorship", "UncleGenerations")?
+                        == [
+                            0u8, 72u8, 57u8, 175u8, 222u8, 143u8, 191u8, 33u8, 163u8, 157u8, 202u8,
+                            83u8, 186u8, 103u8, 162u8, 103u8, 227u8, 158u8, 239u8, 212u8, 205u8,
+                            193u8, 226u8, 138u8, 5u8, 220u8, 221u8, 42u8, 7u8, 146u8, 173u8, 205u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("Authorship")?;
+                        let constant = pallet.constant("UncleGenerations")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+            }
+        }
+    }
+    pub mod babe {
+        use super::root_mod;
+        use super::runtime_types;
+        #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+        pub mod calls {
+            use super::root_mod;
+            use super::runtime_types;
+            type DispatchError = runtime_types::sp_runtime::DispatchError;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct ReportEquivocation {
+                pub equivocation_proof: ::std::boxed::Box<
+                    runtime_types::sp_consensus_slots::EquivocationProof<
+                        runtime_types::sp_runtime::generic::header::Header<
+                            ::core::primitive::u32,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
+                        >,
+                        runtime_types::sp_consensus_babe::app::Public,
+                    >,
+                >,
+                pub key_owner_proof: runtime_types::sp_core::Void,
+            }
+            impl ::subxt::Call for ReportEquivocation {
+                const PALLET: &'static str = "Babe";
+                const FUNCTION: &'static str = "report_equivocation";
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct ReportEquivocationUnsigned {
+                pub equivocation_proof: ::std::boxed::Box<
+                    runtime_types::sp_consensus_slots::EquivocationProof<
+                        runtime_types::sp_runtime::generic::header::Header<
+                            ::core::primitive::u32,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
+                        >,
+                        runtime_types::sp_consensus_babe::app::Public,
+                    >,
+                >,
+                pub key_owner_proof: runtime_types::sp_core::Void,
+            }
+            impl ::subxt::Call for ReportEquivocationUnsigned {
+                const PALLET: &'static str = "Babe";
+                const FUNCTION: &'static str = "report_equivocation_unsigned";
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct PlanConfigChange {
+                pub config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
+            }
+            impl ::subxt::Call for PlanConfigChange {
+                const PALLET: &'static str = "Babe";
+                const FUNCTION: &'static str = "plan_config_change";
+            }
+            pub struct TransactionApi<'a, T: ::subxt::Config, X> {
+                client: &'a ::subxt::Client<T>,
+                marker: ::core::marker::PhantomData<X>,
+            }
+            impl<'a, T, X> TransactionApi<'a, T, X>
+            where
+                T: ::subxt::Config,
+                X: ::subxt::extrinsic::ExtrinsicParams<T>,
+            {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self {
+                        client,
+                        marker: ::core::marker::PhantomData,
+                    }
+                }
+                #[doc = "Report authority equivocation/misbehavior. This method will verify"]
+                #[doc = "the equivocation proof and validate the given key ownership proof"]
+                #[doc = "against the extracted offender. If both are valid, the offence will"]
+                #[doc = "be reported."]
+                pub fn report_equivocation(
+                    &self,
+                    equivocation_proof: runtime_types::sp_consensus_slots::EquivocationProof<
+                        runtime_types::sp_runtime::generic::header::Header<
+                            ::core::primitive::u32,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
+                        >,
+                        runtime_types::sp_consensus_babe::app::Public,
+                    >,
+                    key_owner_proof: runtime_types::sp_core::Void,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        ReportEquivocation,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<ReportEquivocation>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            116u8, 212u8, 9u8, 134u8, 44u8, 167u8, 207u8, 224u8, 210u8, 252u8,
+                            70u8, 123u8, 210u8, 202u8, 211u8, 96u8, 123u8, 67u8, 252u8, 58u8,
+                            222u8, 243u8, 182u8, 71u8, 43u8, 153u8, 209u8, 92u8, 142u8, 148u8,
+                            57u8, 75u8,
+                        ]
+                    {
+                        let call = ReportEquivocation {
+                            equivocation_proof: ::std::boxed::Box::new(equivocation_proof),
+                            key_owner_proof,
+                        };
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = "Report authority equivocation/misbehavior. This method will verify"]
+                #[doc = "the equivocation proof and validate the given key ownership proof"]
+                #[doc = "against the extracted offender. If both are valid, the offence will"]
+                #[doc = "be reported."]
+                #[doc = "This extrinsic must be called unsigned and it is expected that only"]
+                #[doc = "block authors will call it (validated in `ValidateUnsigned`), as such"]
+                #[doc = "if the block author is defined it will be defined as the equivocation"]
+                #[doc = "reporter."]
+                pub fn report_equivocation_unsigned(
+                    &self,
+                    equivocation_proof: runtime_types::sp_consensus_slots::EquivocationProof<
+                        runtime_types::sp_runtime::generic::header::Header<
+                            ::core::primitive::u32,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
+                        >,
+                        runtime_types::sp_consensus_babe::app::Public,
+                    >,
+                    key_owner_proof: runtime_types::sp_core::Void,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        ReportEquivocationUnsigned,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<ReportEquivocationUnsigned>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            93u8, 238u8, 20u8, 159u8, 219u8, 138u8, 205u8, 234u8, 53u8, 85u8, 53u8,
+                            11u8, 15u8, 248u8, 126u8, 237u8, 1u8, 62u8, 182u8, 214u8, 0u8, 96u8,
+                            198u8, 62u8, 96u8, 173u8, 251u8, 203u8, 48u8, 75u8, 95u8, 245u8,
+                        ]
+                    {
+                        let call = ReportEquivocationUnsigned {
+                            equivocation_proof: ::std::boxed::Box::new(equivocation_proof),
+                            key_owner_proof,
+                        };
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = "Plan an epoch config change. The epoch config change is recorded and will be enacted on"]
+                #[doc = "the next call to `enact_epoch_change`. The config will be activated one epoch after."]
+                #[doc = "Multiple calls to this method will replace any existing planned config change that had"]
+                #[doc = "not been enacted yet."]
+                pub fn plan_config_change(
+                    &self,
+                    config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        PlanConfigChange,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<PlanConfigChange>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            215u8, 121u8, 90u8, 87u8, 178u8, 247u8, 114u8, 53u8, 174u8, 28u8, 20u8,
+                            33u8, 139u8, 216u8, 13u8, 187u8, 74u8, 198u8, 38u8, 28u8, 175u8, 13u8,
+                            73u8, 132u8, 103u8, 78u8, 217u8, 207u8, 113u8, 169u8, 42u8, 103u8,
+                        ]
+                    {
+                        let call = PlanConfigChange { config };
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+            }
+        }
+        pub mod storage {
+            use super::runtime_types;
+            pub struct EpochIndex;
+            impl ::subxt::StorageEntry for EpochIndex {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "EpochIndex";
+                type Value = ::core::primitive::u64;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct Authorities;
+            impl ::subxt::StorageEntry for Authorities {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "Authorities";
+                type Value =
+                    runtime_types::sp_runtime::bounded::weak_bounded_vec::WeakBoundedVec<(
+                        runtime_types::sp_consensus_babe::app::Public,
+                        ::core::primitive::u64,
+                    )>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct GenesisSlot;
+            impl ::subxt::StorageEntry for GenesisSlot {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "GenesisSlot";
+                type Value = runtime_types::sp_consensus_slots::Slot;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct CurrentSlot;
+            impl ::subxt::StorageEntry for CurrentSlot {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "CurrentSlot";
+                type Value = runtime_types::sp_consensus_slots::Slot;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct Randomness;
+            impl ::subxt::StorageEntry for Randomness {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "Randomness";
+                type Value = [::core::primitive::u8; 32usize];
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct PendingEpochConfigChange;
+            impl ::subxt::StorageEntry for PendingEpochConfigChange {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "PendingEpochConfigChange";
+                type Value = runtime_types::sp_consensus_babe::digests::NextConfigDescriptor;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct NextRandomness;
+            impl ::subxt::StorageEntry for NextRandomness {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "NextRandomness";
+                type Value = [::core::primitive::u8; 32usize];
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct NextAuthorities;
+            impl ::subxt::StorageEntry for NextAuthorities {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "NextAuthorities";
+                type Value =
+                    runtime_types::sp_runtime::bounded::weak_bounded_vec::WeakBoundedVec<(
+                        runtime_types::sp_consensus_babe::app::Public,
+                        ::core::primitive::u64,
+                    )>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct SegmentIndex;
+            impl ::subxt::StorageEntry for SegmentIndex {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "SegmentIndex";
+                type Value = ::core::primitive::u32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct UnderConstruction<'a>(pub &'a ::core::primitive::u32);
+            impl ::subxt::StorageEntry for UnderConstruction<'_> {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "UnderConstruction";
+                type Value = runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<
+                    [::core::primitive::u8; 32usize],
+                >;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Map(vec![::subxt::StorageMapKey::new(
+                        &self.0,
+                        ::subxt::StorageHasher::Twox64Concat,
+                    )])
+                }
+            }
+            pub struct Initialized;
+            impl ::subxt::StorageEntry for Initialized {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "Initialized";
+                type Value =
+                    ::core::option::Option<runtime_types::sp_consensus_babe::digests::PreDigest>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct AuthorVrfRandomness;
+            impl ::subxt::StorageEntry for AuthorVrfRandomness {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "AuthorVrfRandomness";
+                type Value = ::core::option::Option<[::core::primitive::u8; 32usize]>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct EpochStart;
+            impl ::subxt::StorageEntry for EpochStart {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "EpochStart";
+                type Value = (::core::primitive::u32, ::core::primitive::u32);
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct Lateness;
+            impl ::subxt::StorageEntry for Lateness {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "Lateness";
+                type Value = ::core::primitive::u32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct EpochConfig;
+            impl ::subxt::StorageEntry for EpochConfig {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "EpochConfig";
+                type Value = runtime_types::sp_consensus_babe::BabeEpochConfiguration;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct NextEpochConfig;
+            impl ::subxt::StorageEntry for NextEpochConfig {
+                const PALLET: &'static str = "Babe";
+                const STORAGE: &'static str = "NextEpochConfig";
+                type Value = runtime_types::sp_consensus_babe::BabeEpochConfiguration;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct StorageApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> StorageApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                #[doc = " Current epoch index."]
+                pub fn epoch_index(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::u64, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<EpochIndex>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                51u8, 27u8, 91u8, 156u8, 118u8, 99u8, 46u8, 219u8, 190u8, 147u8,
+                                205u8, 23u8, 106u8, 169u8, 121u8, 218u8, 208u8, 235u8, 135u8,
+                                127u8, 243u8, 41u8, 55u8, 243u8, 235u8, 122u8, 57u8, 86u8, 37u8,
+                                90u8, 208u8, 71u8,
+                            ]
+                        {
+                            let entry = EpochIndex;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Current epoch authorities."]
+                pub fn authorities(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        runtime_types::sp_runtime::bounded::weak_bounded_vec::WeakBoundedVec<(
+                            runtime_types::sp_consensus_babe::app::Public,
+                            ::core::primitive::u64,
+                        )>,
                         ::subxt::BasicError,
                     >,
                 > + 'a {
@@ -1852,10 +2487,10 @@ pub mod api {
                         };
                         if runtime_storage_hash
                             == [
-                                168u8, 101u8, 224u8, 96u8, 254u8, 152u8, 213u8, 141u8, 46u8, 181u8,
-                                131u8, 23u8, 218u8, 24u8, 145u8, 111u8, 161u8, 192u8, 253u8, 29u8,
-                                128u8, 92u8, 125u8, 159u8, 242u8, 144u8, 253u8, 174u8, 50u8, 190u8,
-                                148u8, 193u8,
+                                39u8, 102u8, 251u8, 125u8, 230u8, 247u8, 174u8, 255u8, 2u8, 81u8,
+                                86u8, 69u8, 182u8, 92u8, 191u8, 163u8, 66u8, 181u8, 247u8, 9u8,
+                                57u8, 154u8, 239u8, 34u8, 25u8, 139u8, 119u8, 4u8, 131u8, 124u8,
+                                135u8, 240u8,
                             ]
                         {
                             let entry = Authorities;
@@ -1865,9 +2500,43 @@ pub mod api {
                         }
                     }
                 }
-                #[doc = " The current slot of this block."]
-                #[doc = ""]
-                #[doc = " This will be set in `on_initialize`."]
+                #[doc = " The slot at which the first epoch actually started. This is 0"]
+                #[doc = " until the first block of the chain."]
+                pub fn genesis_slot(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        runtime_types::sp_consensus_slots::Slot,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<GenesisSlot>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                136u8, 244u8, 7u8, 142u8, 224u8, 33u8, 144u8, 186u8, 155u8, 144u8,
+                                68u8, 81u8, 241u8, 57u8, 40u8, 207u8, 35u8, 39u8, 28u8, 41u8,
+                                210u8, 213u8, 53u8, 195u8, 175u8, 119u8, 6u8, 175u8, 100u8, 192u8,
+                                180u8, 73u8,
+                            ]
+                        {
+                            let entry = GenesisSlot;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Current slot number."]
                 pub fn current_slot(
                     &self,
                     block_hash: ::core::option::Option<T::Hash>,
@@ -1900,6 +2569,586 @@ pub mod api {
                         } else {
                             Err(::subxt::MetadataError::IncompatibleMetadata.into())
                         }
+                    }
+                }
+                #[doc = " The epoch randomness for the *current* epoch."]
+                #[doc = ""]
+                #[doc = " # Security"]
+                #[doc = ""]
+                #[doc = " This MUST NOT be used for gambling, as it can be influenced by a"]
+                #[doc = " malicious validator in the short term. It MAY be used in many"]
+                #[doc = " cryptographic protocols, however, so long as one remembers that this"]
+                #[doc = " (like everything else on-chain) it is public. For example, it can be"]
+                #[doc = " used where a number is needed that cannot have been chosen by an"]
+                #[doc = " adversary, for purposes such as public-coin zero-knowledge proofs."]
+                pub fn randomness(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        [::core::primitive::u8; 32usize],
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<Randomness>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                191u8, 197u8, 25u8, 164u8, 104u8, 248u8, 247u8, 193u8, 244u8, 60u8,
+                                181u8, 195u8, 248u8, 90u8, 41u8, 199u8, 82u8, 123u8, 72u8, 126u8,
+                                18u8, 17u8, 128u8, 215u8, 34u8, 251u8, 227u8, 70u8, 166u8, 10u8,
+                                104u8, 140u8,
+                            ]
+                        {
+                            let entry = Randomness;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Pending epoch configuration change that will be applied when the next epoch is enacted."]
+                pub fn pending_epoch_config_change(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<
+                            runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
+                        >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<PendingEpochConfigChange>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                98u8, 52u8, 22u8, 32u8, 76u8, 196u8, 89u8, 78u8, 119u8, 181u8,
+                                17u8, 49u8, 220u8, 159u8, 195u8, 74u8, 33u8, 59u8, 15u8, 104u8,
+                                26u8, 111u8, 165u8, 68u8, 147u8, 14u8, 86u8, 94u8, 250u8, 167u8,
+                                146u8, 82u8,
+                            ]
+                        {
+                            let entry = PendingEpochConfigChange;
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Next epoch randomness."]
+                pub fn next_randomness(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        [::core::primitive::u8; 32usize],
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<NextRandomness>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                185u8, 98u8, 45u8, 109u8, 253u8, 38u8, 238u8, 221u8, 240u8, 29u8,
+                                38u8, 107u8, 118u8, 117u8, 131u8, 115u8, 21u8, 255u8, 203u8, 81u8,
+                                243u8, 251u8, 91u8, 60u8, 163u8, 202u8, 125u8, 193u8, 173u8, 234u8,
+                                166u8, 92u8,
+                            ]
+                        {
+                            let entry = NextRandomness;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Next epoch authorities."]
+                pub fn next_authorities(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        runtime_types::sp_runtime::bounded::weak_bounded_vec::WeakBoundedVec<(
+                            runtime_types::sp_consensus_babe::app::Public,
+                            ::core::primitive::u64,
+                        )>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<NextAuthorities>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                211u8, 175u8, 218u8, 0u8, 212u8, 114u8, 210u8, 137u8, 146u8, 135u8,
+                                78u8, 133u8, 85u8, 253u8, 140u8, 242u8, 101u8, 155u8, 159u8, 8u8,
+                                217u8, 176u8, 234u8, 143u8, 212u8, 103u8, 198u8, 94u8, 121u8,
+                                111u8, 56u8, 89u8,
+                            ]
+                        {
+                            let entry = NextAuthorities;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Randomness under construction."]
+                #[doc = ""]
+                #[doc = " We make a trade-off between storage accesses and list length."]
+                #[doc = " We store the under-construction randomness in segments of up to"]
+                #[doc = " `UNDER_CONSTRUCTION_SEGMENT_LENGTH`."]
+                #[doc = ""]
+                #[doc = " Once a segment reaches this length, we begin the next one."]
+                #[doc = " We reset all segments and return to `0` at the beginning of every"]
+                #[doc = " epoch."]
+                pub fn segment_index(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<SegmentIndex>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                128u8, 45u8, 87u8, 58u8, 174u8, 152u8, 241u8, 156u8, 56u8, 192u8,
+                                19u8, 45u8, 75u8, 160u8, 35u8, 253u8, 145u8, 11u8, 178u8, 81u8,
+                                114u8, 117u8, 112u8, 107u8, 163u8, 208u8, 240u8, 151u8, 102u8,
+                                176u8, 246u8, 5u8,
+                            ]
+                        {
+                            let entry = SegmentIndex;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " TWOX-NOTE: `SegmentIndex` is an increasing integer, so this is okay."]
+                pub fn under_construction(
+                    &self,
+                    _0: &'a ::core::primitive::u32,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<
+                            [::core::primitive::u8; 32usize],
+                        >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<UnderConstruction>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                12u8, 167u8, 30u8, 96u8, 161u8, 63u8, 210u8, 63u8, 91u8, 199u8,
+                                188u8, 78u8, 254u8, 255u8, 253u8, 202u8, 203u8, 26u8, 4u8, 105u8,
+                                76u8, 125u8, 191u8, 245u8, 32u8, 97u8, 127u8, 129u8, 167u8, 80u8,
+                                210u8, 123u8,
+                            ]
+                        {
+                            let entry = UnderConstruction(_0);
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " TWOX-NOTE: `SegmentIndex` is an increasing integer, so this is okay."]
+                pub fn under_construction_iter(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::subxt::KeyIter<'a, T, UnderConstruction<'a>>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<UnderConstruction>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                12u8, 167u8, 30u8, 96u8, 161u8, 63u8, 210u8, 63u8, 91u8, 199u8,
+                                188u8, 78u8, 254u8, 255u8, 253u8, 202u8, 203u8, 26u8, 4u8, 105u8,
+                                76u8, 125u8, 191u8, 245u8, 32u8, 97u8, 127u8, 129u8, 167u8, 80u8,
+                                210u8, 123u8,
+                            ]
+                        {
+                            client.storage().iter(block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Temporary value (cleared at block finalization) which is `Some`"]
+                #[doc = " if per-block initialization has already been called for current block."]
+                pub fn initialized(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<
+                            ::core::option::Option<
+                                runtime_types::sp_consensus_babe::digests::PreDigest,
+                            >,
+                        >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<Initialized>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                174u8, 23u8, 254u8, 52u8, 114u8, 235u8, 65u8, 46u8, 39u8, 97u8,
+                                238u8, 243u8, 237u8, 138u8, 142u8, 85u8, 114u8, 69u8, 58u8, 172u8,
+                                7u8, 238u8, 110u8, 153u8, 22u8, 122u8, 117u8, 149u8, 113u8, 221u8,
+                                127u8, 225u8,
+                            ]
+                        {
+                            let entry = Initialized;
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " This field should always be populated during block processing unless"]
+                #[doc = " secondary plain slots are enabled (which don't contain a VRF output)."]
+                #[doc = ""]
+                #[doc = " It is set in `on_finalize`, before it will contain the value from the last block."]
+                pub fn author_vrf_randomness(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<[::core::primitive::u8; 32usize]>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<AuthorVrfRandomness>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                66u8, 235u8, 74u8, 252u8, 222u8, 135u8, 19u8, 28u8, 74u8, 191u8,
+                                170u8, 197u8, 207u8, 127u8, 77u8, 121u8, 138u8, 138u8, 110u8,
+                                187u8, 34u8, 14u8, 230u8, 43u8, 241u8, 241u8, 63u8, 163u8, 53u8,
+                                179u8, 250u8, 247u8,
+                            ]
+                        {
+                            let entry = AuthorVrfRandomness;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The block numbers when the last and current epoch have started, respectively `N-1` and"]
+                #[doc = " `N`."]
+                #[doc = " NOTE: We track this is in order to annotate the block number when a given pool of"]
+                #[doc = " entropy was fixed (i.e. it was known to chain observers). Since epochs are defined in"]
+                #[doc = " slots, which may be skipped, the block numbers may not line up with the slot numbers."]
+                pub fn epoch_start(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        (::core::primitive::u32, ::core::primitive::u32),
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<EpochStart>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                196u8, 39u8, 241u8, 20u8, 150u8, 180u8, 136u8, 4u8, 195u8, 205u8,
+                                218u8, 10u8, 130u8, 131u8, 168u8, 243u8, 207u8, 249u8, 58u8, 195u8,
+                                177u8, 119u8, 110u8, 243u8, 241u8, 3u8, 245u8, 56u8, 157u8, 5u8,
+                                68u8, 60u8,
+                            ]
+                        {
+                            let entry = EpochStart;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " How late the current block is compared to its parent."]
+                #[doc = ""]
+                #[doc = " This entry is populated as part of block execution and is cleaned up"]
+                #[doc = " on block finalization. Querying this storage entry outside of block"]
+                #[doc = " execution context should always yield zero."]
+                pub fn lateness(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<Lateness>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                229u8, 230u8, 224u8, 89u8, 49u8, 213u8, 198u8, 236u8, 144u8, 56u8,
+                                193u8, 234u8, 62u8, 242u8, 191u8, 199u8, 105u8, 131u8, 74u8, 63u8,
+                                75u8, 1u8, 210u8, 49u8, 3u8, 128u8, 18u8, 77u8, 219u8, 146u8, 60u8,
+                                88u8,
+                            ]
+                        {
+                            let entry = Lateness;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The configuration for the current epoch. Should never be `None` as it is initialized in"]
+                #[doc = " genesis."]
+                pub fn epoch_config(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<
+                            runtime_types::sp_consensus_babe::BabeEpochConfiguration,
+                        >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<EpochConfig>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                169u8, 189u8, 214u8, 159u8, 181u8, 232u8, 243u8, 4u8, 113u8, 24u8,
+                                221u8, 229u8, 27u8, 35u8, 3u8, 121u8, 136u8, 88u8, 187u8, 193u8,
+                                207u8, 153u8, 223u8, 225u8, 166u8, 183u8, 53u8, 3u8, 162u8, 207u8,
+                                88u8, 133u8,
+                            ]
+                        {
+                            let entry = EpochConfig;
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The configuration for the next epoch, `None` if the config will not change"]
+                #[doc = " (you can fallback to `EpochConfig` instead in that case)."]
+                pub fn next_epoch_config(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<
+                            runtime_types::sp_consensus_babe::BabeEpochConfiguration,
+                        >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<NextEpochConfig>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                239u8, 125u8, 203u8, 223u8, 161u8, 107u8, 232u8, 54u8, 158u8,
+                                100u8, 244u8, 140u8, 119u8, 58u8, 253u8, 245u8, 73u8, 236u8, 50u8,
+                                67u8, 228u8, 162u8, 166u8, 168u8, 162u8, 152u8, 239u8, 246u8,
+                                153u8, 223u8, 109u8, 121u8,
+                            ]
+                        {
+                            let entry = NextEpochConfig;
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+            }
+        }
+        pub mod constants {
+            use super::runtime_types;
+            pub struct ConstantsApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> ConstantsApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                #[doc = " The amount of time, in slots, that each epoch should last."]
+                #[doc = " NOTE: Currently it is not possible to change the epoch duration after"]
+                #[doc = " the chain has started. Attempting to do so will brick block production."]
+                pub fn epoch_duration(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u64, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("Babe", "EpochDuration")?
+                        == [
+                            39u8, 145u8, 239u8, 15u8, 44u8, 200u8, 117u8, 2u8, 134u8, 209u8, 175u8,
+                            251u8, 113u8, 234u8, 139u8, 176u8, 188u8, 161u8, 4u8, 84u8, 128u8,
+                            62u8, 56u8, 236u8, 222u8, 126u8, 121u8, 163u8, 115u8, 168u8, 134u8,
+                            239u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("Babe")?;
+                        let constant = pallet.constant("EpochDuration")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = " The expected average block time at which BABE should be creating"]
+                #[doc = " blocks. Since BABE is probabilistic it is not trivial to figure out"]
+                #[doc = " what the expected average block time should be based on the slot"]
+                #[doc = " duration and the security parameter `c` (where `1 - c` represents"]
+                #[doc = " the probability of a slot being empty)."]
+                pub fn expected_block_time(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u64, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("Babe", "ExpectedBlockTime")?
+                        == [
+                            139u8, 151u8, 129u8, 195u8, 148u8, 92u8, 49u8, 64u8, 34u8, 11u8, 237u8,
+                            189u8, 177u8, 91u8, 6u8, 253u8, 139u8, 120u8, 121u8, 176u8, 56u8,
+                            183u8, 49u8, 22u8, 45u8, 108u8, 30u8, 253u8, 190u8, 154u8, 72u8, 74u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("Babe")?;
+                        let constant = pallet.constant("ExpectedBlockTime")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = " Max number of authorities allowed"]
+                pub fn max_authorities(
+                    &self,
+                ) -> ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>
+                {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("Babe", "MaxAuthorities")?
+                        == [
+                            80u8, 201u8, 93u8, 114u8, 100u8, 205u8, 172u8, 38u8, 174u8, 71u8,
+                            187u8, 161u8, 148u8, 83u8, 7u8, 73u8, 176u8, 100u8, 128u8, 71u8, 233u8,
+                            163u8, 89u8, 171u8, 100u8, 247u8, 111u8, 44u8, 173u8, 82u8, 34u8,
+                            159u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("Babe")?;
+                        let constant = pallet.constant("MaxAuthorities")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
                     }
                 }
             }
@@ -3654,6 +4903,567 @@ pub mod api {
             }
         }
     }
+    pub mod session {
+        use super::root_mod;
+        use super::runtime_types;
+        #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+        pub mod calls {
+            use super::root_mod;
+            use super::runtime_types;
+            type DispatchError = runtime_types::sp_runtime::DispatchError;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct SetKeys {
+                pub keys: runtime_types::gear_runtime::SessionKeys,
+                pub proof: ::std::vec::Vec<::core::primitive::u8>,
+            }
+            impl ::subxt::Call for SetKeys {
+                const PALLET: &'static str = "Session";
+                const FUNCTION: &'static str = "set_keys";
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct PurgeKeys;
+            impl ::subxt::Call for PurgeKeys {
+                const PALLET: &'static str = "Session";
+                const FUNCTION: &'static str = "purge_keys";
+            }
+            pub struct TransactionApi<'a, T: ::subxt::Config, X> {
+                client: &'a ::subxt::Client<T>,
+                marker: ::core::marker::PhantomData<X>,
+            }
+            impl<'a, T, X> TransactionApi<'a, T, X>
+            where
+                T: ::subxt::Config,
+                X: ::subxt::extrinsic::ExtrinsicParams<T>,
+            {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self {
+                        client,
+                        marker: ::core::marker::PhantomData,
+                    }
+                }
+                #[doc = "Sets the session key(s) of the function caller to `keys`."]
+                #[doc = "Allows an account to set its session key prior to becoming a validator."]
+                #[doc = "This doesn't take effect until the next session."]
+                #[doc = ""]
+                #[doc = "The dispatch origin of this function must be signed."]
+                #[doc = ""]
+                #[doc = "# <weight>"]
+                #[doc = "- Complexity: `O(1)`. Actual cost depends on the number of length of"]
+                #[doc = "  `T::Keys::key_ids()` which is fixed."]
+                #[doc = "- DbReads: `origin account`, `T::ValidatorIdOf`, `NextKeys`"]
+                #[doc = "- DbWrites: `origin account`, `NextKeys`"]
+                #[doc = "- DbReads per key id: `KeyOwner`"]
+                #[doc = "- DbWrites per key id: `KeyOwner`"]
+                #[doc = "# </weight>"]
+                pub fn set_keys(
+                    &self,
+                    keys: runtime_types::gear_runtime::SessionKeys,
+                    proof: ::std::vec::Vec<::core::primitive::u8>,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        SetKeys,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<SetKeys>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            143u8, 222u8, 13u8, 121u8, 208u8, 192u8, 80u8, 157u8, 155u8, 225u8,
+                            180u8, 82u8, 182u8, 70u8, 68u8, 199u8, 86u8, 115u8, 201u8, 158u8, 12u8,
+                            157u8, 184u8, 179u8, 202u8, 202u8, 77u8, 66u8, 184u8, 13u8, 54u8,
+                            147u8,
+                        ]
+                    {
+                        let call = SetKeys { keys, proof };
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+                #[doc = "Removes any session key(s) of the function caller."]
+                #[doc = ""]
+                #[doc = "This doesn't take effect until the next session."]
+                #[doc = ""]
+                #[doc = "The dispatch origin of this function must be Signed and the account must be either be"]
+                #[doc = "convertible to a validator ID using the chain's typical addressing system (this usually"]
+                #[doc = "means being a controller account) or directly convertible into a validator ID (which"]
+                #[doc = "usually means being a stash account)."]
+                #[doc = ""]
+                #[doc = "# <weight>"]
+                #[doc = "- Complexity: `O(1)` in number of key types. Actual cost depends on the number of length"]
+                #[doc = "  of `T::Keys::key_ids()` which is fixed."]
+                #[doc = "- DbReads: `T::ValidatorIdOf`, `NextKeys`, `origin account`"]
+                #[doc = "- DbWrites: `NextKeys`, `origin account`"]
+                #[doc = "- DbWrites per key id: `KeyOwner`"]
+                #[doc = "# </weight>"]
+                pub fn purge_keys(
+                    &self,
+                ) -> Result<
+                    ::subxt::SubmittableExtrinsic<
+                        'a,
+                        T,
+                        X,
+                        PurgeKeys,
+                        DispatchError,
+                        root_mod::Event,
+                    >,
+                    ::subxt::BasicError,
+                > {
+                    let runtime_call_hash = {
+                        let locked_metadata = self.client.metadata();
+                        let metadata = locked_metadata.read();
+                        metadata.call_hash::<PurgeKeys>()?
+                    };
+                    if runtime_call_hash
+                        == [
+                            200u8, 255u8, 4u8, 213u8, 188u8, 92u8, 99u8, 116u8, 163u8, 152u8, 29u8,
+                            35u8, 133u8, 119u8, 246u8, 44u8, 91u8, 31u8, 145u8, 23u8, 213u8, 64u8,
+                            71u8, 242u8, 207u8, 239u8, 231u8, 37u8, 61u8, 63u8, 190u8, 35u8,
+                        ]
+                    {
+                        let call = PurgeKeys {};
+                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+            }
+        }
+        #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/v3/runtime/events-and-errors) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+        pub type Event = runtime_types::pallet_session::pallet::Event;
+        pub mod events {
+            use super::runtime_types;
+            #[derive(
+                :: subxt :: codec :: CompactAs,
+                :: subxt :: codec :: Decode,
+                :: subxt :: codec :: Encode,
+                Debug,
+            )]
+            #[doc = "New session has happened. Note that the argument is the session index, not the"]
+            #[doc = "block number as the type might suggest."]
+            pub struct NewSession {
+                pub session_index: ::core::primitive::u32,
+            }
+            impl ::subxt::Event for NewSession {
+                const PALLET: &'static str = "Session";
+                const EVENT: &'static str = "NewSession";
+            }
+        }
+        pub mod storage {
+            use super::runtime_types;
+            pub struct Validators;
+            impl ::subxt::StorageEntry for Validators {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "Validators";
+                type Value = ::std::vec::Vec<::subxt::sp_core::crypto::AccountId32>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct CurrentIndex;
+            impl ::subxt::StorageEntry for CurrentIndex {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "CurrentIndex";
+                type Value = ::core::primitive::u32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct QueuedChanged;
+            impl ::subxt::StorageEntry for QueuedChanged {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "QueuedChanged";
+                type Value = ::core::primitive::bool;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct QueuedKeys;
+            impl ::subxt::StorageEntry for QueuedKeys {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "QueuedKeys";
+                type Value = ::std::vec::Vec<(
+                    ::subxt::sp_core::crypto::AccountId32,
+                    runtime_types::gear_runtime::SessionKeys,
+                )>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct DisabledValidators;
+            impl ::subxt::StorageEntry for DisabledValidators {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "DisabledValidators";
+                type Value = ::std::vec::Vec<::core::primitive::u32>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct NextKeys<'a>(pub &'a ::subxt::sp_core::crypto::AccountId32);
+            impl ::subxt::StorageEntry for NextKeys<'_> {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "NextKeys";
+                type Value = runtime_types::gear_runtime::SessionKeys;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Map(vec![::subxt::StorageMapKey::new(
+                        &self.0,
+                        ::subxt::StorageHasher::Twox64Concat,
+                    )])
+                }
+            }
+            pub struct KeyOwner<'a>(
+                pub &'a runtime_types::sp_core::crypto::KeyTypeId,
+                pub &'a [::core::primitive::u8],
+            );
+            impl ::subxt::StorageEntry for KeyOwner<'_> {
+                const PALLET: &'static str = "Session";
+                const STORAGE: &'static str = "KeyOwner";
+                type Value = ::subxt::sp_core::crypto::AccountId32;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Map(vec![::subxt::StorageMapKey::new(
+                        &(&self.0, &self.1),
+                        ::subxt::StorageHasher::Twox64Concat,
+                    )])
+                }
+            }
+            pub struct StorageApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> StorageApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                #[doc = " The current set of validators."]
+                pub fn validators(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::std::vec::Vec<::subxt::sp_core::crypto::AccountId32>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<Validators>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                186u8, 248u8, 234u8, 74u8, 245u8, 141u8, 90u8, 152u8, 226u8, 220u8,
+                                255u8, 104u8, 174u8, 1u8, 37u8, 152u8, 23u8, 208u8, 25u8, 49u8,
+                                33u8, 253u8, 254u8, 251u8, 141u8, 16u8, 18u8, 175u8, 196u8, 188u8,
+                                163u8, 209u8,
+                            ]
+                        {
+                            let entry = Validators;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Current index of the session."]
+                pub fn current_index(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<CurrentIndex>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                148u8, 179u8, 159u8, 15u8, 197u8, 95u8, 214u8, 30u8, 209u8, 251u8,
+                                183u8, 231u8, 91u8, 25u8, 181u8, 191u8, 143u8, 252u8, 227u8, 80u8,
+                                159u8, 66u8, 194u8, 67u8, 113u8, 74u8, 111u8, 91u8, 218u8, 187u8,
+                                130u8, 40u8,
+                            ]
+                        {
+                            let entry = CurrentIndex;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " True if the underlying economic identities or weighting behind the validators"]
+                #[doc = " has changed in the queued validator set."]
+                pub fn queued_changed(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<::core::primitive::bool, ::subxt::BasicError>,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<QueuedChanged>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                105u8, 140u8, 235u8, 218u8, 96u8, 100u8, 252u8, 10u8, 58u8, 221u8,
+                                244u8, 251u8, 67u8, 91u8, 80u8, 202u8, 152u8, 42u8, 50u8, 113u8,
+                                200u8, 247u8, 59u8, 213u8, 77u8, 195u8, 1u8, 150u8, 220u8, 18u8,
+                                245u8, 46u8,
+                            ]
+                        {
+                            let entry = QueuedChanged;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The queued keys for the next session. When the next session begins, these keys"]
+                #[doc = " will be used to determine the validator's session keys."]
+                pub fn queued_keys(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::std::vec::Vec<(
+                            ::subxt::sp_core::crypto::AccountId32,
+                            runtime_types::gear_runtime::SessionKeys,
+                        )>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<QueuedKeys>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                73u8, 31u8, 1u8, 199u8, 45u8, 199u8, 167u8, 173u8, 43u8, 2u8, 11u8,
+                                235u8, 80u8, 37u8, 84u8, 11u8, 142u8, 140u8, 225u8, 71u8, 227u8,
+                                91u8, 56u8, 43u8, 10u8, 183u8, 64u8, 43u8, 199u8, 155u8, 31u8,
+                                127u8,
+                            ]
+                        {
+                            let entry = QueuedKeys;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " Indices of disabled validators."]
+                #[doc = ""]
+                #[doc = " The vec is always kept sorted so that we can find whether a given validator is"]
+                #[doc = " disabled using binary search. It gets cleared when `on_session_ending` returns"]
+                #[doc = " a new set of identities."]
+                pub fn disabled_validators(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::std::vec::Vec<::core::primitive::u32>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<DisabledValidators>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                135u8, 22u8, 22u8, 97u8, 82u8, 217u8, 144u8, 141u8, 121u8, 240u8,
+                                189u8, 16u8, 176u8, 88u8, 177u8, 31u8, 20u8, 242u8, 73u8, 104u8,
+                                11u8, 110u8, 214u8, 34u8, 52u8, 217u8, 106u8, 33u8, 174u8, 174u8,
+                                198u8, 84u8,
+                            ]
+                        {
+                            let entry = DisabledValidators;
+                            client.storage().fetch_or_default(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The next session keys for a validator."]
+                pub fn next_keys(
+                    &self,
+                    _0: &'a ::subxt::sp_core::crypto::AccountId32,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<runtime_types::gear_runtime::SessionKeys>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<NextKeys>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                11u8, 102u8, 157u8, 248u8, 155u8, 12u8, 121u8, 115u8, 3u8, 68u8,
+                                128u8, 55u8, 175u8, 29u8, 161u8, 79u8, 142u8, 196u8, 71u8, 206u8,
+                                16u8, 141u8, 91u8, 38u8, 128u8, 97u8, 202u8, 222u8, 71u8, 185u8,
+                                139u8, 72u8,
+                            ]
+                        {
+                            let entry = NextKeys(_0);
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The next session keys for a validator."]
+                pub fn next_keys_iter(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::subxt::KeyIter<'a, T, NextKeys<'a>>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<NextKeys>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                11u8, 102u8, 157u8, 248u8, 155u8, 12u8, 121u8, 115u8, 3u8, 68u8,
+                                128u8, 55u8, 175u8, 29u8, 161u8, 79u8, 142u8, 196u8, 71u8, 206u8,
+                                16u8, 141u8, 91u8, 38u8, 128u8, 97u8, 202u8, 222u8, 71u8, 185u8,
+                                139u8, 72u8,
+                            ]
+                        {
+                            client.storage().iter(block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The owner of a key. The key is the `KeyTypeId` + the encoded key."]
+                pub fn key_owner(
+                    &self,
+                    _0: &'a runtime_types::sp_core::crypto::KeyTypeId,
+                    _1: &'a [::core::primitive::u8],
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<::subxt::sp_core::crypto::AccountId32>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<KeyOwner>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                49u8, 245u8, 212u8, 141u8, 211u8, 208u8, 109u8, 102u8, 249u8,
+                                161u8, 41u8, 93u8, 220u8, 230u8, 14u8, 59u8, 251u8, 176u8, 33u8,
+                                127u8, 93u8, 149u8, 205u8, 229u8, 113u8, 129u8, 162u8, 177u8,
+                                155u8, 216u8, 151u8, 57u8,
+                            ]
+                        {
+                            let entry = KeyOwner(_0, _1);
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+                #[doc = " The owner of a key. The key is the `KeyTypeId` + the encoded key."]
+                pub fn key_owner_iter(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::subxt::KeyIter<'a, T, KeyOwner<'a>>,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<KeyOwner>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                49u8, 245u8, 212u8, 141u8, 211u8, 208u8, 109u8, 102u8, 249u8,
+                                161u8, 41u8, 93u8, 220u8, 230u8, 14u8, 59u8, 251u8, 176u8, 33u8,
+                                127u8, 93u8, 149u8, 205u8, 229u8, 113u8, 129u8, 162u8, 177u8,
+                                155u8, 216u8, 151u8, 57u8,
+                            ]
+                        {
+                            client.storage().iter(block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+            }
+        }
+    }
     pub mod sudo {
         use super::root_mod;
         use super::runtime_types;
@@ -3737,9 +5547,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            65u8, 32u8, 31u8, 181u8, 13u8, 207u8, 135u8, 176u8, 2u8, 151u8, 249u8,
-                            78u8, 140u8, 219u8, 106u8, 81u8, 73u8, 88u8, 126u8, 127u8, 143u8,
-                            250u8, 230u8, 79u8, 0u8, 117u8, 143u8, 169u8, 219u8, 173u8, 85u8, 0u8,
+                            30u8, 104u8, 210u8, 195u8, 78u8, 125u8, 32u8, 44u8, 41u8, 202u8, 100u8,
+                            226u8, 221u8, 204u8, 118u8, 203u8, 97u8, 21u8, 27u8, 138u8, 79u8,
+                            145u8, 105u8, 107u8, 141u8, 82u8, 244u8, 2u8, 213u8, 165u8, 98u8,
+                            162u8,
                         ]
                     {
                         let call = Sudo {
@@ -3782,9 +5593,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            185u8, 45u8, 238u8, 166u8, 129u8, 234u8, 59u8, 3u8, 220u8, 135u8, 22u8,
-                            201u8, 33u8, 26u8, 255u8, 152u8, 111u8, 219u8, 17u8, 28u8, 201u8,
-                            172u8, 8u8, 112u8, 215u8, 129u8, 134u8, 17u8, 178u8, 18u8, 124u8, 63u8,
+                            76u8, 255u8, 70u8, 89u8, 165u8, 236u8, 239u8, 242u8, 155u8, 183u8,
+                            113u8, 62u8, 249u8, 126u8, 24u8, 102u8, 93u8, 48u8, 175u8, 118u8,
+                            133u8, 217u8, 57u8, 119u8, 97u8, 166u8, 71u8, 67u8, 53u8, 137u8, 108u8,
+                            148u8,
                         ]
                     {
                         let call = SudoUncheckedWeight {
@@ -3863,9 +5675,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            4u8, 36u8, 87u8, 88u8, 125u8, 85u8, 226u8, 175u8, 104u8, 168u8, 202u8,
-                            108u8, 93u8, 231u8, 170u8, 61u8, 173u8, 42u8, 43u8, 70u8, 130u8, 160u8,
-                            179u8, 189u8, 144u8, 82u8, 128u8, 6u8, 177u8, 14u8, 145u8, 55u8,
+                            127u8, 162u8, 138u8, 147u8, 135u8, 155u8, 125u8, 217u8, 61u8, 17u8,
+                            121u8, 17u8, 146u8, 217u8, 156u8, 131u8, 132u8, 205u8, 224u8, 130u8,
+                            45u8, 239u8, 13u8, 176u8, 102u8, 234u8, 99u8, 237u8, 172u8, 66u8,
+                            111u8, 244u8,
                         ]
                     {
                         let call = SudoAs {
@@ -4067,10 +5880,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            160u8, 90u8, 44u8, 196u8, 73u8, 37u8, 15u8, 217u8, 189u8, 204u8, 177u8,
-                            222u8, 69u8, 243u8, 139u8, 135u8, 104u8, 206u8, 61u8, 87u8, 174u8,
-                            17u8, 127u8, 248u8, 218u8, 141u8, 170u8, 157u8, 201u8, 236u8, 151u8,
-                            62u8,
+                            137u8, 58u8, 204u8, 247u8, 103u8, 181u8, 195u8, 37u8, 47u8, 27u8, 51u8,
+                            189u8, 17u8, 246u8, 132u8, 231u8, 186u8, 217u8, 17u8, 81u8, 166u8,
+                            243u8, 137u8, 202u8, 139u8, 53u8, 101u8, 182u8, 4u8, 17u8, 225u8, 48u8,
                         ]
                     {
                         let call = Batch { calls };
@@ -4114,10 +5926,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            191u8, 182u8, 32u8, 40u8, 6u8, 222u8, 39u8, 2u8, 194u8, 100u8, 137u8,
-                            20u8, 150u8, 249u8, 87u8, 178u8, 240u8, 171u8, 50u8, 233u8, 139u8,
-                            133u8, 174u8, 29u8, 85u8, 160u8, 168u8, 209u8, 145u8, 11u8, 120u8,
-                            182u8,
+                            68u8, 124u8, 9u8, 53u8, 210u8, 79u8, 37u8, 250u8, 176u8, 112u8, 165u8,
+                            10u8, 32u8, 151u8, 220u8, 127u8, 120u8, 139u8, 53u8, 185u8, 56u8, 34u8,
+                            23u8, 208u8, 246u8, 166u8, 167u8, 246u8, 91u8, 181u8, 31u8, 63u8,
                         ]
                     {
                         let call = AsDerivative {
@@ -4164,9 +5975,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            119u8, 217u8, 64u8, 80u8, 24u8, 247u8, 60u8, 105u8, 107u8, 26u8, 22u8,
-                            138u8, 124u8, 122u8, 167u8, 87u8, 140u8, 53u8, 107u8, 240u8, 22u8, 8u8,
-                            98u8, 21u8, 56u8, 53u8, 255u8, 244u8, 58u8, 240u8, 126u8, 116u8,
+                            13u8, 86u8, 183u8, 205u8, 167u8, 175u8, 109u8, 51u8, 197u8, 81u8,
+                            152u8, 155u8, 201u8, 25u8, 119u8, 207u8, 190u8, 81u8, 241u8, 113u8,
+                            138u8, 150u8, 247u8, 137u8, 117u8, 226u8, 61u8, 180u8, 254u8, 149u8,
+                            52u8, 212u8,
                         ]
                     {
                         let call = BatchAll { calls };
@@ -4207,10 +6019,9 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            218u8, 173u8, 250u8, 22u8, 34u8, 129u8, 102u8, 19u8, 78u8, 239u8,
-                            169u8, 46u8, 106u8, 188u8, 209u8, 141u8, 212u8, 179u8, 183u8, 19u8,
-                            120u8, 86u8, 55u8, 51u8, 4u8, 126u8, 36u8, 242u8, 123u8, 9u8, 254u8,
-                            246u8,
+                            81u8, 118u8, 148u8, 18u8, 67u8, 92u8, 179u8, 180u8, 158u8, 179u8, 54u8,
+                            5u8, 80u8, 247u8, 188u8, 223u8, 105u8, 163u8, 19u8, 223u8, 93u8, 65u8,
+                            124u8, 157u8, 107u8, 189u8, 232u8, 114u8, 23u8, 222u8, 88u8, 59u8,
                         ]
                     {
                         let call = DispatchAs {
@@ -4257,9 +6068,10 @@ pub mod api {
                     };
                     if runtime_call_hash
                         == [
-                            159u8, 102u8, 13u8, 145u8, 84u8, 156u8, 128u8, 31u8, 151u8, 29u8,
-                            146u8, 19u8, 114u8, 155u8, 64u8, 9u8, 100u8, 121u8, 80u8, 214u8, 195u8,
-                            7u8, 83u8, 111u8, 91u8, 92u8, 36u8, 21u8, 44u8, 164u8, 221u8, 123u8,
+                            220u8, 19u8, 163u8, 145u8, 152u8, 5u8, 244u8, 164u8, 223u8, 100u8,
+                            56u8, 172u8, 25u8, 21u8, 214u8, 42u8, 75u8, 197u8, 134u8, 126u8, 103u8,
+                            227u8, 94u8, 154u8, 209u8, 95u8, 108u8, 101u8, 152u8, 224u8, 25u8,
+                            141u8,
                         ]
                     {
                         let call = ForceBatch { calls };
@@ -4350,270 +6162,6 @@ pub mod api {
                     {
                         let pallet = metadata.pallet("Utility")?;
                         let constant = pallet.constant("batched_calls_limit")?;
-                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
-                        Ok(value)
-                    } else {
-                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                    }
-                }
-            }
-        }
-    }
-    pub mod authorship {
-        use super::root_mod;
-        use super::runtime_types;
-        #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
-        pub mod calls {
-            use super::root_mod;
-            use super::runtime_types;
-            type DispatchError = runtime_types::sp_runtime::DispatchError;
-            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-            pub struct SetUncles {
-                pub new_uncles: ::std::vec::Vec<
-                    runtime_types::sp_runtime::generic::header::Header<
-                        ::core::primitive::u32,
-                        runtime_types::sp_runtime::traits::BlakeTwo256,
-                    >,
-                >,
-            }
-            impl ::subxt::Call for SetUncles {
-                const PALLET: &'static str = "Authorship";
-                const FUNCTION: &'static str = "set_uncles";
-            }
-            pub struct TransactionApi<'a, T: ::subxt::Config, X> {
-                client: &'a ::subxt::Client<T>,
-                marker: ::core::marker::PhantomData<X>,
-            }
-            impl<'a, T, X> TransactionApi<'a, T, X>
-            where
-                T: ::subxt::Config,
-                X: ::subxt::extrinsic::ExtrinsicParams<T>,
-            {
-                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
-                    Self {
-                        client,
-                        marker: ::core::marker::PhantomData,
-                    }
-                }
-                #[doc = "Provide a set of uncles."]
-                pub fn set_uncles(
-                    &self,
-                    new_uncles: ::std::vec::Vec<
-                        runtime_types::sp_runtime::generic::header::Header<
-                            ::core::primitive::u32,
-                            runtime_types::sp_runtime::traits::BlakeTwo256,
-                        >,
-                    >,
-                ) -> Result<
-                    ::subxt::SubmittableExtrinsic<
-                        'a,
-                        T,
-                        X,
-                        SetUncles,
-                        DispatchError,
-                        root_mod::Event,
-                    >,
-                    ::subxt::BasicError,
-                > {
-                    let runtime_call_hash = {
-                        let locked_metadata = self.client.metadata();
-                        let metadata = locked_metadata.read();
-                        metadata.call_hash::<SetUncles>()?
-                    };
-                    if runtime_call_hash
-                        == [
-                            5u8, 56u8, 71u8, 152u8, 103u8, 232u8, 101u8, 171u8, 200u8, 2u8, 177u8,
-                            102u8, 0u8, 93u8, 210u8, 90u8, 56u8, 151u8, 5u8, 235u8, 227u8, 197u8,
-                            189u8, 248u8, 2u8, 71u8, 49u8, 220u8, 212u8, 253u8, 235u8, 67u8,
-                        ]
-                    {
-                        let call = SetUncles { new_uncles };
-                        Ok(::subxt::SubmittableExtrinsic::new(self.client, call))
-                    } else {
-                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                    }
-                }
-            }
-        }
-        pub mod storage {
-            use super::runtime_types;
-            pub struct Uncles;
-            impl ::subxt::StorageEntry for Uncles {
-                const PALLET: &'static str = "Authorship";
-                const STORAGE: &'static str = "Uncles";
-                type Value = runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<
-                    runtime_types::pallet_authorship::UncleEntryItem<
-                        ::core::primitive::u32,
-                        ::subxt::sp_core::H256,
-                        ::subxt::sp_core::crypto::AccountId32,
-                    >,
-                >;
-                fn key(&self) -> ::subxt::StorageEntryKey {
-                    ::subxt::StorageEntryKey::Plain
-                }
-            }
-            pub struct Author;
-            impl ::subxt::StorageEntry for Author {
-                const PALLET: &'static str = "Authorship";
-                const STORAGE: &'static str = "Author";
-                type Value = ::subxt::sp_core::crypto::AccountId32;
-                fn key(&self) -> ::subxt::StorageEntryKey {
-                    ::subxt::StorageEntryKey::Plain
-                }
-            }
-            pub struct DidSetUncles;
-            impl ::subxt::StorageEntry for DidSetUncles {
-                const PALLET: &'static str = "Authorship";
-                const STORAGE: &'static str = "DidSetUncles";
-                type Value = ::core::primitive::bool;
-                fn key(&self) -> ::subxt::StorageEntryKey {
-                    ::subxt::StorageEntryKey::Plain
-                }
-            }
-            pub struct StorageApi<'a, T: ::subxt::Config> {
-                client: &'a ::subxt::Client<T>,
-            }
-            impl<'a, T: ::subxt::Config> StorageApi<'a, T> {
-                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
-                    Self { client }
-                }
-                #[doc = " Uncles"]
-                pub fn uncles(
-                    &self,
-                    block_hash: ::core::option::Option<T::Hash>,
-                ) -> impl ::core::future::Future<
-                    Output = ::core::result::Result<
-                        runtime_types::sp_runtime::bounded::bounded_vec::BoundedVec<
-                            runtime_types::pallet_authorship::UncleEntryItem<
-                                ::core::primitive::u32,
-                                ::subxt::sp_core::H256,
-                                ::subxt::sp_core::crypto::AccountId32,
-                            >,
-                        >,
-                        ::subxt::BasicError,
-                    >,
-                > + 'a {
-                    let client = self.client;
-                    async move {
-                        let runtime_storage_hash = {
-                            let locked_metadata = client.metadata();
-                            let metadata = locked_metadata.read();
-                            match metadata.storage_hash::<Uncles>() {
-                                Ok(hash) => hash,
-                                Err(e) => return Err(e.into()),
-                            }
-                        };
-                        if runtime_storage_hash
-                            == [
-                                104u8, 166u8, 142u8, 139u8, 46u8, 63u8, 163u8, 183u8, 45u8, 77u8,
-                                156u8, 44u8, 228u8, 57u8, 253u8, 230u8, 103u8, 119u8, 145u8, 135u8,
-                                251u8, 182u8, 144u8, 165u8, 127u8, 150u8, 127u8, 185u8, 146u8,
-                                228u8, 91u8, 163u8,
-                            ]
-                        {
-                            let entry = Uncles;
-                            client.storage().fetch_or_default(&entry, block_hash).await
-                        } else {
-                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                        }
-                    }
-                }
-                #[doc = " Author of current block."]
-                pub fn author(
-                    &self,
-                    block_hash: ::core::option::Option<T::Hash>,
-                ) -> impl ::core::future::Future<
-                    Output = ::core::result::Result<
-                        ::core::option::Option<::subxt::sp_core::crypto::AccountId32>,
-                        ::subxt::BasicError,
-                    >,
-                > + 'a {
-                    let client = self.client;
-                    async move {
-                        let runtime_storage_hash = {
-                            let locked_metadata = client.metadata();
-                            let metadata = locked_metadata.read();
-                            match metadata.storage_hash::<Author>() {
-                                Ok(hash) => hash,
-                                Err(e) => return Err(e.into()),
-                            }
-                        };
-                        if runtime_storage_hash
-                            == [
-                                191u8, 57u8, 3u8, 242u8, 220u8, 123u8, 103u8, 215u8, 149u8, 120u8,
-                                20u8, 139u8, 146u8, 234u8, 180u8, 105u8, 129u8, 128u8, 114u8,
-                                147u8, 114u8, 236u8, 23u8, 21u8, 15u8, 250u8, 180u8, 19u8, 177u8,
-                                145u8, 77u8, 228u8,
-                            ]
-                        {
-                            let entry = Author;
-                            client.storage().fetch(&entry, block_hash).await
-                        } else {
-                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                        }
-                    }
-                }
-                #[doc = " Whether uncles were already set in this block."]
-                pub fn did_set_uncles(
-                    &self,
-                    block_hash: ::core::option::Option<T::Hash>,
-                ) -> impl ::core::future::Future<
-                    Output = ::core::result::Result<::core::primitive::bool, ::subxt::BasicError>,
-                > + 'a {
-                    let client = self.client;
-                    async move {
-                        let runtime_storage_hash = {
-                            let locked_metadata = client.metadata();
-                            let metadata = locked_metadata.read();
-                            match metadata.storage_hash::<DidSetUncles>() {
-                                Ok(hash) => hash,
-                                Err(e) => return Err(e.into()),
-                            }
-                        };
-                        if runtime_storage_hash
-                            == [
-                                64u8, 3u8, 208u8, 187u8, 50u8, 45u8, 37u8, 88u8, 163u8, 226u8,
-                                37u8, 126u8, 232u8, 107u8, 156u8, 187u8, 29u8, 15u8, 53u8, 46u8,
-                                28u8, 73u8, 83u8, 123u8, 14u8, 244u8, 243u8, 43u8, 245u8, 143u8,
-                                15u8, 115u8,
-                            ]
-                        {
-                            let entry = DidSetUncles;
-                            client.storage().fetch_or_default(&entry, block_hash).await
-                        } else {
-                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
-                        }
-                    }
-                }
-            }
-        }
-        pub mod constants {
-            use super::runtime_types;
-            pub struct ConstantsApi<'a, T: ::subxt::Config> {
-                client: &'a ::subxt::Client<T>,
-            }
-            impl<'a, T: ::subxt::Config> ConstantsApi<'a, T> {
-                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
-                    Self { client }
-                }
-                #[doc = " The number of blocks back we should accept uncles."]
-                #[doc = " This means that we will deal with uncle-parents that are"]
-                #[doc = " `UncleGenerations + 1` before `now`."]
-                pub fn uncle_generations(
-                    &self,
-                ) -> ::core::result::Result<::core::primitive::u32, ::subxt::BasicError>
-                {
-                    let locked_metadata = self.client.metadata();
-                    let metadata = locked_metadata.read();
-                    if metadata.constant_hash("Authorship", "UncleGenerations")?
-                        == [
-                            0u8, 72u8, 57u8, 175u8, 222u8, 143u8, 191u8, 33u8, 163u8, 157u8, 202u8,
-                            83u8, 186u8, 103u8, 162u8, 103u8, 227u8, 158u8, 239u8, 212u8, 205u8,
-                            193u8, 226u8, 138u8, 5u8, 220u8, 221u8, 42u8, 7u8, 146u8, 173u8, 205u8,
-                        ]
-                    {
-                        let pallet = metadata.pallet("Authorship")?;
-                        let constant = pallet.constant("UncleGenerations")?;
                         let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
                         Ok(value)
                     } else {
@@ -6734,6 +8282,102 @@ pub mod api {
         use super::root_mod;
         use super::runtime_types;
     }
+    pub mod shift_session_manager {
+        use super::root_mod;
+        use super::runtime_types;
+        pub mod storage {
+            use super::runtime_types;
+            pub struct InitialValidators;
+            impl ::subxt::StorageEntry for InitialValidators {
+                const PALLET: &'static str = "ShiftSessionManager";
+                const STORAGE: &'static str = "InitialValidators";
+                type Value = ::std::vec::Vec<::subxt::sp_core::crypto::AccountId32>;
+                fn key(&self) -> ::subxt::StorageEntryKey {
+                    ::subxt::StorageEntryKey::Plain
+                }
+            }
+            pub struct StorageApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> StorageApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                #[doc = " Validators of first two sessions."]
+                pub fn initial_validators(
+                    &self,
+                    block_hash: ::core::option::Option<T::Hash>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<
+                        ::core::option::Option<
+                            ::std::vec::Vec<::subxt::sp_core::crypto::AccountId32>,
+                        >,
+                        ::subxt::BasicError,
+                    >,
+                > + 'a {
+                    let client = self.client;
+                    async move {
+                        let runtime_storage_hash = {
+                            let locked_metadata = client.metadata();
+                            let metadata = locked_metadata.read();
+                            match metadata.storage_hash::<InitialValidators>() {
+                                Ok(hash) => hash,
+                                Err(e) => return Err(e.into()),
+                            }
+                        };
+                        if runtime_storage_hash
+                            == [
+                                120u8, 27u8, 249u8, 169u8, 208u8, 81u8, 31u8, 182u8, 199u8, 197u8,
+                                242u8, 72u8, 43u8, 12u8, 221u8, 71u8, 182u8, 133u8, 22u8, 21u8,
+                                162u8, 120u8, 16u8, 3u8, 94u8, 191u8, 241u8, 208u8, 242u8, 14u8,
+                                172u8, 107u8,
+                            ]
+                        {
+                            let entry = InitialValidators;
+                            client.storage().fetch(&entry, block_hash).await
+                        } else {
+                            Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                        }
+                    }
+                }
+            }
+        }
+        pub mod constants {
+            use super::runtime_types;
+            pub struct ConstantsApi<'a, T: ::subxt::Config> {
+                client: &'a ::subxt::Client<T>,
+            }
+            impl<'a, T: ::subxt::Config> ConstantsApi<'a, T> {
+                pub fn new(client: &'a ::subxt::Client<T>) -> Self {
+                    Self { client }
+                }
+                #[doc = " A fraction of initially available validators to be selected for a session"]
+                pub fn selected_fraction(
+                    &self,
+                ) -> ::core::result::Result<
+                    runtime_types::sp_arithmetic::per_things::Percent,
+                    ::subxt::BasicError,
+                > {
+                    let locked_metadata = self.client.metadata();
+                    let metadata = locked_metadata.read();
+                    if metadata.constant_hash("ShiftSessionManager", "SelectedFraction")?
+                        == [
+                            3u8, 31u8, 161u8, 149u8, 203u8, 76u8, 227u8, 20u8, 40u8, 37u8, 76u8,
+                            98u8, 88u8, 50u8, 140u8, 133u8, 91u8, 89u8, 92u8, 192u8, 29u8, 110u8,
+                            90u8, 156u8, 137u8, 72u8, 151u8, 218u8, 18u8, 75u8, 35u8, 26u8,
+                        ]
+                    {
+                        let pallet = metadata.pallet("ShiftSessionManager")?;
+                        let constant = pallet.constant("SelectedFraction")?;
+                        let value = ::subxt::codec::Decode::decode(&mut &constant.value[..])?;
+                        Ok(value)
+                    } else {
+                        Err(::subxt::MetadataError::IncompatibleMetadata.into())
+                    }
+                }
+            }
+        }
+    }
     pub mod gear_debug {
         use super::root_mod;
         use super::runtime_types;
@@ -7589,42 +9233,48 @@ pub mod api {
                 System(runtime_types::frame_system::pallet::Call),
                 #[codec(index = 1)]
                 Timestamp(runtime_types::pallet_timestamp::pallet::Call),
-                #[codec(index = 3)]
-                Grandpa(runtime_types::pallet_grandpa::pallet::Call),
-                #[codec(index = 4)]
-                Balances(runtime_types::pallet_balances::pallet::Call),
-                #[codec(index = 6)]
-                Sudo(runtime_types::pallet_sudo::pallet::Call),
-                #[codec(index = 7)]
-                Utility(runtime_types::pallet_utility::pallet::Call),
-                #[codec(index = 8)]
+                #[codec(index = 2)]
                 Authorship(runtime_types::pallet_authorship::pallet::Call),
+                #[codec(index = 3)]
+                Babe(runtime_types::pallet_babe::pallet::Call),
+                #[codec(index = 4)]
+                Grandpa(runtime_types::pallet_grandpa::pallet::Call),
+                #[codec(index = 5)]
+                Balances(runtime_types::pallet_balances::pallet::Call),
+                #[codec(index = 7)]
+                Session(runtime_types::pallet_session::pallet::Call),
+                #[codec(index = 8)]
+                Sudo(runtime_types::pallet_sudo::pallet::Call),
                 #[codec(index = 9)]
+                Utility(runtime_types::pallet_utility::pallet::Call),
+                #[codec(index = 10)]
                 GearProgram(runtime_types::pallet_gear_program::pallet::Call),
-                #[codec(index = 13)]
+                #[codec(index = 14)]
                 Gear(runtime_types::pallet_gear::pallet::Call),
-                #[codec(index = 15)]
+                #[codec(index = 17)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub enum Event {
                 #[codec(index = 0)]
                 System(runtime_types::frame_system::pallet::Event),
-                #[codec(index = 3)]
-                Grandpa(runtime_types::pallet_grandpa::pallet::Event),
                 #[codec(index = 4)]
-                Balances(runtime_types::pallet_balances::pallet::Event),
+                Grandpa(runtime_types::pallet_grandpa::pallet::Event),
                 #[codec(index = 5)]
-                TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
+                Balances(runtime_types::pallet_balances::pallet::Event),
                 #[codec(index = 6)]
-                Sudo(runtime_types::pallet_sudo::pallet::Event),
+                TransactionPayment(runtime_types::pallet_transaction_payment::pallet::Event),
                 #[codec(index = 7)]
-                Utility(runtime_types::pallet_utility::pallet::Event),
+                Session(runtime_types::pallet_session::pallet::Event),
+                #[codec(index = 8)]
+                Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 9)]
+                Utility(runtime_types::pallet_utility::pallet::Event),
+                #[codec(index = 10)]
                 GearProgram(runtime_types::pallet_gear_program::pallet::Event),
-                #[codec(index = 13)]
+                #[codec(index = 14)]
                 Gear(runtime_types::pallet_gear::pallet::Event),
-                #[codec(index = 15)]
+                #[codec(index = 17)]
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
@@ -7640,6 +9290,11 @@ pub mod api {
             }
             #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
             pub struct Runtime;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct SessionKeys {
+                pub babe: runtime_types::sp_consensus_babe::app::Public,
+                pub grandpa: runtime_types::sp_finality_grandpa::app::Public,
+            }
         }
         pub mod pallet_authorship {
             use super::runtime_types;
@@ -7691,6 +9346,78 @@ pub mod api {
                 InclusionHeight(_0),
                 #[codec(index = 1)]
                 Uncle(_1, ::core::option::Option<_2>),
+            }
+        }
+        pub mod pallet_babe {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Report authority equivocation/misbehavior. This method will verify"]
+                    #[doc = "the equivocation proof and validate the given key ownership proof"]
+                    #[doc = "against the extracted offender. If both are valid, the offence will"]
+                    #[doc = "be reported."]
+                    report_equivocation {
+                        equivocation_proof: ::std::boxed::Box<
+                            runtime_types::sp_consensus_slots::EquivocationProof<
+                                runtime_types::sp_runtime::generic::header::Header<
+                                    ::core::primitive::u32,
+                                    runtime_types::sp_runtime::traits::BlakeTwo256,
+                                >,
+                                runtime_types::sp_consensus_babe::app::Public,
+                            >,
+                        >,
+                        key_owner_proof: runtime_types::sp_core::Void,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Report authority equivocation/misbehavior. This method will verify"]
+                    #[doc = "the equivocation proof and validate the given key ownership proof"]
+                    #[doc = "against the extracted offender. If both are valid, the offence will"]
+                    #[doc = "be reported."]
+                    #[doc = "This extrinsic must be called unsigned and it is expected that only"]
+                    #[doc = "block authors will call it (validated in `ValidateUnsigned`), as such"]
+                    #[doc = "if the block author is defined it will be defined as the equivocation"]
+                    #[doc = "reporter."]
+                    report_equivocation_unsigned {
+                        equivocation_proof: ::std::boxed::Box<
+                            runtime_types::sp_consensus_slots::EquivocationProof<
+                                runtime_types::sp_runtime::generic::header::Header<
+                                    ::core::primitive::u32,
+                                    runtime_types::sp_runtime::traits::BlakeTwo256,
+                                >,
+                                runtime_types::sp_consensus_babe::app::Public,
+                            >,
+                        >,
+                        key_owner_proof: runtime_types::sp_core::Void,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "Plan an epoch config change. The epoch config change is recorded and will be enacted on"]
+                    #[doc = "the next call to `enact_epoch_change`. The config will be activated one epoch after."]
+                    #[doc = "Multiple calls to this method will replace any existing planned config change that had"]
+                    #[doc = "not been enacted yet."]
+                    plan_config_change {
+                        config: runtime_types::sp_consensus_babe::digests::NextConfigDescriptor,
+                    },
+                }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/v3/runtime/events-and-errors)\n\t\t\tof this pallet.\n\t\t\t"]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "An equivocation proof provided as part of an equivocation report is invalid."]
+                    InvalidEquivocationProof,
+                    #[codec(index = 1)]
+                    #[doc = "A key ownership proof provided as part of an equivocation report is invalid."]
+                    InvalidKeyOwnershipProof,
+                    #[codec(index = 2)]
+                    #[doc = "A given equivocation report is valid but already previously reported."]
+                    DuplicateOffenceReport,
+                    #[codec(index = 3)]
+                    #[doc = "Submitted configuration is invalid."]
+                    InvalidConfiguration,
+                }
             }
         }
         pub mod pallet_balances {
@@ -8168,12 +9895,6 @@ pub mod api {
                     #[doc = "Value doesn't cover ExistentialDeposit."]
                     ValueLessThanMinimal,
                     #[codec(index = 11)]
-                    #[doc = "Unable to instrument program code."]
-                    GasInstrumentationFailed,
-                    #[codec(index = 12)]
-                    #[doc = "No code could be found at the supplied code hash."]
-                    CodeNotFound,
-                    #[codec(index = 13)]
                     #[doc = "Messages storage corrupted."]
                     MessagesStorageCorrupted,
                 }
@@ -8770,6 +10491,82 @@ pub mod api {
                 PendingResume { scheduled_at: _0, delay: _0 },
             }
         }
+        pub mod pallet_session {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
+                pub enum Call {
+                    #[codec(index = 0)]
+                    #[doc = "Sets the session key(s) of the function caller to `keys`."]
+                    #[doc = "Allows an account to set its session key prior to becoming a validator."]
+                    #[doc = "This doesn't take effect until the next session."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this function must be signed."]
+                    #[doc = ""]
+                    #[doc = "# <weight>"]
+                    #[doc = "- Complexity: `O(1)`. Actual cost depends on the number of length of"]
+                    #[doc = "  `T::Keys::key_ids()` which is fixed."]
+                    #[doc = "- DbReads: `origin account`, `T::ValidatorIdOf`, `NextKeys`"]
+                    #[doc = "- DbWrites: `origin account`, `NextKeys`"]
+                    #[doc = "- DbReads per key id: `KeyOwner`"]
+                    #[doc = "- DbWrites per key id: `KeyOwner`"]
+                    #[doc = "# </weight>"]
+                    set_keys {
+                        keys: runtime_types::gear_runtime::SessionKeys,
+                        proof: ::std::vec::Vec<::core::primitive::u8>,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Removes any session key(s) of the function caller."]
+                    #[doc = ""]
+                    #[doc = "This doesn't take effect until the next session."]
+                    #[doc = ""]
+                    #[doc = "The dispatch origin of this function must be Signed and the account must be either be"]
+                    #[doc = "convertible to a validator ID using the chain's typical addressing system (this usually"]
+                    #[doc = "means being a controller account) or directly convertible into a validator ID (which"]
+                    #[doc = "usually means being a stash account)."]
+                    #[doc = ""]
+                    #[doc = "# <weight>"]
+                    #[doc = "- Complexity: `O(1)` in number of key types. Actual cost depends on the number of length"]
+                    #[doc = "  of `T::Keys::key_ids()` which is fixed."]
+                    #[doc = "- DbReads: `T::ValidatorIdOf`, `NextKeys`, `origin account`"]
+                    #[doc = "- DbWrites: `NextKeys`, `origin account`"]
+                    #[doc = "- DbWrites per key id: `KeyOwner`"]
+                    #[doc = "# </weight>"]
+                    purge_keys,
+                }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                #[doc = "Error for the session pallet."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "Invalid ownership proof."]
+                    InvalidProof,
+                    #[codec(index = 1)]
+                    #[doc = "No associated validator ID for account."]
+                    NoAssociatedValidatorId,
+                    #[codec(index = 2)]
+                    #[doc = "Registered duplicate key."]
+                    DuplicatedKey,
+                    #[codec(index = 3)]
+                    #[doc = "No keys are associated with this account."]
+                    NoKeys,
+                    #[codec(index = 4)]
+                    #[doc = "Key setting account is not live, so it's impossible to associate keys."]
+                    NoAccount,
+                }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/v3/runtime/events-and-errors) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                pub enum Event {
+                    #[codec(index = 0)]
+                    #[doc = "New session has happened. Note that the argument is the session index, not the"]
+                    #[doc = "block number as the type might suggest."]
+                    NewSession {
+                        session_index: ::core::primitive::u32,
+                    },
+                }
+            }
+        }
         pub mod pallet_sudo {
             use super::runtime_types;
             pub mod pallet {
@@ -9097,21 +10894,87 @@ pub mod api {
                     Debug,
                 )]
                 pub struct Perbill(pub ::core::primitive::u32);
+                #[derive(
+                    :: subxt :: codec :: CompactAs,
+                    :: subxt :: codec :: Decode,
+                    :: subxt :: codec :: Encode,
+                    Debug,
+                )]
+                pub struct Percent(pub ::core::primitive::u8);
             }
         }
-        pub mod sp_consensus_aura {
+        pub mod sp_consensus_babe {
             use super::runtime_types;
-            pub mod sr25519 {
+            pub mod app {
                 use super::runtime_types;
-                pub mod app_sr25519 {
-                    use super::runtime_types;
-                    #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
-                    pub struct Public(pub runtime_types::sp_core::sr25519::Public);
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct Public(pub runtime_types::sp_core::sr25519::Public);
+            }
+            pub mod digests {
+                use super::runtime_types;
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub enum NextConfigDescriptor {
+                    #[codec(index = 1)]
+                    V1 {
+                        c: (::core::primitive::u64, ::core::primitive::u64),
+                        allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
+                    },
                 }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub enum PreDigest {
+                    #[codec(index = 1)]
+                    Primary(runtime_types::sp_consensus_babe::digests::PrimaryPreDigest),
+                    #[codec(index = 2)]
+                    SecondaryPlain(
+                        runtime_types::sp_consensus_babe::digests::SecondaryPlainPreDigest,
+                    ),
+                    #[codec(index = 3)]
+                    SecondaryVRF(runtime_types::sp_consensus_babe::digests::SecondaryVRFPreDigest),
+                }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct PrimaryPreDigest {
+                    pub authority_index: ::core::primitive::u32,
+                    pub slot: runtime_types::sp_consensus_slots::Slot,
+                    pub vrf_output: [::core::primitive::u8; 32usize],
+                    pub vrf_proof: [::core::primitive::u8; 64usize],
+                }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct SecondaryPlainPreDigest {
+                    pub authority_index: ::core::primitive::u32,
+                    pub slot: runtime_types::sp_consensus_slots::Slot,
+                }
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct SecondaryVRFPreDigest {
+                    pub authority_index: ::core::primitive::u32,
+                    pub slot: runtime_types::sp_consensus_slots::Slot,
+                    pub vrf_output: [::core::primitive::u8; 32usize],
+                    pub vrf_proof: [::core::primitive::u8; 64usize],
+                }
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub enum AllowedSlots {
+                #[codec(index = 0)]
+                PrimarySlots,
+                #[codec(index = 1)]
+                PrimaryAndSecondaryPlainSlots,
+                #[codec(index = 2)]
+                PrimaryAndSecondaryVRFSlots,
+            }
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct BabeEpochConfiguration {
+                pub c: (::core::primitive::u64, ::core::primitive::u64),
+                pub allowed_slots: runtime_types::sp_consensus_babe::AllowedSlots,
             }
         }
         pub mod sp_consensus_slots {
             use super::runtime_types;
+            #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+            pub struct EquivocationProof<_0, _1> {
+                pub offender: _1,
+                pub slot: runtime_types::sp_consensus_slots::Slot,
+                pub first_header: _0,
+                pub second_header: _0,
+            }
             #[derive(
                 :: subxt :: codec :: CompactAs,
                 :: subxt :: codec :: Decode,
@@ -9126,6 +10989,8 @@ pub mod api {
                 use super::runtime_types;
                 #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
                 pub struct AccountId32(pub [::core::primitive::u8; 32usize]);
+                #[derive(:: subxt :: codec :: Decode, :: subxt :: codec :: Encode, Debug)]
+                pub struct KeyTypeId(pub [::core::primitive::u8; 4usize]);
             }
             pub mod ecdsa {
                 use super::runtime_types;
@@ -9930,9 +11795,9 @@ pub mod api {
             };
             if runtime_metadata_hash
                 != [
-                    25u8, 149u8, 62u8, 104u8, 138u8, 106u8, 198u8, 144u8, 129u8, 91u8, 128u8, 1u8,
-                    27u8, 200u8, 94u8, 186u8, 232u8, 68u8, 20u8, 93u8, 3u8, 213u8, 134u8, 224u8,
-                    15u8, 239u8, 184u8, 45u8, 86u8, 232u8, 85u8, 245u8,
+                    115u8, 200u8, 240u8, 196u8, 8u8, 165u8, 252u8, 169u8, 230u8, 222u8, 203u8,
+                    137u8, 47u8, 250u8, 48u8, 196u8, 56u8, 78u8, 251u8, 250u8, 156u8, 24u8, 152u8,
+                    50u8, 118u8, 170u8, 121u8, 11u8, 241u8, 94u8, 18u8, 237u8,
                 ]
             {
                 Err(::subxt::MetadataError::IncompatibleMetadata)
@@ -10004,6 +11869,12 @@ pub mod api {
         pub fn timestamp(&self) -> timestamp::constants::ConstantsApi<'a, T> {
             timestamp::constants::ConstantsApi::new(self.client)
         }
+        pub fn authorship(&self) -> authorship::constants::ConstantsApi<'a, T> {
+            authorship::constants::ConstantsApi::new(self.client)
+        }
+        pub fn babe(&self) -> babe::constants::ConstantsApi<'a, T> {
+            babe::constants::ConstantsApi::new(self.client)
+        }
         pub fn grandpa(&self) -> grandpa::constants::ConstantsApi<'a, T> {
             grandpa::constants::ConstantsApi::new(self.client)
         }
@@ -10016,9 +11887,6 @@ pub mod api {
         pub fn utility(&self) -> utility::constants::ConstantsApi<'a, T> {
             utility::constants::ConstantsApi::new(self.client)
         }
-        pub fn authorship(&self) -> authorship::constants::ConstantsApi<'a, T> {
-            authorship::constants::ConstantsApi::new(self.client)
-        }
         pub fn gear_scheduler(&self) -> gear_scheduler::constants::ConstantsApi<'a, T> {
             gear_scheduler::constants::ConstantsApi::new(self.client)
         }
@@ -10027,6 +11895,11 @@ pub mod api {
         }
         pub fn gear(&self) -> gear::constants::ConstantsApi<'a, T> {
             gear::constants::ConstantsApi::new(self.client)
+        }
+        pub fn shift_session_manager(
+            &self,
+        ) -> shift_session_manager::constants::ConstantsApi<'a, T> {
+            shift_session_manager::constants::ConstantsApi::new(self.client)
         }
     }
     pub struct StorageApi<'a, T: ::subxt::Config> {
@@ -10042,8 +11915,11 @@ pub mod api {
         pub fn timestamp(&self) -> timestamp::storage::StorageApi<'a, T> {
             timestamp::storage::StorageApi::new(self.client)
         }
-        pub fn aura(&self) -> aura::storage::StorageApi<'a, T> {
-            aura::storage::StorageApi::new(self.client)
+        pub fn authorship(&self) -> authorship::storage::StorageApi<'a, T> {
+            authorship::storage::StorageApi::new(self.client)
+        }
+        pub fn babe(&self) -> babe::storage::StorageApi<'a, T> {
+            babe::storage::StorageApi::new(self.client)
         }
         pub fn grandpa(&self) -> grandpa::storage::StorageApi<'a, T> {
             grandpa::storage::StorageApi::new(self.client)
@@ -10054,11 +11930,11 @@ pub mod api {
         pub fn transaction_payment(&self) -> transaction_payment::storage::StorageApi<'a, T> {
             transaction_payment::storage::StorageApi::new(self.client)
         }
+        pub fn session(&self) -> session::storage::StorageApi<'a, T> {
+            session::storage::StorageApi::new(self.client)
+        }
         pub fn sudo(&self) -> sudo::storage::StorageApi<'a, T> {
             sudo::storage::StorageApi::new(self.client)
-        }
-        pub fn authorship(&self) -> authorship::storage::StorageApi<'a, T> {
-            authorship::storage::StorageApi::new(self.client)
         }
         pub fn gear_program(&self) -> gear_program::storage::StorageApi<'a, T> {
             gear_program::storage::StorageApi::new(self.client)
@@ -10071,6 +11947,9 @@ pub mod api {
         }
         pub fn gear_gas(&self) -> gear_gas::storage::StorageApi<'a, T> {
             gear_gas::storage::StorageApi::new(self.client)
+        }
+        pub fn shift_session_manager(&self) -> shift_session_manager::storage::StorageApi<'a, T> {
+            shift_session_manager::storage::StorageApi::new(self.client)
         }
         pub fn gear_debug(&self) -> gear_debug::storage::StorageApi<'a, T> {
             gear_debug::storage::StorageApi::new(self.client)
@@ -10091,20 +11970,26 @@ pub mod api {
         pub fn timestamp(&self) -> timestamp::calls::TransactionApi<'a, T, X> {
             timestamp::calls::TransactionApi::new(self.client)
         }
+        pub fn authorship(&self) -> authorship::calls::TransactionApi<'a, T, X> {
+            authorship::calls::TransactionApi::new(self.client)
+        }
+        pub fn babe(&self) -> babe::calls::TransactionApi<'a, T, X> {
+            babe::calls::TransactionApi::new(self.client)
+        }
         pub fn grandpa(&self) -> grandpa::calls::TransactionApi<'a, T, X> {
             grandpa::calls::TransactionApi::new(self.client)
         }
         pub fn balances(&self) -> balances::calls::TransactionApi<'a, T, X> {
             balances::calls::TransactionApi::new(self.client)
         }
+        pub fn session(&self) -> session::calls::TransactionApi<'a, T, X> {
+            session::calls::TransactionApi::new(self.client)
+        }
         pub fn sudo(&self) -> sudo::calls::TransactionApi<'a, T, X> {
             sudo::calls::TransactionApi::new(self.client)
         }
         pub fn utility(&self) -> utility::calls::TransactionApi<'a, T, X> {
             utility::calls::TransactionApi::new(self.client)
-        }
-        pub fn authorship(&self) -> authorship::calls::TransactionApi<'a, T, X> {
-            authorship::calls::TransactionApi::new(self.client)
         }
         pub fn gear_program(&self) -> gear_program::calls::TransactionApi<'a, T, X> {
             gear_program::calls::TransactionApi::new(self.client)

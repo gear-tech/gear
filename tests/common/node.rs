@@ -1,14 +1,17 @@
-use crate::common::{docker::Docker, logs::Logs, port, Error, Result};
+use crate::common::{port, Error, Result};
+use std::{
+    io::{BufRead, BufReader},
+    process::{Child, Command, Stdio},
+};
 
-pub const GEAR_NODE_BIN_PATH: &str = "/usr/local/bin/gear-node";
-pub const GEAR_NODE_DOCKER_IMAGE: &str = "ghcr.io/gear-tech/node:latest";
+pub const GEAR_NODE_BIN_PATH: &str = "/res/gear-node";
 
 /// Run gear-node with docker.
 pub struct Node {
-    /// docker process
-    ps: Docker,
+    /// child process
+    ps: Child,
     /// websocket port
-    pub port: u16,
+    port: u16,
 }
 
 impl Node {
@@ -20,35 +23,31 @@ impl Node {
     /// Run gear-node with docker in development mode.
     pub fn dev() -> Result<Self> {
         let port = port::pick();
-        let ps = Docker::run(&[
-            "-p",
-            &format!("{}:9944", port),
-            GEAR_NODE_DOCKER_IMAGE,
-            GEAR_NODE_BIN_PATH,
-            "--tmp",
-            "--dev",
-            "--unsafe-ws-external",
-        ])?;
+        let ps = Command::new(env!("CARGO_MANIFEST_DIR").to_owned() + GEAR_NODE_BIN_PATH)
+            .args(&["--ws-port", &port.to_string(), "--tmp", "--dev"])
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
 
         Ok(Self { ps, port })
     }
 
-    /// Spawn logs of gear-node.
-    pub fn logs(&mut self) -> Result<Logs> {
-        self.ps.logs()
-    }
-
     /// Wait for the block importing
-    pub fn wait(&mut self, log: &str) -> Result<()> {
-        let mut logs: Vec<String> = Default::default();
-        for line in self.logs()? {
+    pub fn wait(&mut self, log: &str) -> Result<String> {
+        let stderr = self.ps.stderr.take();
+        let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
+        for line in reader.lines().flatten() {
             if line.contains(log) {
-                return Ok(());
+                return Ok(line);
             }
-
-            logs.push(line.clone());
         }
 
-        Err(Error::Spawn(logs.join("\n")))
+        return Err(Error::EmptyStderr);
+    }
+}
+
+impl Drop for Node {
+    fn drop(&mut self) {
+        self.ps.kill().expect("Failed to kill process")
     }
 }

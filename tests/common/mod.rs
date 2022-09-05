@@ -10,7 +10,6 @@ use std::{
 };
 use subxt::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
-mod docker;
 pub mod logs;
 mod node;
 mod port;
