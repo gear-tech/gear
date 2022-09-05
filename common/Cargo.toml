@@ -29,7 +29,7 @@ sp-std = { git = "https://github.com/paritytech/substrate", default-features = f
 
 [dev-dependencies]
 hex-literal = "0.3.3"
-wasm-instrument = { version = "0.2", default-features = false }
+wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
 proptest = "1.0.0"
 
 [features]

@@ -37,12 +37,12 @@ const RT_ALLOWED_IMPORTS: [&str; 49] = [
     "ext_crypto_start_batch_verify_version_1",
     // From `GearRI` (runtime-interface/scr/lib.rs)
     "ext_gear_ri_get_released_pages_version_1",
-    "ext_gear_ri_init_lazy_pages_version_2",
-    "ext_gear_ri_initialize_for_program_version_1",
+    "ext_gear_ri_init_lazy_pages_version_1",
+    "ext_gear_ri_init_lazy_pages_for_program_version_1",
     "ext_gear_ri_is_lazy_pages_enabled_version_1",
-    "ext_gear_ri_mprotect_lazy_pages_version_3",
-    "ext_gear_ri_set_wasm_mem_begin_addr_version_2",
-    "ext_gear_ri_set_wasm_mem_size_version_2",
+    "ext_gear_ri_mprotect_lazy_pages_version_1",
+    "ext_gear_ri_set_wasm_mem_begin_addr_version_1",
+    "ext_gear_ri_set_wasm_mem_size_version_1",
     // From `Hashing` (substrate/primitives/io/src/lib.rs)
     "ext_hashing_blake2_128_version_1",
     "ext_hashing_blake2_256_version_1",

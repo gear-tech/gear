@@ -59,7 +59,10 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
-use sp_consensus_aura::{Slot, AURA_ENGINE_ID};
+use sp_consensus_babe::{
+    digests::{PreDigest, SecondaryPlainPreDigest},
+    Slot, BABE_ENGINE_ID,
+};
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, One, UniqueSaturatedInto},
@@ -82,9 +85,17 @@ fn init_block<T: Config>()
 where
     T::AccountId: Origin,
 {
+    // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
     let pre_digest = Digest {
-        logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
+        logs: vec![DigestItem::PreRuntime(
+            BABE_ENGINE_ID,
+            PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+                slot,
+                authority_index: 0,
+            })
+            .encode(),
+        )],
     };
 
     let bn = One::one();

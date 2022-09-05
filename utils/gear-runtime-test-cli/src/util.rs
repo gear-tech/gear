@@ -22,7 +22,9 @@ use frame_system as system;
 use gear_common::{storage::*, Origin};
 use gear_core::message::{StoredDispatch, StoredMessage};
 #[cfg(feature = "gear-native")]
-use gear_runtime::{AuraConfig, Authorship, Event, Gear, GearGas, GearMessenger, Runtime, System};
+use gear_runtime::{
+    Authorship, Event, Gear, GearGas, GearMessenger, Runtime, SessionConfig, SessionKeys, System,
+};
 use pallet_gear::{BlockGasLimitOf, Config, GasAllowanceOf};
 use pallet_gear_debug::DebugData;
 use runtime_primitives::AccountPublic;
@@ -89,10 +91,12 @@ pub(crate) fn initialize(new_blk: BlockNumberFor<Runtime>) {
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
+
     #[cfg(feature = "authoring-aura")]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(AURA_ENGINE_ID, slot.encode())],
     };
+
     #[cfg(not(feature = "authoring-aura"))]
     let pre_digest = Digest {
         logs: vec![DigestItem::PreRuntime(
@@ -150,6 +154,7 @@ pub(crate) fn authority_keys_from_seed(s: &str) -> (AccountId32, AuraId) {
         get_from_seed::<AuraId>(s),
     )
 }
+
 #[cfg(not(feature = "authoring-aura"))]
 pub fn authority_keys_from_seed(s: &str) -> (AccountId32, BabeId, GrandpaId) {
     (
@@ -187,13 +192,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                     .map(|(acc, ..)| (acc, <Runtime as Config>::Currency::minimum_balance())),
             )
             .collect(),
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-
-    #[cfg(feature = "gear-native")]
-    AuraConfig {
-        authorities: authorities.iter().cloned().map(|(_, x)| x).collect(),
     }
     .assimilate_storage(&mut t)
     .unwrap();

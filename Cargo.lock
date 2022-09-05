@@ -99,9 +99,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.62"
+version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1485d4d2cc45e7b201ee3767015c96faa5904387c9d87c6efdd0fb511f12d305"
+checksum = "b9a8f622bcf6ff3df478e9deba3e03e4e04b300f8e6a139e192c05fa3490afc7"
 
 [[package]]
 name = "approx"
@@ -1933,7 +1933,7 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "parity-scale-codec",
- "sha2 0.10.3",
+ "sha2 0.10.5",
 ]
 
 [[package]]
@@ -2396,7 +2396,6 @@ dependencies = [
  "gear-runtime-primitives",
  "hex",
  "log",
- "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -2406,10 +2405,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "primitive-types",
  "rand 0.8.5",
- "sc-cli",
- "sc-service",
  "serde",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-core",
@@ -2419,7 +2415,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.89.1",
+ "wasmparser 0.90.0",
  "wasmprinter",
  "wat",
 ]
@@ -3446,7 +3442,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -3473,7 +3469,7 @@ dependencies = [
  "scale-info",
  "static_assertions",
  "wabt",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -3553,8 +3549,8 @@ dependencies = [
  "gear-runtime-primitives",
  "hex-literal",
  "log",
- "pallet-aura",
  "pallet-authorship",
+ "pallet-babe",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
@@ -3566,6 +3562,7 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
+ "pallet-shift-session-manager",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -3575,10 +3572,9 @@ dependencies = [
  "scale-info",
  "sp-api",
  "sp-block-builder",
- "sp-consensus-aura",
+ "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
- "sp-io",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -3647,7 +3643,6 @@ dependencies = [
  "gear-test",
  "junit-common",
  "log",
- "pallet-aura",
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-debug",
@@ -3690,7 +3685,6 @@ dependencies = [
  "sc-basic-authorship",
  "sc-client-api",
  "sc-consensus",
- "sc-consensus-aura",
  "sc-consensus-babe",
  "sc-consensus-babe-rpc",
  "sc-executor",
@@ -3706,7 +3700,6 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-core",
  "sp-finality-grandpa",
@@ -3747,7 +3740,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -3929,7 +3922,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "path-clean",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
  "wasmi 0.13.0",
 ]
 
@@ -4812,7 +4805,7 @@ dependencies = [
  "rand 0.8.5",
  "ring",
  "rw-stream-sink",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "thiserror",
  "unsigned-varint",
@@ -4886,7 +4879,7 @@ dependencies = [
  "prost-build",
  "rand 0.7.3",
  "regex",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "unsigned-varint",
  "wasm-timer",
@@ -4933,7 +4926,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "smallvec",
  "thiserror",
  "uint",
@@ -5011,7 +5004,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "snow",
  "static_assertions",
  "x25519-dalek",
@@ -5108,7 +5101,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "thiserror",
  "unsigned-varint",
  "void",
@@ -5652,7 +5645,7 @@ dependencies = [
  "core2",
  "digest 0.10.3",
  "multihash-derive",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "sha3 0.10.1",
  "unsigned-varint",
 ]
@@ -5966,9 +5959,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "074864da206b4973b84eb91683020dbefd6a8c3f0f38e054d93954e891935e4e"
+checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
 
 [[package]]
 name = "opaque-debug"
@@ -6376,7 +6369,7 @@ dependencies = [
  "rand_pcg 0.3.1",
  "scale-info",
  "serde",
- "sp-consensus-aura",
+ "sp-consensus-babe",
  "sp-core",
  "sp-externalities",
  "sp-io",
@@ -6384,7 +6377,7 @@ dependencies = [
  "sp-sandbox",
  "sp-std",
  "wabt",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -6528,7 +6521,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wasm-instrument 0.2.0",
+ "wasm-instrument 0.2.1",
 ]
 
 [[package]]
@@ -10734,9 +10727,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.3"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "899bf02746a2c92bf1053d9327dadb252b01af1f81f90cdb902411f518bc7215"
+checksum = "cf9db03534dff993187064c4e0c05a5708d2a9728ace9a8959b77bedf415dac5"
 dependencies = [
  "cfg-if 1.0.0",
  "cpufeatures",
@@ -10882,7 +10875,7 @@ dependencies = [
  "rand_core 0.6.3",
  "ring",
  "rustc_version",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "subtle",
 ]
 
@@ -11165,7 +11158,7 @@ dependencies = [
  "blake2",
  "byteorder",
  "digest 0.10.3",
- "sha2 0.10.3",
+ "sha2 0.10.5",
  "sha3 0.10.1",
  "sp-std",
  "twox-hash",
@@ -12009,18 +12002,18 @@ checksum = "b1141d4d61095b28419e22cb0bbf02755f5e54e0526f97f1e3d1d160e60885fb"
 
 [[package]]
 name = "thiserror"
-version = "1.0.32"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5f6586b7f764adc0231f4c79be7b920e766bb2f3e51b3661cdb263828f19994"
+checksum = "8c1b05ca9d106ba7d2e31a9dab4a64e7be2cce415321966ea3132c49a656e252"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.32"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12bafc5b54507e0149cdf1b145a5d80ab80a90bcd9275df43d4fff68460f6c21"
+checksum = "e8f2591983642de85c921015f3f070c665a197ed69e417af436115e3a1407487"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -12575,7 +12568,6 @@ dependencies = [
  "gear-runtime-primitives",
  "hex-literal",
  "log",
- "pallet-aura",
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
@@ -12599,7 +12591,6 @@ dependencies = [
  "scale-info",
  "sp-api",
  "sp-block-builder",
- "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
@@ -12821,9 +12812,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-instrument"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bca81f5279342b38b17d9acbf007a46ddeb73144e2bd5f0a21bfa9fc5d4ab3e"
+version = "0.2.1"
+source = "git+https://github.com/gear-tech/wasm-instrument.git?branch=gear-stable#7cceecba3c5904855cbb3930fba0a8349e2824f9"
 dependencies = [
  "parity-wasm 0.45.0",
 ]
@@ -13193,6 +13183,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62c8d843f4423efee314dc75a1049886deba3214f7e7f9ff0e4e58b4d618581"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13431,13 +13430,13 @@ dependencies = [
 
 [[package]]
 name = "which"
-version = "4.2.5"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4fb54e6113b6a8772ee41c3404fb0301ac79604489467e0a9ce1f3e97c24ae"
+checksum = "1c831fbbee9e129a8cf93e7747a82da9d95ba8e16621cae60ec2cdc849bacb7b"
 dependencies = [
  "either",
- "lazy_static",
  "libc",
+ "once_cell",
 ]
 
 [[package]]

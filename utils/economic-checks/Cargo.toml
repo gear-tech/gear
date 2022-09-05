@@ -17,7 +17,7 @@ env_logger = "0.9"
 hex = "0.4.3"
 arbitrary = { version = "1" }
 wasm-mutate = "0.2.7"
-wasmparser = "0.89.1"
+wasmparser = "0.90.0"
 
 # Internal deps
 common = { package = "gear-common", path = "../../common" }
@@ -34,17 +34,13 @@ demo-ncompose = { path = "../../examples/binaries/ncompose" }
 # Substrate deps
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-sc-cli = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26", optional = true }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26", optional = true }
 sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-pallet-aura = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 
@@ -61,6 +57,5 @@ lazy-pages = [
     "pallet-gear/lazy-pages",
 ]
 debug-wasm-mutate = []
-gear-native = ["gear-runtime", "sp-consensus-aura", "authoring-aura"]
-vara-native = ["vara-runtime", "sp-consensus-babe"]
-authoring-aura = []
+gear-native = ["gear-runtime"]
+vara-native = ["vara-runtime"]

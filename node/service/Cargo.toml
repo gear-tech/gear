@@ -40,8 +40,7 @@ sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch 
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
-sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
 sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
@@ -52,8 +51,7 @@ sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", optional = true }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
@@ -84,15 +82,9 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [features]
 gear-native = [
 	"gear-runtime",
-	"sc-consensus-aura",
-	"sp-consensus-aura",
-	"authoring-aura",
 ]
 vara-native = [
 	"vara-runtime",
-	"sc-consensus-babe",
-	"sc-consensus-babe-rpc",
-	"sp-consensus-babe",
 ]
 lazy-pages = [
 	"gear-runtime?/lazy-pages",
@@ -112,4 +104,3 @@ try-runtime = [
 	"vara-runtime?/try-runtime",
 	"try-runtime-cli",
 ]
-authoring-aura = []

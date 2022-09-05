@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.62"
+anyhow = "1.0.63"
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 colored = "2.0.0"
 clap = { version = "3.2", features = ["derive"] }
@@ -23,11 +23,10 @@ sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-f
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26", optional = true }
 sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26", optional = true }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
-pallet-aura = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26", optional = true }
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.26" }
 
 # Gear
@@ -45,7 +44,7 @@ gear-core-processor = { path = "../../core-processor" }
 junit-common = { path = "../junit-common" }
 
 [features]
-gear-native = ["gear-runtime", "sp-consensus-aura", "authoring-aura"]
-vara-native = ["vara-runtime", "sp-consensus-babe", "sp-finality-grandpa"]
-rococo-gear-native = ["rococo-gear-runtime", "sp-consensus-aura", "authoring-aura"]
-authoring-aura = []
+gear-native = ["gear-runtime", "sp-consensus-babe"]
+vara-native = ["vara-runtime", "sp-consensus-babe"]
+rococo-gear-native = ["rococo-gear-runtime", "authoring-aura"]
+authoring-aura = ["sp-consensus-aura"]

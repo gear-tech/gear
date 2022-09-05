@@ -44,7 +44,7 @@ struct Seed([u8; 32]);
 
 impl fmt::Display for Seed {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(&self.0))
+        write!(f, "0x{}", hex::encode(self.0))
     }
 }
 
