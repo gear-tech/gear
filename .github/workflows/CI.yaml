@@ -217,8 +217,8 @@ jobs:
       - name: "Delete me"
         run: |
           RUST_LOG="gear=debug,gwasm=debug" ./target/release/gear-node --dev --tmp --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all & sleep 3
-          echo '$(pgrep -f "gear-node")'
-          echo '$(pgrep -f "gear-node" | xargs kill -9)'
+          echo $(pgrep -f "gear-node")
+          echo $(pgrep -f "gear-node" | xargs kill -9)
 
       - name: "Test: Gear pallet tests with lazy pages"
         run: |
