@@ -79,7 +79,7 @@ main(pathToDemoLoop)
     exitCode = 1;
   })
   .finally(() => {
-    exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
+    exec('pgrep -f "gear-node" | xargs kill -9', (err, stdout, stderr) => {
       if (err) {
         console.log(`JS_TEST: Unable to execute kill command (${err})`);
         exitCode = 2;
