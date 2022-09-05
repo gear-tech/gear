@@ -84,7 +84,8 @@ macro_rules! with_signed_payload {
 				$( $setup )*
 
 				signed_payload!($extra, $raw_payload,
-					($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip));
+					($period, $current_block, $nonce, $call, $genesis, $best_hash, $tip),
+                    _prohibit_balances_call);
 
 				$( $usage )*
 			},
@@ -125,6 +126,49 @@ macro_rules! signed_payload {
             $call.clone(),
             $extra.clone(),
             (
+                (),
+                runtime::VERSION.spec_version,
+                runtime::VERSION.transaction_version,
+                $genesis,
+                $best_hash,
+                (),
+                (),
+                (),
+            ),
+        );
+    };
+    (
+    $extra:ident, $raw_payload:ident,
+    (
+        $period:expr,
+        $current_block:expr,
+        $nonce:expr,
+        $call:expr,
+        $genesis:expr,
+        $best_hash:expr,
+        $tip:expr
+    ),
+    $custom_ext:ident
+    ) => {
+        let $extra: runtime::SignedExtra = (
+            runtime::DisableValueTransfers,
+            frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
+            frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
+            frame_system::CheckTxVersion::<runtime::Runtime>::new(),
+            frame_system::CheckGenesis::<runtime::Runtime>::new(),
+            frame_system::CheckMortality::<runtime::Runtime>::from(
+                sp_runtime::generic::Era::mortal($period, $current_block),
+            ),
+            frame_system::CheckNonce::<runtime::Runtime>::from($nonce),
+            frame_system::CheckWeight::<runtime::Runtime>::new(),
+            pallet_gear_payment::CustomChargeTransactionPayment::<runtime::Runtime>::from($tip),
+        );
+
+        let $raw_payload = runtime::SignedPayload::from_raw(
+            $call.clone(),
+            $extra.clone(),
+            (
+                (),
                 (),
                 runtime::VERSION.spec_version,
                 runtime::VERSION.transaction_version,
