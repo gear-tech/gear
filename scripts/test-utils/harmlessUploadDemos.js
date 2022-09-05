@@ -26,7 +26,7 @@ async function main(demoPaths) {
     const bn = await getLastBlockNumber(api);
 
     // Waiting for 3 seconds.
-    await setTimeout(3);
+    await setTimeout(3000);
 
     assert.ok(bn < await getLastBlockNumber(api), 'There is no produced blocks');
   };
