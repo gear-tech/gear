@@ -46,7 +46,7 @@ async function main(demoPaths) {
     .finally(() => {
       exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
         if (err) {
-          console.log(`JS_TEST: Unable to execute kill command`);
+          console.log(`JS_TEST: Unable to execute kill command (${err})`);
           exitCode = 2;
         }
 

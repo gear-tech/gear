@@ -81,7 +81,8 @@ main(pathToRuntimeCode, pathToDemoPing)
   .finally(() => {
     exec('kill -9 $(pgrep -a gear-node)', (err, stdout, stderr) => {
       if (err) {
-        console.log(`JS_TEST: Unable to execute kill command`);
+        console.log(`JS_TEST: Unable to execute kill command (${err})`);
+        exitCode = 2;
       }
 
       if (exitCode == 0) {
