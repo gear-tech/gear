@@ -466,13 +466,14 @@ benchmarks! {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program(program_id.into_origin(), code, 1.into());
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>();
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
@@ -481,6 +482,7 @@ benchmarks! {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let minimum_balance = <T as pallet::Config>::Currency::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         <T as pallet::Config>::Currency::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
@@ -501,7 +503,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>();
-    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
+    }: _(RawOrigin::Signed(caller.clone()), original_message_id, payload, 100_000_000_u64, minimum_balance)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))
