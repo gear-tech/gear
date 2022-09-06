@@ -6351,8 +6351,12 @@ name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
  "clap 3.2.20",
+ "frame-support",
+ "gear-runtime",
  "junit-common",
+ "pallet-gear",
  "quick-xml",
+ "serde",
  "serde_json",
  "tabled",
  "thousands",
