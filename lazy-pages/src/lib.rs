@@ -30,6 +30,7 @@ use sp_std::vec::Vec;
 use std::{cell::RefCell, collections::BTreeSet, convert::TryFrom};
 
 mod sys;
+pub use crate::sys::{DefaultUserSignalHandler, ExceptionInfo, UserSignalHandler};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
@@ -253,7 +254,7 @@ pub enum InitError {
 ///
 /// # Safety
 /// See [`sys::setup_signal_handler`]
-unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
+unsafe fn init_internal<H: UserSignalHandler>(version: LazyPagesVersion) -> Result<(), InitError> {
     use InitError::*;
 
     // Set version even if it has been already set, because `on_idle` calls can be
@@ -278,7 +279,7 @@ unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
         return Err(NativePageSizeIsNotSuitable(ps));
     }
 
-    if let Err(err) = sys::setup_signal_handler() {
+    if let Err(err) = sys::setup_signal_handler::<H>() {
         return Err(CanNotSetUpSignalHandler(err.to_string()));
     }
 
@@ -288,8 +289,8 @@ unsafe fn init_internal(version: LazyPagesVersion) -> Result<(), InitError> {
 }
 
 /// Initialize lazy pages for current thread.
-pub fn init(version: LazyPagesVersion) -> bool {
-    if let Err(err) = unsafe { init_internal(version) } {
+pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
+    if let Err(err) = unsafe { init_internal::<H>(version) } {
         log::debug!("Cannot initialize lazy pages: {}", err);
         false
     } else {

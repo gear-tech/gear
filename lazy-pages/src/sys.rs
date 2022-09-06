@@ -46,6 +46,10 @@ cfg_if! {
     }
 }
 
+pub trait UserSignalHandler {
+    unsafe fn handle(info: ExceptionInfo) -> Result<(), Error>;
+}
+
 #[derive(Debug)]
 pub struct ExceptionInfo {
     /// Address where fault is occurred
@@ -163,6 +167,14 @@ impl CheckedWasmAddr {
     /// Get raw addr in wasm memory
     pub fn get(&self) -> WasmAddr {
         self.addr
+    }
+}
+
+pub struct DefaultUserSignalHandler;
+
+impl UserSignalHandler for DefaultUserSignalHandler {
+    unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
+        user_signal_handler(info)
     }
 }
 

@@ -2760,6 +2760,7 @@ name = "gear-runtime-interface"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "env_logger",
  "gear-core",
  "gear-lazy-pages",
  "libc",

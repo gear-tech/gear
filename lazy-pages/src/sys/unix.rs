@@ -22,7 +22,7 @@ use crate::{sys::ExceptionInfo, Error};
 use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
-    sys::{signal, signal::SigHandler},
+    sys::{signal, signal::SigHandler, UserSignalHandler},
 };
 use std::{cell::RefCell, io};
 
@@ -74,7 +74,10 @@ cfg_if! {
     }
 }
 
-extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void) {
+extern "C" fn handle_sigsegv<H>(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
+where
+    H: UserSignalHandler,
+{
     unsafe {
         let addr = (*info).si_addr();
         let is_write = ucontext_get_write(ucontext as *mut _);
@@ -83,7 +86,7 @@ extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_vo
             is_write,
         };
 
-        if let Err(err) = super::user_signal_handler(exc_info) {
+        if let Err(err) = H::handle(exc_info) {
             let old_sig_handler_works = if let Error::SignalFromUnknownMemory { .. } = err {
                 old_sig_handler(sig, info, ucontext)
             } else {
@@ -96,8 +99,11 @@ extern "C" fn handle_sigsegv(sig: i32, info: *mut siginfo_t, ucontext: *mut c_vo
     }
 }
 
-pub unsafe fn setup_signal_handler() -> io::Result<()> {
-    let handler = signal::SigHandler::SigAction(handle_sigsegv);
+pub unsafe fn setup_signal_handler<H>() -> io::Result<()>
+where
+    H: UserSignalHandler,
+{
+    let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
     let sig_action = signal::SigAction::new(
         handler,
         signal::SaFlags::SA_SIGINFO,
