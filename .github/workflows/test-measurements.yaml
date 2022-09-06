@@ -124,6 +124,7 @@ jobs:
         run: |
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-hostfn-weights.json host-fn
           ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-instruction-weights.json instruction
+          ./target/release/regression-analysis weights --input-file ./target/weights.json --output-file ./target/action-extrinsic-weights.json extrinsic
 
       - name: "Deploy: Gear workspace tests"
         uses: ./.github/actions/deploy-benchmark
@@ -154,6 +155,14 @@ jobs:
         with:
           name: pallet-gear instruction weights
           file: ./target/action-instruction-weights.json
+          ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Deploy: pallet-gear instruction weights"
+        uses: ./.github/actions/deploy-benchmark
+        with:
+          name: pallet-gear extrinsic weights
+          file: ./target/action-extrinsic-weights.json
           ssh-deploy-key: ${{ secrets.PERFORMANCE_CHARTS_DEPLOY_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

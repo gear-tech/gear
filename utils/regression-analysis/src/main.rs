@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{Parser, Subcommand};
-use frame_support::weights::Weight;
+use frame_support::{dispatch::GetCallName, weights::Weight};
 use junit_common::TestSuites;
 use pallet_gear::{HostFnWeights, InstructionWeights};
 use quick_xml::de::from_str;
@@ -94,6 +94,7 @@ enum Commands {
 enum WeightsKind {
     HostFn,
     Instruction,
+    Extrinsic,
 }
 
 #[derive(Debug, Serialize)]
@@ -242,6 +243,19 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
 }
 
 fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
+    fn convert_into_bench(
+        map: &HashMap<String, WeightBenchmark>,
+        field: &str,
+    ) -> Option<GithubActionBenchmark> {
+        map.get(field).map(|weight| GithubActionBenchmark {
+            name: field.to_string(),
+            unit: "ns".to_string(),
+            value: weight.calc_weight() / 1000,
+            range: None,
+            extra: None,
+        })
+    }
+
     macro_rules! add_weights {
         (
             weights = $weights:ident;
@@ -263,15 +277,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
         (@field $weights:ident $field:ident: _) => { None };
         (@field $weights:ident _phantom) => { None };
         (@field $weights:ident $field:ident) => {
-            $weights.get(stringify!($field)).map(|weight| {
-                GithubActionBenchmark {
-                    name: stringify!($field).to_string(),
-                    unit: "ns".to_string(),
-                    value: weight.calc_weight() / 1000,
-                    range: None,
-                    extra: None,
-                }
-            })
+            convert_into_bench(&$weights, stringify!($field))
         };
     }
 
@@ -395,6 +401,14 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     _phantom,
                 }
             }
+        }
+        WeightsKind::Extrinsic => {
+            let extrinsics = pallet_gear::pallet::Call::<gear_runtime::Runtime>::get_call_names();
+            benches.extend(
+                extrinsics
+                    .iter()
+                    .flat_map(|extrinsic| convert_into_bench(&map, extrinsic)),
+            );
         }
     }
 
