@@ -120,6 +120,9 @@ name = "arbitrary"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8931eb436ab9bf1980c6cb2b9d1ba5390cd6793b2c6e2d2ea8147da3570c2a2e"
+dependencies = [
+ "derive_arbitrary",
+]
 
 [[package]]
 name = "arrayref"
@@ -1578,6 +1581,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_arbitrary"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d749b611838b7e92cba33b8552187059f2dc32f91d4d66bdc4fe5da9526b4e07"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1796,7 +1810,7 @@ dependencies = [
  "sp-std",
  "vara-runtime",
  "wasm-mutate",
- "wasmparser 0.90.0",
+ "wasmparser 0.90.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
  "wat",
 ]
@@ -2073,6 +2087,12 @@ name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
+
+[[package]]
+name = "flagset"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cda653ca797810c02f7ca4b804b40b8b95ae046eb989d356bce17919a8c25499"
 
 [[package]]
 name = "flate2"
@@ -2909,6 +2929,19 @@ dependencies = [
  "thiserror",
  "toml",
  "which",
+]
+
+[[package]]
+name = "gear-wasm-gen"
+version = "0.1.0"
+dependencies = [
+ "arbitrary",
+ "parity-wasm 0.45.0",
+ "rand 0.8.5",
+ "wasm-instrument 0.2.0",
+ "wasm-smith",
+ "wasmparser 0.90.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmprinter",
 ]
 
 [[package]]
@@ -9676,6 +9709,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.16.0"
+source = "git+https://github.com/grishasobol/wasm-tools.git?branch=gear#050a6388e93635aee8e0a4315be240d073081fcc"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasm-gc-api"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9722,7 +9763,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "thiserror",
- "wasm-encoder",
+ "wasm-encoder 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser 0.89.1",
 ]
 
@@ -9736,6 +9777,19 @@ dependencies = [
  "log",
  "parity-wasm 0.45.0",
  "thiserror",
+]
+
+[[package]]
+name = "wasm-smith"
+version = "0.11.4"
+source = "git+https://github.com/grishasobol/wasm-tools.git?branch=gear#050a6388e93635aee8e0a4315be240d073081fcc"
+dependencies = [
+ "arbitrary",
+ "flagset",
+ "indexmap",
+ "leb128",
+ "wasm-encoder 0.16.0 (git+https://github.com/grishasobol/wasm-tools.git?branch=gear)",
+ "wasmparser 0.90.0 (git+https://github.com/grishasobol/wasm-tools.git?branch=gear)",
 ]
 
 [[package]]
@@ -10062,6 +10116,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.90.0"
+source = "git+https://github.com/grishasobol/wasm-tools.git?branch=gear#050a6388e93635aee8e0a4315be240d073081fcc"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10248,7 +10310,7 @@ dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder",
+ "wasm-encoder 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
