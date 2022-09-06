@@ -18,11 +18,14 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::{sys::ExceptionInfo, Error};
+use crate::{
+    sys::{ExceptionInfo, UserSignalHandler},
+    Error,
+};
 use cfg_if::cfg_if;
 use nix::{
     libc::{c_void, siginfo_t},
-    sys::{signal, signal::SigHandler, UserSignalHandler},
+    sys::{signal, signal::SigHandler},
 };
 use std::{cell::RefCell, io};
 
