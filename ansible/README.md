@@ -26,8 +26,8 @@ Note that we specifically request not to export the bootnodnes - this section wi
 The resulting ```staging.json``` file will contain a very long segment of binary data - the runtime wasm code, and will look similar to this:
 ```
 {
-  "name": "Staging Testnet V2",
-  "id": "staging_testnet_v2",
+  "name": "Gear Staging Testnet V3",
+  "id": "gear_staging_testnet_v3",
   "chainType": "Live",
   "bootNodes": [],
   "telemetryEndpoints": null,
@@ -55,8 +55,8 @@ This is a necessary piece of information every node that is being started using 
 For the ```staging``` testnet we list the initial validators set as the bootnodes:
 ```bash
 {
-  "name": "Staging Testnet V2",
-  "id": "staging_testnet_v2",
+  "name": "Gear Staging Testnet V3",
+  "id": "gear_staging_testnet_v3",
   "chainType": "Live",
   "bootNodes": [
     "/ip4/52.9.232.93/tcp/30333/p2p/12D3KooWBWFtZqigVTC8W2GRMwLeuTK2o4hDC4XHVPyNV6hW1T1D",

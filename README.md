@@ -165,6 +165,10 @@ The internal flow of Gear:
 
 Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf">technical paper</a> for some insights about how Gear works internally.
 
+# Performance
+
+Performance charts can be seen here: https://gear-tech.github.io/performance-charts.
+
 # Contribution
 
 You can request a new feature by creating a new Issue or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).

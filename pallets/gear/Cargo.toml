@@ -17,7 +17,7 @@ codec = { package = "parity-scale-codec", version = "3.1.2", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
-wasm-instrument = { version = "0.2", default-features = false }
+wasm-instrument = { version = "0.2.1", git = "https://github.com/gear-tech/wasm-instrument.git", branch = "gear-stable", default-features = false }
 derive_more = "0.99.17"
 
 # Internal deps
@@ -45,7 +45,7 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear-program = { path = "../gear-program", default-features = false }
 
-sp-consensus-aura = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-consensus-babe = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 # Benchmark deps
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
@@ -115,7 +115,7 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
 	"sp-sandbox",
-	"sp-consensus-aura",
+	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",
 ]

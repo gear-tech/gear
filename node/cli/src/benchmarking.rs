@@ -77,7 +77,7 @@ macro_rules! with_signed_payload {
 
 				$( $usage )*
 			},
-			#[cfg(all(not(feature = "gear-native"), feature = "vara-native"))]
+			#[cfg(feature = "vara-native")]
 			Client::Vara($client) => {
 				use vara_runtime as runtime;
 

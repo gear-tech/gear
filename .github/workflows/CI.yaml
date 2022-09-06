@@ -111,9 +111,9 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/check_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/check_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/check_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/check_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
           mv /tmp/*.tar /root/cache/
 
   build:
@@ -271,6 +271,9 @@ jobs:
       - name: "Test: Weight on client for loop"
         run: ./scripts/gear.sh test client-weights
 
+      - name: "Test: Upload programs"
+        run: ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+
       - name: "Test: Runtime benchmarks work"
         run: |
           cargo build -p gear-node --release --features runtime-benchmarks
@@ -363,10 +366,10 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         continue-on-error: true
         run: |
-          tar -cf /tmp/build_target_${{ github.base_ref }}.tar ./target
-          tar -cf /tmp/build_cache_${{ github.base_ref }}.tar /tmp/cachepot
-          tar -cf /tmp/build_cargo_registry_${{ github.base_ref }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
-          mkdir -p /root/cache/
+          tar -cf /tmp/build_target_${{ github.ref_name }}.tar ./target
+          tar -cf /tmp/build_cache_${{ github.ref_name }}.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry_${{ github.ref_name }}.tar /tmp/cargo/bin /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
 
       - name: "Cache: Pack to temp"
         if: ${{ github.event_name == 'pull_request' }}
@@ -460,7 +463,7 @@ jobs:
             --features=lazy-pages
 
   upload:
-    if: github.event_name == 'push' && github.base_ref == 'master'
+    if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: self-hosted
     needs: build
     steps:

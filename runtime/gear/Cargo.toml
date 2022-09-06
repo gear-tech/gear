@@ -21,17 +21,18 @@ frame-support = { version = "4.0.0-dev", default-features = false, git = "https:
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", optional = true }
 frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-aura = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-babe = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-sudo = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-block-builder = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, version = "4.0.0-dev" }
-sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-consensus-babe = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-core = { version = "6.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-inherents = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, version = "4.0.0-dev" }
 sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -62,6 +63,7 @@ pallet-gear-payment = { version = "0.1.0", default-features = false, path = "../
 pallet-gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../../pallets/gear/rpc/runtime-api" }
 gear-common = { version = "0.1.0", default-features = false, path = "../../common" }
 runtime-primitives = { package = "gear-runtime-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
+pallet-shift-session-manager = { version = "0.1.0", default-features = false, path = "../../pallets/shift-session-manager" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -75,8 +77,8 @@ std = [
 	"frame-try-runtime/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
-	"pallet-aura/std",
 	"pallet-authorship/std",
+	"pallet-babe/std",
 	"pallet-balances/std",
 	"pallet-gear-program/std",
 	"pallet-gear-scheduler/std",
@@ -88,6 +90,7 @@ std = [
 	"gear-common/std",
 	"runtime-primitives/std",
 	"pallet-grandpa/std",
+	"pallet-session/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
@@ -97,7 +100,7 @@ std = [
 	"scale-info/std",
 	"sp-api/std",
 	"sp-block-builder/std",
-	"sp-consensus-aura/std",
+	"sp-consensus-babe/std",
 	"sp-core/std",
 	"sp-inherents/std",
 	"sp-offchain/std",
@@ -106,6 +109,7 @@ std = [
 	"sp-std/std",
 	"sp-transaction-pool/std",
 	"sp-version/std",
+	"pallet-shift-session-manager/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -123,8 +127,10 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
 	"frame-system/try-runtime",
+	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
+	"pallet-session/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
