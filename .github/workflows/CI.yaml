@@ -460,6 +460,7 @@ jobs:
             --features=lazy-pages
 
   build-macos-x86:
+    if: github.ref == 'refs/heads/master'
     needs: spec_version
     runs-on: macos-latest
     steps:
@@ -482,6 +483,8 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
