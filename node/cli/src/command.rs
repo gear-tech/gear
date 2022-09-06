@@ -62,7 +62,7 @@ impl SubstrateCli for Cli {
             #[cfg(feature = "vara-native")]
             "vara-staging" => Box::new(chain_spec::vara::staging_testnet_config()?),
             "test" | "" => Box::new(chain_spec::RawChainSpec::from_json_bytes(
-                &include_bytes!("../../res/staging.json")[..],
+                &include_bytes!("../../res/vara_staging.json")[..],
             )?),
             path => {
                 let path = std::path::PathBuf::from(path);
