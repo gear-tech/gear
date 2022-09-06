@@ -5012,6 +5012,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-airdrop"
+version = "1.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#abc134523a276ba867ec4ebd10dc16069401a9ed"
@@ -5122,6 +5150,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-consensus-babe",
+ "sp-consensus-slots",
  "sp-core",
  "sp-externalities",
  "sp-io",
@@ -9463,6 +9492,7 @@ dependencies = [
  "gear-runtime-primitives",
  "hex-literal",
  "log",
+ "pallet-airdrop",
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",

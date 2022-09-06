@@ -19,7 +19,7 @@ gear-cli = { path = "cli" }
 gear-service = { path = "service", default-features = false }
 
 [features]
-default = ["gear-native", "vara-native", "lazy-pages"]
+default = ["vara-native", "lazy-pages"]
 gear-native = [
 	"gear-cli/gear-native",
 	"gear-service/gear-native",
