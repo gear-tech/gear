@@ -228,11 +228,6 @@ impl ReservationId {
     }
 }
 
-impl From<ReservationId> for MessageId {
-    fn from(id: ReservationId) -> Self {
-        Self(id.0)
-    }
-}
 
 #[test]
 fn formatting_test() {
