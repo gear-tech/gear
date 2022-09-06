@@ -79,6 +79,7 @@ jobs:
 
       - name: "Install: Build deps"
         run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C99B11DEB97541F0
           sudo apt update
           sudo apt install ca-certificates
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
@@ -174,6 +175,7 @@ jobs:
 
       - name: "Install: Build deps"
         run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C99B11DEB97541F0
           sudo apt update
           sudo apt install ca-certificates
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt
