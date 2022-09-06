@@ -231,8 +231,8 @@ fn convert(data_folder_path: PathBuf, output_file: PathBuf, disable_filter: bool
         .map(|test| GithubActionBenchmark {
             name: test.name,
             unit: "ms".to_string(),
-            value: test.current_time / 1_000,
-            range: Some(format!("± {}", test.std_dev / 1_000)),
+            value: test.current_time / 1_000_000,
+            range: Some(format!("± {}", test.std_dev / 1_000_000)),
             extra: None,
         })
         .collect::<Vec<_>>();
