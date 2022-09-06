@@ -6,7 +6,7 @@
    
 - name: Remove db
   ansible.builtin.file:
-    path: /home/ec2-user/gear-data/chains/vara_staging_testnet/db
+    path: /home/ec2-user/gear-data/chains/vara_network/db
     state: absent
   become: yes
   
