@@ -79,9 +79,9 @@ jobs:
 
       - name: "Install: Build deps"
         run: |
-          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C99B11DEB97541F0
+          sudo apt-key del C99B11DEB97541F0 && sudo rm /etc/apt/sources.list.d/github-cli.list
+          t="/tmp/gh-$$.deb"; curl -sSLo "$t" "https://github.com$(curl -sSL "https://github.com/cli/cli/releases/latest" | grep -Po "(?<=href=\")/cli/cli/releases/download/[^\"]*$(dpkg --print-architecture)[.]deb(?=\")")"; apt -y install "$t"; rm "$t"
           sudo apt update
-          sudo apt install ca-certificates
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
@@ -175,9 +175,9 @@ jobs:
 
       - name: "Install: Build deps"
         run: |
-          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C99B11DEB97541F0
+          sudo apt-key del C99B11DEB97541F0 && sudo rm /etc/apt/sources.list.d/github-cli.list
+          t="/tmp/gh-$$.deb"; curl -sSLo "$t" "https://github.com$(curl -sSL "https://github.com/cli/cli/releases/latest" | grep -Po "(?<=href=\")/cli/cli/releases/download/[^\"]*$(dpkg --print-architecture)[.]deb(?=\")")"; apt -y install "$t"; rm "$t"
           sudo apt update
-          sudo apt install ca-certificates
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           cp binaryen-version_105/bin/wasm-opt /usr/bin/
