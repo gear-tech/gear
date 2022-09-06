@@ -298,3 +298,66 @@ pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use region::Protection;
+    use std::ptr;
+
+    #[test]
+    fn read_write_flag_works() {
+        unsafe fn protect(access: bool) {
+            let protection = if access {
+                Protection::READ_WRITE
+            } else {
+                Protection::NONE
+            };
+            let page_size = region::page::size();
+            let addr = MEM_ADDR;
+            region::protect(addr, page_size, protection).unwrap();
+        }
+
+        unsafe fn invalid_write() {
+            ptr::write(MEM_ADDR as *mut _, 123);
+            protect(false);
+        }
+
+        unsafe fn invalid_read() {
+            let _: u8 = ptr::read(MEM_ADDR);
+            protect(false);
+        }
+
+        static mut COUNTER: u32 = 0;
+        static mut MEM_ADDR: *const u8 = ptr::null_mut();
+
+        struct TestHandler;
+
+        impl UserSignalHandler for TestHandler {
+            unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
+                let write_expected = COUNTER % 2 == 0;
+                assert_eq!(info.is_write, Some(write_expected));
+
+                protect(true);
+
+                COUNTER += 1;
+
+                Ok(())
+            }
+        }
+
+        assert!(init::<TestHandler>(LazyPagesVersion::Version1));
+
+        let page_size = region::page::size();
+        let addr = region::alloc(page_size, Protection::NONE).unwrap();
+
+        unsafe {
+            MEM_ADDR = addr.as_ptr();
+
+            invalid_write();
+            invalid_read();
+            invalid_write();
+            invalid_read();
+        }
+    }
+}
