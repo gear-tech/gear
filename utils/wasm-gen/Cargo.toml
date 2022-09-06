@@ -1,0 +1,17 @@
+[package]
+name = "gear-wasm-gen"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+wasm-smith = { git = "https://github.com/grishasobol/wasm-tools.git", branch = "gear" }
+wasmparser = { version = "0.90.0" }
+arbitrary = { version = "1.1.0", features = ["derive"] }
+wasm-instrument = { version = "0.2", default-features = false }
+parity-wasm = { version = "0.45.0", default-features = false }
+
+[dev-dependencies]
+rand = { version = "0.8.0", features = ["small_rng"] }
+wasmprinter = "0.2"

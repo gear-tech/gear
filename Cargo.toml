@@ -30,6 +30,7 @@ members = [
     "utils/wasm-info",
     "utils/economic-checks",
     "utils/economic-checks/fuzz",
+    "utils/wasm-gen",
 ]
 
 [profile.release]
