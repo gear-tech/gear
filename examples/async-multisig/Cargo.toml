@@ -11,4 +11,4 @@ gstd = { path = "../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"], branch = "polkadot-v0.9.26" }
+light_sr25519 = { path = "../light_sr25519" }

@@ -3,11 +3,6 @@
 use codec::{Decode, Encode};
 use gstd::{msg, prelude::*, ActorId};
 use scale_info::TypeInfo;
-use sp_core::{
-    crypto::UncheckedFrom,
-    sr25519::{Pair as Sr25519Pair, Public, Signature},
-    Pair,
-};
 
 static mut SIGNATORY: ActorId = ActorId::new([0u8; 32]);
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
@@ -57,8 +52,8 @@ async fn main() {
         .ok()
         .and_then(|r| {
             // the same way as in verify.rs from subkey
-            let mut signature: Signature = Signature([0u8; 64]);
-            if r.signature.len() == signature.0.len() {
+            let mut signature = [0u8; 64];
+            if r.signature.len() == signature.len() {
                 signature.as_mut().copy_from_slice(&r.signature);
                 Some(signature)
             } else {
@@ -66,9 +61,9 @@ async fn main() {
             }
         })
         .map(|signature| {
-            let pub_key = Public::unchecked_from(<[u8; 32]>::from(unsafe { SIGNATORY }));
+            let pub_key = <[u8; 32]>::from(unsafe { SIGNATORY });
 
-            Sr25519Pair::verify(&signature, &request.message, &pub_key)
+            light_sr25519::verify(&signature, &request.message, pub_key).is_ok()
         })
         .unwrap_or(false);
 
