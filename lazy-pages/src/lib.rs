@@ -299,6 +299,8 @@ pub fn init<H: UserSignalHandler>(version: LazyPagesVersion) -> bool {
     }
 }
 
+// FIXME: issue #1444
+#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
 #[cfg(test)]
 mod tests {
     use crate::*;
