@@ -47,6 +47,9 @@ cfg_if! {
 }
 
 pub trait UserSignalHandler {
+    /// # Safety
+    ///
+    /// It's expected handler calls sys-calls to protect memory
     unsafe fn handle(info: ExceptionInfo) -> Result<(), Error>;
 }
 
