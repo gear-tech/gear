@@ -327,6 +327,8 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_exit,
                     gr_leave,
                     gr_wait,
+                    gr_wait_for,
+                    gr_wait_no_more,
                     gr_wake,
                     gr_create_program_wgas,
                     gr_create_program_wgas_per_byte,
