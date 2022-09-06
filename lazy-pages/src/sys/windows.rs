@@ -44,9 +44,18 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
     }
 
     let addr = (*exception_record).ExceptionInformation[1];
+    let is_write = match (*exception_record).ExceptionInformation[0] {
+        0 /* read */ => Some(false),
+        1 /* write */ => Some(true),
+        // we work with WASM memory which is handled by WASM executor 
+        // (e.g. it reads and writes, but doesn't execute as native code)
+        // that's why the case is impossible
+        8 /* DEP */ => unreachable!("data execution prevention"),
+        _ => None,
+    };
     let info = ExceptionInfo {
         fault_addr: addr as *mut _,
-        is_write: None,
+        is_write,
     };
 
     super::user_signal_handler(info)

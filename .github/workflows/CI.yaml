@@ -512,7 +512,7 @@ jobs:
             --features=lazy-pages
 
   upload:
-    if: github.event_name == 'push' && github.base_ref == 'master'
+    if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: self-hosted
     needs: build
     steps:

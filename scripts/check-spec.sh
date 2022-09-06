@@ -32,7 +32,7 @@ check_spec() {
         printf "\n    Spec version is correct.\n"
     else
         printf "\n    Spec version should $version.\n"
-        exit 1
+        EXIT_CODE=1
     fi
 }
 
@@ -52,8 +52,12 @@ for package in $(git diff --name-only origin/master | grep ".rs$" | cut -d "/" -
     fi
 done
 
+EXIT_CODE=0
+
 header "Checking spec for Gear runtime"
 check_spec "$SPEC_ON_MASTER" "$ACTUAL_SPEC_GEAR" "$CHANGES"
 
 header "Checking spec for Vara runtime"
 check_spec "$SPEC_ON_MASTER" "$ACTUAL_SPEC_VARA" "$CHANGES"
+
+exit $EXIT_CODE
