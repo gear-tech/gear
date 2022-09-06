@@ -482,11 +482,14 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
     define_benchmarks!(
-        [frame_benchmarking, BaselineBench::<Runtime>]
+        // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
+        [pallet_utility, Utility]
+        // Gear pallets
         [pallet_gear, Gear]
+        [pallet_gear_program, GearProgram]
     );
 }
 
