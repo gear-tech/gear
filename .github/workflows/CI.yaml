@@ -271,6 +271,9 @@ jobs:
       - name: "Test: Weight on client for loop"
         run: ./scripts/gear.sh test client-weights
 
+      - name: "Test: Upload programs"
+        run: ./scripts/gear.sh test uploads "$(pwd)/target/wat-examples/wrong_load.wasm"
+
       - name: "Test: Runtime benchmarks work"
         run: |
           cargo build -p gear-node --release --features runtime-benchmarks

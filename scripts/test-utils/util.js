@@ -1,3 +1,7 @@
+const { randomAsHex } = require('@polkadot/util-crypto');
+const assert = require('assert');
+const { readFileSync } = require('fs');
+
 async function messageDispatchedIsOccurred(api, hash) {
   const apiAt = await api.at(hash);
   const events = await apiAt.query.system.events();
@@ -10,6 +14,11 @@ async function messageDispatchedIsOccurred(api, hash) {
   });
 }
 
+async function getLastBlockNumber(api) {
+  const block = await api.rpc.chain.getBlock();
+  return block.block.header.number.toNumber();
+}
+
 async function getBlockNumber(api, hash) {
   const block = await api.rpc.chain.getBlock(hash);
   return block.block.header.number.toNumber();
@@ -19,35 +28,89 @@ async function getNextBlock(api, blockNumber) {
   return api.rpc.chain.getBlockHash(blockNumber + 1);
 }
 
-function checkInit(api) {
-  let unsub;
-  let messages = new Map();
+function checkProcessed(api) {
+  let processedMessages = new Map();
 
-  unsub = api.query.system.events((events) => {
-    events.forEach(({ event }) => {
-      switch (event.method) {
-        case 'MessagesDispatched':
-          for (const [id, status] of event.data.statuses) {
-            if (messages.has(id.toHex())) {
-              if (status.isFailed) {
-                messages.set(id.toHex(), Promise.reject(`Program initialization failed`));
-                break;
-              }
-              if (status.isSuccess) {
-                messages.set(id.toHex(), Promise.resolve());
-                break;
-              }
-            }
-          }
-          break;
+  const unsubPromise = api.query.system.events((events) => {
+    events.forEach(({ event: { method, data } }) => {
+      if (method === 'MessagesDispatched') {
+        for (const [id, status] of data.statuses) {
+          processedMessages.set(id.toHex(), status.isSuccess);
+        }
       }
     });
   });
 
-  return async (messageId) => {
-    (await unsub)();
-    return messages.get(messageId);
+  return (messageId, status = null) => {
+    unsubPromise.then((unsub) => unsub());
+    assert(processedMessages.has(messageId) === true, 'Message was not processed');
+    if (status !== null) {
+      if (status) {
+        assert.strictEqual(processedMessages.get(messageId), true, 'Message failed');
+      } else {
+        assert.strictEqual(processedMessages.get(messageId), false, 'Message succeed');
+      }
+    }
   };
 }
 
-module.exports = { messageDispatchedIsOccurred, getBlockNumber, getNextBlock, checkInit };
+function getMessageEnqueuedBlock(api, { events, status }) {
+  let blockHash = undefined;
+
+  events.forEach(({ event }) => {
+    if (api.events.gear.MessageEnqueued.is(event)) {
+      blockHash = status.asInBlock.toHex();
+    }
+  });
+  return blockHash;
+}
+
+function uploadProgram(api, account, pathToDemo) {
+  const code = readFileSync(pathToDemo);
+  const codeBytes = api.createType('Bytes', Array.from(code));
+  const program = api.tx.gear.uploadProgram(codeBytes, randomAsHex(20), '0x00', 100_000_000_000, 0);
+  return new Promise((resolve, reject) => {
+    program.signAndSend(account, ({ events, status }) => {
+      events.forEach(({ event: { method, data } }) => {
+        if (method === 'ExtrinsicFailed') {
+          reject('SubmitProgram extrinsic failed');
+        } else if (method === 'MessageEnqueued' && status.isFinalized) {
+          resolve([data.destination.toHex(), data.id.toHex()]);
+        }
+      });
+    });
+  });
+}
+
+function listenToUserMessageSent(api, programId) {
+  let message;
+
+  unsub = api.query.system.events((events) => {
+    const blockHash = events.createdAtHash.toHex();
+    events.forEach((d) => {
+      const { event } = d;
+      if (event.method === 'UserMessageSent') {
+        if (event.data.message.source.eq(programId)) {
+          const data = event.data.toHuman();
+          message = {
+            exitCode: Number(data.message.reply.exitCode),
+            payload: data.message.payload,
+            blockHash,
+          };
+        }
+      }
+    });
+  });
+  return () => message;
+}
+
+module.exports = {
+  messageDispatchedIsOccurred,
+  getLastBlockNumber,
+  getBlockNumber,
+  getNextBlock,
+  checkProcessed,
+  getMessageEnqueuedBlock,
+  uploadProgram,
+  listenToUserMessageSent,
+};
