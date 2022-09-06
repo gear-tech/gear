@@ -136,13 +136,13 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 }
 
 /// Staging testnet config.
-pub fn staging_testnet_config() -> Result<ChainSpec, String> {
+pub fn main() -> Result<ChainSpec, String> {
     let wasm_binary =
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
 
     Ok(ChainSpec::from_genesis(
-        "Vara Staging Testnet",
-        "vara_staging_testnet",
+        "Vara Network",
+        "vara_network",
         ChainType::Live,
         move || {
             testnet_genesis(
