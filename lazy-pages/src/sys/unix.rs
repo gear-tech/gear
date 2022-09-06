@@ -70,9 +70,7 @@ cfg_if! {
             Some(esr & WNR_BIT_MASK == WNR_BIT_MASK)
         }
     } else {
-        fn ucontext_get_write(_ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
-            None
-        }
+        compile_error!("lazy pages are not supported on your system. Disable `lazy-pages` feature");
     }
 }
 
