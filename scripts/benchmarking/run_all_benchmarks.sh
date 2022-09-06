@@ -62,7 +62,6 @@ GEAR=./target/production/gear-node
 
 # Manually exclude some pallets.
 EXCLUDED_PALLETS=(
-  "frame_benchmarking"
 )
 
 # Load all pallet names in an array.
